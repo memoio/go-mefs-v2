@@ -1,0 +1,32 @@
+// `protoc --gofast_out=. *.proto`
+syntax = "proto3";
+package pb;
+
+// register on data chain
+// key: 'NetInfoKey'/NodeID(fsID); 
+message NetInfo {
+    enum NetType {
+        Unknown = 0;
+        P2PAddr = 1;
+    }
+
+	NetType type = 1;
+    bytes netID = 2;   // id to connect
+	bytes addr = 3;    // multi net addrs？
+}
+
+// key: 'NodeInfoKey'/'RoleType'/NodeID 
+message NodeInfo {
+    enum RoleType {
+        Unknown = 0;
+        User = 1;
+        Provider = 2;
+        Keeper = 3;
+    }
+
+    RoleType role = 1;
+    uint64 nodeID = 2;
+    uint64 groupID = 3;
+    bytes chainSignKey = 4;      // address/pubkey on chain
+	bytes blsSignKey = 5;         
+}

@@ -1,0 +1,173 @@
+// `protoc --gofast_out=. *.proto`
+syntax = "proto3";
+package pb;
+
+// kv key type 
+enum MetaType {
+    Unknown = 0;
+
+	LocalNetKey = 1;          // key: x; val: local netid and its private key
+	LocalID = 2;              // key: x; val: NodeInfo
+	LocalAddr = 3;            // key: x; val: chain address
+	NetInfoKey = 4;           // key: x/netid; val: NetInfo
+
+    PDPProveKey = 5;          // key: x/userID; val: Bls Prove key set, sign; gen proof on provider
+	PDPVerifyKey = 6;         // key: x/userID; val: Bls Verify key set, verify proof
+	FsMemberKey = 7;          // key: x/userID: val: keepers/providers
+
+   	// lfs meta
+    LFS_BucketCountKey = 10;  // key: x/userID; val: bucketNumber
+    LFS_BucketOptionKey = 11; // key: x/userID/bucketID; val: BucketOption
+    LFS_BucketInfoKey = 12;   // key: x/userID/bucketID; val: BucketInfo
+    LFS_OpInfoKey = 13;       // key: x/userID/bucketID/opID; val: BucketRecord
+    LFS_OpDoneKey = 14;		  // key: x/userID/bucketID; val: opdone number	 
+    LFS_OpCountKey = 15;      // key: x/userID/bucketID; val: op number
+    LFS_StripeCountKey = 16;  // key: x/userID/bucketID; val: stripe number
+
+	MessageKey = 18;       // key: x/messageHash; value: message content, sign
+	MessageStateKey = 19;  // key: x/messageHash; value: heigth, state(applied?), 
+
+	// key in state tree
+	ST_GasMoneyKey = 20;     // key: x/type/id; val: gasMoney  
+	ST_NodeInfoKey = 21;     // key: x/type/id; val: nodeInfo
+	ST_BucketOptKey = 23;    // key: x/userID/bucketID; val: bucket option
+	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID
+	ST_SegExpireKey = 25;    // key: x/userID/bucketID/stripeID; value: length, expire
+	ST_PieceLocKey = 26;     // key: x/pieceID; value: userID, size, expire, proIDs, price, states	
+	ST_SectorInfoKey = 27;   // key: x/proID/sectorID; val: SectorInfo	
+	ST_DataOrderKey = 30;    // key: x/userID/proID/nonce; value: OrderBase, seqnum, psize, ssize, []dataName, psize(lost), ssize(lost), []dataName(lost);
+
+	ST_EpochKey = 31;        // key: x; val: l3, l2, last, current 
+	//ST_ChalSeedKey = 32;     // key: x/epoch; val: height, seed, time
+	ST_IncomeKey = 33;       // key: x/proID/epoch; value: expected(lifecycle), income, lost, []sign
+	ST_ChalSegResKey = 34;   // key: x/proID/userID/epoch; value: proof	  
+	ST_ChalSecResKey = 35;   // key: x/proID/epoch; value: proof	
+	
+	// data meta
+    PieceInfoKey = 40;      // key: x/pieceID; val: PieceInfo; on provider    
+    SectorPiecesKey = 41;   // key: x/sectorID, val: SectorPieces; on provider
+    SectorCountKey = 42;    // key: x/proID, val: sectorNumber; on keeper and provider
+    SectorSetKey = 43;      // key: x/proID, val: sectorSet; on keeper and provider
+	OrderTxKey = 44;        // key: x/userID/proID/nonce; val: []txHash;
+
+	// order
+	OrderNonceKey = 50;   // key: x/userID/proID; value: nonce
+	OrderBaseKey = 51;    // key x/userID/proID/nonce; value: OrderBase
+	OrderSeqKey = 52;     // key x/userID/proID/nonce/seqnum; value: OrderSeq
+}
+
+//    =============  lfs information  ================
+// 'BucketCountKey'/fsID
+// 'StripeCountKey'/fsID/bucketID
+// key: 'BucketOptionKey'/fsID/bucketID
+message BucketOption {
+	uint32 Version = 1;
+	uint32 Policy = 2;
+	uint32 DataCount = 3;
+	uint32 ParityCount = 4;
+	uint32 TagFlag = 5;
+	uint32 SegSize = 6;
+} 
+
+// key: 'BucketInfoKey'/fsID/bucketID
+message BucketInfo {
+	uint64 BucketID = 1;
+	uint64 CTime = 2;   // create time
+	uint64 MTime = 3;   // modify time
+	uint64 Size = 4;    
+	uint64 UsedBytes = 5;
+	uint64 ObjectCount = 6; // next avail
+	uint64 OpCount = 7;
+	bool deletion = 8;
+	string Name = 9;
+	bytes Root = 10;  // merkle root of ops; used for verify
+}
+
+// object information; when create object 
+message ObjectInfo {
+	uint64 ObjectID = 1;
+	uint64 BucketID = 2;
+	uint64 Time = 3;
+	uint64 Expire = 4;
+	string Name = 5;
+	string Encryption = 6; // enc method
+}
+
+// opart informations, insert into object when add data to an existing object
+message PartInfo {
+	uint64 ObjectID = 1;          // 此分块所属的ObjectID
+	uint64 OpID = 2;              // 此分块的ID
+	uint64 Time = 3;              // append此Part的时间
+	uint64 Offset = 4;            // offset in bucket space  
+	uint64 Size = 5;              // 对象长度
+	uint64 UsedBytes = 6;         //  
+	bytes ETag = 7;               // MD5
+}
+
+// 'OpDoneKey'/fsID/bucketID
+// 'OpCountKey'/fsID/bucketID
+// key: 'OpInfoKey'/fsID/bucketID/opID
+message BucketRecord {
+    enum OpType {
+	    Unknown = 0; 
+	    CreateObject = 1;     // create an object; payload is ObjectInfo
+	    AddData = 2;          // add data to objec; payload is PartInfo
+	    DeleteObject = 3;     // delete an object; payload is objectID
+    }
+
+	OpType Type = 1;
+	uint64 OpID = 2;
+	uint64 Time = 3;  // time of this op
+	bytes Payload = 4;    
+}
+
+enum DataType {
+    DataErr = 0;
+    Segment = 1;
+    Piece = 2;
+    Sector = 3;
+}
+
+// key: 'SegLocKey'/fsID_bucketID_chunkID_stripeID
+message SegLocation {
+	uint64 Expire = 1;
+	uint64 Length = 2;
+	uint64 ProID = 3;
+}
+
+// key: 'SegExpireKey'/fsID_bucketID_stripeID
+message SegExpire {
+	uint64 Length = 1;
+	uint64 Expire = 2; // expire time
+}
+
+// key: 'PieceLocKey'/pieceID; on keeper and user
+message PieceLocation {
+	uint32 Size = 1;
+	uint64 Expire = 2;
+	repeated uint64 ProID = 3; // 存在哪些provider上
+}
+
+// fsID need?
+// key: 'PieceInfoKey'/pieceID; on provider
+message PieceInfo {
+	uint32 Offset = 1;   // offset in sector; 是否需要？ 
+	uint32 Size = 2;
+	uint64 Expire = 3;
+	uint64 SectorID = 4;  // belong to which sector
+}
+
+// 'SectorCountKey'/proID; on keeper and provider
+// 'SectorSetKey'/proID; on keeper and provider
+// key: 'SectorInfoKey'/pieceID; on keeper, 70 bytes
+message SectorInfo {
+	uint64 Expire = 1;
+	bytes CommD = 2; // 32bytes
+	bytes CommR = 3; // 32bytes
+}
+
+// key: 'SectorPiecesKey'/sectorID; on provider
+message SectorPieces {
+	SectorInfo Sector = 1;
+	repeated bytes PieceID = 2;
+}

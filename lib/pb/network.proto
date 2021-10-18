@@ -1,0 +1,38 @@
+// sudo apt install protobuf-compiler
+// go get github.com/gogo/protobuf/protoc-gen-gofast
+// `protoc --gofast_out=. *.proto`
+syntax = "proto3";
+package pb;
+
+// trans over network
+// persist value for tx in kv op db; verify sign before put
+message NetMessage {
+	
+	enum MsgType {
+		SayHello = 0;
+		Get = 1;
+		Put = 2;
+		SubmitTX = 3;
+
+    	// data message; user<->provider; offline ops
+		AskPrice = 6;     // 询价
+    	OrderPrepare = 7; 
+    	OrderMeta = 8;    // handle meta; by provider
+    	OrderData = 9;    // handle data; by provider
+    	OrderDone = 10;   // handle order seq done
+	}
+
+	message MsgHeader {
+		uint32 version = 1;
+		uint32 seq = 2; // 用处？for record？
+		uint64 from = 3;
+		MsgType type = 4;
+	}
+
+	message MsgData {
+		bytes msgInfo = 1; 
+	}
+
+	MsgHeader header = 1;
+	MsgData data = 2;
+}
