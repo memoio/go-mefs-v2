@@ -10,23 +10,9 @@ var (
 	ErrKeyFromat       = errors.New("key format is wrong")
 )
 
-type KeyType = byte
-
-const (
-	Unknown KeyType = iota
-	// network
-	P2P
-	// data verify key
-	BLS12
-	// verify key on chain
-	SECP256K1
-	// user/keeper/provider/fs
-	ACTOR
-)
-
 // KeyInfo is used for storing keys in KeyStore
 type KeyInfo struct {
-	Type      KeyType
+	Type      byte
 	SecretKey []byte
 }
 

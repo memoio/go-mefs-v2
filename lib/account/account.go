@@ -7,6 +7,14 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
+type Wallet interface {
+	WalletSign()
+	WalletVerify()
+	WalletList()
+	WalletExport()
+	WalletChainAddress()
+}
+
 type Account struct {
 	types.KeyInfo
 	Address address.Address
@@ -17,12 +25,4 @@ type LocalWallet struct {
 	password string                       // used for decrypt
 	accounts map[address.Address]*Account // from address to its account
 	keystore types.KeyStore               // store
-}
-
-type Wallet interface {
-	WalletSign()
-	WalletVerify()
-	WalletList()
-	WalletExport()
-	WalletChainAddress()
 }
