@@ -3,7 +3,7 @@ package bls
 import (
 	"crypto/subtle"
 
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12-381"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 )
 

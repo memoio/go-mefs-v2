@@ -1,20 +1,20 @@
 package pdpv2
 
 import (
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12-381"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	"golang.org/x/crypto/blake2s"
+	"github.com/zeebo/blake3"
 )
 
 // GenTag create tag for *SINGLE* segment
 // typ: 32B atom or 24B atom
 // mode: sign or not
-func (k *KeySet) GenTag(index []byte, segment []byte, start, typ int, mode bool) ([]byte, error) {
+func (k *KeySet) GenTag(index []byte, segment []byte, start int, mode bool) ([]byte, error) {
 	if k == nil || k.Pk == nil {
 		return nil, pdpcommon.ErrKeyIsNil
 	}
 
-	atoms, err := splitSegmentToAtoms(segment, typ)
+	atoms, err := splitSegmentToAtoms(segment, k.typ)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (k *KeySet) GenTag(index []byte, segment []byte, start, typ int, mode bool)
 	if start == 0 {
 		// H(Wi)
 		var HWi Fr
-		h := blake2s.Sum256(index)
+		h := blake3.Sum256(index)
 		bls.FrFromBytes(&HWi, h[:])
 		var HWiG1 G1
 		bls.G1Mul(&HWiG1, &GenG1, &HWi)
@@ -67,8 +67,7 @@ func (k *KeySet) GenTag(index []byte, segment []byte, start, typ int, mode bool)
 		bls.G1Mul(&uMiDel, &uMiDel, &(k.Sk.BlsSk))
 	}
 
-	tag := bls.G1Serialize(&uMiDel)
-	return tag, nil
+	return bls.G1Serialize(&uMiDel), nil
 }
 
 // VerifyTag check segment和tag是否对应
@@ -82,7 +81,7 @@ func (k *PublicKey) VerifyTag(index, segment, tag []byte, typ int) (bool, error)
 	bls.G1Clear(&formula)
 
 	//H(W_i) * g_1
-	h := blake2s.Sum256(index)
+	h := blake3.Sum256(index)
 	bls.FrFromBytes(&HWi, h[:])
 	bls.G1Mul(&HWiG1, &GenG1, &HWi)
 
@@ -142,7 +141,7 @@ func (pk *PublicKey) GenProof(chal pdpcommon.Challenge, segments, tags [][]byte,
 		return nil, pdpcommon.ErrNumOutOfRange
 	}
 	var fr_r, pk_r Fr //P_k(r)
-	bls.FrSetInt64(&fr_r, chal.GetSeed())
+	bls.FrSetInt64(&fr_r, chal.Random())
 	bls.EvalPolyAt(&pk_r, sums, &fr_r)
 
 	// poly(x) - poly(r) always divides (x - r) since the latter is a root of the former.
@@ -221,9 +220,9 @@ func (vk *VerifyKey) VerifyProof(chal pdpcommon.Challenge, proof pdpcommon.Proof
 	//var lhs1, lhs2, rhs1 GT
 
 	bls.FrClear(&HWi)
-	indices := chal.GetIndices()
+	indices := chal.Indices()
 	for _, index := range indices {
-		h := blake2s.Sum256([]byte(index))
+		h := blake3.Sum256(index)
 		bls.FrFromBytes(&tempFr, h[:])
 		bls.FrAddMod(&HWi, &HWi, &tempFr)
 	}
@@ -231,7 +230,7 @@ func (vk *VerifyKey) VerifyProof(chal pdpcommon.Challenge, proof pdpcommon.Proof
 	bls.G1Mul(&ProdHWi, &vk.Phi, &HWi)
 	bls.G1Sub(&G1temp1, &kappa, &ProdHWi)
 
-	bls.FrSetInt64(&tempFr, chal.GetSeed())
+	bls.FrSetInt64(&tempFr, chal.Random())
 	bls.G2Mul(&G2temp1, &vk.BlsPk, &tempFr)
 	bls.G2Sub(&G2temp1, &vk.Zeta, &G2temp1)
 
@@ -243,7 +242,7 @@ func (vk *VerifyKey) VerifyProof(chal pdpcommon.Challenge, proof pdpcommon.Proof
 }
 
 // VerifyData User or Provider用于聚合验证数据完整性
-func (k *KeySet) VerifyData(indices [][]byte, segments, tags [][]byte, typ int) (bool, error) {
+func (k *KeySet) VerifyData(indices [][]byte, segments, tags [][]byte) (bool, error) {
 	if (len(indices) != len(segments)) || (len(indices) != len(tags)) {
 		return false, pdpcommon.ErrNumOutOfRange
 	}
@@ -255,11 +254,11 @@ func (k *KeySet) VerifyData(indices [][]byte, segments, tags [][]byte, typ int) 
 		return false, pdpcommon.ErrSegmentSize
 	}
 
-	tagNum := len(segments[0]) / typ
+	tagNum := len(segments[0]) / k.typ
 	// sums_j为待挑战的各segments位于同一位置(即j)上的atom的和
 	sums := make([]Fr, tagNum)
 	for _, segment := range segments {
-		atoms, err := splitSegmentToAtoms(segment, typ)
+		atoms, err := splitSegmentToAtoms(segment, k.typ)
 		if err != nil {
 			return false, err
 		}
@@ -308,7 +307,7 @@ func (k *KeySet) VerifyData(indices [][]byte, segments, tags [][]byte, typ int) 
 	var tempFr, HWi Fr
 	bls.G1Clear(&ProdHWi)
 	for _, index := range indices {
-		h := blake2s.Sum256(index)
+		h := blake3.Sum256(index)
 		bls.FrFromBytes(&tempFr, h[:])
 		bls.FrAddMod(&HWi, &HWi, &tempFr)
 	}
@@ -337,12 +336,20 @@ type ProofAggregator struct {
 	tempG1 G1
 }
 
-func NewProofAggregator(pk *PublicKey, r int64, typ int) ProofAggregator {
+func NewProofAggregator(pki pdpcommon.PublicKey, r int64, typ int) pdpcommon.ProofAggregator {
+	pk, ok := pki.(*PublicKey)
+	if !ok {
+		return nil
+	}
 	sums := make([]Fr, pk.Count)
 	var delta G1
 	bls.G1Clear(&delta)
 	var tempG1 G1
-	return ProofAggregator{pk, r, typ, sums, delta, tempG1}
+	return &ProofAggregator{pk, r, typ, sums, delta, tempG1}
+}
+
+func (pa *ProofAggregator) Version() int {
+	return 2
 }
 
 func (pa *ProofAggregator) Input(segment []byte, tag []byte) error {
@@ -478,7 +485,7 @@ func (dv *DataVerifier) Input(index, segment, tag []byte) error {
 	bls.G1Add(&dv.delta, &dv.delta, &tempG1)
 
 	var tempFr Fr
-	h := blake2s.Sum256([]byte(index))
+	h := blake3.Sum256(index)
 	bls.FrFromBytes(&tempFr, h[:])
 	bls.FrAddMod(&dv.HWi, &dv.HWi, &tempFr)
 
@@ -514,7 +521,7 @@ func (dv *DataVerifier) InputMulti(indices, segments, tags [][]byte) error {
 			bls.FrAddMod(&dv.sums[j], &dv.sums[j], &atom)
 		}
 
-		h := blake2s.Sum256([]byte(indices[i]))
+		h := blake3.Sum256(indices[i])
 		bls.FrFromBytes(&tempFr, h[:])
 		bls.FrAddMod(&dv.HWi, &dv.HWi, &tempFr)
 	}
@@ -557,4 +564,90 @@ func (dv *DataVerifier) Reset() {
 
 	bls.G1Clear(&dv.delta)
 	bls.FrClear(&dv.HWi)
+}
+
+type ProofVerifier struct {
+	vk     *VerifyKey
+	HWi    Fr
+	tempFr Fr
+}
+
+func NewProofVerifier(vki pdpcommon.VerifyKey) pdpcommon.ProofVerifier {
+	vk, ok := vki.(*VerifyKey)
+	if !ok || vk == nil {
+		return nil
+	}
+	var HWi Fr
+	return &ProofVerifier{
+		vk:  vk,
+		HWi: HWi,
+	}
+}
+
+func (pv *ProofVerifier) Version() int {
+	return 2
+}
+
+func (pv *ProofVerifier) Reset() {
+	bls.FrClear(&pv.HWi)
+}
+
+func (pv *ProofVerifier) Input(index []byte) error {
+	h := blake3.Sum256([]byte(index))
+	bls.FrFromBytes(&pv.tempFr, h[:])
+	bls.FrAddMod(&pv.HWi, &pv.HWi, &pv.tempFr)
+	return nil
+}
+
+func (pv *ProofVerifier) InputMulti(indices [][]byte) error {
+	var tempFr Fr
+	for _, index := range indices {
+		h := blake3.Sum256([]byte(index))
+		bls.FrFromBytes(&tempFr, h[:])
+		bls.FrAddMod(&pv.HWi, &pv.HWi, &tempFr)
+	}
+	return nil
+}
+
+func (pv *ProofVerifier) Result(random int64, proof pdpcommon.Proof) bool {
+	pf, ok := proof.(*Proof)
+	if !ok {
+		return false
+	}
+	var psi, kappa G1
+
+	err := bls.G1Deserialize(&psi, pf.Psi)
+	if err != nil {
+		return false
+	}
+
+	if bls.G1IsZero(&psi) {
+		return false
+	}
+
+	err = bls.G1Deserialize(&kappa, pf.Kappa)
+	if err != nil {
+		return false
+	}
+
+	if bls.G1IsZero(&kappa) {
+		return false
+	}
+
+	var ProdHWi G1
+	var G1temp1 G1
+	var G2temp1 G2
+
+	bls.G1Mul(&ProdHWi, &pv.vk.Phi, &pv.HWi)
+	bls.G1Sub(&G1temp1, &kappa, &ProdHWi)
+
+	bls.FrSetInt64(&pv.tempFr, random)
+	bls.G2Mul(&G2temp1, &pv.vk.BlsPk, &pv.tempFr)
+	bls.G2Sub(&G2temp1, &pv.vk.Zeta, &G2temp1)
+
+	res := bls.PairingsVerify(
+		&G1temp1, &GenG2, &psi, &G2temp1,
+	)
+
+	return res
 }

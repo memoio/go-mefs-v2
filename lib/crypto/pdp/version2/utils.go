@@ -3,7 +3,7 @@ package pdpv2
 import (
 	"math/rand"
 
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12-381"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 )
 

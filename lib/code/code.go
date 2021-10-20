@@ -1,29 +1,15 @@
-package dataformat
+package code
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/klauspost/reedsolomon"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	mpb "github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/segment"
 )
 
-type Codec interface {
-	// name is fsID_bucketID_stripeID
-	Encode(name string, data []byte) ([][]byte, error)
-
-	// name is fsID_bucketID_stripeID; if set, verify tag;
-	// name can set to "" as fast mode
-	Decode(name string, stripe [][]byte) ([]byte, error)
-	Recover(name string, stripe [][]byte) error
-	VerifyStripe(name string, stripe [][]byte) (bool, int, error)
-	// name is fsID_bucketID_stripeID_chunkID
-	VerifyChunk(name string, data []byte) (bool, error)
-}
+var _ Codec = (*DataCoder)(nil)
 
 type DataCoder struct {
 	*Prefix
@@ -37,7 +23,7 @@ type DataCoder struct {
 }
 
 // NewDataCoder 构建一个dataformat配置
-func NewDataCoder(keyset pdpcommon.KeySet, version, policy, dataCount, parityCount, tagFlag, segSize int) (Codec, error) {
+func NewDataCoder(keyset pdpcommon.KeySet, version, policy, dataCount, parityCount, tagFlag, segSize int) (*DataCoder, error) {
 	if segSize != DefaultSegSize {
 		segSize = DefaultSegSize
 	}
@@ -64,17 +50,17 @@ func NewDataCoder(keyset pdpcommon.KeySet, version, policy, dataCount, parityCou
 }
 
 // NewDataCoderWithDefault creates a new datacoder with default
-func NewDataCoderWithDefault(keyset pdpcommon.KeySet, policy, dataCount, pairtyCount int, userID, fsID string) (Codec, error) {
+func NewDataCoderWithDefault(keyset pdpcommon.KeySet, policy, dataCount, pairtyCount int, userID, fsID string) (*DataCoder, error) {
 	return NewDataCoder(keyset, CurrentVersion, policy, dataCount, pairtyCount, DefaultTagFlag, DefaultSegSize)
 }
 
 // NewDataCoderWithBopts contructs a new datacoder with bucketops
-func NewDataCoderWithBopts(keyset pdpcommon.KeySet, bo *mpb.BucketOption) (Codec, error) {
-	return NewDataCoder(keyset, int(bo.Policy), int(bo.DataCount), int(bo.ParityCount), int(bo.Version), int(bo.TagFlag), int(bo.SegSize))
+func NewDataCoderWithBopts(keyset pdpcommon.KeySet, bo *mpb.BucketOption) (*DataCoder, error) {
+	return NewDataCoder(keyset, int(bo.Version), int(bo.Policy), int(bo.DataCount), int(bo.ParityCount), int(bo.TagFlag), int(bo.SegSize))
 }
 
 // NewDataCoderWithPrefix creates a new datacoder with prefix
-func NewDataCoderWithPrefix(keyset pdpcommon.KeySet, p *Prefix) (Codec, error) {
+func NewDataCoderWithPrefix(keyset pdpcommon.KeySet, p *Prefix) (*DataCoder, error) {
 	vkey := pdpv2.NewDataVerifier(keyset.PublicKey(), keyset.SecreteKey())
 	if vkey == nil {
 		return nil, ErrWrongCoder
@@ -115,16 +101,19 @@ func (d *DataCoder) preCompute() error {
 }
 
 // ncidPrefix为  fsID_bucketID_stripeID
-func (d *DataCoder) Encode(ncidPrefix string, data []byte) ([][]byte, error) {
-	if len(data) == 0 {
-		return nil, ErrDataLength
-	}
-
+func (d *DataCoder) Encode(ncidPrefix segment.SegmentID, data []byte) ([][]byte, error) {
 	dc := int(d.DataCount)
 	pc := int(d.ParityCount)
 
-	if len(data) != dc*int(d.SegSize) {
+	if len(data) == 0 || len(data) > dc*int(d.SegSize) {
 		return nil, ErrDataLength
+	}
+
+	// 如果长度不够则填充
+	if len(data) < dc*int(d.SegSize) {
+		temp := make([]byte, dc*int(d.SegSize))
+		copy(temp, data)
+		data = temp
 	}
 
 	preData := d.Prefix.Serialize()
@@ -170,14 +159,11 @@ func (d *DataCoder) Encode(ncidPrefix string, data []byte) ([][]byte, error) {
 	}
 
 	offset += int(d.SegSize)
-	var res strings.Builder
-	for j := 0; j < d.chunkCount; j++ {
-		res.Reset()
-		res.WriteString(ncidPrefix)
-		res.WriteString(types.SegDelimiter)
-		res.WriteString(strconv.Itoa(j))
 
-		tag, err := d.GenTag([]byte(res.String()), dataGroup[j])
+	for j := 0; j < d.chunkCount; j++ {
+		ncidPrefix.SetChunkID(uint32(j))
+
+		tag, err := d.GenTag(ncidPrefix.Bytes(), dataGroup[j])
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +184,8 @@ func (d *DataCoder) Encode(ncidPrefix string, data []byte) ([][]byte, error) {
 	return stripe, nil
 }
 
-func (d *DataCoder) Decode(name string, stripe [][]byte) ([]byte, error) {
+// name is fsID_bucketID_stripeID; if set, verify tag;
+func (d *DataCoder) Decode(name segment.SegmentID, stripe [][]byte) ([]byte, error) {
 	ok, scount, err := d.VerifyStripe(name, stripe)
 	if err != nil {
 		return nil, err
@@ -209,7 +196,7 @@ func (d *DataCoder) Decode(name string, stripe [][]byte) ([]byte, error) {
 	}
 
 	if !ok {
-		err := d.Recover("", stripe)
+		err := d.Recover(nil, stripe)
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +211,7 @@ func (d *DataCoder) Decode(name string, stripe [][]byte) ([]byte, error) {
 
 // result: CanDirectRead, number of Good Chunk, canRecover
 // if name != "", verify tag
-func (d *DataCoder) VerifyStripe(name string, stripe [][]byte) (bool, int, error) {
+func (d *DataCoder) VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool, int, error) {
 	if len(stripe) < int(d.DataCount) {
 		return false, 0, ErrDataBroken
 	}
@@ -232,7 +219,6 @@ func (d *DataCoder) VerifyStripe(name string, stripe [][]byte) (bool, int, error
 	good := 0
 	directRead := true
 	d.dv.Reset()
-	var res strings.Builder
 	for j := 0; j < len(stripe); j++ {
 		if len(stripe[j]) != d.fragmentSize {
 			stripe[j] = nil
@@ -246,13 +232,10 @@ func (d *DataCoder) VerifyStripe(name string, stripe [][]byte) (bool, int, error
 
 			good++
 			tag := stripe[j][d.prefixSize+int(d.SegSize) : d.prefixSize+int(d.SegSize)+d.tagSize]
-			if name != "" {
-				res.Reset()
-				res.WriteString(name)
-				res.WriteString(types.SegDelimiter)
-				res.WriteString(strconv.Itoa(j))
+			if name != nil {
+				name.SetChunkID(uint32(j))
 				seg := stripe[j][d.prefixSize : d.prefixSize+int(d.SegSize)]
-				err := d.dv.Input([]byte(res.String()), seg, tag)
+				err := d.dv.Input(name.Bytes(), seg, tag)
 				if err != nil {
 					// tag is wrong
 					stripe[j] = nil
@@ -280,7 +263,7 @@ func (d *DataCoder) VerifyStripe(name string, stripe [][]byte) (bool, int, error
 		return directRead, good, ErrRecoverData
 	}
 
-	if name != "" {
+	if name != nil {
 		ok := d.dv.Result()
 		// verify each chunk
 		if !ok {
@@ -291,11 +274,8 @@ func (d *DataCoder) VerifyStripe(name string, stripe [][]byte) (bool, int, error
 				//	continue
 				//}
 				if len(stripe[j]) == d.fragmentSize {
-					res.Reset()
-					res.WriteString(name)
-					res.WriteString(types.SegDelimiter)
-					res.WriteString(strconv.Itoa(j))
-					ok, err := d.VerifyChunk(res.String(), stripe[j])
+					name.SetChunkID(uint32(j))
+					ok, err := d.VerifyChunk(name, stripe[j])
 					if err != nil || !ok {
 						stripe[j] = nil
 						if j < int(d.DataCount) {
@@ -312,16 +292,16 @@ func (d *DataCoder) VerifyStripe(name string, stripe [][]byte) (bool, int, error
 	return directRead, good, nil
 }
 
-func (d *DataCoder) VerifyChunk(name string, data []byte) (bool, error) {
+func (d *DataCoder) VerifyChunk(name segment.SegmentID, data []byte) (bool, error) {
 	if len(data) < d.fragmentSize {
 		return false, ErrDataLength
 	}
 
 	d.dv.Reset()
-	if name != "" {
+	if name != nil {
 		seg := data[d.prefixSize : d.prefixSize+int(d.SegSize)]
 		tag := data[d.prefixSize+int(d.SegSize) : d.prefixSize+int(d.SegSize)+d.tagSize]
-		err := d.dv.Input([]byte(name), seg, tag)
+		err := d.dv.Input(name.Bytes(), seg, tag)
 		if err != nil {
 			return false, err
 		}
@@ -330,7 +310,7 @@ func (d *DataCoder) VerifyChunk(name string, data []byte) (bool, error) {
 	return d.dv.Result(), nil
 }
 
-func (d *DataCoder) Recover(name string, stripe [][]byte) error {
+func (d *DataCoder) Recover(name segment.SegmentID, stripe [][]byte) error {
 	_, scount, err := d.VerifyStripe(name, stripe)
 	if err != nil {
 		return err
@@ -370,7 +350,7 @@ func (d *DataCoder) Recover(name string, stripe [][]byte) error {
 	return nil
 }
 
-func (d *DataCoder) recoverField(name string, stripe [][]byte) error {
+func (d *DataCoder) recoverField(name segment.SegmentID, stripe [][]byte) error {
 	var fault = make(map[int]struct{})
 	dataGroup := make([][]byte, d.chunkCount)
 	for i := 0; i < d.chunkCount; i++ {
@@ -403,19 +383,15 @@ func (d *DataCoder) recoverField(name string, stripe [][]byte) error {
 		return err
 	}
 
-	if name != "" {
-		var res strings.Builder
+	if name != nil {
 		d.dv.Reset()
 		for i := range fault {
 			stripe[i] = make([]byte, 0, d.fragmentSize-d.prefixSize)
 			stripe[i] = append(stripe[i], dataGroup[i]...)
 
-			res.Reset()
-			res.WriteString(name)
-			res.WriteString(types.SegDelimiter)
-			res.WriteString(strconv.Itoa(i))
+			name.SetChunkID(uint32(i))
 
-			err := d.dv.Input([]byte(res.String()), dataGroup[i], tagGroup[i])
+			err := d.dv.Input(name.Bytes(), dataGroup[i], tagGroup[i])
 			if err != nil {
 				return err
 			}

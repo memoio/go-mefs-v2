@@ -1,4 +1,4 @@
-package dataformat
+package code
 
 import (
 	"encoding/binary"
@@ -7,7 +7,8 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
-	mpb "github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/segment"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 	CurrentVersion   = 1
 	DefaultCrypt     = 1
 	DefaultPrefixLen = 24
-	DefaultTagFlag   = pdp.PDPV1
+	DefaultTagFlag   = pdp.PDPV2
 	DefaultSegSize   = pdpv2.DefaultSegSize
 )
 
@@ -30,6 +31,19 @@ var (
 	ErrRepairCrash  = errors.New("repair crash")
 	ErrRecoverData  = errors.New("the recovered data is incorrect")
 )
+
+type Codec interface {
+	// name is fsID_bucketID_stripeID
+	Encode(name segment.SegmentID, data []byte) ([][]byte, error)
+
+	// name is fsID_bucketID_stripeID; if set, verify tag;
+	// name can set to "" as fast mode
+	Decode(name segment.SegmentID, stripe [][]byte) ([]byte, error)
+	Recover(name segment.SegmentID, stripe [][]byte) error
+	VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool, int, error)
+	// name is fsID_bucketID_stripeID_chunkID
+	VerifyChunk(name segment.SegmentID, data []byte) (bool, error)
+}
 
 type Prefix struct {
 	Version     uint32
@@ -56,16 +70,13 @@ func (p Prefix) Size() int {
 }
 
 func DeserializePrefix(data []byte) (*Prefix, int, error) {
-	if len(data) < 4 {
+	if len(data) < DefaultPrefixLen {
 		return nil, 0, ErrDataLength
 	}
+
 	version := binary.BigEndian.Uint32(data[:4])
 	if version > 1 {
 		return nil, 0, ErrWrongVersion
-	}
-
-	if len(data) < DefaultPrefixLen {
-		return nil, 0, ErrDataLength
 	}
 
 	policy := binary.BigEndian.Uint32(data[4:8])
@@ -84,23 +95,11 @@ func DeserializePrefix(data []byte) (*Prefix, int, error) {
 }
 
 // DefaultBucketOptions is default bucket option
-func DefaultBucketOptions() *mpb.BucketOption {
-	return &mpb.BucketOption{
+func DefaultBucketOptions() *pb.BucketOption {
+	return &pb.BucketOption{
 		Version:     1,
 		Policy:      RsPolicy,
 		DataCount:   3,
-		ParityCount: 2,
-		SegSize:     DefaultSegSize,
-		TagFlag:     DefaultTagFlag,
-	}
-}
-
-// DefaultSuperBucketOptions is default supberbucket option
-func DefaultSuperBucketOptions() *mpb.BucketOption {
-	return &mpb.BucketOption{
-		Version:     1,
-		Policy:      MulPolicy,
-		DataCount:   1,
 		ParityCount: 2,
 		SegSize:     DefaultSegSize,
 		TagFlag:     DefaultTagFlag,
@@ -155,7 +154,7 @@ func VerifyChunkLength(data []byte) error {
 	return pre.VerifyLength(len(data))
 }
 
-func Verify(k pdpcommon.KeySet, name string, data []byte) bool {
+func Verify(k pdpcommon.KeySet, name segment.SegmentID, data []byte) bool {
 	if len(data) == 0 || k == nil || k.PublicKey() == nil {
 		return false
 	}
@@ -178,7 +177,7 @@ func Verify(k pdpcommon.KeySet, name string, data []byte) bool {
 }
 
 // Repair stripes
-func Repair(keyset pdpcommon.KeySet, name string, stripe [][]byte) ([][]byte, error) {
+func Repair(keyset pdpcommon.KeySet, name segment.SegmentID, stripe [][]byte) ([][]byte, error) {
 	var prefix *Prefix
 	var err error
 	for _, s := range stripe {
@@ -198,7 +197,7 @@ func Repair(keyset pdpcommon.KeySet, name string, stripe [][]byte) ([][]byte, er
 		return nil, err
 	}
 
-	err = coder.Recover("", stripe)
+	err = coder.Recover(nil, stripe)
 	if err != nil {
 		return nil, err
 	}

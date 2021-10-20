@@ -5,10 +5,20 @@ import (
 	"math/rand"
 	"time"
 
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12-381"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	"golang.org/x/crypto/blake2s"
+	"github.com/zeebo/blake3"
 )
+
+var _ pdpcommon.KeySet = (*KeySet)(nil)
+var _ pdpcommon.SecretKey = (*SecretKey)(nil)
+var _ pdpcommon.PublicKey = (*PublicKey)(nil)
+var _ pdpcommon.VerifyKey = (*VerifyKey)(nil)
+var _ pdpcommon.Challenge = (*Challenge)(nil)
+var _ pdpcommon.Proof = (*Proof)(nil)
+var _ pdpcommon.DataVerifier = (*DataVerifier)(nil)
+var _ pdpcommon.ProofAggregator = (*ProofAggregator)(nil)
+var _ pdpcommon.ProofVerifier = (*ProofVerifier)(nil)
 
 const MaxPkNumCount = SCount
 
@@ -221,8 +231,9 @@ func (vk *VerifyKey) Deserialize(data []byte) error {
 
 // KeySet is wrap
 type KeySet struct {
-	Pk *PublicKey
-	Sk *SecretKey
+	Pk  *PublicKey
+	Sk  *SecretKey
+	typ int
 }
 
 // GenKeySetWithSeed create instance
@@ -236,14 +247,14 @@ func GenKeySetWithSeed(seed []byte, count int64) (*KeySet, error) {
 		ElemAlphas: make([]G1, count),
 	}
 
-	ks := &KeySet{pk, sk}
+	ks := &KeySet{pk, sk, DefaultType}
 
 	// bls
 	// private key
-	seed1 := blake2s.Sum256(seed)
+	seed1 := blake3.Sum256(seed)
 	bls.FrFromBytes(&sk.BlsSk, seed1[:])
 
-	seed2 := blake2s.Sum256(seed1[:])
+	seed2 := blake3.Sum256(seed1[:])
 	bls.FrFromBytes(&sk.Alpha, seed2[:])
 
 	//g_1
@@ -264,7 +275,7 @@ func GenKeySet() (*KeySet, error) {
 	sk := &SecretKey{
 		ElemAlpha: make([]Fr, SCount),
 	}
-	ks := &KeySet{pk, sk}
+	ks := &KeySet{pk, sk, DefaultType}
 
 	// bls
 	// private key

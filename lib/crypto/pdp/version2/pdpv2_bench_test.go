@@ -10,14 +10,10 @@ import (
 	"testing"
 	"time"
 
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12-381"
-	"golang.org/x/crypto/blake2s"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
+	"github.com/zeebo/blake3"
 	"lukechampine.com/frand"
 )
-
-const chunkSize = DefaultSegSize
-const FileSize = 128 * chunkSize
-const SegNum = FileSize / DefaultSegSize
 
 // 测试tag的形成
 func BenchmarkGenTag(b *testing.B) {
@@ -50,7 +46,7 @@ func BenchmarkGenTag(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for j, segment := range segments {
 			// generate the data tag
-			_, err = keySet.GenTag([]byte("123456"+strconv.Itoa(j)), segment, 0, DefaultType, true)
+			_, err = keySet.GenTag([]byte("123456"+strconv.Itoa(j)), segment, 0, true)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -76,7 +72,7 @@ func BenchmarkGenOneTag(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// generate the data tag
-		_, err := keySet.GenTag([]byte("123456"+strconv.Itoa(i)), data, 0, 30, true)
+		_, err := keySet.GenTag([]byte("123456"+strconv.Itoa(i)), data, 0, true)
 		if err != nil {
 			b.Error(err)
 		}
@@ -98,7 +94,7 @@ func benchmarkGenOneTag(keySet *KeySet, pieceSize int) func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			// generate the data tag
-			_, err := keySet.GenTag([]byte("123456"+strconv.Itoa(i)), data, 0, DefaultType, true)
+			_, err := keySet.GenTag([]byte("123456"+strconv.Itoa(i)), data, 0, true)
 			if err != nil {
 				b.Error(err)
 			}
@@ -121,7 +117,7 @@ func BenchmarkMultiGenTag(b *testing.B) {
 func GenTestChallenge(r uint64, prefix string, bound, count uint64) []string {
 	buf := make([]byte, 8)
 	binary.LittleEndian.PutUint64(buf, r)
-	seed := blake2s.Sum256(buf)
+	seed := blake3.Sum256(buf)
 	rng := frand.NewCustom(seed[:], 32, 20)
 
 	res := make([]string, count)
@@ -148,7 +144,7 @@ func TestRandom(t *testing.T) {
 
 func BenchmarkGenChallenge(b *testing.B) {
 	r := 18304
-	prefix := "QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G_0"
+	prefix := "QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8z_0"
 	bound := 100000000
 	count := 92099
 	// -------------- TPA --------------- //
@@ -182,7 +178,7 @@ func BenchmarkGenProof(b *testing.B) {
 	tags := make([][]byte, SegNum)
 	for j, segment := range segments {
 		// generate the data tag
-		tags[j], err = keySet.GenTag([]byte(strconv.Itoa(j)+"_"+"0"), segment, 0, DefaultType, true)
+		tags[j], err = keySet.GenTag([]byte(strconv.Itoa(j)+"_"+"0"), segment, 0, true)
 		if err != nil {
 			panic("Error" + err.Error())
 		}
@@ -191,8 +187,8 @@ func BenchmarkGenProof(b *testing.B) {
 	// -------------- TPA --------------- //
 	// generate the challenge for data possession validation
 	chal := Challenge{
-		R:       0,
-		Indices: blocks,
+		r:       0,
+		indices: blocks,
 	}
 
 	b.ResetTimer()
@@ -237,7 +233,7 @@ func BenchmarkVerifyProof(b *testing.B) {
 	tags := make([][]byte, SegNum)
 	for i, segment := range segments {
 		// generate the data tag
-		tags[i], err = keySet.GenTag([]byte(blocks[i]), segment, 0, DefaultType, true)
+		tags[i], err = keySet.GenTag([]byte(blocks[i]), segment, 0, true)
 		if err != nil {
 			panic(err)
 		}
@@ -254,8 +250,8 @@ func BenchmarkVerifyProof(b *testing.B) {
 	// -------------- TPA --------------- //
 	// generate the challenge for data possession validation
 	chal := Challenge{
-		R:       time.Now().Unix(),
-		Indices: blocks,
+		r:       time.Now().Unix(),
+		indices: blocks,
 	}
 
 	// generate the proof
@@ -273,6 +269,74 @@ func BenchmarkVerifyProof(b *testing.B) {
 		if err != nil {
 			panic("Error")
 		}
+		if !result {
+			b.Errorf("Verificaition failed!")
+		}
+	}
+}
+
+func BenchmarkProofVerifier(b *testing.B) {
+	// sample data
+	data := make([]byte, FileSize)
+	rand.Seed(time.Now().UnixNano())
+	fillRandom(data)
+
+	// generate the key set for proof of data possession
+	keySet, err := GenKeySetWithSeed(data[:32], SCount)
+	if err != nil {
+		panic(err)
+	}
+
+	vk := keySet.VerifyKey()
+	segments := make([][]byte, SegNum)
+	blocks := make([][]byte, SegNum)
+	for i := 0; i < SegNum; i++ {
+		segments[i] = data[DefaultSegSize*i : DefaultSegSize*(i+1)]
+		blocks[i] = []byte(strconv.Itoa(i))
+	}
+
+	// ------------- the data owner --------------- //
+	tags := make([][]byte, SegNum)
+	for i, segment := range segments {
+		// generate the data tag
+		tags[i], err = keySet.GenTag([]byte(blocks[i]), segment, 0, true)
+		if err != nil {
+			panic(err)
+		}
+
+		// ok, err := keySet.Pk.VerifyTag([]byte(blocks[i]), segment, tags[i], DefaultType)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// if !ok {
+		// 	panic("VerifyTag false")
+		// }
+	}
+
+	// -------------- TPA --------------- //
+	// generate the challenge for data possession validation
+	chal := Challenge{
+		r:       time.Now().Unix(),
+		indices: blocks,
+	}
+
+	// generate the proof
+	proof, err := keySet.Pk.GenProof(&chal, segments, tags, DefaultType)
+	if err != nil {
+		panic("Error")
+	}
+
+	// -------------- TPA --------------- //
+	// Verify the proof
+	pv := NewProofVerifier(vk)
+	b.ResetTimer()
+	b.SetBytes(int64(FileSize))
+	for i := 0; i < b.N; i++ {
+		pv.Reset()
+		for _, v := range chal.indices {
+			pv.Input(v)
+		}
+		result := pv.Result(chal.r, proof)
 		if !result {
 			b.Errorf("Verificaition failed!")
 		}
@@ -302,7 +366,7 @@ func BenchmarkDataVerifier(b *testing.B) {
 	tags := make([][]byte, SegNum)
 	for i, segment := range segments {
 		// generate the data tag
-		tag, err := keySet.GenTag([]byte(blocks[i]), segment, 0, DefaultType, true)
+		tag, err := keySet.GenTag([]byte(blocks[i]), segment, 0, true)
 		if err != nil {
 			panic("gentag Error")
 		}
@@ -318,6 +382,9 @@ func BenchmarkDataVerifier(b *testing.B) {
 	// generate the challenge for data possession validation
 
 	dataVerifier := NewDataVerifier(keySet.Pk, nil)
+	if dataVerifier == nil {
+		panic("dataVerifier is nil")
+	}
 	b.ResetTimer()
 	b.SetBytes(int64(FileSize))
 	for j := 0; j < b.N; j++ {
@@ -359,7 +426,7 @@ func BenchmarkProofAggregator(b *testing.B) {
 	tags := make([][]byte, SegNum)
 	for i, segment := range segments {
 		// generate the data tag
-		tag, err := keySet.GenTag([]byte(blocks[i]), segment, 0, DefaultType, true)
+		tag, err := keySet.GenTag([]byte(blocks[i]), segment, 0, true)
 		if err != nil {
 			panic("gentag Error")
 		}
@@ -374,14 +441,17 @@ func BenchmarkProofAggregator(b *testing.B) {
 	// -------------- TPA --------------- //
 	// generate the challenge for data possession validation
 	chal := Challenge{
-		R:       time.Now().Unix(),
-		Indices: blocks,
+		r:       time.Now().Unix(),
+		indices: blocks,
 	}
 
 	b.SetBytes(int64(FileSize))
 	b.ResetTimer()
 	for j := 0; j < b.N; j++ {
-		proofAggregator := NewProofAggregator(keySet.Pk, chal.R, DefaultType)
+		proofAggregator := NewProofAggregator(keySet.Pk, chal.r, DefaultType)
+		if proofAggregator == nil {
+			panic("proofAggregator is nil")
+		}
 		for i := 0; i < len(segments); i++ {
 			err = proofAggregator.Input(segments[i], tags[i])
 			if err != nil {
@@ -437,294 +507,4 @@ func BenchmarkPolyDiv(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = Polydiv(sums, r)
 	}
-}
-
-func TestVerifyProof(t *testing.T) {
-	data := make([]byte, FileSize)
-	rand.Seed(time.Now().UnixNano())
-	fillRandom(data)
-
-	// generate the key set for proof of data possession
-	keySet, err := GenKeySetWithSeed(data[:32], SCount)
-	if err != nil {
-		panic(err)
-	}
-
-	pk := keySet.Pk
-	vk := keySet.VerifyKey()
-	segments := make([][]byte, SegNum)
-	blocks := make([][]byte, SegNum)
-	for i := 0; i < SegNum; i++ {
-		segments[i] = data[DefaultSegSize*i : DefaultSegSize*(i+1)]
-		blocks[i] = []byte(strconv.Itoa(i))
-	}
-
-	// ------------- the data owner --------------- //
-	tags := make([][]byte, SegNum)
-	for i, segment := range segments {
-		// generate the data tag
-		tag, err := keySet.GenTag([]byte(blocks[i]), segment, 0, DefaultType, true)
-		if err != nil {
-			panic("gentag Error")
-		}
-
-		ok, _ := pk.VerifyTag([]byte(blocks[i]), segment, tag, DefaultType)
-		if !ok {
-			panic("VerifyTag failed")
-		}
-		tags[i] = tag
-	}
-
-	pkBytes := pk.Serialize()
-	pkDes := new(PublicKey)
-	err = pkDes.Deserialize(pkBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !bls.G2Equal(&pk.BlsPk, &pk.BlsPk) {
-		t.Fatal("not equal")
-	}
-
-	// -------------- TPA --------------- //
-	// generate the challenge for data possession validation
-	chal := Challenge{
-		R:       time.Now().Unix(),
-		Indices: blocks,
-	}
-
-	// generate the proof
-	proof, err := pkDes.GenProof(&chal, segments, tags, DefaultType)
-	if err != nil {
-		panic(err)
-	}
-
-	t.Logf("%v", proof)
-
-	vkBytes := vk.Serialize()
-	vkDes := new(VerifyKey)
-	err = vkDes.Deserialize(vkBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// -------------- TPA --------------- //
-	// Verify the proof
-	result, err := vkDes.VerifyProof(&chal, proof)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result {
-		t.Errorf("Verificaition failed!")
-	}
-}
-
-func TestProofAggregator(t *testing.T) {
-	data := make([]byte, FileSize)
-	rand.Seed(time.Now().UnixNano())
-	fillRandom(data)
-
-	// generate the key set for proof of data possession
-	keySet, err := GenKeySetWithSeed(data[:32], SCount)
-	if err != nil {
-		panic(err)
-	}
-
-	pk := keySet.PublicKey()
-	vk := keySet.VerifyKey()
-	segments := make([][]byte, SegNum)
-	blocks := make([][]byte, SegNum)
-	for i := 0; i < SegNum; i++ {
-		segments[i] = data[DefaultSegSize*i : DefaultSegSize*(i+1)]
-		blocks[i] = []byte(strconv.Itoa(i))
-	}
-
-	// ------------- the data owner --------------- //
-	tags := make([][]byte, SegNum)
-	for i, segment := range segments {
-		// generate the data tag
-		tag, err := keySet.GenTag([]byte(blocks[i]), segment, 0, DefaultType, true)
-		if err != nil {
-			panic("gentag Error")
-		}
-
-		ok, _ := pk.VerifyTag([]byte(blocks[i]), segment, tag, DefaultType)
-		if !ok {
-			panic("VerifyTag failed")
-		}
-		tags[i] = tag
-	}
-
-	// -------------- TPA --------------- //
-	// generate the challenge for data possession validation
-	chal := Challenge{
-		R:       time.Now().Unix(),
-		Indices: blocks,
-	}
-
-	proofAggregator := NewProofAggregator(keySet.Pk, chal.R, DefaultType)
-	err = proofAggregator.Input(segments[0], tags[0])
-	if err != nil {
-		panic(err.Error())
-	}
-	err = proofAggregator.InputMulti(segments[1:], tags[1:])
-	if err != nil {
-		panic(err.Error())
-	}
-
-	proof, err := proofAggregator.Result()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// -------------- TPA --------------- //
-	// Verify the proof
-	result, err := vk.VerifyProof(&chal, proof)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result {
-		t.Errorf("Verificaition failed!")
-	}
-}
-
-func TestDataVerifier(t *testing.T) {
-	data := make([]byte, FileSize)
-	rand.Seed(time.Now().UnixNano())
-	fillRandom(data)
-
-	// generate the key set for proof of data possession
-	keySet, err := GenKeySetWithSeed(data[:32], SCount)
-	if err != nil {
-		panic(err)
-	}
-
-	pk := keySet.PublicKey()
-	segments := make([][]byte, SegNum)
-	blocks := make([][]byte, SegNum)
-	for i := 0; i < SegNum; i++ {
-		segments[i] = data[DefaultSegSize*i : DefaultSegSize*(i+1)]
-		blocks[i] = []byte(strconv.Itoa(i))
-	}
-
-	// ------------- the data owner --------------- //
-	tags := make([][]byte, SegNum)
-	for i, segment := range segments {
-		// generate the data tag
-		tag, err := keySet.GenTag([]byte(blocks[i]), segment, 0, DefaultType, true)
-		if err != nil {
-			panic("gentag Error")
-		}
-
-		ok, _ := pk.VerifyTag([]byte(blocks[i]), segment, tag, DefaultType)
-		if !ok {
-			panic("VerifyTag failed")
-		}
-		tags[i] = tag
-	}
-
-	// -------------- TPA --------------- //
-	// generate the challenge for data possession validation
-
-	dataVerifier := NewDataVerifier(keySet.Pk, keySet.Sk)
-	err = dataVerifier.Input(blocks[0], segments[0], tags[0])
-	if err != nil {
-		panic(err.Error())
-	}
-	err = dataVerifier.InputMulti(blocks[1:], segments[1:], tags[1:])
-	if err != nil {
-		panic(err.Error())
-	}
-
-	result := dataVerifier.Result()
-	if !result {
-		t.Errorf("Verificaition failed!")
-	}
-}
-
-func TestVerifyData(t *testing.T) {
-	data := make([]byte, FileSize)
-	rand.Seed(time.Now().UnixNano())
-	fillRandom(data)
-
-	// generate the key set for proof of data possession
-	keySet, err := GenKeySetWithSeed(data[:32], SCount)
-	if err != nil {
-		panic(err)
-	}
-
-	pk := keySet.PublicKey()
-	segments := make([][]byte, SegNum)
-	blocks := make([][]byte, SegNum)
-	for i := 0; i < SegNum; i++ {
-		segments[i] = data[DefaultSegSize*i : DefaultSegSize*(i+1)]
-		blocks[i] = []byte(strconv.Itoa(i))
-	}
-
-	// ------------- the data owner --------------- //
-	tags := make([][]byte, SegNum)
-	for i, segment := range segments {
-		// generate the data tag
-		tag, err := keySet.GenTag([]byte(blocks[i]), segment, 0, DefaultType, true)
-		if err != nil {
-			panic("gentag Error")
-		}
-
-		ok, _ := pk.VerifyTag([]byte(blocks[i]), segment, tag, DefaultType)
-		if !ok {
-			panic("VerifyTag failed")
-		}
-		tags[i] = tag
-	}
-
-	// -------------- TPA --------------- //
-	// generate the challenge for data possession validation
-
-	result, err := keySet.VerifyData(blocks, segments, tags, DefaultType)
-	if err != nil {
-		panic(err.Error())
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result {
-		t.Errorf("Verificaition failed!")
-	}
-}
-
-func TestKeyDeserialize(t *testing.T) {
-	data := make([]byte, FileSize)
-	rand.Seed(time.Now().UnixNano())
-	fillRandom(data)
-
-	// generate the key set for proof of data possession
-	keySet, err := GenKeySetWithSeed(data[:32], SCount)
-	if err != nil {
-		panic(err)
-	}
-	sk := keySet.Sk
-	skBytes := sk.Serialize()
-	skDes := new(SecretKey)
-	err = skDes.Deserialize(skBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !bls.FrEqual(&skDes.Alpha, &sk.Alpha) ||
-		!bls.FrEqual(&skDes.BlsSk, &sk.BlsSk) ||
-		!bls.FrEqual(&skDes.ElemAlpha[0], &sk.ElemAlpha[0]) {
-		t.Fatal("not equal")
-	}
-
-	pk := keySet.Pk
-	pkBytes := pk.Serialize()
-	pkDes := new(PublicKey)
-	err = pkDes.Deserialize(pkBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bls.G2Equal(&pkDes.BlsPk, &pk.BlsPk) || !bls.G2Equal(&pkDes.Zeta, &pk.Zeta) {
-		t.Fatal("not equal")
-	}
-
 }

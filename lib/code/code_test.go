@@ -1,4 +1,4 @@
-package dataformat
+package code
 
 import (
 	"crypto/md5"
@@ -9,6 +9,8 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
+	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/zeebo/blake3"
 )
 
 // 全局配置
@@ -40,6 +42,13 @@ func BenchmarkEncode(b *testing.B) {
 	fillRandom(data)
 	b.SetBytes(int64(dataCount * DefaultSegSize))
 	b.ResetTimer()
+
+	fsID := blake3.Sum256([]byte("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G"))
+	segID, err := segment.NewSegmentID(fsID[:20], 0, 0, 0)
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	for i := 0; i < b.N; i++ {
 		//一次编码一个stripe
 		for j := 0; j < len(data); j += DefaultSegSize * dataCount {
@@ -58,7 +67,7 @@ func BenchmarkEncode(b *testing.B) {
 			// Encdata := d
 
 			// 多副本含前缀
-			_, err = opt.Encode("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G_0", Encdata)
+			_, err = opt.Encode(segID, Encdata)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -79,6 +88,12 @@ func BenchmarkDecodeFast(b *testing.B) {
 		b.Fatal(err)
 	}
 
+	fsID := blake3.Sum256([]byte("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G"))
+	segID, err := segment.NewSegmentID(fsID[:20], 0, 0, 0)
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	data := make([]byte, dataCount*DefaultSegSize)
 	fillRandom(data)
 	b.SetBytes(int64(dataCount * DefaultSegSize))
@@ -89,7 +104,7 @@ func BenchmarkDecodeFast(b *testing.B) {
 	skey := sha256.Sum256(tmpkey)
 	Encdata, _ := aes.AesEncrypt(data, skey[:])
 
-	datas, err := opt.Encode("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G_0", Encdata)
+	datas, err := opt.Encode(segID, Encdata)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -102,13 +117,13 @@ func BenchmarkDecodeFast(b *testing.B) {
 			datas[(i+j)%(dataCount+parityCount)] = nil
 		}
 
-		gotData, err = opt.Decode("", datas)
+		gotData, err = opt.Decode(nil, datas)
 		if err != nil {
 			b.Fatal(i, err)
 		}
 
 		if i%(dataCount+parityCount) == dataCount {
-			opt.Recover("", datas)
+			opt.Recover(nil, datas)
 		}
 	}
 
@@ -132,6 +147,12 @@ func BenchmarkDecode(b *testing.B) {
 		b.Fatal(err)
 	}
 
+	fsID := blake3.Sum256([]byte("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G"))
+	segID, err := segment.NewSegmentID(fsID[:20], 0, 0, 0)
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	data := make([]byte, dataCount*DefaultSegSize)
 	fillRandom(data)
 	b.SetBytes(int64(dataCount * DefaultSegSize))
@@ -142,7 +163,7 @@ func BenchmarkDecode(b *testing.B) {
 	skey := sha256.Sum256(tmpkey)
 	Encdata, _ := aes.AesEncrypt(data, skey[:])
 
-	datas, err := opt.Encode("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G_0", Encdata)
+	datas, err := opt.Encode(segID, Encdata)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -154,13 +175,13 @@ func BenchmarkDecode(b *testing.B) {
 			datas[(i+j)%(dataCount+parityCount)] = nil
 		}
 
-		gotData, err = opt.Decode("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G_0", datas)
+		gotData, err = opt.Decode(segID, datas)
 		if err != nil {
 			b.Fatal(err)
 		}
 
 		if i%(dataCount+parityCount) == dataCount {
-			opt.Recover("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G_0", datas)
+			opt.Recover(segID, datas)
 		}
 	}
 
@@ -182,7 +203,11 @@ func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fsPrefix := "QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G_1"
+	fsID := blake3.Sum256([]byte("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G"))
+	segID, err := segment.NewSegmentID(fsID[:20], 0, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	data := make([]byte, dlen)
 	fillRandom(data)
@@ -200,12 +225,12 @@ func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 
 	data, _ = aes.AesEncrypt(data, skey[:])
 	// 多副本含前缀
-	datas, err := opt.Encode(fsPrefix, data)
+	datas, err := opt.Encode(segID, data)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, good, err := opt.VerifyStripe(fsPrefix, datas)
+	_, good, err := opt.VerifyStripe(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +239,7 @@ func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 		t.Fatal("wrong encode")
 	}
 
-	gotdata, err := opt.Decode(fsPrefix, datas)
+	gotdata, err := opt.Decode(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,12 +258,12 @@ func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 
 	t.Log("data:", datas[1][:DefaultPrefixLen])
 
-	datas, err = Repair(keyset, fsPrefix, datas)
+	datas, err = Repair(keyset, segID, datas)
 	if err != nil {
 		t.Fatal("Repair ", err)
 	}
 
-	_, good, err = opt.VerifyStripe(fsPrefix, datas)
+	_, good, err = opt.VerifyStripe(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +272,7 @@ func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 		t.Fatal("wrong encode")
 	}
 
-	gotdata, err = opt.Decode(fsPrefix, datas)
+	gotdata, err = opt.Decode(segID, datas)
 	if err != nil {
 		t.Fatal("Decode ", err)
 	}
@@ -265,12 +290,12 @@ func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 	datas[0] = nil
 	datas[dc] = nil
 
-	datas, err = Repair(keyset, fsPrefix, datas)
+	datas, err = Repair(keyset, segID, datas)
 	if err != nil {
 		t.Fatal("Repair2 ", err)
 	}
 
-	gotdata, err = opt.Decode(fsPrefix, datas)
+	gotdata, err = opt.Decode(segID, datas)
 	if err != nil {
 		t.Fatal("Decode2 ", err)
 	}
@@ -288,7 +313,7 @@ func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 		datas[0] = nil
 		datas[dc] = nil
 
-		gotdata, err = opt.Decode(fsPrefix, datas)
+		gotdata, err = opt.Decode(segID, datas)
 		if err != nil {
 			t.Fatal("Decode3 ", err)
 		}
@@ -326,7 +351,11 @@ func TestStripe(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ncidPrefix := "QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G_0_0"
+	fsID := blake3.Sum256([]byte("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G"))
+	segID, err := segment.NewSegmentID(fsID[:20], 0, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	data := make([]byte, dlen)
 	fillRandom(data)
@@ -341,12 +370,12 @@ func TestStripe(t *testing.T) {
 	}
 	data, _ = aes.AesEncrypt(data, skey[:])
 
-	datas, err := opt.Encode(ncidPrefix, data)
+	datas, err := opt.Encode(segID, data)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, good, err := opt.VerifyStripe(ncidPrefix, datas)
+	_, good, err := opt.VerifyStripe(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +384,7 @@ func TestStripe(t *testing.T) {
 		t.Fatal("wrong encode")
 	}
 
-	gotdata, err := opt.Decode(ncidPrefix, datas)
+	gotdata, err := opt.Decode(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +402,7 @@ func TestStripe(t *testing.T) {
 	datas[1] = nil
 	datas[28] = nil
 
-	gotdata, err = opt.Decode("", datas)
+	gotdata, err = opt.Decode(nil, datas)
 	if err != nil {
 		t.Fatal("Decode2 ", err)
 	}
@@ -400,7 +429,7 @@ func TestStripe(t *testing.T) {
 	datas[28] = nil
 	datas[29] = wdata1
 
-	_, good, err = opt.VerifyStripe(ncidPrefix, datas)
+	_, good, err = opt.VerifyStripe(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,12 +438,12 @@ func TestStripe(t *testing.T) {
 		t.Fatal("wrong verify:", good, len(datas))
 	}
 
-	err = opt.Recover(ncidPrefix, datas)
+	err = opt.Recover(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, good, err = opt.VerifyStripe(ncidPrefix, datas)
+	_, good, err = opt.VerifyStripe(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +452,7 @@ func TestStripe(t *testing.T) {
 		t.Fatal("wrong verify after recover")
 	}
 
-	gotdata, err = opt.Decode(ncidPrefix, datas)
+	gotdata, err = opt.Decode(segID, datas)
 	if err != nil {
 		t.Fatal("Decode2 ", err)
 	}
@@ -448,7 +477,7 @@ func TestStripe(t *testing.T) {
 	datas[29] = nil
 	datas[28] = wdata1
 
-	_, err = opt.Decode("", datas)
+	_, err = opt.Decode(nil, datas)
 	if err == nil {
 		t.Fatal("Decode3 should not success")
 	}
@@ -458,7 +487,7 @@ func TestStripe(t *testing.T) {
 	// =====================================
 	// data is wrong
 
-	_, good, err = opt.VerifyStripe(ncidPrefix, datas)
+	_, good, err = opt.VerifyStripe(segID, datas)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +496,7 @@ func TestStripe(t *testing.T) {
 		t.Fatal("wrong verify after recover: ", good, len(datas))
 	}
 
-	gotdata, err = opt.Decode(ncidPrefix, datas)
+	gotdata, err = opt.Decode(segID, datas)
 	if err != nil {
 		t.Fatal("Decode4 ", err)
 	}
@@ -485,7 +514,7 @@ func TestStripe(t *testing.T) {
 		datas[0] = nil
 		datas[4] = nil
 
-		gotdata, err = opt.Decode(ncidPrefix, datas)
+		gotdata, err = opt.Decode(segID, datas)
 		if err != nil {
 			t.Fatal("Decode3 ", err)
 		}

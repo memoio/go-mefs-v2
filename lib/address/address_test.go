@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12-381"
+	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,13 +39,13 @@ func TestSecp256k1Address(t *testing.T) {
 func TestBLSAddress(t *testing.T) {
 	assert := assert.New(t)
 
-	sk, err := bls.GenerateKey()
+	_, pk, err := bls.GenerateKey()
 	assert.NoError(err)
 
-	pk, err := bls.PublicKey(sk)
+	aByte, err := pk.CompressedByte()
 	assert.NoError(err)
 
-	addr, err := NewAddress(pk)
+	addr, err := NewAddress(aByte)
 	t.Log(addr.String(), len(addr.String()))
 
 	naddr, err := NewAddressFromString(addr.String())

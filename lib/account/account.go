@@ -11,16 +11,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-type Wallet interface {
-	WalletNew(sig_common.KeyType) (address.Address, error)
-	WalletSign(addr address.Address, msg []byte) ([]byte, error)
-	WalletList() ([]address.Address, error)
-	WalletHas(address.Address) bool
-	WalletDelete(address.Address) error
-	WalletExport(addr address.Address) (*types.KeyInfo, error)
-	WalletImport(ki *types.KeyInfo) (address.Address, error)
-}
-
 type LocalWallet struct {
 	sync.Mutex
 	password string // used for decrypt
@@ -28,7 +18,7 @@ type LocalWallet struct {
 	keystore types.KeyStore // store
 }
 
-func NewWallet(pw string, ks types.KeyStore) Wallet {
+func NewWallet(pw string, ks types.KeyStore) types.Wallet {
 	lw := &LocalWallet{
 		password: pw,
 		keystore: ks,

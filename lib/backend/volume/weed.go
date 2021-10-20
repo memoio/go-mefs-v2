@@ -7,10 +7,10 @@ import (
 
 	ws "github.com/chrislusf/seaweedfs/weed/storage"
 	"github.com/chrislusf/seaweedfs/weed/storage/needle"
-	"github.com/chrislusf/seaweedfs/weed/storage/types"
+	wtype "github.com/chrislusf/seaweedfs/weed/storage/types"
 
-	"github.com/memoio/go-mefs-v2/lib/backend/kv"
 	"github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 var logger = log.Logger("volume")
@@ -20,7 +20,7 @@ var _ FileStore = (*Weed)(nil)
 type Weed struct {
 	config   *Config
 	store    *ws.Store
-	kvstore  kv.Store
+	kvstore  types.Store
 	volumeId needle.VolumeId
 	nameLock sync.RWMutex
 
@@ -30,7 +30,7 @@ type Weed struct {
 	closing   chan struct{}
 }
 
-func NewWeed(cfg *Config, kvstore kv.Store) (FileStore, error) {
+func NewWeed(cfg *Config, kvstore types.Store) (FileStore, error) {
 	if cfg == nil {
 		return nil, ErrEmptyConfig
 	}
@@ -101,7 +101,7 @@ func (w *Weed) AddLocation(path string) error {
 		return err
 	}
 
-	dl := ws.NewDiskLocation(path, defaultVolumeCount, defaultMinSpace, w.config.IdxFolder, types.HardDriveType)
+	dl := ws.NewDiskLocation(path, defaultVolumeCount, defaultMinSpace, w.config.IdxFolder, wtype.HardDriveType)
 	// need lock?
 	w.store.Locations = append(w.store.Locations, dl)
 
@@ -113,7 +113,7 @@ func (w *Weed) AddVolume(volumeId needle.VolumeId) error {
 	v := w.store.HasVolume(volumeId)
 	if !v {
 		logger.Info("add volume: ", uint32(volumeId))
-		err := w.store.AddVolume(volumeId, collection, ws.NeedleMapLevelDbMedium, "000", "", 128, 128, types.HardDriveType)
+		err := w.store.AddVolume(volumeId, collection, ws.NeedleMapLevelDbMedium, "000", "", 128, 128, wtype.HardDriveType)
 		if err != nil {
 			return err
 		}
@@ -158,10 +158,10 @@ func (w *Weed) Put(key string, value []byte) error {
 	vLen := len(value)
 
 	n := &needle.Needle{
-		Id:       types.NeedleId(fm.NeedleID),
+		Id:       wtype.NeedleId(fm.NeedleID),
 		Data:     value,
 		Checksum: needle.NewCRC(value),
-		Cookie:   types.Cookie(vLen),
+		Cookie:   wtype.Cookie(vLen),
 	}
 
 	_, err = w.store.WriteVolumeNeedle(needle.VolumeId(fm.VolumeID), n, true, true)
@@ -194,8 +194,8 @@ func (w *Weed) Get(key string) ([]byte, error) {
 	}
 
 	n := new(needle.Needle)
-	n.Id = types.NeedleId(fm.NeedleID)
-	n.Cookie = types.Cookie(fm.Cookie)
+	n.Id = wtype.NeedleId(fm.NeedleID)
+	n.Cookie = wtype.Cookie(fm.Cookie)
 
 	count, err := w.store.ReadVolumeNeedle(needle.VolumeId(fm.VolumeID), n, nil, nil)
 	if err != nil {
@@ -241,8 +241,8 @@ func (w *Weed) Delete(key string) error {
 	}
 
 	n := new(needle.Needle)
-	n.Id = types.NeedleId(fm.NeedleID)
-	n.Cookie = types.Cookie(fm.Cookie)
+	n.Id = wtype.NeedleId(fm.NeedleID)
+	n.Cookie = wtype.Cookie(fm.Cookie)
 
 	_, err = w.store.DeleteVolumeNeedle(needle.VolumeId(fm.VolumeID), n)
 	if err != nil {

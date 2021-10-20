@@ -1,4 +1,4 @@
-package kv
+package types
 
 type Store interface {
 	Put(key, value []byte) error

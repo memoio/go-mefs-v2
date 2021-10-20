@@ -2,17 +2,17 @@ package pdpcommon
 
 type KeySet interface {
 	Version() int
-	GenTag(index []byte, segment []byte, start, typ int, mode bool) ([]byte, error)
+	GenTag(index []byte, segment []byte, start int, mode bool) ([]byte, error)
 	PublicKey() PublicKey
 	SecreteKey() SecretKey
 	VerifyKey() VerifyKey
-	VerifyData(indices [][]byte, segments, tags [][]byte, typ int) (bool, error)
+	VerifyData(indices [][]byte, segments, tags [][]byte) (bool, error)
 }
 
 type Challenge interface {
 	Version() int
-	GetSeed() int64
-	GetIndices() [][]byte
+	Random() int64
+	Indices() [][]byte
 	Serialize() []byte
 	Deserialize(buf []byte) error
 }
@@ -49,8 +49,8 @@ type Proof interface {
 //往里面塞segment, tag，最后返回一个证明。
 type ProofAggregator interface {
 	Version() int
-	Input(segment []byte, tag []byte, typ int) error
-	InputMulti(segments [][]byte, tags [][]byte, typ int) error
+	Input(segment []byte, tag []byte) error
+	InputMulti(segments [][]byte, tags [][]byte) error
 	Result() (Proof, error)
 }
 
@@ -63,9 +63,11 @@ type DataVerifier interface {
 	Reset() // clear after result
 }
 
-// //聚合Indices，用于最终验证证明
-// type IndicesAggregator interface {
-// 	Input(index []byte) error
-// 	InputMulti(indices [][]byte) error
-// 	Result() ([]byte, error)
-// }
+//聚合Indices，用于最终验证证明
+type ProofVerifier interface {
+	Version() int
+	Input(index []byte) error
+	InputMulti(indices [][]byte) error
+	Result(random int64, proof Proof) bool
+	Reset() // clear after result
+}

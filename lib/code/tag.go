@@ -1,11 +1,10 @@
-package dataformat
+package code
 
 import (
 	"encoding/binary"
 	"hash/crc32"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 )
 
 //GenTagForSegment 根据指定段大小生成标签，index是生成BLS-tag的需要
@@ -18,7 +17,7 @@ func (d *DataCoder) GenTag(index, data []byte) ([]byte, error) {
 	case pdp.PDPV0:
 		return nil, ErrWrongTagFlag
 	case pdp.PDPV2:
-		res, err := d.blsKey.GenTag(index, data, 0, pdpv2.DefaultType, true)
+		res, err := d.blsKey.GenTag(index, data, 0, true)
 		if err != nil {
 			return nil, err
 		}

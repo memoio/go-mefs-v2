@@ -1,7 +1,7 @@
 package pdpv2
 
 import (
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12-381"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 )
 
@@ -31,20 +31,20 @@ var ZeroG2 = bls.ZeroG2
 
 // Challenge gives
 type Challenge struct {
-	R       int64
-	Indices [][]byte
+	r       int64
+	indices [][]byte
 }
 
 func (chal *Challenge) Version() int {
 	return 1
 }
 
-func (chal *Challenge) GetSeed() int64 {
-	return chal.R
+func (chal *Challenge) Random() int64 {
+	return chal.r
 }
 
-func (chal *Challenge) GetIndices() [][]byte {
-	return chal.Indices
+func (chal *Challenge) Indices() [][]byte {
+	return chal.indices
 }
 
 func (chal *Challenge) Deserialize(data []byte) error {
