@@ -1,10 +1,10 @@
-package wallet
+package keystore
 
 import (
-	"encoding/hex"
 	"os"
 	"testing"
 
+	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -40,12 +40,14 @@ func TestWallet(t *testing.T) {
 		Type:      privkey.Type(),
 	}
 
-	addr, err := signature.GetAdressFromPubkey(pubkey)
+	pubByte, _ := pubkey.CompressedByte()
+
+	addr, err := address.NewAddress(pubByte)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	name := hex.EncodeToString(addr)
+	name := addr.String()
 
 	err = kp.Put(name, pw, ki)
 	if err != nil {
@@ -66,4 +68,8 @@ func TestWallet(t *testing.T) {
 	if !ok {
 		t.Fatal("not equal")
 	}
+
+	as, _ := kp.List()
+	t.Log(as)
+	t.Fatal(as)
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/celestiaorg/smt"
 	"github.com/dgraph-io/badger/v2"
-	"github.com/minio/blake2b-simd"
 	"github.com/zeebo/blake3"
 )
 
@@ -56,7 +55,7 @@ func NewStateTree(path string) (*statetree, error) {
 			return nil, ErrRoot
 		}
 
-		tri := smt.ImportSparseMerkleTree(sdb, sdb, blake2b.New256(), root)
+		tri := smt.ImportSparseMerkleTree(sdb, sdb, blake3.New(), root)
 		return &statetree{tri, sdb, 0}, nil
 	}
 

@@ -1,4 +1,4 @@
-package wallet
+package keystore
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ type keyRepo struct {
 
 // create a repo to store keyfile
 // todo: create a file for verifing password before reopen
-func NewKeyRepo(path string) (*keyRepo, error) {
+func NewKeyRepo(path string) (types.KeyStore, error) {
 	_, err := os.Stat(path)
 	if err != nil {
 		return nil, err

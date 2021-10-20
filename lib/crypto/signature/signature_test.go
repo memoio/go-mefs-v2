@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/minio/blake2b-simd"
+	"github.com/zeebo/blake3"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
 	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
@@ -20,7 +20,7 @@ func BenchmarkSign(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		msg := blake2b.Sum256([]byte(strconv.Itoa(i)))
+		msg := blake3.Sum256([]byte(strconv.Itoa(i)))
 		sig, err := sk.Sign(msg[:])
 		if err != nil {
 			panic(err)
@@ -68,7 +68,7 @@ func testSign(typ sig_common.KeyType) {
 		}
 	}
 
-	msg := blake2b.Sum256([]byte("1"))
+	msg := blake3.Sum256([]byte("1"))
 
 	sig, err := sk.Sign(msg[:])
 	if err != nil {
@@ -155,7 +155,7 @@ func testSign2(typ sig_common.KeyType) {
 		}
 	}
 
-	msg := blake2b.Sum256([]byte("1"))
+	msg := blake3.Sum256([]byte("1"))
 
 	sig, err := sk.Sign(msg[:])
 	if err != nil {
@@ -242,7 +242,7 @@ func testSign3(typ sig_common.KeyType) {
 		}
 	}
 
-	msg := blake2b.Sum256([]byte("1"))
+	msg := blake3.Sum256([]byte("1"))
 
 	sig, err := sk.Sign(msg[:])
 	if err != nil {
@@ -331,7 +331,7 @@ func testSign4(typ sig_common.KeyType) {
 		}
 	}
 
-	msg := blake2b.Sum256([]byte("1"))
+	msg := blake3.Sum256([]byte("1"))
 
 	sig, err := sk.Sign(msg[:])
 	if err != nil {

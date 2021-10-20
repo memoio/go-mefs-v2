@@ -164,7 +164,7 @@ func (k *PublicKey) Deserialize(data []byte) error {
 		k.pubKey = data
 		return nil
 	} else if len(data) == PublicKeyCompressedSize {
-		key, err := btcec.ParsePubKey(k.pubKey, btcec.S256())
+		key, err := btcec.ParsePubKey(data, btcec.S256())
 		if err != nil {
 			return err
 		}

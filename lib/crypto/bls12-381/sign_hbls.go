@@ -142,7 +142,8 @@ func AggregatePublicKey(publicKeys [][]byte) ([]byte, error) {
 // GenerateKeyFromSeed generates a new key from the given reader.
 func GenerateKeyFromSeed(seed []byte) ([]byte, error) {
 	sk := new(hbls.SecretKey)
-	sk.SetLittleEndian(blake2b.New256().Sum(seed))
+	blake3
+	sk.SetLittleEndian(blake3.New().Sum(seed))
 
 	return sk.Serialize(), nil
 }
