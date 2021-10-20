@@ -72,6 +72,14 @@ func NewBaseSegment(data []byte, segID SegmentID) Segment {
 	}
 }
 
+func (bs *BaseSegment) SetID(segID SegmentID) {
+	bs.SegID = segID
+}
+
+func (bs *BaseSegment) SetData(data []byte) {
+	bs.Data = data
+}
+
 func (bs *BaseSegment) RawData() []byte {
 	return bs.Data
 }
@@ -98,19 +106,4 @@ func (bs *BaseSegment) Tag() ([]byte, error) {
 
 func (bs *BaseSegment) SegmentID() SegmentID {
 	return bs.SegID
-}
-
-func (bs *BaseSegment) FsID() []byte {
-	return bs.SegID.GetFsID()
-}
-
-func (bs *BaseSegment) BucketID() int64 {
-	return bs.SegID.GetBucketID()
-}
-
-func (bs *BaseSegment) StripeID() int64 {
-	return bs.SegID.GetStripeID()
-}
-func (bs *BaseSegment) ChunkID() uint32 {
-	return bs.SegID.GetChunkID()
 }

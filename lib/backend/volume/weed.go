@@ -8,6 +8,7 @@ import (
 	ws "github.com/chrislusf/seaweedfs/weed/storage"
 	"github.com/chrislusf/seaweedfs/weed/storage/needle"
 	wtype "github.com/chrislusf/seaweedfs/weed/storage/types"
+	"github.com/mr-tron/base58/base58"
 
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -15,12 +16,12 @@ import (
 
 var logger = log.Logger("volume")
 
-var _ FileStore = (*Weed)(nil)
+var _ types.FileStore = (*Weed)(nil)
 
 type Weed struct {
 	config   *Config
 	store    *ws.Store
-	kvstore  types.Store
+	kvstore  types.KVStore
 	volumeId needle.VolumeId
 	nameLock sync.RWMutex
 
@@ -30,7 +31,7 @@ type Weed struct {
 	closing   chan struct{}
 }
 
-func NewWeed(cfg *Config, kvstore types.Store) (FileStore, error) {
+func NewWeed(cfg *Config, kvstore types.KVStore) (types.FileStore, error) {
 	if cfg == nil {
 		return nil, ErrEmptyConfig
 	}
@@ -143,14 +144,27 @@ func (w *Weed) DeleteVolume(volumeId needle.VolumeId) error {
 	return nil
 }
 
-func (w *Weed) Put(key string, value []byte) error {
+func toString(key []byte) string {
+	return base58.Encode(key)
+}
+
+func keyToByte(str string) []byte {
+	kbyte, err := base58.Decode(str)
+	if err != nil {
+		return nil
+	}
+
+	return kbyte
+}
+
+func (w *Weed) Put(key, value []byte) error {
 	w.closeLk.RLock()
 	defer w.closeLk.RUnlock()
 	if w.closed {
 		return ErrClosed
 	}
 
-	fm, err := w.GetFileMeta(key, true)
+	fm, err := w.GetFileMeta(toString(key), true)
 	if err != nil {
 		return err
 	}
@@ -175,20 +189,20 @@ func (w *Weed) Put(key string, value []byte) error {
 
 	if vLen != int(fm.Cookie) {
 		fm.Cookie = uint32(vLen)
-		w.PutFileMeta(key, fm)
+		w.PutFileMeta(toString(key), fm)
 	}
 
 	return nil
 }
 
-func (w *Weed) Get(key string) ([]byte, error) {
+func (w *Weed) Get(key []byte) ([]byte, error) {
 	w.closeLk.RLock()
 	defer w.closeLk.RUnlock()
 	if w.closed {
 		return nil, ErrClosed
 	}
 
-	fm, err := w.GetFileMeta(key, false)
+	fm, err := w.GetFileMeta(toString(key), false)
 	if err != nil {
 		return nil, err
 	}
@@ -209,14 +223,14 @@ func (w *Weed) Get(key string) ([]byte, error) {
 	return n.Data, nil
 }
 
-func (w *Weed) Has(key string) (bool, error) {
+func (w *Weed) Has(key []byte) (bool, error) {
 	w.closeLk.RLock()
 	defer w.closeLk.RUnlock()
 	if w.closed {
 		return false, ErrClosed
 	}
 
-	fm, err := w.GetFileMeta(key, false)
+	fm, err := w.GetFileMeta(toString(key), false)
 	if err != nil {
 		return false, err
 	}
@@ -228,14 +242,14 @@ func (w *Weed) Has(key string) (bool, error) {
 	return true, nil
 }
 
-func (w *Weed) Delete(key string) error {
+func (w *Weed) Delete(key []byte) error {
 	w.closeLk.RLock()
 	defer w.closeLk.RUnlock()
 	if w.closed {
 		return ErrClosed
 	}
 
-	fm, err := w.GetFileMeta(key, false)
+	fm, err := w.GetFileMeta(toString(key), false)
 	if err != nil {
 		return err
 	}
@@ -254,7 +268,7 @@ func (w *Weed) Delete(key string) error {
 	return w.kvstore.Delete([]byte(key))
 }
 
-func (w *Weed) Stat() (*Statistics, error) {
+func (w *Weed) Stat() (*types.Statistics, error) {
 	w.closeLk.RLock()
 	defer w.closeLk.RUnlock()
 	if w.closed {
@@ -263,7 +277,7 @@ func (w *Weed) Stat() (*Statistics, error) {
 
 	maxvid := int(w.volumeId)
 
-	st := new(Statistics)
+	st := new(types.Statistics)
 
 	for i := 0; i <= maxvid; i++ {
 		v := w.store.GetVolume(needle.VolumeId(i))

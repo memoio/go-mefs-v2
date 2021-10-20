@@ -25,7 +25,7 @@ func (logger *compatLogger) Warningf(format string, args ...interface{}) {
 	logger.Warnf(format, args...)
 }
 
-var _ types.Store = (*BadgerStore)(nil)
+var _ types.KVStore = (*BadgerStore)(nil)
 
 type BadgerStore struct {
 	db     *badger.DB

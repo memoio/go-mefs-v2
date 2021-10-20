@@ -18,12 +18,19 @@ type SegmentID interface {
 }
 
 type Segment interface {
+	SetID(SegmentID)
+	SetData([]byte)
 	RawData() []byte
 	Tag() ([]byte, error)
 	SegData() ([]byte, error)
 	SegmentID() SegmentID
-	FsID() []byte
-	BucketID() int64
-	StripeID() int64
-	ChunkID() uint32
+}
+
+type SegmentStore interface {
+	Put(Segment) error
+	PutMany([]Segment) error
+
+	Get(SegmentID) (Segment, error)
+	Has(SegmentID) (bool, error)
+	Delete(SegmentID) error
 }

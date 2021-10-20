@@ -2,8 +2,8 @@ package volume
 
 import (
 	"bytes"
-	"fmt"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/memoio/go-mefs-v2/lib/backend/kv"
@@ -76,7 +76,7 @@ func TestFileStore(t *testing.T) {
 
 	defer wd.Close()
 
-	testkey := "testKey"
+	testkey := []byte("testKey")
 	testValue := []byte("test")
 
 	err = wd.Put(testkey, testValue)
@@ -85,7 +85,7 @@ func TestFileStore(t *testing.T) {
 	}
 
 	for i := 0; i < 300000; i++ {
-		tkey := fmt.Sprintf(testkey+"%x", uint64(i))
+		tkey := append(testkey, []byte(strconv.Itoa(i))...)
 		err := wd.Put(tkey, testValue)
 		if err != nil {
 			t.Fatal(err)
@@ -95,7 +95,7 @@ func TestFileStore(t *testing.T) {
 	wd.Stat()
 
 	for i := 0; i < 300000; i++ {
-		tkey := fmt.Sprintf(testkey+"%x", uint64(i))
+		tkey := append(testkey, []byte(strconv.Itoa(i))...)
 		err := wd.Delete(tkey)
 		if err != nil {
 			t.Fatal(err)
@@ -103,7 +103,7 @@ func TestFileStore(t *testing.T) {
 	}
 
 	for i := 0; i < 300000; i++ {
-		tkey := fmt.Sprintf(testkey+"%x", uint64(i))
+		tkey := append(testkey, []byte(strconv.Itoa(i))...)
 		has, err := wd.Has(tkey)
 		if err == nil || has {
 			t.Fatal("delete fail")
@@ -129,7 +129,7 @@ func TestFileStore(t *testing.T) {
 	if !bytes.Equal(testValue, val) {
 		t.Fatal("not equal")
 	}
-	wd.(*Weed).GetFileMeta(testkey, false)
+	wd.(*Weed).GetFileMeta(toString(testkey), false)
 
 	wd.(*Weed).GarbageCollect(true)
 	d.CollectGarbage()
