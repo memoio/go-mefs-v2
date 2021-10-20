@@ -16,3 +16,14 @@ type SegmentID interface {
 	IndexBytes() []byte
 	IndexString() string
 }
+
+type Segment interface {
+	RawData() []byte
+	Tag() ([]byte, error)
+	SegData() ([]byte, error)
+	SegmentID() SegmentID
+	FsID() []byte
+	BucketID() int64
+	StripeID() int64
+	ChunkID() uint32
+}

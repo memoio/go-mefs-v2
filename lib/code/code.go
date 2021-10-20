@@ -12,7 +12,7 @@ import (
 var _ Codec = (*DataCoder)(nil)
 
 type DataCoder struct {
-	*Prefix
+	*segment.Prefix
 	blsKey       pdpcommon.KeySet
 	dv           pdpcommon.DataVerifier
 	chunkCount   int
@@ -37,7 +37,7 @@ func NewDataCoder(keyset pdpcommon.KeySet, version, policy, dataCount, parityCou
 		return nil, ErrWrongPolicy
 	}
 
-	pre := &Prefix{
+	pre := &segment.Prefix{
 		Version:     uint32(version),
 		Policy:      uint32(policy),
 		DataCount:   uint32(dataCount),
@@ -60,7 +60,7 @@ func NewDataCoderWithBopts(keyset pdpcommon.KeySet, bo *mpb.BucketOption) (*Data
 }
 
 // NewDataCoderWithPrefix creates a new datacoder with prefix
-func NewDataCoderWithPrefix(keyset pdpcommon.KeySet, p *Prefix) (*DataCoder, error) {
+func NewDataCoderWithPrefix(keyset pdpcommon.KeySet, p *segment.Prefix) (*DataCoder, error) {
 	vkey := pdpv2.NewDataVerifier(keyset.PublicKey(), keyset.SecreteKey())
 	if vkey == nil {
 		return nil, ErrWrongCoder
@@ -224,7 +224,7 @@ func (d *DataCoder) VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool,
 			stripe[j] = nil
 		} else {
 			// verify prefix
-			pre, _, err := DeserializePrefix(stripe[j])
+			pre, _, err := segment.DeserializePrefix(stripe[j])
 			if err != nil || !d.VerifyPrefix(pre) {
 				stripe[j] = nil
 				continue
