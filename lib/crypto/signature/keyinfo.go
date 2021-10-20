@@ -11,7 +11,7 @@ import (
 
 // todo
 
-var log = logging.Logger("keyinfo")
+var log = logging.Logger("signature")
 
 func init() {
 	// Safely terminate in case of an interrupt signal

@@ -4,9 +4,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
-	"github.com/memoio/go-mefs-v2/lib/keystore"
 	"github.com/mitchellh/go-homedir"
 	"github.com/zeebo/blake3"
 )

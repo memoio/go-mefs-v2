@@ -11,6 +11,8 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
+var _ types.KeyStore = (*keyRepo)(nil)
+
 type keyRepo struct {
 	path string
 }
