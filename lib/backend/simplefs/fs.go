@@ -152,8 +152,8 @@ func (sf *SimpleFs) Delete(key []byte) error {
 	return os.Remove(fn)
 }
 
-func (sf *SimpleFs) Stat() (*store.Statistics, error) {
-	return nil, nil
+func (sf *SimpleFs) Size() int64 {
+	return 0
 }
 
 func (sf *SimpleFs) Close() error {

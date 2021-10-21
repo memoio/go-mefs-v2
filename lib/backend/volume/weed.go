@@ -268,6 +268,28 @@ func (w *Weed) Delete(key []byte) error {
 	return w.kvstore.Delete([]byte(key))
 }
 
+func (w *Weed) Size() int64 {
+	w.closeLk.RLock()
+	defer w.closeLk.RUnlock()
+	if w.closed {
+		return 0
+	}
+
+	maxvid := int(w.volumeId)
+
+	st := uint64(0)
+
+	for i := 0; i <= maxvid; i++ {
+		v := w.store.GetVolume(needle.VolumeId(i))
+
+		fSize, iSize, _ := v.FileStat()
+		st += fSize
+		st += iSize
+	}
+
+	return int64(st)
+}
+
 func (w *Weed) Stat() (*store.Statistics, error) {
 	w.closeLk.RLock()
 	defer w.closeLk.RUnlock()

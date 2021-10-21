@@ -11,15 +11,28 @@ type Store interface {
 	Get(key []byte) ([]byte, error)
 	Has(key []byte) (bool, error)
 	Delete(key []byte) error
+	Size() int64
 	Close() error
 }
 
 type KVStore interface {
 	Store
+
 	GetNext(key []byte, bandwidth int) (uint64, error)
+	Iter(prefix []byte, fn func(k, v []byte) error) int64
+	IterKeys(prefix []byte, fn func(k []byte) error) int64
+
+	Sync() error
+
+	NewTxnStore(bool) (TxnStore, error)
+}
+
+type TxnStore interface {
+	Store
+	Commit() error
+	Discard()
 }
 
 type FileStore interface {
 	Store
-	Stat() (*Statistics, error)
 }

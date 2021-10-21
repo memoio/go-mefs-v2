@@ -2,9 +2,10 @@ package repo
 
 import (
 	"github.com/ipfs/go-datastore"
+
 	"github.com/memoio/go-mefs-v2/config"
-	"github.com/memoio/go-mefs-v2/lib/repo/fskeystore"
-	"github.com/memoio/go-mefs-v2/lib/utils/blockstoreutil"
+	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 // Datastore is the datastore interface provided by the repo
@@ -18,28 +19,19 @@ type Datastore interface {
 // repo is a representation of all persistent data in a filecoin node.
 type Repo interface {
 	Config() *config.Config
+
 	// ReplaceConfig replaces the current config, with the newly passed in one.
 	ReplaceConfig(cfg *config.Config) error
 
-	// Datastore is a general storage solution for things like blocks.
-	Datastore() blockstoreutil.Blockstore
+	MetaStore() store.KVStore
 
-	Keystore() fskeystore.Keystore
+	FileStore() store.FileStore
 
-	// // WalletDatastore is a specific storage solution, only used to store sensitive wallet information.
-	// WalletDatastore() Datastore
-
-	SpecDatastore(prefix string) Datastore
+	Keystore() types.KeyStore
 
 	// DhtDatastore is a specific storage solution, only used to store kad dht data.
 	DhtDatastore() Datastore
 
-	// MetaDatastore is a specific storage solution, only used to store mpool data.
-	MetaDatastore() Datastore
-
-	//MarketDatastore() Datastore
-
-	// PaychDatastore() Datastore
 	// SetJsonrpcAPIAddr sets the address of the running jsonrpc API.
 	SetAPIAddr(maddr string) error
 
@@ -54,9 +46,6 @@ type Repo interface {
 
 	// Path returns the repo path.
 	Path() (string, error)
-
-	// JournalPath returns the journal path.
-	JournalPath() string
 
 	// Close shuts down the repo.
 	Close() error

@@ -1,11 +1,26 @@
 package segment
 
-import "github.com/memoio/go-mefs-v2/lib/types/store"
+import (
+	lru "github.com/hashicorp/golang-lru"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
+)
 
 var _ SegmentStore = (*segStore)(nil)
 
 type segStore struct {
 	store.FileStore
+
+	// todo, add cache ops
+	cache *lru.ARCCache
+}
+
+func NewSegStore(fs store.FileStore) (SegmentStore, error) {
+	cache, err := lru.NewARC(1024)
+	if err != nil {
+		return nil, err
+	}
+
+	return &segStore{fs, cache}, nil
 }
 
 func (ss segStore) Put(seg Segment) error {
@@ -24,6 +39,7 @@ func (ss segStore) PutMany(segs []Segment) error {
 
 func (ss segStore) Get(segID SegmentID) (Segment, error) {
 	bs := new(BaseSegment)
+
 	data, err := ss.FileStore.Get(segID.Bytes())
 	if err != nil {
 		return bs, err

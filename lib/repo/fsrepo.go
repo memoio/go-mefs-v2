@@ -11,14 +11,16 @@ import (
 	"sync"
 	"time"
 
-	bstore "github.com/ipfs/go-ipfs-blockstore"
 	"github.com/memoio/go-mefs-v2/config"
-	"github.com/memoio/go-mefs-v2/lib/repo/fskeystore"
-	"github.com/memoio/go-mefs-v2/lib/utils/blockstoreutil"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils/storeutil"
 
 	badgerds "github.com/ipfs/go-ds-badger2"
 	lockfile "github.com/ipfs/go-fs-lock"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
+	bstore "github.com/ipfs/go-ipfs-blockstore"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 )
@@ -28,11 +30,12 @@ const LatestVersion uint = 3
 
 const (
 	// apiFile is the filename containing the filecoin node's api address.
-	apiFile                = "api"
-	configFilename         = "config.json"
-	tempConfigFilename     = ".config.json.temp"
-	lockFile               = "repo.lock"
-	versionFilename        = "version"
+	apiFile            = "api"
+	configFilename     = "config.json"
+	tempConfigFilename = ".config.json.temp"
+	lockFile           = "repo.lock"
+	versionFilename    = "version"
+
 	walletDatastorePrefix  = "wallet"
 	chainDatastorePrefix   = "chain"
 	dhtDatastorePrefix     = "dht"
@@ -53,14 +56,14 @@ type FSRepo struct {
 	lk  sync.RWMutex
 	cfg *config.Config
 
-	ds       *blockstoreutil.BadgerBlockstore
-	keystore fskeystore.Keystore
-	// walletDs Datastore
-	specDs map[string]Datastore
-	dhtDs  Datastore
-	metaDs Datastore
-	// paychDs  Datastore
-	// chainDs Datastore
+	ds store.KVStore
+	fs store.FileStore
+	ks types.KeyStore
+
+	walletDs Datastore
+	dhtDs    Datastore
+	metaDs   Datastore
+
 	// lockfile is the file system lock to prevent others from opening the same repo.
 	lockfile io.Closer
 }
@@ -184,31 +187,12 @@ func OpenFSRepo(repoPath string, version uint) (*FSRepo, error) {
 		return nil, errors.Wrap(err, "failed to take repo lock")
 	}
 
-	r.specDs = make(map[string]Datastore)
-
 	if err := r.loadFromDisk(); err != nil {
 		_ = r.lockfile.Close()
 		return nil, err
 	}
 
 	return r, nil
-}
-
-// MakeRepoDirName constructs a name for a concrete repo directory, which includes its
-// version number and a timestamp. The name will begin with prefix and, if uniqueifier is
-// non-zero, end with that (intended as an ordinal for finding a free name).
-// E.g. ".filecoin-20190102-140425-012-1
-// This is exported for use by migrations.
-func MakeRepoDirName(prefix string, ts time.Time, version uint, uniqueifier uint) string {
-	name := strings.Join([]string{
-		prefix,
-		ts.Format("20060102-150405"),
-		fmt.Sprintf("v%03d", version),
-	}, "-")
-	if uniqueifier != 0 {
-		name = name + fmt.Sprintf("-%d", uniqueifier)
-	}
-	return name
 }
 
 func (r *FSRepo) loadFromDisk() error {
@@ -233,10 +217,6 @@ func (r *FSRepo) loadFromDisk() error {
 		return errors.Wrap(err, "failed to open keystore")
 	}
 
-	// if err := r.openWalletDatastore(); err != nil {
-	// 	return errors.Wrap(err, "failed to open wallet datastore")
-	// }
-
 	if err := r.opendhtDatastore(); err != nil {
 		return errors.Wrap(err, "failed to open chain datastore")
 	}
@@ -244,10 +224,6 @@ func (r *FSRepo) loadFromDisk() error {
 	if err := r.openMetaDatastore(); err != nil {
 		return errors.Wrap(err, "failed to open metadata datastore")
 	}
-
-	// if err := r.openPaychDataStore(); err != nil {
-	// 	return errors.Wrap(err, "failed to open paych datastore")
-	// }
 
 	return nil
 }
@@ -296,37 +272,8 @@ func (r *FSRepo) SnapshotConfig(cfg *config.Config) error {
 }
 
 // Datastore returns the datastore.
-func (r *FSRepo) Datastore() blockstoreutil.Blockstore {
+func (r *FSRepo) Datastore() storeutil.Blockstore {
 	return r.ds
-}
-
-// // WalletDatastore returns the wallet datastore.
-// func (r *FSRepo) WalletDatastore() Datastore {
-// 	return r.walletDs
-// }
-
-// ChainDatastore returns the chain datastore.
-func (r *FSRepo) SpecDatastore(prefix string) Datastore {
-	switch prefix {
-	case dhtDatastorePrefix:
-		return r.dhtDs
-	case metaDatastorePrefix:
-		return r.metaDs
-	default:
-	}
-
-	if ds, ok := r.specDs[prefix]; ok && ds != nil {
-		return ds
-	}
-
-	ds, err := badgerds.NewDatastore(filepath.Join(r.path, prefix), badgerOptions())
-	if err != nil {
-		return nil
-	}
-
-	r.specDs[prefix] = ds
-
-	return ds
 }
 
 // ChainDatastore returns the chain datastore.
@@ -434,22 +381,17 @@ func (r *FSRepo) readVersion() (uint, error) {
 }
 
 func (r *FSRepo) openDatastore() error {
-	switch r.cfg.Datastore.Type {
-	case "badgerds":
-		path := filepath.Join(r.path, r.cfg.Datastore.Path)
-		opts, err := blockstoreutil.BadgerBlockstoreOptions(path, false)
-		if err != nil {
-			return err
-		}
-		opts.Prefix = bstore.BlockPrefix.String()
-		ds, err := blockstoreutil.Open(opts)
-		if err != nil {
-			return err
-		}
-		r.ds = ds
-	default:
-		return fmt.Errorf("unknown datastore type in config: %s", r.cfg.Datastore.Type)
+	path := r.cfg.Data.MetaPath
+	opts, err := blockstoreutil.BadgerBlockstoreOptions(path, false)
+	if err != nil {
+		return err
 	}
+	opts.Prefix = bstore.BlockPrefix.String()
+	ds, err := blockstoreutil.Open(opts)
+	if err != nil {
+		return err
+	}
+	r.ds = ds
 
 	return nil
 }

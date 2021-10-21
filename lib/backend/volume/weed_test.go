@@ -92,7 +92,7 @@ func TestFileStore(t *testing.T) {
 		}
 	}
 
-	wd.Stat()
+	wd.(*Weed).Stat()
 
 	for i := 0; i < 300000; i++ {
 		tkey := append(testkey, []byte(strconv.Itoa(i))...)
@@ -110,7 +110,7 @@ func TestFileStore(t *testing.T) {
 		}
 	}
 
-	wd.Stat()
+	wd.(*Weed).Stat()
 
 	has, err := wd.Has(testkey)
 	if err != nil {
@@ -133,5 +133,5 @@ func TestFileStore(t *testing.T) {
 
 	wd.(*Weed).GarbageCollect(true)
 	d.CollectGarbage()
-	wd.Stat()
+	wd.(*Weed).Stat()
 }

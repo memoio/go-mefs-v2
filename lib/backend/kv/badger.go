@@ -209,6 +209,18 @@ func (d *BadgerStore) GetNext(key []byte, bandwidth int) (uint64, error) {
 	return seq.Next()
 }
 
+func (d *BadgerStore) NewTxnStore(update bool) (store.TxnStore, error) {
+	d.closeLk.RLock()
+	defer d.closeLk.RUnlock()
+	if d.closed {
+		return nil, ErrClosed
+	}
+
+	txn := &txn{d, d.db.NewTransaction(update)}
+
+	return txn, nil
+}
+
 func (d *BadgerStore) Put(key, value []byte) error {
 	d.closeLk.RLock()
 	defer d.closeLk.RUnlock()
@@ -307,7 +319,7 @@ func (d *BadgerStore) Iter(prefix []byte, fn func(k, v []byte) error) int64 {
 }
 
 // iterate over keys
-func (d *BadgerStore) IterKey(prefix []byte, fn func(k []byte) error) int64 {
+func (d *BadgerStore) IterKeys(prefix []byte, fn func(k []byte) error) int64 {
 	var total int64
 	d.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -325,6 +337,11 @@ func (d *BadgerStore) IterKey(prefix []byte, fn func(k []byte) error) int64 {
 		return nil
 	})
 	return atomic.LoadInt64(&total)
+}
+
+func (d *BadgerStore) Size() int64 {
+	lsmSize, vlogSize := d.db.Size()
+	return lsmSize + vlogSize
 }
 
 func (d *BadgerStore) Sync() error {

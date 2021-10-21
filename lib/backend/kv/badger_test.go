@@ -2,6 +2,7 @@ package kv
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -27,13 +28,21 @@ func TestCreateDS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		tkey := append(testKey, []byte(strconv.Itoa(i))...)
 		err = d.Put(tkey, testVal)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
+
+	fn := func(key, value []byte) error {
+		fmt.Println(key)
+		return nil
+	}
+
+	res := d.Iter(testKey, fn)
+	t.Fatal(res)
 
 	ok, err := d.Has(testKey)
 	if err != nil {
