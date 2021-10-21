@@ -1,3 +1,4 @@
+//go:build !cgo
 // +build !cgo
 
 package secp256k1
@@ -14,7 +15,7 @@ var (
 )
 
 // Sign signs the given message, which must be 32 bytes long.
-func Secp256K1Sign(sk, msg []byte) ([]byte, error) {
+func Sign(sk, msg []byte) ([]byte, error) {
 	key, _ := btcec.PrivKeyFromBytes(btcec.S256(), sk[:])
 
 	sig, err := key.Sign(msg)
@@ -26,7 +27,7 @@ func Secp256K1Sign(sk, msg []byte) ([]byte, error) {
 }
 
 // Verify checks the given signature and returns true if it is valid.
-func Secp256K1Verify(pk, msg, signature []byte) bool {
+func Verify(pk, msg, signature []byte) bool {
 	if len(signature) >= SignatureSize-1 {
 		// Drop the V (1byte) in [R | S | V] style signatures.
 		// The V (1byte) is the recovery bit and is not apart of the signature verification.
@@ -46,7 +47,7 @@ func Secp256K1Verify(pk, msg, signature []byte) bool {
 }
 
 // EcRecover recovers the public key from a message, signature pair.
-func Secp256K1EcRecover(msg, sig []byte) ([]byte, error) {
+func EcRecover(msg, sig []byte) ([]byte, error) {
 	btcsig := make([]byte, SignatureSize)
 	btcsig[0] = sig[64] + 27
 	copy(btcsig[1:], sig)

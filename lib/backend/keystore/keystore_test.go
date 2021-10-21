@@ -6,7 +6,6 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
-	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/mitchellh/go-homedir"
 )
@@ -25,7 +24,7 @@ func TestWallet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	privkey, pubkey, err := secp256k1.GenerateKey()
+	privkey, err := signature.GenerateKey(types.Secp256k1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +39,7 @@ func TestWallet(t *testing.T) {
 		Type:      privkey.Type(),
 	}
 
-	pubByte, _ := pubkey.CompressedByte()
+	pubByte, _ := privkey.GetPublic().CompressedByte()
 
 	addr, err := address.NewAddress(pubByte)
 	if err != nil {

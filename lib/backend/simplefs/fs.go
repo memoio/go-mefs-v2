@@ -8,14 +8,15 @@ import (
 	"path"
 
 	logger "github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
+
 	"github.com/mr-tron/base58/base58"
 	"github.com/zeebo/blake3"
 )
 
 var log = logger.Logger("simplefs")
 
-var _ types.FileStore = (*SimpleFs)(nil)
+var _ store.FileStore = (*SimpleFs)(nil)
 
 type SimpleFs struct {
 	path string
@@ -151,7 +152,7 @@ func (sf *SimpleFs) Delete(key []byte) error {
 	return os.Remove(fn)
 }
 
-func (sf *SimpleFs) Stat() (*types.Statistics, error) {
+func (sf *SimpleFs) Stat() (*store.Statistics, error) {
 	return nil, nil
 }
 

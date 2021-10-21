@@ -7,11 +7,12 @@ import (
 	"crypto/subtle"
 
 	"github.com/btcsuite/btcd/btcec"
-	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
+	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var _ sig_common.PrivKey = (*PrivateKey)(nil)
-var _ sig_common.PubKey = (*PublicKey)(nil)
+var _ common.PrivKey = (*PrivateKey)(nil)
+var _ common.PubKey = (*PublicKey)(nil)
 
 type PrivateKey struct {
 	*PublicKey
@@ -23,7 +24,7 @@ type PublicKey struct {
 }
 
 // GenerateKey generates a new Secp256k1 private and public key pair
-func GenerateKey() (sig_common.PrivKey, sig_common.PubKey, error) {
+func GenerateKey() (common.PrivKey, error) {
 	pub := &PublicKey{}
 
 	priv := &PrivateKey{
@@ -32,7 +33,7 @@ func GenerateKey() (sig_common.PrivKey, sig_common.PubKey, error) {
 
 	key, err := ecdsa.GenerateKey(btcec.S256(), rand.Reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	priv.secretKey = (*btcec.PrivateKey)(key).Serialize()
@@ -40,12 +41,12 @@ func GenerateKey() (sig_common.PrivKey, sig_common.PubKey, error) {
 	pk := (*btcec.PublicKey)(&key.PublicKey)
 	pub.pubKey = pk.SerializeUncompressed()
 
-	return priv, pub, nil
+	return priv, nil
 }
 
 // Equals compares two private keys
-func (k *PrivateKey) Equals(o sig_common.Key) bool {
-	if o.Type() != sig_common.Secp256k1 {
+func (k *PrivateKey) Equals(o common.Key) bool {
+	if o.Type() != types.Secp256k1 {
 		return false
 	}
 
@@ -61,14 +62,14 @@ func (k *PrivateKey) Equals(o sig_common.Key) bool {
 }
 
 // Type returns the private key type
-func (k *PrivateKey) Type() sig_common.KeyType {
-	return sig_common.Secp256k1
+func (k *PrivateKey) Type() types.KeyType {
+	return types.Secp256k1
 }
 
 // Raw returns the bytes of the key
 func (k *PrivateKey) Raw() ([]byte, error) {
 	if len(k.secretKey) != SecretKeySize {
-		return nil, sig_common.ErrBadPrivateKey
+		return nil, common.ErrBadPrivateKey
 	}
 	return k.secretKey, nil
 }
@@ -79,7 +80,7 @@ func (k *PrivateKey) Sign(msg []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	sig, err := Secp256K1Sign(sk, msg)
+	sig, err := Sign(sk, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,7 @@ func (k *PrivateKey) Sign(msg []byte) ([]byte, error) {
 }
 
 // GetPublic returns a public key
-func (k *PrivateKey) GetPublic() sig_common.PubKey {
+func (k *PrivateKey) GetPublic() common.PubKey {
 	if k.PublicKey != nil {
 		return k.PublicKey
 	}
@@ -107,7 +108,7 @@ func (k *PrivateKey) GetPublic() sig_common.PubKey {
 // GetPublic returns a public key
 func (k *PrivateKey) Deserialize(data []byte) error {
 	if len(data) != SecretKeySize {
-		return sig_common.ErrBadPrivateKey
+		return common.ErrBadPrivateKey
 	}
 	k.secretKey = data
 
@@ -120,8 +121,8 @@ func (k *PrivateKey) Deserialize(data []byte) error {
 }
 
 // Equals compares two public keys
-func (k *PublicKey) Equals(o sig_common.Key) bool {
-	if o.Type() != sig_common.Secp256k1 {
+func (k *PublicKey) Equals(o common.Key) bool {
+	if o.Type() != types.Secp256k1 {
 		return false
 	}
 
@@ -137,14 +138,14 @@ func (k *PublicKey) Equals(o sig_common.Key) bool {
 }
 
 // Type returns the public key type
-func (k *PublicKey) Type() sig_common.KeyType {
-	return sig_common.Secp256k1
+func (k *PublicKey) Type() types.KeyType {
+	return types.Secp256k1
 }
 
 // Raw returns the bytes of the key
 func (k *PublicKey) Raw() ([]byte, error) {
 	if len(k.pubKey) != PublicKeySize {
-		return nil, sig_common.ErrBadPrivateKey
+		return nil, common.ErrBadPrivateKey
 	}
 
 	return k.pubKey, nil
@@ -172,13 +173,13 @@ func (k *PublicKey) Deserialize(data []byte) error {
 		return nil
 	}
 
-	return sig_common.ErrBadPublickKey
+	return common.ErrBadPublickKey
 }
 
 // Verify compares a signature against the input data
 func (k *PublicKey) Verify(msg, sig []byte) (bool, error) {
 	if len(sig) != SignatureSize {
-		return false, sig_common.ErrBadSign
+		return false, common.ErrBadSign
 	}
 
 	pubBytes, err := k.Raw()
@@ -186,7 +187,7 @@ func (k *PublicKey) Verify(msg, sig []byte) (bool, error) {
 		return false, err
 	}
 
-	rePub, err := Secp256K1EcRecover(msg, sig)
+	rePub, err := EcRecover(msg, sig)
 	if err != nil {
 		return false, err
 	}

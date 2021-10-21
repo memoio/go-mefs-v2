@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
-	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
+	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,8 +17,10 @@ func init() {
 func TestSecp256k1Address(t *testing.T) {
 	assert := assert.New(t)
 
-	_, pk, err := secp256k1.GenerateKey()
+	sk, err := signature.GenerateKey(types.Secp256k1)
 	assert.NoError(err)
+
+	pk := sk.GetPublic()
 
 	aByte, err := pk.CompressedByte()
 	assert.NoError(err)
@@ -39,8 +41,10 @@ func TestSecp256k1Address(t *testing.T) {
 func TestBLSAddress(t *testing.T) {
 	assert := assert.New(t)
 
-	_, pk, err := bls.GenerateKey()
+	sk, err := signature.GenerateKey(types.BLS)
 	assert.NoError(err)
+
+	pk := sk.GetPublic()
 
 	aByte, err := pk.CompressedByte()
 	assert.NoError(err)

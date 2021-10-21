@@ -7,9 +7,10 @@ import (
 	"time"
 
 	badger "github.com/dgraph-io/badger/v2"
-	logger "github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/lib/types"
 	"go.uber.org/zap"
+
+	logger "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 var log = logger.Logger("badger")
@@ -25,7 +26,7 @@ func (logger *compatLogger) Warningf(format string, args ...interface{}) {
 	logger.Warnf(format, args...)
 }
 
-var _ types.KVStore = (*BadgerStore)(nil)
+var _ store.KVStore = (*BadgerStore)(nil)
 
 type BadgerStore struct {
 	db     *badger.DB

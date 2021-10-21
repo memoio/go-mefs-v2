@@ -1,11 +1,11 @@
 package segment
 
-import "github.com/memoio/go-mefs-v2/lib/types"
+import "github.com/memoio/go-mefs-v2/lib/types/store"
 
 var _ SegmentStore = (*segStore)(nil)
 
 type segStore struct {
-	types.FileStore
+	store.FileStore
 }
 
 func (ss segStore) Put(seg Segment) error {

@@ -8,15 +8,18 @@ import (
 	"github.com/zeebo/blake3"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
-	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
+	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 func BenchmarkSign(b *testing.B) {
-	sk, pk, err := bls.GenerateKey()
+	sk, err := bls.GenerateKey()
 	if err != nil {
 		panic(err)
 	}
+
+	pk := sk.GetPublic()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -38,34 +41,38 @@ func BenchmarkSign(b *testing.B) {
 }
 
 func TestSecpSign(t *testing.T) {
-	testSign(sig_common.Secp256k1)
-	testSign(sig_common.BLS)
+	testSign(types.Secp256k1)
+	testSign(types.BLS)
 
-	testSign2(sig_common.Secp256k1)
-	testSign2(sig_common.BLS)
+	testSign2(types.Secp256k1)
+	testSign2(types.BLS)
 
-	testSign3(sig_common.Secp256k1)
-	testSign3(sig_common.BLS)
+	testSign3(types.Secp256k1)
+	testSign3(types.BLS)
 
-	testSign4(sig_common.Secp256k1)
-	testSign4(sig_common.BLS)
+	testSign4(types.Secp256k1)
+	testSign4(types.BLS)
 }
 
-func testSign(typ sig_common.KeyType) {
-	var sk sig_common.PrivKey
-	var pk sig_common.PubKey
+func testSign(typ types.KeyType) {
+	var sk common.PrivKey
+	var pk common.PubKey
 	var err error
 
-	if typ == sig_common.BLS {
-		sk, pk, err = bls.GenerateKey()
+	if typ == types.BLS {
+		sk, err = bls.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
-	} else if typ == sig_common.Secp256k1 {
-		sk, pk, err = secp256k1.GenerateKey()
+
+		pk = sk.GetPublic()
+	} else if typ == types.Secp256k1 {
+		sk, err = secp256k1.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
+
+		pk = sk.GetPublic()
 	}
 
 	msg := blake3.Sum256([]byte("1"))
@@ -89,16 +96,16 @@ func testSign(typ sig_common.KeyType) {
 		panic(err)
 	}
 
-	var newsk sig_common.PrivKey
-	var newpk sig_common.PubKey
-	if typ == sig_common.BLS {
+	var newsk common.PrivKey
+	var newpk common.PubKey
+	if typ == types.BLS {
 		newsk = &bls.PrivateKey{}
 		err := newsk.Deserialize(skBytes)
 		if err != nil {
 			panic(err)
 		}
 		newpk = newsk.GetPublic()
-	} else if typ == sig_common.Secp256k1 {
+	} else if typ == types.Secp256k1 {
 		newsk = &secp256k1.PrivateKey{}
 		err := newsk.Deserialize(skBytes)
 		if err != nil {
@@ -131,28 +138,32 @@ func testSign(typ sig_common.KeyType) {
 		panic("pubkey not equal")
 	}
 
-	if typ == sig_common.BLS {
+	if typ == types.BLS {
 		if !bytes.Equal(sig, newsig) {
 			panic("sig not equal")
 		}
 	}
 }
 
-func testSign2(typ sig_common.KeyType) {
-	var sk sig_common.PrivKey
-	var pk sig_common.PubKey
+func testSign2(typ types.KeyType) {
+	var sk common.PrivKey
+	var pk common.PubKey
 	var err error
 
-	if typ == sig_common.BLS {
-		sk, pk, err = bls.GenerateKey()
+	if typ == types.BLS {
+		sk, err = bls.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
-	} else if typ == sig_common.Secp256k1 {
-		sk, pk, err = secp256k1.GenerateKey()
+
+		pk = sk.GetPublic()
+	} else if typ == types.Secp256k1 {
+		sk, err = secp256k1.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
+
+		pk = sk.GetPublic()
 	}
 
 	msg := blake3.Sum256([]byte("1"))
@@ -176,16 +187,16 @@ func testSign2(typ sig_common.KeyType) {
 		panic(err)
 	}
 
-	var newsk sig_common.PrivKey
-	var newpk sig_common.PubKey
-	if typ == sig_common.BLS {
+	var newsk common.PrivKey
+	var newpk common.PubKey
+	if typ == types.BLS {
 		newsk = &bls.PrivateKey{}
 		err := newsk.Deserialize(skBytes)
 		if err != nil {
 			panic(err)
 		}
 		newpk = newsk.GetPublic()
-	} else if typ == sig_common.Secp256k1 {
+	} else if typ == types.Secp256k1 {
 		newsk = &secp256k1.PrivateKey{}
 		err := newsk.Deserialize(skBytes)
 		if err != nil {
@@ -218,28 +229,31 @@ func testSign2(typ sig_common.KeyType) {
 		panic("pubkey not equal")
 	}
 
-	if typ == sig_common.BLS {
+	if typ == types.BLS {
 		if !bytes.Equal(sig, newsig) {
 			panic("sig not equal")
 		}
 	}
 }
 
-func testSign3(typ sig_common.KeyType) {
-	var sk sig_common.PrivKey
-	var pk sig_common.PubKey
+func testSign3(typ types.KeyType) {
+	var sk common.PrivKey
+	var pk common.PubKey
 	var err error
 
-	if typ == sig_common.BLS {
-		sk, pk, err = bls.GenerateKey()
+	if typ == types.BLS {
+		sk, err = bls.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
-	} else if typ == sig_common.Secp256k1 {
-		sk, pk, err = secp256k1.GenerateKey()
+		pk = sk.GetPublic()
+	} else if typ == types.Secp256k1 {
+		sk, err = secp256k1.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
+
+		pk = sk.GetPublic()
 	}
 
 	msg := blake3.Sum256([]byte("1"))
@@ -268,9 +282,9 @@ func testSign3(typ sig_common.KeyType) {
 		panic(err)
 	}
 
-	var newsk sig_common.PrivKey
-	var newpk sig_common.PubKey
-	if typ == sig_common.BLS {
+	var newsk common.PrivKey
+	var newpk common.PubKey
+	if typ == types.BLS {
 		newsk = &bls.PrivateKey{}
 		err := newsk.Deserialize(skBytes)
 		if err != nil {
@@ -281,7 +295,7 @@ func testSign3(typ sig_common.KeyType) {
 		if err != nil {
 			panic(err)
 		}
-	} else if typ == sig_common.Secp256k1 {
+	} else if typ == types.Secp256k1 {
 		newsk = &secp256k1.PrivateKey{}
 		err := newsk.Deserialize(skBytes)
 		if err != nil {
@@ -314,21 +328,25 @@ func testSign3(typ sig_common.KeyType) {
 
 }
 
-func testSign4(typ sig_common.KeyType) {
-	var sk sig_common.PrivKey
-	var pk sig_common.PubKey
+func testSign4(typ types.KeyType) {
+	var sk common.PrivKey
+	var pk common.PubKey
 	var err error
 
-	if typ == sig_common.BLS {
-		sk, pk, err = bls.GenerateKey()
+	if typ == types.BLS {
+		sk, err = bls.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
-	} else if typ == sig_common.Secp256k1 {
-		sk, pk, err = secp256k1.GenerateKey()
+
+		pk = sk.GetPublic()
+	} else if typ == types.Secp256k1 {
+		sk, err = secp256k1.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
+
+		pk = sk.GetPublic()
 	}
 
 	msg := blake3.Sum256([]byte("1"))
@@ -357,9 +375,9 @@ func testSign4(typ sig_common.KeyType) {
 		panic(err)
 	}
 
-	var newsk sig_common.PrivKey
-	var newpk sig_common.PubKey
-	if typ == sig_common.BLS {
+	var newsk common.PrivKey
+	var newpk common.PubKey
+	if typ == types.BLS {
 		newsk = &bls.PrivateKey{}
 		err := newsk.Deserialize(skBytes)
 		if err != nil {
@@ -370,7 +388,7 @@ func testSign4(typ sig_common.KeyType) {
 		if err != nil {
 			panic(err)
 		}
-	} else if typ == sig_common.Secp256k1 {
+	} else if typ == types.Secp256k1 {
 		newsk = &secp256k1.PrivateKey{}
 		err := newsk.Deserialize(skBytes)
 		if err != nil {

@@ -77,6 +77,10 @@ func (a Address) Empty() bool {
 // ToEthAddress returns an address using the SECP256K1 protocol.
 // pubkey is 65 bytes
 func ToEthAddress(pubkey []byte) ([]byte, error) {
+	if len(pubkey) != 65 {
+		return nil, ErrInvalidLength
+	}
+
 	d := sha3.NewLegacyKeccak256()
 	d.Write(pubkey[1:])
 	payload := d.Sum(nil)

@@ -11,17 +11,17 @@ import (
 	"github.com/mr-tron/base58/base58"
 
 	"github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 var logger = log.Logger("volume")
 
-var _ types.FileStore = (*Weed)(nil)
+var _ store.FileStore = (*Weed)(nil)
 
 type Weed struct {
 	config   *Config
 	store    *ws.Store
-	kvstore  types.KVStore
+	kvstore  store.KVStore
 	volumeId needle.VolumeId
 	nameLock sync.RWMutex
 
@@ -31,7 +31,7 @@ type Weed struct {
 	closing   chan struct{}
 }
 
-func NewWeed(cfg *Config, kvstore types.KVStore) (types.FileStore, error) {
+func NewWeed(cfg *Config, kvstore store.KVStore) (store.FileStore, error) {
 	if cfg == nil {
 		return nil, ErrEmptyConfig
 	}
@@ -268,7 +268,7 @@ func (w *Weed) Delete(key []byte) error {
 	return w.kvstore.Delete([]byte(key))
 }
 
-func (w *Weed) Stat() (*types.Statistics, error) {
+func (w *Weed) Stat() (*store.Statistics, error) {
 	w.closeLk.RLock()
 	defer w.closeLk.RUnlock()
 	if w.closed {
@@ -277,7 +277,7 @@ func (w *Weed) Stat() (*types.Statistics, error) {
 
 	maxvid := int(w.volumeId)
 
-	st := new(types.Statistics)
+	st := new(store.Statistics)
 
 	for i := 0; i <= maxvid; i++ {
 		v := w.store.GetVolume(needle.VolumeId(i))

@@ -6,7 +6,8 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
-	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
+	"github.com/memoio/go-mefs-v2/lib/types"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/zeebo/blake3"
 )
@@ -25,7 +26,7 @@ func TestAccount(t *testing.T) {
 
 	lw := NewWallet("123456", ks)
 
-	addr, err := lw.WalletNew(sig_common.Secp256k1)
+	addr, err := lw.WalletNew(types.Secp256k1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,7 @@ func TestAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := signature.Verify(addr, msg[:], sig)
+	ok, err := signature.Verify(addr.Bytes(), msg[:], sig)
 	if err != nil {
 		t.Fatal(err)
 	}

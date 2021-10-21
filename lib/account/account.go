@@ -9,6 +9,7 @@ import (
 	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/wallet"
 )
 
 type LocalWallet struct {
@@ -18,7 +19,7 @@ type LocalWallet struct {
 	keystore types.KeyStore // store
 }
 
-func NewWallet(pw string, ks types.KeyStore) types.Wallet {
+func NewWallet(pw string, ks types.KeyStore) wallet.Wallet {
 	lw := &LocalWallet{
 		password: pw,
 		keystore: ks,
@@ -61,19 +62,18 @@ func (w *LocalWallet) find(addr address.Address) (sig_common.PrivKey, error) {
 	return pi, nil
 }
 
-func (w *LocalWallet) WalletNew(kt sig_common.KeyType) (address.Address, error) {
+func (w *LocalWallet) WalletNew(kt types.KeyType) (address.Address, error) {
 	var privkey sig_common.PrivKey
-	var pubKey sig_common.PubKey
 	var err error
 	switch kt {
-	case sig_common.Secp256k1:
-		privkey, pubKey, err = secp256k1.GenerateKey()
+	case types.Secp256k1:
+		privkey, err = secp256k1.GenerateKey()
 		if err != nil {
 			return address.Undef, err
 		}
 
-	case sig_common.BLS:
-		privkey, pubKey, err = bls.GenerateKey()
+	case types.BLS:
+		privkey, err = bls.GenerateKey()
 		if err != nil {
 			return address.Undef, err
 		}
@@ -82,6 +82,7 @@ func (w *LocalWallet) WalletNew(kt sig_common.KeyType) (address.Address, error) 
 		return address.Undef, types.ErrKeyFromat
 	}
 
+	pubKey := privkey.GetPublic()
 	priByte, err := privkey.Raw()
 	if err != nil {
 		return address.Undef, err

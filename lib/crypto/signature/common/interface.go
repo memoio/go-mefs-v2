@@ -1,17 +1,9 @@
-package sig_common
+package common
 
 import (
 	"errors"
-)
 
-type KeyType = byte
-
-const (
-	// RSA is an enum for the supported RSA key type
-	RSA KeyType = iota
-	// Secp256k1 is an enum for the supported Secp256k1 key type
-	Secp256k1
-	BLS
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 const (
@@ -36,7 +28,7 @@ type Key interface {
 	Raw() ([]byte, error)
 
 	// Type returns the protobuf key type.
-	Type() KeyType
+	Type() types.KeyType
 }
 
 // PrivKey represents a private key that can be used to generate a public key and sign data

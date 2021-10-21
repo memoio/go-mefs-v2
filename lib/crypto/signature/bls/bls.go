@@ -4,11 +4,12 @@ import (
 	"crypto/subtle"
 
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
-	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
+	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var _ sig_common.PrivKey = (*PrivateKey)(nil)
-var _ sig_common.PubKey = (*PublicKey)(nil)
+var _ common.PrivKey = (*PrivateKey)(nil)
+var _ common.PubKey = (*PublicKey)(nil)
 
 type PrivateKey struct {
 	*PublicKey
@@ -20,7 +21,7 @@ type PublicKey struct {
 }
 
 // GenerateKey generates a new Secp256k1 private and public key pair
-func GenerateKey() (sig_common.PrivKey, sig_common.PubKey, error) {
+func GenerateKey() (common.PrivKey, error) {
 	pub := &PublicKey{}
 
 	priv := &PrivateKey{
@@ -30,12 +31,12 @@ func GenerateKey() (sig_common.PrivKey, sig_common.PubKey, error) {
 	priv.secretKey, _ = bls.GenerateKey()
 	pub.pubKey, _ = bls.PublicKey(priv.secretKey)
 
-	return priv, pub, nil
+	return priv, nil
 }
 
 // Equals compares two private keys
-func (k *PrivateKey) Equals(o sig_common.Key) bool {
-	if o.Type() != sig_common.BLS {
+func (k *PrivateKey) Equals(o common.Key) bool {
+	if o.Type() != types.BLS {
 		return false
 	}
 
@@ -51,14 +52,14 @@ func (k *PrivateKey) Equals(o sig_common.Key) bool {
 }
 
 // Type returns the private key type
-func (k *PrivateKey) Type() sig_common.KeyType {
-	return sig_common.BLS
+func (k *PrivateKey) Type() types.KeyType {
+	return types.BLS
 }
 
 // Raw returns the bytes of the key
 func (k *PrivateKey) Raw() ([]byte, error) {
 	if len(k.secretKey) != bls.SecretKeySize {
-		return nil, sig_common.ErrBadPrivateKey
+		return nil, common.ErrBadPrivateKey
 	}
 	return k.secretKey, nil
 }
@@ -78,7 +79,7 @@ func (k *PrivateKey) Sign(data []byte) ([]byte, error) {
 }
 
 // GetPublic returns a public key
-func (k *PrivateKey) GetPublic() sig_common.PubKey {
+func (k *PrivateKey) GetPublic() common.PubKey {
 	if k.PublicKey != nil {
 		return k.PublicKey
 	}
@@ -93,7 +94,7 @@ func (k *PrivateKey) GetPublic() sig_common.PubKey {
 // GetPublic returns a public key
 func (k *PrivateKey) Deserialize(data []byte) error {
 	if len(data) != bls.SecretKeySize {
-		return sig_common.ErrBadPrivateKey
+		return common.ErrBadPrivateKey
 	}
 	pubKey, err := bls.PublicKey(data)
 	if err != nil {
@@ -106,8 +107,8 @@ func (k *PrivateKey) Deserialize(data []byte) error {
 }
 
 // Equals compares two public keys
-func (k *PublicKey) Equals(o sig_common.Key) bool {
-	if o.Type() != sig_common.BLS {
+func (k *PublicKey) Equals(o common.Key) bool {
+	if o.Type() != types.BLS {
 		return false
 	}
 
@@ -123,14 +124,14 @@ func (k *PublicKey) Equals(o sig_common.Key) bool {
 }
 
 // Type returns the public key type
-func (k *PublicKey) Type() sig_common.KeyType {
-	return sig_common.BLS
+func (k *PublicKey) Type() types.KeyType {
+	return types.BLS
 }
 
 // Raw returns the bytes of the key
 func (k *PublicKey) Raw() ([]byte, error) {
 	if len(k.pubKey) != bls.PublicKeySize {
-		return nil, sig_common.ErrBadPrivateKey
+		return nil, common.ErrBadPrivateKey
 	}
 
 	return k.pubKey, nil
@@ -143,7 +144,7 @@ func (k *PublicKey) CompressedByte() ([]byte, error) {
 // GetPublic returns a public key
 func (k *PublicKey) Deserialize(data []byte) error {
 	if len(data) != bls.PublicKeySize {
-		return sig_common.ErrBadPrivateKey
+		return common.ErrBadPrivateKey
 	}
 	k.pubKey = data
 	return nil
@@ -157,7 +158,7 @@ func (k *PublicKey) Verify(msg, sig []byte) (bool, error) {
 	}
 
 	if len(sig) != bls.SignatureSize {
-		return false, sig_common.ErrBadSign
+		return false, common.ErrBadSign
 	}
 
 	err = bls.Verify(pubBytes, msg, sig)

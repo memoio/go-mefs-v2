@@ -4,6 +4,16 @@ import (
 	"errors"
 )
 
+type KeyType = byte
+
+const (
+	// RSA is an enum for the supported RSA key type
+	RSA KeyType = iota
+	// Secp256k1 is an enum for the supported Secp256k1 key type
+	Secp256k1
+	BLS
+)
+
 var (
 	ErrKeyInfoNotFound = errors.New("key info not found")
 	ErrKeyExists       = errors.New("key already exists")
@@ -12,7 +22,7 @@ var (
 
 // KeyInfo is used for storing keys in KeyStore
 type KeyInfo struct {
-	Type      byte
+	Type      KeyType
 	SecretKey []byte
 }
 

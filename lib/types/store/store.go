@@ -1,4 +1,4 @@
-package types
+package store
 
 type Statistics struct {
 	Count       uint64 // number of needles
