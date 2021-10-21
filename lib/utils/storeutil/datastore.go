@@ -59,7 +59,55 @@ func (d *Datastore) Delete(key ds.Key) error {
 
 // todo
 func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
-	return nil, nil
+
+	qrb := dsq.NewResultBuilder(q)
+	if q.KeysOnly {
+		fn := func(key []byte) error {
+			e := dsq.Entry{
+				Key: string(key),
+			}
+
+			result := dsq.Result{Entry: e}
+
+			if !filter(q.Filters, e) {
+				qrb.Output <- result
+			}
+
+			return nil
+		}
+
+		d.DB.IterKeys([]byte(q.Prefix), fn)
+
+		return qrb.Results(), nil
+	} else {
+		fn := func(key, value []byte) error {
+			e := dsq.Entry{
+				Key:   string(key),
+				Value: value,
+			}
+
+			result := dsq.Result{Entry: e}
+
+			if !filter(q.Filters, e) {
+				qrb.Output <- result
+			}
+
+			return nil
+		}
+
+		d.DB.Iter([]byte(q.Prefix), fn)
+
+		return qrb.Results(), nil
+	}
+}
+
+func filter(filters []dsq.Filter, entry dsq.Entry) bool {
+	for _, f := range filters {
+		if !f.Filter(entry) {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *Datastore) Batch() (ds.Batch, error) {
