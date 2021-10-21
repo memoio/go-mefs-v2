@@ -74,6 +74,7 @@ func Verify(pubBytes []byte, msg, sig []byte) (bool, error) {
 
 	switch plen {
 	case 20:
+		// for eth address
 		rePub, err := secp256k1.EcRecover(msg, sig)
 		if err != nil {
 			return false, err
@@ -83,14 +84,6 @@ func Verify(pubBytes []byte, msg, sig []byte) (bool, error) {
 		d.Write(rePub[1:])
 		res := d.Sum(nil)
 		if bytes.Equal(pubBytes, res) {
-			return true, nil
-		}
-	case 65:
-		rePub, err := secp256k1.EcRecover(msg, sig)
-		if err != nil {
-			return false, err
-		}
-		if bytes.Equal(pubBytes, rePub) {
 			return true, nil
 		}
 	default:

@@ -23,12 +23,11 @@ var Validators = map[string]func(string, string) error{
 
 // Config is an in memory representation of the filecoin configuration file
 type Config struct {
-	Identity      IdentityConfig      `json:"identity"`
-	API           APIConfig           `json:"api"`
-	Bootstrap     BootstrapConfig     `json:"bootstrap"`
-	Datastore     DatastoreConfig     `json:"datastore"`
-	NetworkParams NetworkParamsConfig `json:"parameters"`
-	Swarm         SwarmConfig         `json:"swarm"`
+	Identity  IdentityConfig  `json:"identity"`
+	Net       SwarmConfig     `json:"net"`
+	API       APIConfig       `json:"api"`
+	Bootstrap BootstrapConfig `json:"bootstrap"`
+	Data      StorePathConfig `json:"data"`
 }
 
 type IdentityConfig struct {
@@ -42,7 +41,6 @@ func newDefaultIdentityConfig() IdentityConfig {
 // APIConfig holds all configuration options related to the api.
 // nolint
 type APIConfig struct {
-	MemoAuthURL                   string   `json:"memoAuthURL"`
 	APIAddress                    string   `json:"apiAddress"`
 	AccessControlAllowOrigin      []string `json:"accessControlAllowOrigin"`
 	AccessControlAllowCredentials bool     `json:"accessControlAllowCredentials"`
@@ -62,44 +60,37 @@ func newDefaultAPIConfig() APIConfig {
 	}
 }
 
-// DatastoreConfig holds all the configuration options for the datastore.
-// TODO: use the advanced datastore configuration from ipfs
-type DatastoreConfig struct {
-	Type string `json:"type"`
-	Path string `json:"path"`
-}
-
-func newDefaultDatastoreConfig() DatastoreConfig {
-	return DatastoreConfig{
-		Type: "badgerds",
-		Path: "badger",
-	}
-}
-
 // BootstrapConfig holds all configuration options related to bootstrap nodes
 type BootstrapConfig struct {
-	Addresses        []string `json:"addresses"`
-	MinPeerThreshold int      `json:"minPeerThreshold"`
-	Period           string   `json:"period,omitempty"`
+	Addresses []string `json:"addresses"`
 }
 
 // TODO: provide bootstrap node addresses
 func newDefaultBootstrapConfig() BootstrapConfig {
 	return BootstrapConfig{
-		Addresses:        []string{},
-		MinPeerThreshold: 3, // TODO: we don't actually have an bootstrap peers yet.
-		Period:           "1m",
+		Addresses: []string{},
 	}
 }
 
 type NetworkParamsConfig struct {
-	DevNet bool `json:"devNet"`
+	NetName string `json:"netName"`
 }
 
 func newDefaultNetworkParamsConfig() NetworkParamsConfig {
 	return NetworkParamsConfig{
-		DevNet: true,
+		NetName: "beta",
 	}
+}
+
+type StorePathConfig struct {
+	MetaPath  string   `json:"metaPath"`
+	IndexPath string   `json:"indexPath"`
+	DataPath  []string `json:"dataPath"`
+}
+
+// TODO: provide bootstrap node addresses
+func newDefaultStorePathConfig() StorePathConfig {
+	return StorePathConfig{}
 }
 
 // NewDefaultConfig returns a config object with all the fields filled out to
@@ -107,12 +98,11 @@ func newDefaultNetworkParamsConfig() NetworkParamsConfig {
 func NewDefaultConfig() *Config {
 
 	return &Config{
-		Identity:      newDefaultIdentityConfig(),
-		API:           newDefaultAPIConfig(),
-		Bootstrap:     newDefaultBootstrapConfig(),
-		Datastore:     newDefaultDatastoreConfig(),
-		NetworkParams: newDefaultNetworkParamsConfig(),
-		Swarm:         newDefaultSwarmConfig(),
+		Identity:  newDefaultIdentityConfig(),
+		API:       newDefaultAPIConfig(),
+		Bootstrap: newDefaultBootstrapConfig(),
+		Data:      newDefaultStorePathConfig(),
+		Net:       newDefaultSwarmConfig(),
 	}
 }
 

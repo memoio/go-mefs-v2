@@ -3,7 +3,6 @@ module github.com/memoio/go-mefs-v2
 go 1.17
 
 require (
-	github.com/awnumar/memguard v0.22.2
 	github.com/bits-and-blooms/bitset v1.2.1
 	github.com/bluele/gcache v0.0.2
 	github.com/btcsuite/btcd v0.22.0-beta
@@ -66,7 +65,6 @@ require (
 
 require (
 	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
-	github.com/awnumar/memcall v0.0.0-20191004114545-73db50fd9f80 // indirect
 	github.com/aws/aws-sdk-go v1.35.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
