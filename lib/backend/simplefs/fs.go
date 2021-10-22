@@ -19,12 +19,9 @@ type SimpleFs struct {
 }
 
 func NewSimpleFs(dir string) (*SimpleFs, error) {
-	stat, err := os.Stat(dir)
+	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return nil, err
-	}
-	if !stat.IsDir() {
-		return nil, errors.New("not dir")
 	}
 
 	log.Info("create simplefs at:", dir)
