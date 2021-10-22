@@ -41,6 +41,17 @@ func (w *kv) GetNext(key []byte, band int) (uint64, error) {
 	return w.db.GetNext(key, band)
 }
 
+func (w *kv) Iter(prefix []byte, fn func(k, v []byte) error) int64 {
+	return w.db.Iter(prefix, fn)
+}
+func (w *kv) IterKeys(prefix []byte, fn func(k []byte) error) int64 {
+	return w.db.IterKeys(prefix, fn)
+}
+
+func (w *kv) NewTxnStore(update bool) (store.TxnStore, error) {
+	return w.db.NewTxnStore(update)
+}
+
 func (w *kv) Size() int64 {
 	return w.db.Size()
 }

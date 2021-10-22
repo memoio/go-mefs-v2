@@ -4,7 +4,6 @@ go 1.17
 
 require (
 	github.com/bits-and-blooms/bitset v1.2.1
-	github.com/bluele/gcache v0.0.2
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/celestiaorg/smt v0.0.0-20210714161708-2c9076637cd9
 	github.com/chrislusf/seaweedfs v0.0.0-20211012155459-7700bf62f0ce
@@ -17,13 +16,11 @@ require (
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/herumi/bls-eth-go-binary v0.0.0-20210917013441-d37c07cfda4e
 	github.com/iden3/go-iden3-core v0.0.8
-	github.com/ipfs/go-block-format v0.0.3
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ds-badger2 v0.1.1
 	github.com/ipfs/go-fs-lock v0.0.7
 	github.com/ipfs/go-ipfs-blockstore v1.0.4
-	github.com/ipfs/go-ipfs-ds-help v1.0.0
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
 	github.com/klauspost/reedsolomon v1.9.13
@@ -50,7 +47,6 @@ require (
 	github.com/mr-tron/base58 v1.2.0
 	github.com/multiformats/go-multiaddr v0.4.1
 	github.com/multiformats/go-multiaddr-dns v0.3.1
-	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
@@ -93,6 +89,8 @@ require (
 	github.com/huin/goupnp v1.0.2 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.5 // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
+	github.com/ipfs/go-block-format v0.0.3 // indirect
+	github.com/ipfs/go-ipfs-ds-help v1.0.0 // indirect
 	github.com/ipfs/go-ipfs-util v0.0.2 // indirect
 	github.com/ipfs/go-ipns v0.1.2 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect

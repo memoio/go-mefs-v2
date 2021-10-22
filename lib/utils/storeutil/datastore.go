@@ -5,6 +5,7 @@ import (
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	"github.com/jbenet/goprocess"
 
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
@@ -59,7 +60,6 @@ func (d *Datastore) Delete(key ds.Key) error {
 
 // todo
 func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
-
 	qrb := dsq.NewResultBuilder(q)
 	if q.KeysOnly {
 		fn := func(key []byte) error {
@@ -76,9 +76,9 @@ func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
 			return nil
 		}
 
-		d.DB.IterKeys([]byte(q.Prefix), fn)
-
-		return qrb.Results(), nil
+		qrb.Process.Go(func(worker goprocess.Process) {
+			d.DB.IterKeys([]byte(q.Prefix), fn)
+		})
 	} else {
 		fn := func(key, value []byte) error {
 			e := dsq.Entry{
@@ -95,10 +95,14 @@ func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
 			return nil
 		}
 
-		d.DB.Iter([]byte(q.Prefix), fn)
-
-		return qrb.Results(), nil
+		qrb.Process.Go(func(worker goprocess.Process) {
+			d.DB.Iter([]byte(q.Prefix), fn)
+		})
 	}
+
+	go qrb.Process.CloseAfterChildren()
+
+	return qrb.Results(), nil
 }
 
 func filter(filters []dsq.Filter, entry dsq.Entry) bool {
