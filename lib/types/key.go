@@ -36,4 +36,6 @@ type KeyStore interface {
 	Put(string, string, KeyInfo) error
 	// Delete removes a key from keystores
 	Delete(string, string) error
+
+	Close() error
 }

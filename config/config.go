@@ -83,9 +83,10 @@ func newDefaultNetworkParamsConfig() NetworkParamsConfig {
 }
 
 type StorePathConfig struct {
-	MetaPath  string   `json:"metaPath"`
-	IndexPath string   `json:"indexPath"`
-	DataPath  []string `json:"dataPath"`
+	MetaPath        string   `json:"metaPath"`
+	DataPath        string   `json:"dataPath"`
+	VolumeIndexPath string   `json:"volumeIndexPath"`
+	VolumeDataPath  []string `json:"volumeDataPath"`
 }
 
 // TODO: provide bootstrap node addresses

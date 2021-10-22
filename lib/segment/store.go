@@ -3,6 +3,7 @@ package segment
 import (
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/mr-tron/base58/base58"
 )
 
 var _ SegmentStore = (*segStore)(nil)
@@ -24,12 +25,17 @@ func NewSegStore(fs store.FileStore) (SegmentStore, error) {
 }
 
 func (ss segStore) Put(seg Segment) error {
-	return ss.FileStore.Put(seg.SegmentID().Bytes(), seg.RawData())
+	key := seg.SegmentID().Bytes()
+	skey := []byte(base58.Encode(key[:20]) + "/" + base58.Encode(key[20:]))
+
+	return ss.FileStore.Put(skey, seg.RawData())
 }
 
 func (ss segStore) PutMany(segs []Segment) error {
 	for _, seg := range segs {
-		err := ss.FileStore.Put(seg.SegmentID().Bytes(), seg.RawData())
+		key := seg.SegmentID().Bytes()
+		skey := []byte(base58.Encode(key[:20]) + "/" + base58.Encode(key[20:]))
+		err := ss.FileStore.Put(skey, seg.RawData())
 		if err != nil {
 			return err
 		}
@@ -38,23 +44,30 @@ func (ss segStore) PutMany(segs []Segment) error {
 }
 
 func (ss segStore) Get(segID SegmentID) (Segment, error) {
-	bs := new(BaseSegment)
 
-	data, err := ss.FileStore.Get(segID.Bytes())
+	key := segID.Bytes()
+	skey := []byte(base58.Encode(key[:20]) + "/" + base58.Encode(key[20:]))
+
+	data, err := ss.FileStore.Get(skey)
 	if err != nil {
-		return bs, err
+		return nil, err
 	}
 
-	bs.SetID(segID)
-	bs.SetData(data)
+	bs := NewBaseSegment(data, segID)
 
 	return bs, nil
 }
 
 func (ss segStore) Has(segID SegmentID) (bool, error) {
-	return ss.FileStore.Has(segID.Bytes())
+	key := segID.Bytes()
+	skey := []byte(base58.Encode(key[:20]) + "/" + base58.Encode(key[20:]))
+
+	return ss.FileStore.Has(skey)
 }
 
 func (ss segStore) Delete(segID SegmentID) error {
-	return ss.FileStore.Delete(segID.Bytes())
+	key := segID.Bytes()
+	skey := []byte(base58.Encode(key[:20]) + "/" + base58.Encode(key[20:]))
+
+	return ss.FileStore.Delete(skey)
 }

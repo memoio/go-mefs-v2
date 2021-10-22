@@ -5,21 +5,22 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/memoio/go-mefs-v2/config"
+	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
+	"github.com/memoio/go-mefs-v2/lib/backend/kv"
+	"github.com/memoio/go-mefs-v2/lib/backend/simplefs"
+	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/lib/utils/storeutil"
 
-	badgerds "github.com/ipfs/go-ds-badger2"
 	lockfile "github.com/ipfs/go-fs-lock"
-	bstore "github.com/ipfs/go-ipfs-blockstore"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
@@ -36,12 +37,16 @@ const (
 	lockFile           = "repo.lock"
 	versionFilename    = "version"
 
-	walletDatastorePrefix  = "wallet"
-	chainDatastorePrefix   = "chain"
-	dhtDatastorePrefix     = "dht"
-	metaDatastorePrefix    = "metadata"
-	snapshotStorePrefix    = "snapshots"
-	snapshotFilenamePrefix = "snapshot"
+	keyStorePathPrefix = "keystore" // $MefsPath/keystore
+
+	metaPathPrefix = "meta" // $MefsPath/meta
+
+	DataPathPrefix   = "data"   // $MefsPath/data
+	PiecesPathPrefix = "pieces" // $MefsPath/data/pieces
+	SectorPathPrefix = "sector" // $MefsPath/data/sector
+	VoluemPathPrefix = "volume" // $MefsPath/data/volume
+
+	metaStorePrefix = "meta" // key prefix
 )
 
 var log = logging.Logger("repo")
@@ -56,13 +61,9 @@ type FSRepo struct {
 	lk  sync.RWMutex
 	cfg *config.Config
 
-	ds store.KVStore
-	fs store.FileStore
-	ks types.KeyStore
-
-	walletDs Datastore
-	dhtDs    Datastore
-	metaDs   Datastore
+	keyDs  types.KeyStore
+	metaDs store.KVStore
+	fileDs store.FileStore
 
 	// lockfile is the file system lock to prevent others from opening the same repo.
 	lockfile io.Closer
@@ -132,7 +133,7 @@ func InitFSRepoDirect(targetPath string, version uint, cfg *config.Config) error
 }
 
 func Exists(repoPath string) (bool, error) {
-	_, err := os.Stat(filepath.Join(repoPath, walletDatastorePrefix))
+	_, err := os.Stat(filepath.Join(repoPath, keyStorePathPrefix))
 	notExist := os.IsNotExist(err)
 	if notExist {
 		err = nil
@@ -209,19 +210,15 @@ func (r *FSRepo) loadFromDisk() error {
 		return errors.Wrap(err, "failed to load config file")
 	}
 
-	if err := r.openDatastore(); err != nil {
-		return errors.Wrap(err, "failed to open datastore")
-	}
-
-	if err := r.openKeystore(); err != nil {
+	if err := r.openKeyStore(); err != nil {
 		return errors.Wrap(err, "failed to open keystore")
 	}
 
-	if err := r.opendhtDatastore(); err != nil {
-		return errors.Wrap(err, "failed to open chain datastore")
+	if err := r.openMetaStore(); err != nil {
+		return errors.Wrap(err, "failed to open datastore")
 	}
 
-	if err := r.openMetaDatastore(); err != nil {
+	if err := r.openFileStore(); err != nil {
 		return errors.Wrap(err, "failed to open metadata datastore")
 	}
 
@@ -238,9 +235,6 @@ func (r *FSRepo) Config() *config.Config {
 
 // ReplaceConfig replaces the current config with the newly passed in one.
 func (r *FSRepo) ReplaceConfig(cfg *config.Config) error {
-	if err := r.SnapshotConfig(r.Config()); err != nil {
-		log.Warnf("failed to create snapshot: %s", err.Error())
-	}
 	r.lk.Lock()
 	defer r.lk.Unlock()
 
@@ -257,77 +251,36 @@ func (r *FSRepo) ReplaceConfig(cfg *config.Config) error {
 	return os.Rename(tmp, filepath.Join(r.path, configFilename))
 }
 
-// SnapshotConfig stores a copy `cfg` in <repo_path>/snapshots/ appending the
-// time of snapshot to the filename.
-func (r *FSRepo) SnapshotConfig(cfg *config.Config) error {
-	snapshotFile := filepath.Join(r.path, snapshotStorePrefix, genSnapshotFileName())
-	exists, err := fileExists(snapshotFile)
-	if err != nil {
-		return errors.Wrap(err, "error checking snapshot file")
-	} else if exists {
-		// this should never happen
-		return fmt.Errorf("file already exists: %s", snapshotFile)
-	}
-	return cfg.WriteFile(snapshotFile)
+func (r *FSRepo) KeyStore() types.KeyStore {
+	return r.keyDs
 }
 
-// Datastore returns the datastore.
-func (r *FSRepo) Datastore() storeutil.Blockstore {
-	return r.ds
-}
-
-// ChainDatastore returns the chain datastore.
-func (r *FSRepo) DhtDatastore() Datastore {
-	return r.dhtDs
-}
-
-func (r *FSRepo) MetaDatastore() Datastore {
+func (r *FSRepo) MetaStore() store.KVStore {
 	return r.metaDs
 }
 
-// func (r *FSRepo) MarketDatastore() Datastore {
-// 	return r.marketDs
-// }
-
-// func (r *FSRepo) PaychDatastore() Datastore {
-// 	return r.paychDs
-// }
+func (r *FSRepo) FileStore() store.FileStore {
+	return r.fileDs
+}
 
 // Version returns the version of the repo
 func (r *FSRepo) Version() uint {
 	return r.version
 }
 
-// Keystore returns the keystore
-func (r *FSRepo) Keystore() fskeystore.Keystore {
-	return r.keystore
-}
-
 // Close closes the repo.
 func (r *FSRepo) Close() error {
-	if err := r.ds.Close(); err != nil {
-		return errors.Wrap(err, "failed to close datastore")
-	}
-
-	// if err := r.walletDs.Close(); err != nil {
-	// 	return errors.Wrap(err, "failed to close wallet datastore")
-	// }
-
-	if err := r.dhtDs.Close(); err != nil {
-		return errors.Wrap(err, "failed to close chain datastore")
-	}
-
 	if err := r.metaDs.Close(); err != nil {
 		return errors.Wrap(err, "failed to close meta datastore")
 	}
 
-	// if err := r.paychDs.Close(); err != nil {
-	// 	return errors.Wrap(err, "failed to close paych datastore")
-	// }
+	if err := r.keyDs.Close(); err != nil {
+		return errors.Wrap(err, "failed to close datastore")
+	}
 
-	/*if err := r.marketDs.Close(); err != nil {
-		return errors.Wrap(err, "failed to close market datastore")
-	}*/
+	if err := r.fileDs.Close(); err != nil {
+		return errors.Wrap(err, "failed to close datastore")
+	}
 
 	if err := r.removeAPIFile(); err != nil {
 		return errors.Wrap(err, "error removing API file")
@@ -380,77 +333,52 @@ func (r *FSRepo) readVersion() (uint, error) {
 	return ReadVersion(r.path)
 }
 
-func (r *FSRepo) openDatastore() error {
-	path := r.cfg.Data.MetaPath
-	opts, err := blockstoreutil.BadgerBlockstoreOptions(path, false)
-	if err != nil {
-		return err
-	}
-	opts.Prefix = bstore.BlockPrefix.String()
-	ds, err := blockstoreutil.Open(opts)
-	if err != nil {
-		return err
-	}
-	r.ds = ds
-
-	return nil
-}
-
-func (r *FSRepo) openKeystore() error {
+func (r *FSRepo) openKeyStore() error {
 	ksp := filepath.Join(r.path, "keystore")
 
-	ks, err := fskeystore.NewFSKeystore(ksp)
+	ks, err := keystore.NewKeyRepo(ksp)
 	if err != nil {
 		return err
 	}
 
-	r.keystore = ks
+	r.keyDs = ks
 
 	return nil
 }
 
-func (r *FSRepo) opendhtDatastore() error {
-	ds, err := badgerds.NewDatastore(filepath.Join(r.path, dhtDatastorePrefix), badgerOptions())
+func (r *FSRepo) openMetaStore() error {
+	mpath := r.cfg.Data.MetaPath
+	if mpath == "" {
+		mpath = path.Join(r.path, DataPathPrefix)
+	}
+
+	opt := kv.DefaultOptions
+
+	ds, err := kv.NewBadgerStore(mpath, &opt)
 	if err != nil {
 		return err
 	}
 
-	r.dhtDs = ds
+	r.metaDs = wrap.NewKVStore(metaPathPrefix, ds)
 
 	return nil
 }
 
-func (r *FSRepo) openMetaDatastore() error {
-	ds, err := badgerds.NewDatastore(filepath.Join(r.path, metaDatastorePrefix), badgerOptions())
+func (r *FSRepo) openFileStore() error {
+	dpath := r.cfg.Data.DataPath
+	if dpath == "" {
+		dpath = path.Join(r.path, DataPathPrefix)
+	}
+
+	ds, err := simplefs.NewSimpleFs(dpath)
 	if err != nil {
 		return err
 	}
 
-	r.metaDs = ds
+	r.fileDs = ds
 
 	return nil
 }
-
-// func (r *FSRepo) openPaychDataStore() error {
-// 	var err error
-// 	r.paychDs, err = badgerds.NewDatastore(filepath.Join(r.path, paychDatastorePrefix), badgerOptions())
-// 	if err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }
-
-// func (r *FSRepo) openWalletDatastore() error {
-// 	// TODO: read wallet datastore info from config, use that to open it up
-// 	ds, err := badgerds.NewDatastore(filepath.Join(r.path, walletDatastorePrefix), badgerOptions())
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	r.walletDs = ds
-
-// 	return nil
-// }
 
 // WriteVersion writes the given version to the repo version file.
 func WriteVersion(p string, version uint) error {
@@ -486,12 +414,7 @@ func initConfig(p string, cfg *config.Config) error {
 	}
 
 	// make the snapshot dir
-	snapshotDir := filepath.Join(p, snapshotStorePrefix)
-	return ensureWritableDirectory(snapshotDir)
-}
-
-func genSnapshotFileName() string {
-	return fmt.Sprintf("%s-%d.json", snapshotFilenamePrefix, time.Now().UTC().UnixNano())
+	return nil
 }
 
 // Ensures that path points to a read/writable directory, creating it if necessary.
@@ -606,13 +529,6 @@ func (r *FSRepo) APIAddr() (string, error) {
 
 func (r *FSRepo) SetAPIToken(token []byte) error {
 	return ioutil.WriteFile(filepath.Join(r.path, "token"), token, 0600)
-}
-
-func badgerOptions() *badgerds.Options {
-	result := &badgerds.DefaultOptions
-	result.Truncate = true
-	result.MaxTableSize = 64 << 21
-	return result
 }
 
 func (r *FSRepo) Repo() Repo {

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	ds "github.com/ipfs/go-datastore"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -127,15 +126,10 @@ func TestFSRepoRoundtrip(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, cfg, r.Config())
-	assert.NoError(t, r.DhtDatastore().Put(ds.NewKey("beep"), []byte("boop")))
 	assert.NoError(t, r.Close())
 
 	r2, err := OpenFSRepo(repoPath, 42)
 	assert.NoError(t, err)
-
-	val, err := r2.DhtDatastore().Get(ds.NewKey("beep"))
-	assert.NoError(t, err)
-	assert.Equal(t, []byte("boop"), val)
 
 	assert.NoError(t, r2.Close())
 }
@@ -151,9 +145,6 @@ func TestFSRepoReplaceAndSnapshotConfig(t *testing.T) {
 	cfg.API.APIAddress = "foo"
 	assert.NoError(t, err, InitFSRepo(repoPath, 42, cfg))
 
-	expSnpsht, err := ioutil.ReadFile(filepath.Join(repoPath, configFilename))
-	require.NoError(t, err)
-
 	r1, err := OpenFSRepo(repoPath, 42)
 	assert.NoError(t, err)
 
@@ -168,15 +159,6 @@ func TestFSRepoReplaceAndSnapshotConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "bar", r2.Config().API.APIAddress)
 	assert.NoError(t, r2.Close())
-
-	// assert that a single snapshot was created when replacing the config
-	// get the snapshot file name
-	snpFiles := getSnapshotFilenames(t, filepath.Join(repoPath, snapshotStorePrefix))
-	require.Equal(t, 1, len(snpFiles))
-
-	snpsht, err := ioutil.ReadFile(filepath.Join(repoPath, snapshotStorePrefix, snpFiles[0]))
-	require.NoError(t, err)
-	assert.Equal(t, string(expSnpsht), string(snpsht))
 }
 
 func TestRepoLock(t *testing.T) {
@@ -305,9 +287,6 @@ func checkNewRepoFiles(t *testing.T, path string, version uint) {
 	assert.NoError(t, err)
 
 	t.Log("snapshot path was created during FSRepo Init")
-	exists, err := fileExists(filepath.Join(path, snapshotStorePrefix))
-	assert.NoError(t, err)
-	assert.True(t, exists)
 
 	// Asserting the exact content here is gonna get old real quick
 	t.Log("config file matches expected value")

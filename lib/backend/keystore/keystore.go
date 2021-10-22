@@ -121,6 +121,10 @@ func (k *keyRepo) Delete(name, auth string) error {
 	return nil
 }
 
+func (k *keyRepo) Close() error {
+	return nil
+}
+
 func joinPath(dir string, filename string) (path string) {
 	if filepath.IsAbs(filename) {
 		return filename
