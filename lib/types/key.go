@@ -12,6 +12,7 @@ const (
 	// Secp256k1 is an enum for the supported Secp256k1 key type
 	Secp256k1
 	BLS
+	Ed25519
 )
 
 var (

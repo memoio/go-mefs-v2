@@ -24,10 +24,15 @@ var Validators = map[string]func(string, string) error{
 // Config is an in memory representation of the filecoin configuration file
 type Config struct {
 	Identity  IdentityConfig  `json:"identity"`
+	Wallet    WalletConfig    `json:"wallet"`
 	Net       SwarmConfig     `json:"net"`
 	API       APIConfig       `json:"api"`
 	Bootstrap BootstrapConfig `json:"bootstrap"`
 	Data      StorePathConfig `json:"data"`
+}
+
+type WalletConfig struct {
+	DefaultAddress string `json:"defaultAddress,omitempty"`
 }
 
 type IdentityConfig struct {

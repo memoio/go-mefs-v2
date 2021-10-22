@@ -1,0 +1,211 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"runtime"
+	"sort"
+	"strings"
+
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/urfave/cli/v2"
+
+	generic_cmd "github.com/memoio/go-mefs-v2/app/generic"
+	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/config"
+	"github.com/memoio/go-mefs-v2/lib/repo"
+	basenode "github.com/memoio/go-mefs-v2/submodule/node"
+)
+
+const (
+	bootstrapOptionKwd = "bootstrap"
+	apiAddrKwd         = "api"
+	swarmPortKwd       = "swarm-port"
+)
+
+type Node interface {
+	Start(context.Context) error
+	RunRPCAndWait(context.Context, chan interface{}) error
+	Online() bool
+	GetHost() host.Host
+}
+
+var DaemonCmd = &cli.Command{
+	Name:  "daemon",
+	Usage: "Run a network-connected Memoriae keeper.",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "password",
+			Usage: "password for asset private key",
+			Value: "memoriae",
+		},
+		&cli.StringFlag{
+			Name:  apiAddrKwd,
+			Usage: "set the api port to use",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  swarmPortKwd,
+			Usage: "set the swarm port to use",
+			Value: "",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		return daemonFunc(cctx)
+	},
+}
+
+func daemonFunc(cctx *cli.Context) (_err error) {
+	// let the user know we're going.
+	fmt.Printf("Initializing daemon...\n")
+
+	defer func() {
+		if _err != nil {
+			// Print an extra line before any errors. This could go
+			// in the commands lib but doesn't really make sense for
+			// all commands.
+			fmt.Println()
+		}
+	}()
+
+	printVersion()
+
+	repoDir := cctx.String(generic_cmd.FlagNodeRepo)
+
+	ok, err := repo.Exists(repoDir)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		fmt.Printf("Initializing repo at '%s'", repoDir)
+		if err := repo.InitFSRepo(repoDir, repo.LatestVersion, config.NewDefaultConfig()); err != nil {
+			return err
+		}
+
+		if err = generic_cmd.InitRun(cctx); err != nil {
+			return err
+		}
+	}
+
+	// third precedence is config file.
+	rep, err := generic_cmd.OpenRepo(repoDir)
+	if err != nil {
+		return err
+	}
+
+	// The node will also close the repo but there are many places we could
+	// fail before we get to that. It can't hurt to close it twice.
+	defer rep.Close()
+
+	config := rep.Config()
+
+	bootstrapNode := cctx.String(bootstrapOptionKwd)
+	if len(bootstrapNode) != 0 {
+		config.Bootstrap.Addresses = append(config.Bootstrap.Addresses, bootstrapNode)
+	}
+
+	// second highest precedence is env vars.
+	if envAPI := os.Getenv("MEMO_API"); envAPI != "" {
+		config.API.APIAddress = envAPI
+	}
+
+	if flagAPI := cctx.String(apiAddrKwd); flagAPI != "" {
+		config.API.APIAddress = flagAPI
+	}
+
+	if swarmPort := cctx.String(swarmPortKwd); swarmPort != "" {
+		changed := make([]string, 0, len(config.Net.Addresses))
+		for _, swarmAddr := range config.Net.Addresses {
+			strs := strings.Split(swarmAddr, "/")
+			for i, str := range strs {
+				if str == "tcp" || str == "udp" {
+					strs[i+1] = swarmPort
+				}
+			}
+			changed = append(changed, strings.Join(strs, "/"))
+		}
+		config.Net.Addresses = changed
+	}
+
+	rep.ReplaceConfig(config)
+
+	var node Node
+	switch config.Identity.Role {
+	default:
+		opts, err := basenode.OptionsFromRepo(rep)
+		if err != nil {
+			return err
+		}
+
+		password := cctx.String("password")
+		opts = append(opts, basenode.SetWalletPassword(password))
+
+		node, err = basenode.New(cctx.Context, opts...)
+		if err != nil {
+			return err
+		}
+	}
+
+	printSwarmAddrs(node)
+
+	// Start the keeper.
+	if err := node.Start(cctx.Context); err != nil {
+		return err
+	}
+
+	// Run API server around the keeper.
+	ready := make(chan interface{}, 1)
+	go func() {
+		<-ready
+
+		// The daemon is *finally* ready.
+		fmt.Printf("API server listening on %s\n", config.API.APIAddress)
+		fmt.Printf("Network PeerID is %s\n", node.GetHost().ID().String())
+		fmt.Printf("Daemon is ready\n")
+	}()
+
+	// The request is expected to remain open so the daemon uses the request context.
+	// Pass a new context here if the flow changes such that the command should exit while leaving
+	// a forked deamon running.
+	return node.RunRPCAndWait(cctx.Context, ready)
+}
+
+func printVersion() {
+	v := build.UserVersion()
+	fmt.Printf("Memoriae version: %s\n", v)
+	fmt.Printf("Repo version: %d\n", repo.LatestVersion)
+	fmt.Printf("System version: %s\n", runtime.GOARCH+"/"+runtime.GOOS)
+	fmt.Printf("Golang version: %s\n", runtime.Version())
+}
+
+// printSwarmAddrs prints the addresses of the host
+func printSwarmAddrs(node Node) {
+	if !node.Online() {
+		fmt.Println("Swarm not listening, running in offline mode.")
+		return
+	}
+
+	var lisAddrs []string
+	ifaceAddrs, err := node.GetHost().Network().InterfaceListenAddresses()
+	if err != nil {
+		fmt.Errorf("failed to read listening addresses: %s", err)
+	}
+	for _, addr := range ifaceAddrs {
+		lisAddrs = append(lisAddrs, addr.String())
+	}
+	sort.Strings(lisAddrs)
+	for _, addr := range lisAddrs {
+		fmt.Printf("Swarm listening on %s\n", addr)
+	}
+
+	var addrs []string
+	for _, addr := range node.GetHost().Addrs() {
+		addrs = append(addrs, addr.String())
+	}
+	sort.Strings(addrs)
+	for _, addr := range addrs {
+		fmt.Printf("Swarm announcing %s\n", addr)
+	}
+
+}

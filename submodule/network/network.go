@@ -15,7 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/routing"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/libp2p/go-libp2p/p2p/discovery"
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
 
 	config "github.com/memoio/go-mefs-v2/config"
@@ -43,7 +43,7 @@ type NetworkSubmodule struct { //nolint
 
 	PeerMgr net.IPeerMgr
 
-	Discovery mdns.Service `optional:"true"`
+	Discovery discovery.Service `optional:"true"`
 
 	ShutdownChan chan struct{}
 }
@@ -85,6 +85,7 @@ func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil 
 func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.Config, ds store.KVStore) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
 	libP2pOpts := append(config.Libp2pOpts(), libp2p.BandwidthReporter(bandwidthTracker))
+
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
 	libP2pOpts = append(libP2pOpts, Peerstore())
@@ -191,7 +192,10 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 		return nil, errors.Wrap(err, "failed to set up network")
 	}
 
-	mdnsdisc := SetupDiscovery(peerHost, DiscoveryHandler(ctx, peerHost))
+	mdnsdisc, err := SetupDiscovery(10, ctx, peerHost, DiscoveryHandler(ctx, peerHost))
+	if err != nil {
+		networkLogger.Error("Setup Discovery falied, error:", err)
+	}
 
 	// build network
 	network := net.New(peerHost, net.NewRouter(router), bandwidthTracker)

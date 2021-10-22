@@ -6,7 +6,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/libp2p/go-libp2p/p2p/discovery"
 )
 
 const discoveryConnTimeout = time.Second * 30
@@ -32,8 +32,16 @@ func DiscoveryHandler(ctx context.Context, host host.Host) *discoveryHandler {
 	}
 }
 
-func SetupDiscovery(host host.Host, handler *discoveryHandler) mdns.Service {
-	service := mdns.NewMdnsService(host, mdns.ServiceName)
+func SetupDiscovery(mdnsInterval int, ctx context.Context, host host.Host, handler *discoveryHandler) (discovery.Service, error) {
+	if mdnsInterval == 0 {
+		mdnsInterval = 5
+	}
+	service, err := discovery.NewMdnsService(ctx, host, time.Duration(mdnsInterval)*time.Second, discovery.ServiceTag)
+	if err != nil {
+		log.Error("mdns error: ", err)
+		return service, nil
+	}
 	service.RegisterNotifee(handler)
-	return service
+	return service, nil
+	return nil, nil
 }
