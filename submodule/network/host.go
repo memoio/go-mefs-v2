@@ -7,6 +7,7 @@ import (
 	circuit "github.com/libp2p/go-libp2p-circuit"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/routing"
+	"github.com/memoio/go-mefs-v2/config"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -14,7 +15,7 @@ type RawHost host.Host
 
 // address determines if we are publically dialable.  If so use public
 // address, if not configure node to announce relay address.
-func buildHost(ctx context.Context, config networkConfig, libP2pOpts []libp2p.Option, repo networkRepo, makeDHT func(host host.Host) (routing.Routing, error)) (host.Host, error) {
+func buildHost(ctx context.Context, config networkConfig, libP2pOpts []libp2p.Option, cfg *config.Config, makeDHT func(host host.Host) (routing.Routing, error)) (host.Host, error) {
 
 	// Node must build a host acting as a libp2p relay.  Additionally it
 	// runs the autoNAT service which allows other nodes to check for their
@@ -24,7 +25,6 @@ func buildHost(ctx context.Context, config networkConfig, libP2pOpts []libp2p.Op
 	}
 
 	if config.IsRelay() {
-		cfg := repo.Config()
 		publicAddr, err := ma.NewMultiaddr(cfg.Net.PublicRelayAddress)
 		if err != nil {
 			return nil, err

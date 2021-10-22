@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/ipfs/go-datastore"
 	"github.com/pkg/errors"
 
 	"github.com/libp2p/go-libp2p"
@@ -20,7 +21,8 @@ import (
 	config "github.com/memoio/go-mefs-v2/config"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/net"
-	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils/storeutil"
 )
 
 var networkLogger = logging.Logger("network_module")
@@ -70,7 +72,7 @@ type networkConfig interface {
 
 type networkRepo interface {
 	Config() *config.Config
-	DhtDatastore() repo.Datastore
+	DhtDatastore() datastore.Batching
 	Path() (string, error)
 }
 
@@ -80,9 +82,7 @@ func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
 func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 // NewNetworkSubmodule creates a new network submodule.
-func NewNetworkSubmodule(ctx context.Context, config networkConfig, rep networkRepo) (*NetworkSubmodule, error) {
-	cfg := rep.Config()
-	var err error
+func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.Config, ds store.KVStore) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
 	libP2pOpts := append(config.Libp2pOpts(), libp2p.BandwidthReporter(bandwidthTracker))
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
@@ -107,10 +107,15 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, rep networkR
 
 	validator := blankValidator{}
 
+	nds, err := storeutil.NewDatastore("dht", ds)
+	if err != nil {
+		return nil, err
+	}
+
 	makeDHT := func(h host.Host) (routing.Routing, error) {
 		mode := dht.ModeAutoServer
 		opts := []dht.Option{dht.Mode(mode),
-			dht.Datastore(rep.DhtDatastore()),
+			dht.Datastore(nds),
 			dht.NamespacedValidator("v", validator),
 			dht.ProtocolPrefix(net.MemoriaeDHT(networkName)),
 			// dht.QueryFilter(dht.PublicQueryFilter),
@@ -129,7 +134,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, rep networkR
 		return r, err
 	}
 
-	rawHost, err = buildHost(ctx, config, libP2pOpts, rep, makeDHT)
+	rawHost, err = buildHost(ctx, config, libP2pOpts, cfg, makeDHT)
 	if err != nil {
 		return nil, err
 	}
