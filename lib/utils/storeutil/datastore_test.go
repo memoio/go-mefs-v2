@@ -37,7 +37,7 @@ func TestDataStore(t *testing.T) {
 	}
 
 	q := pdsq.Query{
-		Prefix:   "/test",
+		Prefix:   "abc/test",
 		KeysOnly: false,
 	}
 	res, err := ds.Query(q)

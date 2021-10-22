@@ -7,6 +7,7 @@ import (
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/jbenet/goprocess"
 
+	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
@@ -23,7 +24,7 @@ var _ ds.Batching = (*Datastore)(nil)
 // DO NOT set the Dir and/or ValuePath fields of opt, they will be set for you.
 func NewDatastore(prefix string, db store.KVStore) (*Datastore, error) {
 	ds := &Datastore{
-		DB: db,
+		DB: wrap.NewKVStore(prefix, db),
 	}
 
 	return ds, nil
