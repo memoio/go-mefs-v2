@@ -56,15 +56,14 @@ type PeerMgr struct {
 	notifee        *net.NotifyBundle
 	filPeerEmitter event.Emitter
 
-	period time.Duration
-	done   chan struct{}
+	done chan struct{}
 }
 
 type NewFilPeer struct {
 	Id peer.ID //nolint
 }
 
-func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, period time.Duration, bootstrap []peer.AddrInfo) (*PeerMgr, error) {
+func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*PeerMgr, error) {
 	pm := &PeerMgr{
 		h:             h,
 		dht:           dht,
@@ -76,8 +75,7 @@ func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, period time.Duration, bootstrap [
 		maxFilPeers: MaxFilPeers,
 		minFilPeers: MinFilPeers,
 
-		done:   make(chan struct{}),
-		period: period,
+		done: make(chan struct{}),
 	}
 
 	emitter, err := h.EventBus().Emitter(new(NewFilPeer))
@@ -136,7 +134,7 @@ func (pmgr *PeerMgr) Stop(ctx context.Context) error {
 }
 
 func (pmgr *PeerMgr) Run(ctx context.Context) {
-	tick := time.NewTicker(pmgr.period)
+	tick := time.NewTicker(time.Second * 5)
 	for {
 		select {
 		case <-tick.C:

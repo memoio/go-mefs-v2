@@ -82,25 +82,15 @@ func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil 
 // NewNetworkSubmodule creates a new network submodule.
 func NewNetworkSubmodule(ctx context.Context, config networkConfig, rep networkRepo) (*NetworkSubmodule, error) {
 	cfg := rep.Config()
-	var bandwidthTracker metrics.Reporter
 	var err error
-
+	bandwidthTracker := metrics.NewBandwidthCounter()
 	libP2pOpts := append(config.Libp2pOpts(), libp2p.BandwidthReporter(bandwidthTracker))
-	libP2pOpts = Transports(cfg.Swarm.Transports, libP2pOpts)
-	libP2pOpts = Security(cfg.Swarm.Transports, libP2pOpts)
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
 	libP2pOpts = append(libP2pOpts, Peerstore())
-	libP2pOpts = append(libP2pOpts, makeSmuxTransportOption(cfg.Swarm.Transports))
+	libP2pOpts = append(libP2pOpts, makeSmuxTransportOption())
 
-	libP2pOpts, bandwidthTracker = BandwidthCounter(libP2pOpts)
-
-	var networkName string
-	if cfg.NetworkParams.DevNet {
-		networkName = "testnet"
-	} else {
-		networkName = "devnet"
-	}
+	networkName := cfg.Net.Name
 
 	// peer manager
 	bootNodes, err := net.ParseAddresses(ctx, cfg.Bootstrap.Addresses)
@@ -157,12 +147,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, rep networkR
 	// require message signing in online mode when we have priv key
 	pubsubMessageSigning = true
 
-	period, err := time.ParseDuration(cfg.Bootstrap.Period)
-	if err != nil {
-		return nil, err
-	}
-
-	peerMgr, err = net.NewPeerMgr(peerHost, router.(*dht.IpfsDHT), period, bootNodes)
+	peerMgr, err = net.NewPeerMgr(peerHost, router.(*dht.IpfsDHT), bootNodes)
 	if err != nil {
 		return nil, err
 	}

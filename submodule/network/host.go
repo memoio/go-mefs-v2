@@ -25,13 +25,13 @@ func buildHost(ctx context.Context, config networkConfig, libP2pOpts []libp2p.Op
 
 	if config.IsRelay() {
 		cfg := repo.Config()
-		publicAddr, err := ma.NewMultiaddr(cfg.Swarm.PublicRelayAddress)
+		publicAddr, err := ma.NewMultiaddr(cfg.Net.PublicRelayAddress)
 		if err != nil {
 			return nil, err
 		}
 		publicAddrFactory := func(lc *libp2p.Config) error {
 			lc.AddrsFactory = func(addrs []ma.Multiaddr) []ma.Multiaddr {
-				if cfg.Swarm.PublicRelayAddress == "" {
+				if cfg.Net.PublicRelayAddress == "" {
 					return addrs
 				}
 				return append(addrs, publicAddr)
