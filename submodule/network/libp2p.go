@@ -1,52 +1,67 @@
 package network
 
 import (
-	"sort"
+	"crypto/rand"
+	"fmt"
 
-	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/peerstore"
+	"github.com/pkg/errors"
 
-	config "github.com/memoio/go-mefs-v2/config"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 var log = logging.Logger("network")
 
-func PstoreAddSelfKeys(id peer.ID, sk crypto.PrivKey, ps peerstore.Peerstore) error {
-	if err := ps.AddPubKey(id, sk.GetPublic()); err != nil {
-		return err
-	}
+const (
+	SelfNetKey = "libp2p-self"
+)
 
-	return ps.AddPrivKey(id, sk)
-}
-
-type priorityOption struct {
-	priority, defaultPriority config.Priority
-	opt                       libp2p.Option
-}
-
-func prioritizeOptions(opts []priorityOption) libp2p.Option {
-	type popt struct {
-		priority int64
-		opt      libp2p.Option
-	}
-	enabledOptions := make([]popt, 0, len(opts))
-	for _, o := range opts {
-		if prio, ok := o.priority.WithDefault(o.defaultPriority); ok {
-			enabledOptions = append(enabledOptions, popt{
-				priority: prio,
-				opt:      o.opt,
-			})
+// create or load net provate key
+func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
+	ki, err := store.Get(SelfNetKey, SelfNetKey)
+	if err == nil {
+		sk, err := crypto.UnmarshalPrivateKey(ki.SecretKey)
+		if err != nil {
+			return peer.ID(""), nil, err
 		}
+
+		p, err := peer.IDFromPublicKey(sk.GetPublic())
+		if err != nil {
+			return peer.ID(""), nil, errors.Wrap(err, "failed to get peer ID")
+		}
+
+		fmt.Println("load peer identity: ", p.Pretty())
+
+		return p, sk, nil
 	}
-	sort.Slice(enabledOptions, func(i, j int) bool {
-		return enabledOptions[i].priority > enabledOptions[j].priority
-	})
-	p2pOpts := make([]libp2p.Option, len(enabledOptions))
-	for i, opt := range enabledOptions {
-		p2pOpts[i] = opt.opt
+
+	fmt.Println("generating ED25519 keypair for p2p network...")
+	sk, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	if err != nil {
+		return peer.ID(""), nil, errors.Wrap(err, "failed to create peer key")
 	}
-	return libp2p.ChainOptions(p2pOpts...)
+
+	data, err := sk.Bytes()
+	if err != nil {
+		return peer.ID(""), nil, err
+	}
+
+	nki := types.KeyInfo{
+		SecretKey: data,
+		Type:      types.Ed25519,
+	}
+
+	if err := store.Put(SelfNetKey, SelfNetKey, nki); err != nil {
+		return peer.ID(""), nil, errors.Wrap(err, "failed to store private key")
+	}
+
+	p, err := peer.IDFromPublicKey(sk.GetPublic())
+	if err != nil {
+		return peer.ID(""), nil, errors.Wrap(err, "failed to get peer ID")
+	}
+
+	fmt.Println("create peer identity: ", p.Pretty())
+	return p, sk, nil
 }

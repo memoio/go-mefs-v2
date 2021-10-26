@@ -9,71 +9,30 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/routing"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 )
 
-// SwarmConnInfo represents details about a single swarm connection.
-type SwarmConnInfo struct {
-	Addr    string
-	Peer    string
-	Latency string
-	Muxer   string
-	Streams []SwarmStreamInfo
-}
-
-// SwarmStreamInfo represents details about a single swarm stream.
-type SwarmStreamInfo struct {
-	Protocol string
-}
-
-func (ci *SwarmConnInfo) Less(i, j int) bool {
-	return ci.Streams[i].Protocol < ci.Streams[j].Protocol
-}
-
-func (ci *SwarmConnInfo) Len() int {
-	return len(ci.Streams)
-}
-
-func (ci *SwarmConnInfo) Swap(i, j int) {
-	ci.Streams[i], ci.Streams[j] = ci.Streams[j], ci.Streams[i]
-}
-
-// SwarmConnInfos represent details about a list of swarm connections.
-type SwarmConnInfos struct {
-	Peers []SwarmConnInfo
-}
-
-func (ci SwarmConnInfos) Less(i, j int) bool {
-	return ci.Peers[i].Addr < ci.Peers[j].Addr
-}
-
-func (ci SwarmConnInfos) Len() int {
-	return len(ci.Peers)
-}
-
-func (ci SwarmConnInfos) Swap(i, j int) {
-	ci.Peers[i], ci.Peers[j] = ci.Peers[j], ci.Peers[i]
-}
-
 // Network is a unified interface for dealing with libp2p
 type Network struct {
-	host host.Host
 	metrics.Reporter
-	*Router
+	host host.Host
+	dht  routing.Routing
 }
 
 // New returns a new Network
 func New(
 	host host.Host,
-	router *Router,
+	router routing.Routing,
 	reporter metrics.Reporter,
 ) *Network {
 	return &Network{
-		host:     host,
 		Reporter: reporter,
-		Router:   router,
+		host:     host,
+		dht:      router,
 	}
 }
 
@@ -140,6 +99,49 @@ func (network *Network) Connect(ctx context.Context, addrs []string) (<-chan Con
 	return outCh, nil
 }
 
+// SwarmConnInfo represents details about a single swarm connection.
+type SwarmConnInfo struct {
+	Addr    string
+	Peer    string
+	Latency string
+	Muxer   string
+	Streams []SwarmStreamInfo
+}
+
+// SwarmStreamInfo represents details about a single swarm stream.
+type SwarmStreamInfo struct {
+	Protocol string
+}
+
+func (ci *SwarmConnInfo) Less(i, j int) bool {
+	return ci.Streams[i].Protocol < ci.Streams[j].Protocol
+}
+
+func (ci *SwarmConnInfo) Len() int {
+	return len(ci.Streams)
+}
+
+func (ci *SwarmConnInfo) Swap(i, j int) {
+	ci.Streams[i], ci.Streams[j] = ci.Streams[j], ci.Streams[i]
+}
+
+// SwarmConnInfos represent details about a list of swarm connections.
+type SwarmConnInfos struct {
+	Peers []SwarmConnInfo
+}
+
+func (ci SwarmConnInfos) Less(i, j int) bool {
+	return ci.Peers[i].Addr < ci.Peers[j].Addr
+}
+
+func (ci SwarmConnInfos) Len() int {
+	return len(ci.Peers)
+}
+
+func (ci SwarmConnInfos) Swap(i, j int) {
+	ci.Peers[i], ci.Peers[j] = ci.Peers[j], ci.Peers[i]
+}
+
 // Peers lists peers currently available on the network
 func (network *Network) Peers(ctx context.Context, verbose, latency, streams bool) (*SwarmConnInfos, error) {
 	if network.host == nil {
@@ -181,4 +183,19 @@ func (network *Network) Peers(ctx context.Context, verbose, latency, streams boo
 
 	sort.Sort(&out)
 	return &out, nil
+}
+
+// FindPeer searches the libp2p router for a given peer id
+func (network *Network) FindPeer(ctx context.Context, peerID peer.ID) (peer.AddrInfo, error) {
+	return network.dht.FindPeer(ctx, peerID)
+}
+
+// GetClosestPeers returns a channel of the K closest peers  to the given key,
+// K is the 'K Bucket' parameter of the Kademlia DHT protocol.
+func (network *Network) GetClosestPeers(ctx context.Context, key string) ([]peer.ID, error) {
+	ipfsDHT, ok := network.dht.(*dht.IpfsDHT)
+	if !ok {
+		return nil, errors.New("underlying routing should be pointer of IpfsDHT")
+	}
+	return ipfsDHT.GetClosestPeers(ctx, key)
 }

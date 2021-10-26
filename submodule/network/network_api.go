@@ -5,7 +5,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ipfs/go-cid"
 	metrics "github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -66,18 +65,11 @@ func (networkAPI *NetworkAPI) ID(context.Context) (peer.ID, error) {
 }
 
 // NetworkGetPeerAddresses gets the current addresses of the node
-func (networkAPI *NetworkAPI) Addrs() ([]string, error) {
-	addrs := networkAPI.Host.Addrs()
-	strs := make([]string, 0, len(addrs))
-	for _, addr := range addrs {
-		strs = append(strs, addr.String())
-	}
-	return strs, nil
-}
-
-// NetworkFindProvidersAsync issues a findProviders query to the filecoin network content router.
-func (networkAPI *NetworkAPI) NetworkFindProvidersAsync(ctx context.Context, key cid.Cid, count int) <-chan peer.AddrInfo {
-	return networkAPI.Network.Router.FindProvidersAsync(ctx, key, count)
+func (networkAPI *NetworkAPI) Addrs() (peer.AddrInfo, error) {
+	return peer.AddrInfo{
+		ID:    networkAPI.Host.ID(),
+		Addrs: networkAPI.Host.Addrs(),
+	}, nil
 }
 
 // NetworkGetClosestPeers issues a getClosestPeers query to the filecoin network.
@@ -94,7 +86,7 @@ func (networkAPI *NetworkAPI) NetDisconnect(ctx context.Context, p peer.ID) erro
 	return networkAPI.Host.Network().ClosePeer(p)
 }
 
-func (networkAPI *NetworkAPI) NetPeerInfo(_ context.Context, p peer.ID) (*ExtendedPeerInfo, error) {
+func (networkAPI *NetworkAPI) NetPeerInfo(ctx context.Context, p peer.ID) (*ExtendedPeerInfo, error) {
 	info := &ExtendedPeerInfo{ID: p}
 
 	agent, err := networkAPI.Host.Peerstore().Get(p, "AgentVersion")

@@ -17,7 +17,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/herumi/bls-eth-go-binary v0.0.0-20210917013441-d37c07cfda4e
 	github.com/iden3/go-iden3-core v0.0.8
-	github.com/ipfs/go-cid v0.1.0
+	github.com/ipfs/go-cid v0.1.0 // indirect
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-fs-lock v0.0.7
 	github.com/jbenet/goprocess v0.1.4
@@ -25,14 +25,15 @@ require (
 	github.com/klauspost/reedsolomon v1.9.13
 	github.com/libp2p/go-eventbus v0.2.1
 	github.com/libp2p/go-libp2p v0.14.0
-	github.com/libp2p/go-libp2p-circuit v0.4.0
 	github.com/libp2p/go-libp2p-core v0.8.6
 	github.com/libp2p/go-libp2p-discovery v0.5.0
 	github.com/libp2p/go-libp2p-kad-dht v0.12.0
 	github.com/libp2p/go-libp2p-mplex v0.4.1
+	github.com/libp2p/go-libp2p-noise v0.2.0
 	github.com/libp2p/go-libp2p-peerstore v0.3.0
 	github.com/libp2p/go-libp2p-pubsub v0.4.2
 	github.com/libp2p/go-libp2p-swarm v0.5.0
+	github.com/libp2p/go-libp2p-tls v0.1.3
 	github.com/libp2p/go-libp2p-yamux v0.5.3
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1

@@ -9,32 +9,20 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/account"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	core_service "github.com/memoio/go-mefs-v2/service/core"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
 // Builder is a helper to aid in the construction of a filecoin node.
 type Builder struct {
-	// If online is set, the node will have networking enabled
-	Online bool
+	Online bool // enable network
 
-	libp2pOpts  []libp2p.Option
-	offlineMode bool
-
-	// If permanent then node should run more expensive processes
-	// that will improve performance in long run
-	Permanent bool
-
-	// DisableEncryptedConnections disables connection encryption *entirely*.
-	// DO NOT SET THIS UNLESS YOU'RE TESTING.
-	DisableEncryptedConnections bool
-
-	// If NilRepo is set, a Repo backed by a nil datastore will be constructed
-	NilRepo bool
+	offlineMode bool            // need start network module
+	libp2pOpts  []libp2p.Option // network ops
 
 	repo repo.Repo
 
-	isRelay        bool
-	walletPassword string
+	walletPassword string // en/decrypt wallet from keystore
 	authURL        string
 }
 
@@ -45,11 +33,6 @@ type builder Builder
 // Repo get home data repo
 func (b builder) Repo() repo.Repo {
 	return b.repo
-}
-
-// IsRelay get whether the p2p network support replay
-func (b builder) IsRelay() bool {
-	return b.isRelay
 }
 
 // Libp2pOpts get libp2p option
@@ -69,14 +52,6 @@ type BuilderOpt func(*Builder) error
 func OfflineMode(offlineMode bool) BuilderOpt {
 	return func(c *Builder) error {
 		c.offlineMode = offlineMode
-		return nil
-	}
-}
-
-// IsRelay configures node to act as a libp2p relay.
-func IsRelay() BuilderOpt {
-	return func(c *Builder) error {
-		c.isRelay = true
 		return nil
 	}
 }
@@ -148,6 +123,13 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.IsOnline = true
 
 	nd.Wallet = account.NewWallet(b.walletPassword, b.repo.KeyStore())
+
+	cs, err := core_service.New(ctx, nd.API(), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create core service")
+	}
+
+	nd.Service = cs
 
 	return nd, nil
 }

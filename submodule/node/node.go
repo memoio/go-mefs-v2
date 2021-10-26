@@ -41,7 +41,6 @@ func (n *BaseNode) Start(ctx context.Context) error {
 	apiBuilder := api_builder.NewBuiler()
 	apiBuilder.NameSpace("Memoriae")
 	err := apiBuilder.AddServices(
-		n.Wallet,
 		n.NetworkSubmodule,
 	)
 	if err != nil {

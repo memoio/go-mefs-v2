@@ -48,7 +48,7 @@ func (nn *subscriberNotifee) Disconnected(n network.Network, v network.Conn) {
 	// we don't concurrently process a connect event.
 	service.plk.Lock()
 	defer service.plk.Unlock()
-	if service.host.Network().Connectedness(p) == network.Connected {
+	if service.ns.Host.Network().Connectedness(p) == network.Connected {
 		// We're still connected.
 		return
 	}

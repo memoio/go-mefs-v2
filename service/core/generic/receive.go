@@ -96,6 +96,7 @@ func (service *GenericService) handleNewMessage(s network.Stream) bool {
 
 		handler := service.sub.HandlerForMsgType(req.GetHeader().GetType())
 		if handler == nil {
+			fmt.Println("handle for ", req.GetHeader().GetType())
 			// stats.Record(ctx, metrics.ReceivedMessageErrors.M(1))
 			return false
 		}

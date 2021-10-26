@@ -2,9 +2,7 @@ package generic_service
 
 import (
 	"context"
-	"fmt"
 	"sync"
-	"time"
 
 	"github.com/jbenet/goprocess"
 
@@ -16,37 +14,20 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/service/core/generic/internal/net"
 	"github.com/memoio/go-mefs-v2/service/core/instance"
+	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
-var (
-	logger = log.Logger("generic")
-)
-
-type mode int
-
-const (
-	modeServer mode = iota + 1
-	modeClient
-)
+var logger = log.Logger("generic_service")
 
 const DefaultPrefix protocol.ID = "/memo"
 
-const (
-	version1 protocol.ID = "/1.0.0"
-)
-
 type GenericService struct {
-	host host.Host // the network services we need
-	self peer.ID   // Local peer (yourself)
-
-	birth time.Time // When this peer started up
+	ns *network.NetworkAPI
 
 	ctx  context.Context
 	proc goprocess.Process
 
 	msgSender net.MessageSender
-
-	plk sync.Mutex
 
 	// DHT protocols we query with. We'll only add peers to our routing
 	// table if they speak these protocols.
@@ -56,52 +37,25 @@ type GenericService struct {
 	// DHT protocols we can respond to.
 	serverProtocols []protocol.ID
 
-	mode mode
+	plk sync.Mutex
 
 	sub instance.Subscriber
 }
 
-func New(ctx context.Context, h host.Host, s instance.Subscriber) (*GenericService, error) {
-	service, err := makeService(ctx, h, s)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Service, err=%s", err)
-	}
-
-	service.msgSender = net.NewMessageSenderImpl(h, service.protocols)
-
-	service.mode = modeServer
-	for _, p := range service.serverProtocols {
-		service.host.SetStreamHandler(p, service.handleNewStream)
-	}
-
-	// register for event bus and network notifications
-	sn, err := newSubscriberNotifiee(service)
-	if err != nil {
-		return nil, err
-	}
-
-	// register for network notifications
-	service.host.Network().Notify(sn)
-
-	return service, nil
-}
-
-func makeService(ctx context.Context, h host.Host, sub instance.Subscriber) (*GenericService, error) {
+func New(ctx context.Context, ns *network.NetworkAPI, s instance.Subscriber) (*GenericService, error) {
 	var protocols, serverProtocols []protocol.ID
 
-	v1proto := DefaultPrefix + version1
+	v1proto := DefaultPrefix + protocol.ID("/core/"+ns.NetworkName)
 
 	protocols = []protocol.ID{v1proto}
 	serverProtocols = []protocol.ID{v1proto}
 
 	service := &GenericService{
-		self:            h.ID(),
-		host:            h,
-		birth:           time.Now(),
 		protocols:       protocols,
 		protocolsStrs:   protocol.ConvertToStrings(protocols),
 		serverProtocols: serverProtocols,
-		sub:             sub,
+		ns:              ns,
+		sub:             s,
 	}
 
 	// create a DHT proc with the given context
@@ -111,6 +65,23 @@ func makeService(ctx context.Context, h host.Host, sub instance.Subscriber) (*Ge
 
 	// the DHT context should be done when the process is closed
 	service.ctx = goprocessctx.WithProcessClosing(ctx, service.proc)
+
+	service.msgSender = net.NewMessageSenderImpl(ns.Host, service.protocols)
+
+	for _, p := range service.serverProtocols {
+		ns.Host.SetStreamHandler(p, service.handleNewStream)
+	}
+
+	// register for event bus and network notifications
+	sn, err := newSubscriberNotifiee(service)
+	if err != nil {
+		return nil, err
+	}
+
+	// register for network notifications
+	ns.Host.Network().Notify(sn)
+
+	logger.Info("start generic service")
 
 	return service, nil
 }
@@ -127,12 +98,12 @@ func (service *GenericService) Process() goprocess.Process {
 
 // PeerID returns the DHT node's Peer ID.
 func (service *GenericService) PeerID() peer.ID {
-	return service.self
+	return service.ns.Host.ID()
 }
 
 // Host returns the libp2p host this DHT is operating with.
 func (service *GenericService) Host() host.Host {
-	return service.host
+	return service.ns.Host
 }
 
 func (service *GenericService) Close() error {

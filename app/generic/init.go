@@ -5,8 +5,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/config"
-	minit "github.com/memoio/go-mefs-v2/lib/init"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	minit "github.com/memoio/go-mefs-v2/lib/minit"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 )
 

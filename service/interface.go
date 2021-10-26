@@ -12,12 +12,8 @@ import (
 
 //所有角色都需要的
 type CoreService interface {
-	SendMetaMessage(ctx context.Context, to peer.ID, mes_typ pb.NetMessage_MsgType, key string) error
-	SendMetaRequest(ctx context.Context, to peer.ID, mes_typ pb.NetMessage_MsgType, key string, data []byte) ([]byte, error)
-
-	Connect(ctx context.Context, addr string) error
-	Disconnect(ctx context.Context, to peer.ID) error
-	TryConnect(ctx context.Context, to peer.ID) (string, bool)
+	SendMetaMessage(ctx context.Context, to peer.ID, mes_typ pb.NetMessage_MsgType, val []byte) error
+	SendMetaRequest(ctx context.Context, to peer.ID, mes_typ pb.NetMessage_MsgType, val []byte) (*pb.NetMessage, error)
 }
 
 type UserDataService interface {

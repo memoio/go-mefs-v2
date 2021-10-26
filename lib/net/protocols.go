@@ -8,5 +8,5 @@ import (
 
 // MemoriaeDHT is creates a protocol for the memoriae DHT.
 func MemoriaeDHT(network string) protocol.ID {
-	return protocol.ID(fmt.Sprintf("/memo-%s", network))
+	return protocol.ID(fmt.Sprintf("/memo/dht/%s", network))
 }

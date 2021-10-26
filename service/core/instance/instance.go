@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -44,7 +45,8 @@ func New() Subscriber {
 		hmap: make(map[pb.NetMessage_MsgType]HandlerFunc),
 	}
 
-	i.Register(pb.NetMessage_Get, defaultHandler)
+	i.Register(pb.NetMessage_SayHello, defaultHandler)
+	i.Register(pb.NetMessage_Get, defaultGetHandler)
 	return i
 }
 
@@ -82,5 +84,13 @@ func (i *impl) Close() {
 }
 
 func defaultHandler(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	time.Sleep(1 * time.Second)
+	mes.Data.MsgInfo = []byte("hello")
+	return mes, nil
+}
+
+func defaultGetHandler(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	time.Sleep(2 * time.Second)
+	mes.Data.MsgInfo = []byte("get")
 	return mes, nil
 }

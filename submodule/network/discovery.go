@@ -43,5 +43,4 @@ func SetupDiscovery(mdnsInterval int, ctx context.Context, host host.Host, handl
 	}
 	service.RegisterNotifee(handler)
 	return service, nil
-	return nil, nil
 }

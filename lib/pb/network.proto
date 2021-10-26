@@ -24,8 +24,8 @@ message NetMessage {
 
 	message MsgHeader {
 		uint32 version = 1;
-		uint32 seq = 2; // 用处？for record？
-		uint64 from = 3;
+		uint32 seq = 2; // async
+		uint64 from = 3; 
 		MsgType type = 4;
 	}
 

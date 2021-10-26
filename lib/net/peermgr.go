@@ -19,8 +19,8 @@ import (
 var log = logging.Logger("peermgr")
 
 const (
-	MaxFilPeers = 320
-	MinFilPeers = 128
+	MaxPeers = 320
+	MinPeers = 128
 )
 
 type IPeerMgr interface {
@@ -45,8 +45,8 @@ type PeerMgr struct {
 	peersLk sync.Mutex
 	peers   map[peer.ID]time.Duration
 
-	maxFilPeers int
-	minFilPeers int
+	maxPeers int
+	minPeers int
 
 	expanding chan struct{}
 
@@ -59,7 +59,7 @@ type PeerMgr struct {
 	done chan struct{}
 }
 
-type NewFilPeer struct {
+type NewPeer struct {
 	Id peer.ID //nolint
 }
 
@@ -72,13 +72,13 @@ func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*Peer
 		peers:     make(map[peer.ID]time.Duration),
 		expanding: make(chan struct{}, 1),
 
-		maxFilPeers: MaxFilPeers,
-		minFilPeers: MinFilPeers,
+		maxPeers: MaxPeers,
+		minPeers: MinPeers,
 
 		done: make(chan struct{}),
 	}
 
-	emitter, err := h.EventBus().Emitter(new(NewFilPeer))
+	emitter, err := h.EventBus().Emitter(new(NewPeer))
 	if err != nil {
 		return nil, xerrors.Errorf("creating NewFilPeer emitter: %w", err)
 	}
@@ -96,7 +96,7 @@ func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*Peer
 }
 
 func (pmgr *PeerMgr) AddPeer(p peer.ID) {
-	_ = pmgr.filPeerEmitter.Emit(NewFilPeer{Id: p}) //nolint:errcheck
+	_ = pmgr.filPeerEmitter.Emit(NewPeer{Id: p}) //nolint:errcheck
 	pmgr.peersLk.Lock()
 	defer pmgr.peersLk.Unlock()
 	pmgr.peers[p] = time.Duration(0)
@@ -139,10 +139,10 @@ func (pmgr *PeerMgr) Run(ctx context.Context) {
 		select {
 		case <-tick.C:
 			pcount := pmgr.getPeerCount()
-			if pcount < pmgr.minFilPeers {
+			if pcount < pmgr.minPeers {
 				pmgr.expandPeers()
-			} else if pcount > pmgr.maxFilPeers {
-				log.Debugf("peer count about threshold: %d > %d", pcount, pmgr.maxFilPeers)
+			} else if pcount > pmgr.maxPeers {
+				log.Debugf("peer count about threshold: %d > %d", pcount, pmgr.maxPeers)
 			}
 		case <-pmgr.done:
 			log.Warn("exiting peermgr run")

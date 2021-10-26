@@ -162,7 +162,7 @@ func OpenFSRepo(repoPath string, version uint) (*FSRepo, error) {
 	}
 
 	if !hasConfig {
-		return nil, errors.Errorf("no repo found at %s; run: 'neno init [--repo=%s]'", repoPath, repoPath)
+		return nil, errors.Errorf("no repo found at %s; run: 'memo init [--repo=%s]'", repoPath, repoPath)
 	}
 
 	info, err := os.Stat(repoPath)

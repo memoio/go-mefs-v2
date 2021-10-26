@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/ipfs/go-datastore"
 	"github.com/pkg/errors"
 
 	"github.com/libp2p/go-libp2p"
@@ -66,14 +65,7 @@ func (networkSubmodule *NetworkSubmodule) Stop(ctx context.Context) {
 
 type networkConfig interface {
 	OfflineMode() bool
-	IsRelay() bool
 	Libp2pOpts() []libp2p.Option
-}
-
-type networkRepo interface {
-	Config() *config.Config
-	DhtDatastore() datastore.Batching
-	Path() (string, error)
 }
 
 type blankValidator struct{}
@@ -84,76 +76,54 @@ func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil 
 // NewNetworkSubmodule creates a new network submodule.
 func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.Config, ds store.KVStore) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
-	libP2pOpts := append(config.Libp2pOpts(), libp2p.BandwidthReporter(bandwidthTracker))
 
+	libP2pOpts := append(config.Libp2pOpts(), Transport())
+	libP2pOpts = append(libP2pOpts, libp2p.BandwidthReporter(bandwidthTracker))
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
 	libP2pOpts = append(libP2pOpts, Peerstore())
 	libP2pOpts = append(libP2pOpts, makeSmuxTransportOption())
-
-	networkName := cfg.Net.Name
+	libP2pOpts = append(libP2pOpts, Security(true, false))
 
 	// peer manager
-	bootNodes, err := net.ParseAddresses(ctx, cfg.Bootstrap.Addresses)
-	if err != nil {
-		return nil, err
-	}
-
-	// set up host
-	var rawHost RawHost
-	var peerHost host.Host
-	var router routing.Routing
-	var pubsubMessageSigning bool
-	var peerMgr net.IPeerMgr
-
-	validator := blankValidator{}
-
 	nds, err := storeutil.NewDatastore("dht", ds)
 	if err != nil {
 		return nil, err
 	}
 
-	makeDHT := func(h host.Host) (routing.Routing, error) {
-		mode := dht.ModeAutoServer
-		opts := []dht.Option{dht.Mode(mode),
-			dht.Datastore(nds),
-			dht.NamespacedValidator("v", validator),
-			dht.ProtocolPrefix(net.MemoriaeDHT(networkName)),
-			// dht.QueryFilter(dht.PublicQueryFilter),
-			// dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
-			dht.BootstrapPeers(bootNodes...),
-			dht.DisableProviders(),
-			dht.DisableValues(),
-		}
-		r, err := dht.New(
-			ctx, h, opts...,
-		)
-
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to setup routing")
-		}
-		return r, err
-	}
-
-	rawHost, err = buildHost(ctx, config, libP2pOpts, cfg, makeDHT)
+	// set up host
+	rawHost, err := buildHost(ctx, config, libP2pOpts, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	// Node must build a host acting as a libp2p relay.  Additionally it
-	// runs the autoNAT service which allows other nodes to check for their
-	// own dialability by having this node attempt to dial them.
-	router, err = makeDHT(rawHost)
+	// setup dht
+	networkName := cfg.Net.Name
+	validator := blankValidator{}
+	bootNodes, err := net.ParseAddresses(ctx, cfg.Bootstrap.Addresses)
 	if err != nil {
 		return nil, err
 	}
 
-	peerHost = routed.Wrap(rawHost, router)
+	dhtopts := []dht.Option{dht.Mode(dht.ModeAutoServer),
+		dht.Datastore(nds),
+		dht.NamespacedValidator("v", validator),
+		dht.ProtocolPrefix(net.MemoriaeDHT(networkName)),
+		dht.QueryFilter(dht.PublicQueryFilter),
+		dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
+		dht.BootstrapPeers(bootNodes...),
+		dht.DisableProviders(),
+		dht.DisableValues(),
+	}
 
-	// require message signing in online mode when we have priv key
-	pubsubMessageSigning = true
+	router, err := dht.New(ctx, rawHost, dhtopts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to setup routing")
+	}
 
-	peerMgr, err = net.NewPeerMgr(peerHost, router.(*dht.IpfsDHT), bootNodes)
+	peerHost := routed.Wrap(rawHost, router)
+
+	peerMgr, err := net.NewPeerMgr(peerHost, router, bootNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -163,10 +133,8 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 		go peerMgr.Run(ctx)
 	}
 
-	// Set up libp2p network
-	// The gossipsub heartbeat timeout needs to be set sufficiently low
-	// to enable publishing on first connection.  The default of one
-	// second is not acceptable for tests.
+	// Set up pubsub
+	pubsubMessageSigning := true
 	pubsub.GossipSubHeartbeatInterval = 100 * time.Millisecond
 	options := []pubsub.Option{
 		// Gossipsubv1.1 configuration
@@ -198,7 +166,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 	}
 
 	// build network
-	network := net.New(peerHost, net.NewRouter(router), bandwidthTracker)
+	network := net.New(peerHost, router, bandwidthTracker)
 
 	// build the network submdule
 	return &NetworkSubmodule{
