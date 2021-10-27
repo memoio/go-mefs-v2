@@ -22,7 +22,7 @@ var logger = log.Logger("generic_service")
 const DefaultPrefix protocol.ID = "/memo"
 
 type GenericService struct {
-	ns *network.NetworkAPI
+	ns *network.NetworkSubmodule
 
 	ctx  context.Context
 	proc goprocess.Process
@@ -42,7 +42,7 @@ type GenericService struct {
 	sub instance.Subscriber
 }
 
-func New(ctx context.Context, ns *network.NetworkAPI, s instance.Subscriber) (*GenericService, error) {
+func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscriber) (*GenericService, error) {
 	var protocols, serverProtocols []protocol.ID
 
 	v1proto := DefaultPrefix + protocol.ID("/core/"+ns.NetworkName)

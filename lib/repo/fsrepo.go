@@ -87,7 +87,9 @@ func InitFSRepo(targetPath string, version uint, cfg *config.Config) error {
 
 	fmt.Println("initializing Memo repo at", repoPath)
 
-	exists, err := fileExists(repoPath)
+	cfgPath := path.Join(repoPath, "config")
+
+	exists, err := fileExists(cfgPath)
 	if err != nil {
 		return errors.Wrapf(err, "error inspecting repo path %s", repoPath)
 	} else if exists {
@@ -114,13 +116,17 @@ func InitFSRepoDirect(targetPath string, version uint, cfg *config.Config) error
 		return errors.Wrap(err, "no writable directory")
 	}
 
-	empty, err := isEmptyDir(repoPath)
-	if err != nil {
-		return errors.Wrapf(err, "failed to list repo directory %s", repoPath)
-	}
-	if !empty {
-		return fmt.Errorf("refusing to initialize repo in non-empty directory %s", repoPath)
-	}
+	// skip due to log directory
+	/*
+		empty, err := isEmptyDir(repoPath)
+		if err != nil {
+			return errors.Wrapf(err, "failed to list repo directory %s", repoPath)
+		}
+
+		if !empty {
+			return fmt.Errorf("refusing to initialize repo in non-empty directory %s", repoPath)
+		}
+	*/
 
 	if err := WriteVersion(repoPath, version); err != nil {
 		return errors.Wrap(err, "initializing repo version failed")

@@ -1,4 +1,4 @@
-package api_builder
+package rpc_builder
 
 import (
 	"reflect"
@@ -6,6 +6,10 @@ import (
 	"github.com/filecoin-project/go-jsonrpc"
 	xerrors "github.com/pkg/errors"
 )
+
+// rpc build based on go-jsonrpc
+
+const defaultMethodName = "API"
 
 type RPCService interface {
 }
@@ -23,6 +27,7 @@ func (builder *RPCBuilder) NameSpace(nameSpaece string) *RPCBuilder {
 	builder.namespace = append(builder.namespace, nameSpaece)
 	return builder
 }
+
 func (builder *RPCBuilder) AddServices(services ...RPCService) error {
 	for _, service := range services {
 		err := builder.AddService(service)
@@ -32,9 +37,10 @@ func (builder *RPCBuilder) AddServices(services ...RPCService) error {
 	}
 	return nil
 }
+
 func (builder *RPCBuilder) AddService(service RPCService) error {
 	serviceV := reflect.ValueOf(service)
-	apiMethod := serviceV.MethodByName("API")
+	apiMethod := serviceV.MethodByName(defaultMethodName)
 	if !apiMethod.IsValid() {
 		return xerrors.New("expect API function")
 	}
@@ -62,9 +68,9 @@ func (builder *RPCBuilder) AddService(service RPCService) error {
 
 func (builder *RPCBuilder) Build() *jsonrpc.RPCServer {
 	server := jsonrpc.NewServer()
+
 	for _, nameSpace := range builder.namespace {
 		for _, apiStruct := range builder.apiStruct {
-			//fmt.Println("JSON RPC register:", nameSpace)
 			server.Register(nameSpace, apiStruct)
 		}
 	}

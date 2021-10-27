@@ -38,12 +38,7 @@ func TestBaseNode(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	p1, err := bn1.API().ID(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	log.Println(bn1.API().NetworkName, bn2.API().NetworkName)
+	p1 := bn1.NetworkSubmodule.Host.ID()
 
 	go func() {
 		log.Println("start hello")
@@ -68,6 +63,38 @@ func TestBaseNode(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	log.Println(bn1.NetworkSubmodule.Host.Addrs())
+
+	topic1, err := bn1.Pubsub.Join("sayhello")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sub, err := topic1.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		for {
+			received, err := sub.Next(ctx)
+			if err != nil {
+				log.Fatal(err)
+				return
+			}
+
+			log.Println("receive:", received.GetSignature())
+		}
+	}()
+
+	topic2, err := bn2.Pubsub.Join("sayhello")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log.Println("publish")
+	topic2.Publish(ctx, []byte("ok"))
+
+	time.Sleep(5 * time.Second)
 
 	t.Fatal(bn1.NetworkSubmodule.Network.Peers(context.Background(), false, false, false))
 }

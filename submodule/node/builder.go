@@ -7,10 +7,10 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/pkg/errors"
 
-	"github.com/memoio/go-mefs-v2/lib/account"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	core_service "github.com/memoio/go-mefs-v2/service/core"
 	"github.com/memoio/go-mefs-v2/submodule/network"
+	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
 // Builder is a helper to aid in the construction of a filecoin node.
@@ -122,9 +122,9 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 	nd.IsOnline = true
 
-	nd.Wallet = account.NewWallet(b.walletPassword, b.repo.KeyStore())
+	nd.LocalWallet = wallet.New(b.walletPassword, b.repo.KeyStore())
 
-	cs, err := core_service.New(ctx, nd.API(), nil)
+	cs, err := core_service.New(ctx, nd.NetworkSubmodule, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create core service")
 	}

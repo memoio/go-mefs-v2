@@ -14,6 +14,27 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
+func TestAddress(t *testing.T) {
+	assert := assert.New(t)
+
+	sk, err := signature.GenerateKey(types.Secp256k1)
+	assert.NoError(err)
+
+	aByte, err := sk.GetPublic().CompressedByte()
+	assert.NoError(err)
+
+	addr, err := NewAddress(aByte)
+
+	addrs := addr.String()
+
+	naddr, err := NewFromString(addrs)
+
+	res := make([]Address, 0, 1)
+
+	res = append(res, naddr)
+	t.Fatal(res[0])
+}
+
 func TestSecp256k1Address(t *testing.T) {
 	assert := assert.New(t)
 
@@ -52,13 +73,9 @@ func TestBLSAddress(t *testing.T) {
 	addr, err := NewAddress(aByte)
 	t.Log(addr.String(), len(addr.String()))
 
-	naddr, err := NewAddressFromString(addr.String())
+	naddr, err := NewFromString(addr.String())
 
 	t.Logf(naddr.String())
-
-	nnaddr, err := NewAddress([]byte(addr.Raw()))
-
-	t.Logf(nnaddr.String())
 
 	panic(addr.String())
 	assert.NoError(err)

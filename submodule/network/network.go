@@ -3,7 +3,6 @@ package network
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/pkg/errors"
@@ -47,8 +46,8 @@ type NetworkSubmodule struct { //nolint
 	ShutdownChan chan struct{}
 }
 
-func (networkSubmodule *NetworkSubmodule) API() *NetworkAPI {
-	return &NetworkAPI{networkSubmodule}
+func (networkSubmodule *NetworkSubmodule) API() *networkAPI {
+	return &networkAPI{networkSubmodule}
 }
 
 func (networkSubmodule *NetworkSubmodule) Stop(ctx context.Context) {
@@ -134,28 +133,13 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 	}
 
 	// Set up pubsub
-	pubsubMessageSigning := true
 	pubsub.GossipSubHeartbeatInterval = 100 * time.Millisecond
 	options := []pubsub.Option{
 		// Gossipsubv1.1 configuration
 		pubsub.WithFloodPublish(true),
-
-		//  buffer, 32 -> 10K
-		pubsub.WithValidateQueueSize(10 << 10),
-		//  worker, 1x cpu -> 2x cpu
-		pubsub.WithValidateWorkers(runtime.NumCPU() * 2),
-		//  goroutine, 8K -> 16K
-		pubsub.WithValidateThrottle(16 << 10),
-
-		pubsub.WithMessageSigning(pubsubMessageSigning),
 	}
 
-	topicdisc, err := TopicDiscovery(ctx, peerHost, router)
-	if err != nil {
-		return nil, err
-	}
-
-	gsub, err := GossipSub(ctx, peerHost, topicdisc, options...)
+	gsub, err := pubsub.NewGossipSub(ctx, peerHost, options...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to set up network")
 	}

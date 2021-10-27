@@ -14,6 +14,7 @@ func main() {
 	local := []*cli.Command{
 		DaemonCmd,
 		generic_cmd.InitCmd,
+		generic_cmd.WalletCmd,
 	}
 	//no ipfs commands
 	app := &cli.App{

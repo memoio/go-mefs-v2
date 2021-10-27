@@ -28,7 +28,7 @@ type CoreServiceImpl struct {
 	h        host.Host
 }
 
-func New(ctx context.Context, ns *network.NetworkAPI, s instance.Subscriber) (*CoreServiceImpl, error) {
+func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscriber) (*CoreServiceImpl, error) {
 	if s == nil {
 		s = instance.New()
 	}

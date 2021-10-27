@@ -1,4 +1,4 @@
-package api_builder
+package rpc_builder
 
 import (
 	"bytes"

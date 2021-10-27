@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/memoio/go-mefs-v2/lib/account"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/submodule/network"
+	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
 // init ops for mefs
@@ -17,7 +17,7 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 		return err
 	}
 
-	w := account.NewWallet(password, r.KeyStore())
+	w := wallet.New(password, r.KeyStore())
 
 	fmt.Println("generating wallet address...")
 

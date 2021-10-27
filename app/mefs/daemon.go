@@ -13,7 +13,6 @@ import (
 
 	generic_cmd "github.com/memoio/go-mefs-v2/app/generic"
 	"github.com/memoio/go-mefs-v2/build"
-	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
 )
@@ -72,21 +71,6 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	printVersion()
 
 	repoDir := cctx.String(generic_cmd.FlagNodeRepo)
-
-	ok, err := repo.Exists(repoDir)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		fmt.Printf("Initializing repo at '%s'", repoDir)
-		if err := repo.InitFSRepo(repoDir, repo.LatestVersion, config.NewDefaultConfig()); err != nil {
-			return err
-		}
-
-		if err = generic_cmd.InitRun(cctx); err != nil {
-			return err
-		}
-	}
 
 	// third precedence is config file.
 	rep, err := generic_cmd.OpenRepo(repoDir)

@@ -1,13 +1,17 @@
-package account
+package wallet
 
 import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
 	"sync"
 
+	"github.com/memoio/go-mefs-v2/app/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/types/wallet"
 )
 
 type LocalWallet struct {
@@ -17,7 +21,7 @@ type LocalWallet struct {
 	keystore types.KeyStore // store
 }
 
-func NewWallet(pw string, ks types.KeyStore) wallet.Wallet {
+func New(pw string, ks types.KeyStore) *LocalWallet {
 	lw := &LocalWallet{
 		password: pw,
 		keystore: ks,
@@ -25,6 +29,10 @@ func NewWallet(pw string, ks types.KeyStore) wallet.Wallet {
 	}
 
 	return lw
+}
+
+func (w *LocalWallet) API() api.IWallet {
+	return walletAPI{w}
 }
 
 func (w *LocalWallet) WalletSign(addr address.Address, msg []byte) ([]byte, error) {
@@ -100,23 +108,32 @@ func (w *LocalWallet) WalletNew(kt types.KeyType) (address.Address, error) {
 	return addr, nil
 }
 
-func (w *LocalWallet) WalletList() ([]address.Address, error) {
+func (w *LocalWallet) WalletList(ctx context.Context) ([]address.Address, error) {
 	as, err := w.keystore.List()
 	if err != nil {
 		return nil, err
 	}
 
-	res := make([]address.Address, 0, len(as))
+	out := make([]address.Address, 0, len(as))
 
 	for _, s := range as {
-		addr, err := address.NewAddressFromString(s)
-		if err != nil {
-			continue
+		if strings.HasPrefix(s, address.AddrPrefix) {
+			addr, err := address.NewFromString(s)
+			if err != nil {
+				continue
+			}
+
+			out = append(out, addr)
 		}
-		res = append(res, addr)
 	}
 
-	return res, nil
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].String() < out[j].String()
+	})
+
+	fmt.Println("here:", out)
+
+	return out, nil
 }
 
 func (w *LocalWallet) WalletHas(addr address.Address) bool {

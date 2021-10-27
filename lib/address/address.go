@@ -2,6 +2,7 @@ package address
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 
 	b58 "github.com/mr-tron/base58/base58"
@@ -37,7 +38,7 @@ const ChecksumHashLength = 4
 const MaxAddressStringLength = AddrPrefixLen + 72
 
 // Address is the go type that represents an address.
-// Type + publickey or hash(public)
+// publickey or hash(public)
 type Address struct{ str string }
 
 // Undef is the type that represents an undefined address.
@@ -56,15 +57,10 @@ func (a Address) Bytes() []byte {
 }
 
 // String returns an address encoded as a string.
-func (a Address) Raw() string {
-	return a.str
-}
-
-// String returns an address encoded as a string.
 func (a Address) String() string {
 	str, err := encode(a)
 	if err != nil {
-		panic(err) // I don't know if this one is okay
+		panic(err)
 	}
 	return str
 }
@@ -72,6 +68,27 @@ func (a Address) String() string {
 // Empty returns true if the address is empty, false otherwise.
 func (a Address) Empty() bool {
 	return a == Undef
+}
+
+// for jsonrpc
+// UnmarshalJSON implements the json unmarshal interface.
+func (a *Address) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	addr, err := decode(s)
+	if err != nil {
+		return err
+	}
+	*a = addr
+	return nil
+}
+
+// MarshalJSON implements the json marshal interface.
+func (a Address) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + a.String() + `"`), nil
 }
 
 // ToEthAddress returns an address using the SECP256K1 protocol.
@@ -88,10 +105,17 @@ func ToEthAddress(pubkey []byte) ([]byte, error) {
 }
 
 func NewAddress(payload []byte) (Address, error) {
-	return Address{string(payload)}, nil
+
+	return newAddress(payload)
 }
 
-func NewAddressFromString(s string) (Address, error) {
+func newAddress(payload []byte) (Address, error) {
+	buf := make([]byte, len(payload))
+	copy(buf[:], payload)
+	return Address{string(buf)}, nil
+}
+
+func NewFromString(s string) (Address, error) {
 	return decode(s)
 }
 
@@ -108,17 +132,17 @@ func encode(addr Address) (string, error) {
 
 func decode(a string) (Address, error) {
 	if len(a) == 0 {
-		return Undef, nil
+		return Undef, ErrInvalidLength
 	}
 	if a == UndefAddressString {
-		return Undef, nil
+		return Undef, ErrInvalidLength
 	}
 	if len(a) > MaxAddressStringLength || len(a) < 3 {
 		return Undef, ErrInvalidLength
 	}
 
 	if string(a[0:AddrPrefixLen]) != AddrPrefix {
-		return Undef, nil
+		return Undef, ErrUnknownAddrType
 	}
 
 	raw := a[AddrPrefixLen:]
@@ -139,7 +163,7 @@ func decode(a string) (Address, error) {
 		return Undef, ErrInvalidChecksum
 	}
 
-	return NewAddress(payload)
+	return newAddress(payload)
 }
 
 // Checksum returns the checksum of `ingest`.

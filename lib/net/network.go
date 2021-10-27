@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"sync"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/metrics"
@@ -59,44 +58,14 @@ type ConnectionResult struct {
 }
 
 // Connect connects to peers at the given addresses. Does not retry.
-func (network *Network) Connect(ctx context.Context, addrs []string) (<-chan ConnectionResult, error) {
-	outCh := make(chan ConnectionResult)
-
+func (network *Network) Connect(ctx context.Context, pinfo peer.AddrInfo) error {
 	swrm, ok := network.host.Network().(*swarm.Swarm)
 	if !ok {
-		return nil, fmt.Errorf("peerhost network was not a swarm")
+		return fmt.Errorf("peerhost network was not a swarm")
 	}
 
-	pis, err := PeerAddrsToAddrInfo(addrs)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		var wg sync.WaitGroup
-		wg.Add(len(pis))
-
-		for _, pi := range pis {
-			go func(pi peer.AddrInfo) {
-				swrm.Backoff().Clear(pi.ID)
-				err := network.host.Connect(ctx, pi)
-				errStr := ""
-				if err != nil {
-					errStr = err.Error()
-				}
-				outCh <- ConnectionResult{
-					PeerID: pi.ID,
-					Err:    errStr,
-				}
-				wg.Done()
-			}(pi)
-		}
-
-		wg.Wait()
-		close(outCh)
-	}()
-
-	return outCh, nil
+	swrm.Backoff().Clear(pinfo.ID)
+	return network.host.Connect(ctx, pinfo)
 }
 
 // SwarmConnInfo represents details about a single swarm connection.

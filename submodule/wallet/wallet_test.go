@@ -1,6 +1,7 @@
-package account
+package wallet
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lw := NewWallet("123456", ks)
+	lw := New("123456", ks)
 
 	addr, err := lw.WalletNew(types.Secp256k1)
 	if err != nil {
@@ -45,4 +46,11 @@ func TestAccount(t *testing.T) {
 	if !ok {
 		t.Fatal("wrong")
 	}
+
+	res, err := lw.WalletList(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Fatal(res)
 }
