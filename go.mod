@@ -20,7 +20,6 @@ require (
 	github.com/ipfs/go-cid v0.1.0 // indirect
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-fs-lock v0.0.7
-	github.com/ipfs/go-ipld-cbor v0.0.5
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
 	github.com/klauspost/reedsolomon v1.9.13
@@ -43,7 +42,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.3.3
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/pkg/errors v0.9.1
-	github.com/polydawn/refmt v0.0.0-20201211092308-30ac6d18308e
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/urfave/cli/v2 v2.3.0
