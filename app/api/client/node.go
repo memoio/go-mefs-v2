@@ -19,20 +19,20 @@ func GetMemoClientInfo(repoDir string) (string, http.Header, error) {
 		return "", nil, err
 	}
 
-	//tokePath := path.Join(repoPath, "token")
-	rpcPath := path.Join(repoPath, "api")
+	tokePath := path.Join(repoPath, "token")
+	tokenBytes, err := ioutil.ReadFile(tokePath)
+	if err != nil {
+		return "", nil, err
+	}
 
-	//tokenBytes, err := ioutil.ReadFile(tokePath)
-	// if err != nil {
-	// 	return "", nil, err
-	// }
+	rpcPath := path.Join(repoPath, "api")
 	rpcBytes, err := ioutil.ReadFile(rpcPath)
 	if err != nil {
 		return "", nil, err
 	}
 
 	headers := http.Header{}
-	//headers.Add("Authorization", "Bearer "+string(tokenBytes))
+	headers.Add("Authorization", "Bearer "+string(tokenBytes))
 	apima, err := multiaddr.NewMultiaddr(string(rpcBytes))
 	if err != nil {
 		return "", nil, err

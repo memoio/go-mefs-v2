@@ -9,6 +9,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	core_service "github.com/memoio/go-mefs-v2/service/core"
+	"github.com/memoio/go-mefs-v2/submodule/auth"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
@@ -130,6 +131,13 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 
 	nd.Service = cs
+
+	jauth, err := auth.NewJwtAuth(b.repo)
+	if err != nil {
+		return nil, err
+	}
+
+	nd.JwtAuth = jauth
 
 	return nd, nil
 }

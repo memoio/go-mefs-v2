@@ -27,13 +27,13 @@ func TestAccount(t *testing.T) {
 
 	lw := New("123456", ks)
 
-	addr, err := lw.WalletNew(types.Secp256k1)
+	addr, err := lw.WalletNew(context.Background(), types.Secp256k1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	msg := blake3.Sum256([]byte("aa"))
-	sig, err := lw.WalletSign(addr, msg[:])
+	sig, err := lw.WalletSign(context.Background(), addr, msg[:])
 	if err != nil {
 		t.Fatal(err)
 	}

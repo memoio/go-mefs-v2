@@ -2,6 +2,7 @@ package kv
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,7 +16,7 @@ import (
 
 var log = logger.Logger("badger")
 
-var ErrClosed = errors.New("datastore closed")
+var ErrClosed = errors.New("badger closed")
 
 type compatLogger struct {
 	*zap.SugaredLogger
@@ -359,13 +360,15 @@ func (d *BadgerStore) Sync() error {
 }
 
 func (d *BadgerStore) Close() error {
+	fmt.Println("badger close")
+
 	d.closeOnce.Do(func() {
 		close(d.closing)
 	})
 	d.closeLk.Lock()
 	defer d.closeLk.Unlock()
 	if d.closed {
-		return ErrClosed
+		return nil
 	}
 
 	d.closed = true
@@ -379,6 +382,7 @@ func (d *BadgerStore) Close() error {
 		seq.Release()
 		return true
 	})
+
 	return d.db.Close()
 }
 

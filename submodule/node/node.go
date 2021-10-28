@@ -9,25 +9,30 @@ import (
 	"syscall"
 
 	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/libp2p/go-libp2p-core/host"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/pkg/errors"
 
+	"github.com/memoio/go-mefs-v2/app/api"
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/rpc_builder"
 	"github.com/memoio/go-mefs-v2/service"
+	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
-var logger = log.Logger("node")
+var logger = log.Logger("basenode")
 
 type BaseNode struct {
 	*network.NetworkSubmodule
 
 	*wallet.LocalWallet
+
+	*mauth.JwtAuth
 
 	ctx context.Context
 
@@ -47,6 +52,7 @@ func (n *BaseNode) Start(ctx context.Context) error {
 	err := apiBuilder.AddServices(
 		n.NetworkSubmodule,
 		n.LocalWallet,
+		n.JwtAuth,
 	)
 	if err != nil {
 		return errors.Wrap(err, "add service failed ")
@@ -56,11 +62,11 @@ func (n *BaseNode) Start(ctx context.Context) error {
 }
 
 func (n *BaseNode) Stop(ctx context.Context) {
+	n.NetworkSubmodule.Stop(ctx)
+
 	if err := n.repo.Close(); err != nil {
 		fmt.Printf("error closing repo: %s\n", err)
 	}
-
-	n.NetworkSubmodule.Stop(ctx)
 
 	fmt.Println("\nstopping Memoriae :(")
 }
@@ -81,13 +87,21 @@ func (n *BaseNode) RunRPCAndWait(ctx context.Context, ready chan interface{}) er
 
 	netListener := manet.NetListener(apiListener) //nolint
 
-	// todo: add auth
 	handler := http.NewServeMux()
 
-	handler.Handle("/rpc/v0", n.jsonRPCService)
+	rpcServer := jsonrpc.NewServer()
+	rpcServer.Register("Memoriae", api.PermissionedFullAPI(n))
+
+	handler.Handle("/rpc/v0", rpcServer)
+
+	// todo: add auth
+	ah := &auth.Handler{
+		Verify: n.AuthVerify,
+		Next:   handler.ServeHTTP,
+	}
 
 	apiserv := &http.Server{
-		Handler: handler,
+		Handler: ah,
 	}
 
 	cfg.API.APIAddress = apiListener.Multiaddr().String()

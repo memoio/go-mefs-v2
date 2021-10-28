@@ -42,12 +42,12 @@ var DaemonCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  apiAddrKwd,
 			Usage: "set the api port to use",
-			Value: "",
+			Value: "7000",
 		},
 		&cli.StringFlag{
 			Name:  swarmPortKwd,
 			Usage: "set the swarm port to use",
-			Value: "",
+			Value: "12000",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -84,18 +84,9 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 
 	config := rep.Config()
 
-	bootstrapNode := cctx.String(bootstrapOptionKwd)
-	if len(bootstrapNode) != 0 {
-		config.Bootstrap.Addresses = append(config.Bootstrap.Addresses, bootstrapNode)
-	}
-
 	// second highest precedence is env vars.
 	if envAPI := os.Getenv("MEMO_API"); envAPI != "" {
 		config.API.APIAddress = envAPI
-	}
-
-	if flagAPI := cctx.String(apiAddrKwd); flagAPI != "" {
-		config.API.APIAddress = flagAPI
 	}
 
 	if swarmPort := cctx.String(swarmPortKwd); swarmPort != "" {
@@ -133,7 +124,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 
 	printSwarmAddrs(node)
 
-	// Start the keeper.
+	// Start the node
 	if err := node.Start(cctx.Context); err != nil {
 		return err
 	}
@@ -144,14 +135,10 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		<-ready
 
 		// The daemon is *finally* ready.
-		fmt.Printf("API server listening on %s\n", config.API.APIAddress)
 		fmt.Printf("Network PeerID is %s\n", node.GetHost().ID().String())
 		fmt.Printf("Daemon is ready\n")
 	}()
 
-	// The request is expected to remain open so the daemon uses the request context.
-	// Pass a new context here if the flow changes such that the command should exit while leaving
-	// a forked deamon running.
 	return node.RunRPCAndWait(cctx.Context, ready)
 }
 
@@ -191,5 +178,4 @@ func printSwarmAddrs(node Node) {
 	for _, addr := range addrs {
 		fmt.Printf("Swarm announcing %s\n", addr)
 	}
-
 }

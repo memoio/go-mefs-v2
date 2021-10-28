@@ -38,8 +38,6 @@ var walletListCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println(len(addrs), addrs[0].Len())
-
 		for _, as := range addrs {
 			fmt.Println(as)
 		}
@@ -63,7 +61,7 @@ var walletnewCmd = &cli.Command{
 		}
 		defer closer()
 
-		waddr, err := api.WalletNew(types.Secp256k1)
+		waddr, err := api.WalletNew(cctx.Context, types.Secp256k1)
 		if err != nil {
 			return err
 		}

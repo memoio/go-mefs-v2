@@ -13,6 +13,7 @@ const (
 	Secp256k1
 	BLS
 	Ed25519
+	Hmac
 )
 
 var (

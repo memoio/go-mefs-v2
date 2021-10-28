@@ -21,7 +21,7 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 
 	fmt.Println("generating wallet address...")
 
-	addr, err := w.WalletNew(types.Secp256k1)
+	addr, err := w.WalletNew(ctx, types.Secp256k1)
 	if err != nil {
 		return err
 	}

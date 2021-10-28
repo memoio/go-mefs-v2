@@ -2,7 +2,6 @@ package wallet
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -35,7 +34,7 @@ func (w *LocalWallet) API() api.IWallet {
 	return walletAPI{w}
 }
 
-func (w *LocalWallet) WalletSign(addr address.Address, msg []byte) ([]byte, error) {
+func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg []byte) ([]byte, error) {
 	pi, err := w.find(addr)
 	if err != nil {
 		return nil, err
@@ -68,7 +67,7 @@ func (w *LocalWallet) find(addr address.Address) (sig_common.PrivKey, error) {
 	return pi, nil
 }
 
-func (w *LocalWallet) WalletNew(kt types.KeyType) (address.Address, error) {
+func (w *LocalWallet) WalletNew(ctx context.Context, kt types.KeyType) (address.Address, error) {
 	privkey, err := signature.GenerateKey(kt)
 	if err != nil {
 		return address.Undef, err
@@ -131,20 +130,18 @@ func (w *LocalWallet) WalletList(ctx context.Context) ([]address.Address, error)
 		return out[i].String() < out[j].String()
 	})
 
-	fmt.Println("here:", out)
-
 	return out, nil
 }
 
-func (w *LocalWallet) WalletHas(addr address.Address) bool {
+func (w *LocalWallet) WalletHas(ctx context.Context, addr address.Address) (bool, error) {
 	_, err := w.keystore.Get(addr.String(), w.password)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return true
+	return true, nil
 }
 
-func (w *LocalWallet) WalletDelete(addr address.Address) error {
+func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) error {
 	err := w.keystore.Delete(addr.String(), w.password)
 	if err != nil {
 		return err
@@ -157,10 +154,10 @@ func (w *LocalWallet) WalletDelete(addr address.Address) error {
 	return nil
 }
 
-func (w *LocalWallet) WalletExport(addr address.Address) (*types.KeyInfo, error) {
+func (w *LocalWallet) WalletExport(ctx context.Context, addr address.Address) (*types.KeyInfo, error) {
 	return nil, nil
 }
 
-func (w *LocalWallet) WalletImport(ki *types.KeyInfo) (address.Address, error) {
+func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (address.Address, error) {
 	return address.Address{}, nil
 }

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -15,6 +14,14 @@ type CommonStruct struct {
 	Internal struct {
 		AuthVerify func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
 		AuthNew    func(ctx context.Context, erms []auth.Permission) ([]byte, error)  `perm:"admin"`
+
+		WalletNew    func(context.Context, types.KeyType) (address.Address, error)  `perm:"write"`
+		WalletSign   func(context.Context, address.Address, []byte) ([]byte, error) `perm:"sign"`
+		WalletList   func(context.Context) ([]address.Address, error)               `perm:"write"`
+		WalletHas    func(context.Context, address.Address) (bool, error)           `perm:"write"`
+		WalletDelete func(context.Context, address.Address) error                   `perm:"write"`
+		WalletExport func(context.Context, address.Address) (*types.KeyInfo, error) `perm:"write"`
+		WalletImport func(context.Context, *types.KeyInfo) (address.Address, error) `perm:"write"`
 	}
 }
 
@@ -22,9 +29,7 @@ type FullNodeStruct struct {
 	CommonStruct
 
 	Internal struct {
-		NetAddrInfo func(context.Context) (peer.AddrInfo, error)
-		WalletList  func(context.Context) ([]address.Address, error)
-		WalletNew   func(types.KeyType) (address.Address, error)
+		NetAddrInfo func(context.Context) (peer.AddrInfo, error) `perm:"write"`
 	}
 }
 
@@ -36,16 +41,34 @@ func (s *CommonStruct) AuthNew(ctx context.Context, perms []auth.Permission) ([]
 	return s.Internal.AuthNew(ctx, perms)
 }
 
+func (s *CommonStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
+	return s.Internal.WalletNew(ctx, typ)
+}
+
+func (s *CommonStruct) WalletSign(ctx context.Context, addr address.Address, msg []byte) ([]byte, error) {
+	return s.Internal.WalletSign(ctx, addr, msg)
+}
+
+func (s *CommonStruct) WalletHas(ctx context.Context, addr address.Address) (bool, error) {
+	return s.Internal.WalletHas(ctx, addr)
+}
+
+func (s *CommonStruct) WalletDelete(ctx context.Context, addr address.Address) error {
+	return s.Internal.WalletDelete(ctx, addr)
+}
+
+func (s *CommonStruct) WalletList(ctx context.Context) ([]address.Address, error) {
+	return s.Internal.WalletList(ctx)
+}
+
+func (s *CommonStruct) WalletExport(ctx context.Context, addr address.Address) (*types.KeyInfo, error) {
+	return s.Internal.WalletExport(ctx, addr)
+}
+
+func (s *CommonStruct) WalletImport(ctx context.Context, ki *types.KeyInfo) (address.Address, error) {
+	return s.Internal.WalletImport(ctx, ki)
+}
+
 func (s *FullNodeStruct) NetAddrInfo(ctx context.Context) (peer.AddrInfo, error) {
 	return s.Internal.NetAddrInfo(ctx)
-}
-
-func (s *FullNodeStruct) WalletList(ctx context.Context) ([]address.Address, error) {
-	res, err := s.Internal.WalletList(ctx)
-	fmt.Println("why", len(res))
-	return res, err
-}
-
-func (s *FullNodeStruct) WalletNew(typ types.KeyType) (address.Address, error) {
-	return s.Internal.WalletNew(typ)
 }
