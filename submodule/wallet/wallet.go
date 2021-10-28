@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/memoio/go-mefs-v2/app/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
@@ -30,8 +29,8 @@ func New(pw string, ks types.KeyStore) *LocalWallet {
 	return lw
 }
 
-func (w *LocalWallet) API() api.IWallet {
-	return walletAPI{w}
+func (w *LocalWallet) API() *walletAPI {
+	return &walletAPI{w}
 }
 
 func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg []byte) ([]byte, error) {

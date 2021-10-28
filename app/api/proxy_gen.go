@@ -15,6 +15,9 @@ type CommonStruct struct {
 		AuthVerify func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
 		AuthNew    func(ctx context.Context, erms []auth.Permission) ([]byte, error)  `perm:"admin"`
 
+		ConfigSet func(context.Context, string, string) error        `perm:"write"`
+		ConfigGet func(context.Context, string) (interface{}, error) `perm:"write"`
+
 		WalletNew    func(context.Context, types.KeyType) (address.Address, error)  `perm:"write"`
 		WalletSign   func(context.Context, address.Address, []byte) ([]byte, error) `perm:"sign"`
 		WalletList   func(context.Context) ([]address.Address, error)               `perm:"write"`
@@ -39,6 +42,14 @@ func (s *CommonStruct) AuthVerify(ctx context.Context, token string) ([]auth.Per
 
 func (s *CommonStruct) AuthNew(ctx context.Context, perms []auth.Permission) ([]byte, error) {
 	return s.Internal.AuthNew(ctx, perms)
+}
+
+func (s *CommonStruct) ConfigSet(ctx context.Context, key, val string) error {
+	return s.Internal.ConfigSet(ctx, key, val)
+}
+
+func (s *CommonStruct) ConfigGet(ctx context.Context, key string) (interface{}, error) {
+	return s.Internal.ConfigGet(ctx, key)
 }
 
 func (s *CommonStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {

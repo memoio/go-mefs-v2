@@ -29,7 +29,7 @@ var networkLogger = logging.Logger("network_module")
 type NetworkSubmodule struct { //nolint
 	NetworkName string
 
-	RawHost RawHost
+	RawHost host.Host
 	Host    host.Host
 
 	// Router is a router from IPFS
@@ -91,7 +91,13 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 	}
 
 	// set up host
-	rawHost, err := buildHost(ctx, config, libP2pOpts, cfg)
+
+	rawHost, err := libp2p.New(
+		ctx,
+		libp2p.UserAgent("memoriae"),
+		libp2p.ChainOptions(libP2pOpts...),
+		libp2p.Ping(true),
+	)
 	if err != nil {
 		return nil, err
 	}

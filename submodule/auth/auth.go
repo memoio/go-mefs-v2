@@ -63,8 +63,8 @@ func NewJwtAuth(rp repo.Repo) (*JwtAuth, error) {
 	}, nil
 }
 
-func (a *JwtAuth) API() api.IAuth {
-	return a
+func (a *JwtAuth) API() *authAPI {
+	return &authAPI{a}
 }
 
 func (a *JwtAuth) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {

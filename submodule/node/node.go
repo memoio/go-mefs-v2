@@ -21,6 +21,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/rpc_builder"
 	"github.com/memoio/go-mefs-v2/service"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
+	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
@@ -33,6 +34,8 @@ type BaseNode struct {
 	*wallet.LocalWallet
 
 	*mauth.JwtAuth
+
+	*mconfig.ConfigModule
 
 	ctx context.Context
 
@@ -53,6 +56,7 @@ func (n *BaseNode) Start(ctx context.Context) error {
 		n.NetworkSubmodule,
 		n.LocalWallet,
 		n.JwtAuth,
+		n.ConfigModule,
 	)
 	if err != nil {
 		return errors.Wrap(err, "add service failed ")

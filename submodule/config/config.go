@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/repo"
@@ -18,7 +19,7 @@ func NewConfigModule(repo repo.Repo) *ConfigModule {
 }
 
 // Set sets a value in config
-func (s *ConfigModule) Set(dottedKey string, jsonString string) error {
+func (s *ConfigModule) ConfigSet(ctx context.Context, dottedKey string, jsonString string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -31,11 +32,11 @@ func (s *ConfigModule) Set(dottedKey string, jsonString string) error {
 }
 
 // Get gets a value from config
-func (s *ConfigModule) Get(dottedKey string) (interface{}, error) {
+func (s *ConfigModule) ConfigGet(ctx context.Context, dottedKey string) (interface{}, error) {
 	return s.repo.Config().Get(dottedKey)
 }
 
 //API create a new config api implement
 func (s *ConfigModule) API() *configAPI {
-	return &configAPI{config: s}
+	return &configAPI{s}
 }

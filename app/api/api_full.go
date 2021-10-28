@@ -15,12 +15,18 @@ import (
 
 type FullNode interface {
 	IAuth
+	IConfig
 	IWallet
 }
 
 type IAuth interface {
 	AuthVerify(context.Context, string) ([]auth.Permission, error)
 	AuthNew(context.Context, []auth.Permission) ([]byte, error)
+}
+
+type IConfig interface {
+	ConfigSet(context.Context, string, string) error
+	ConfigGet(context.Context, string) (interface{}, error)
 }
 
 type IWallet interface {
