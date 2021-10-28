@@ -21,7 +21,7 @@ func TestBaseNode(t *testing.T) {
 	bn1 := startBaseNode(repoDir1, t)
 	defer bn1.Stop(context.Background())
 
-	repoDir2 := "/home/fjt/testmemo2"
+	repoDir2 := "/home/fjt/testmemo4"
 
 	cfg := config.NewDefaultConfig()
 
@@ -100,7 +100,6 @@ func TestBaseNode(t *testing.T) {
 }
 
 func startBaseNode(repoDir string, t *testing.T) *BaseNode {
-
 	rp, err := repo.OpenFSRepo(repoDir, repo.LatestVersion)
 	if err != nil {
 		t.Fatal(err)

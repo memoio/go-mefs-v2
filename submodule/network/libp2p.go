@@ -37,6 +37,7 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 		return p, sk, nil
 	}
 
+	// ed25519 305 faster than secp256k1
 	fmt.Println("generating ED25519 keypair for p2p network...")
 	sk, _, err := crypto.GenerateEd25519Key(rand.Reader)
 	if err != nil {
