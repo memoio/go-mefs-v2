@@ -24,17 +24,14 @@ import (
 
 	"github.com/memoio/go-mefs-v2/app/api"
 	config "github.com/memoio/go-mefs-v2/config"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/lib/utils/net"
 	"github.com/memoio/go-mefs-v2/lib/utils/storeutil"
 )
 
-var networkLogger = logging.Logger("network_module")
-
 // MemoriaeDHT is creates a protocol for the memoriae DHT.
-func MemoriaeDHT(network string) protocol.ID {
-	return protocol.ID(fmt.Sprintf("/memo-%s", network))
+func MemoriaeDHT(netName string) protocol.ID {
+	return protocol.ID(fmt.Sprintf("/memo/dht/%s", netName))
 }
 
 // NetworkSubmodule enhances the `Node` with networking capabilities.
@@ -44,16 +41,20 @@ type NetworkSubmodule struct { //nolint
 	RawHost host.Host
 	Host    host.Host
 
+	// dht related
 	Router routing.Routing
 
+	// pub/sub topics
 	Pubsub *pubsub.PubSub
 
-	// connectv bootstrap peers first
+	// connect bootstrap peers first
+	// peer manager
 	PeerMgr IPeerMgr
 
 	// find peer in local net
 	Discovery discovery.Service
 
+	// metrics info
 	Reporter *metrics.BandwidthCounter
 }
 
@@ -133,7 +134,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 
 	mdnsdisc, err := SetupDiscovery(10, ctx, peerHost, DiscoveryHandler(ctx, peerHost))
 	if err != nil {
-		networkLogger.Error("Setup Discovery falied, error:", err)
+		log.Error("Setup Discovery falied, error:", err)
 	}
 
 	// Set up pubsub
@@ -205,6 +206,19 @@ func (ns *NetworkSubmodule) NetConnectedness(ctx context.Context, pid peer.ID) (
 }
 
 func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) error {
+	if ns.Host.Network().Connectedness(pai.ID) == network.Connected {
+		return nil
+	}
+
+	if len(pai.Addrs) == 0 {
+		// find peer first
+		npi, err := ns.NetFindPeer(ctx, pai.ID)
+		if err != nil {
+			return nil
+		}
+		pai = npi
+	}
+
 	swrm, ok := ns.Host.Network().(*swarm.Swarm)
 	if !ok {
 		return fmt.Errorf("peerhost network was not a swarm")
