@@ -12,7 +12,8 @@ message NetMessage {
 		SayHello = 0;
 		Get = 1;
 		Put = 2;
-		SubmitTX = 3;
+		FindPeer = 3;
+		SubmitTX = 4;
 
     	// data message; user<->provider; offline ops
 		AskPrice = 6;     // 询价

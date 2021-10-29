@@ -1,4 +1,4 @@
-package net
+package network
 
 import (
 	"context"
@@ -12,11 +12,7 @@ import (
 	net "github.com/libp2p/go-libp2p-core/network"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-
-	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
-
-var log = logging.Logger("peermgr")
 
 const (
 	MaxPeers = 320

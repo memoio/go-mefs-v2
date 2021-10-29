@@ -355,7 +355,7 @@ func (r *FSRepo) openKeyStore() error {
 func (r *FSRepo) openMetaStore() error {
 	mpath := r.cfg.Data.MetaPath
 	if mpath == "" {
-		mpath = path.Join(r.path, DataPathPrefix)
+		mpath = path.Join(r.path, metaPathPrefix)
 	}
 
 	opt := kv.DefaultOptions
@@ -365,7 +365,7 @@ func (r *FSRepo) openMetaStore() error {
 		return err
 	}
 
-	r.metaDs = wrap.NewKVStore(metaPathPrefix, ds)
+	r.metaDs = wrap.NewKVStore(metaStorePrefix, ds)
 
 	return nil
 }

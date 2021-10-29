@@ -3,18 +3,23 @@ package generic_service
 import (
 	"context"
 
+	"github.com/libp2p/go-libp2p-core/network"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 // send
-func (service *GenericService) SendMetaMessage(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value []byte) error {
+func (gs *GenericService) SendMetaMessage(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value []byte) error {
 	nm := &pb.NetMessage{}
-	return service.msgSender.SendMessage(ctx, p, nm)
+	return gs.msgSender.SendMessage(ctx, p, nm)
 }
 
-func (service *GenericService) SendMetaRequest(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value []byte) (*pb.NetMessage, error) {
+func (gs *GenericService) SendMetaRequest(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value []byte) (*pb.NetMessage, error) {
+	if gs.ns.Host.Network().Connectedness(p) != network.Connected {
+		return nil, nil
+	}
+
 	nm := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Type: typ,
@@ -24,5 +29,10 @@ func (service *GenericService) SendMetaRequest(ctx context.Context, p peer.ID, t
 		},
 	}
 
-	return service.msgSender.SendRequest(ctx, p, nm)
+	return gs.msgSender.SendRequest(ctx, p, nm)
+}
+
+// find peerID according to its name
+func (gs *GenericService) FindPeer(ctx context.Context, id string) {
+
 }

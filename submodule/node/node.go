@@ -45,6 +45,8 @@ type BaseNode struct {
 
 	jsonRPCService *jsonrpc.RPCServer
 
+	ShutdownChan chan struct{}
+
 	IsOnline bool
 }
 

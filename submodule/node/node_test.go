@@ -21,7 +21,7 @@ func TestBaseNode(t *testing.T) {
 	bn1 := startBaseNode(repoDir1, t)
 	defer bn1.Stop(context.Background())
 
-	repoDir2 := "/home/fjt/testmemo4"
+	repoDir2 := "/home/fjt/testmemo2"
 
 	cfg := config.NewDefaultConfig()
 
@@ -41,6 +41,7 @@ func TestBaseNode(t *testing.T) {
 	p1 := bn1.NetworkSubmodule.Host.ID()
 
 	go func() {
+
 		log.Println("start hello")
 		res, err := bn2.Service.SendMetaRequest(ctx, p1, pb.NetMessage_SayHello, []byte("hello"))
 		if err != nil {
@@ -58,6 +59,7 @@ func TestBaseNode(t *testing.T) {
 		}
 
 		log.Println(string(res.Data.MsgInfo))
+
 	}()
 
 	time.Sleep(5 * time.Second)
@@ -83,6 +85,7 @@ func TestBaseNode(t *testing.T) {
 			}
 
 			log.Println("receive:", received.GetSignature())
+
 		}
 	}()
 
@@ -96,7 +99,17 @@ func TestBaseNode(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 
-	t.Fatal(bn1.NetworkSubmodule.Network.Peers(context.Background(), false, false, false))
+	fn := func(key, val []byte) error {
+		fmt.Println(string(key), "and", string(val))
+		return nil
+	}
+
+	fmt.Println("=========")
+	bn1.repo.MetaStore().Iter([]byte("/"), fn)
+	fmt.Println("=========")
+	bn2.repo.MetaStore().Iter([]byte("/"), fn)
+
+	t.Fatal(bn1.NetworkSubmodule.NetPeers(context.Background()))
 }
 
 func startBaseNode(repoDir string, t *testing.T) *BaseNode {
@@ -104,8 +117,6 @@ func startBaseNode(repoDir string, t *testing.T) *BaseNode {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	defer rp.Close()
 
 	opts, err := OptionsFromRepo(rp)
 	if err != nil {

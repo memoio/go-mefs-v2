@@ -10,8 +10,10 @@ import (
 	host "github.com/libp2p/go-libp2p-core/host"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
 	"github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/service/core/generic/internal/net"
 	"github.com/memoio/go-mefs-v2/service/core/instance"
 	"github.com/memoio/go-mefs-v2/submodule/network"
@@ -22,7 +24,8 @@ var logger = log.Logger("generic_service")
 const DefaultPrefix protocol.ID = "/memo"
 
 type GenericService struct {
-	ns *network.NetworkSubmodule
+	localID peer.ID
+	ns      *network.NetworkSubmodule
 
 	ctx  context.Context
 	proc goprocess.Process
@@ -51,6 +54,7 @@ func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscribe
 	serverProtocols = []protocol.ID{v1proto}
 
 	service := &GenericService{
+		localID:         ns.Host.ID(),
 		protocols:       protocols,
 		protocolsStrs:   protocol.ConvertToStrings(protocols),
 		serverProtocols: serverProtocols,
@@ -81,31 +85,77 @@ func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscribe
 	// register for network notifications
 	ns.Host.Network().Notify(sn)
 
+	err = sn.service.handleNodePub()
+	if err != nil {
+		return nil, err
+	}
+
 	logger.Info("start generic service")
 
 	return service, nil
 }
 
 // Context returns the DHT's context.
-func (service *GenericService) Context() context.Context {
-	return service.ctx
+func (gs *GenericService) Context() context.Context {
+	return gs.ctx
 }
 
 // Process returns the DHT's process.
-func (service *GenericService) Process() goprocess.Process {
-	return service.proc
+func (gs *GenericService) Process() goprocess.Process {
+	return gs.proc
 }
 
 // PeerID returns the DHT node's Peer ID.
-func (service *GenericService) PeerID() peer.ID {
-	return service.ns.Host.ID()
+func (gs *GenericService) PeerID() peer.ID {
+	return gs.ns.Host.ID()
 }
 
 // Host returns the libp2p host this DHT is operating with.
-func (service *GenericService) Host() host.Host {
-	return service.ns.Host
+func (gs *GenericService) Host() host.Host {
+	return gs.ns.Host
 }
 
-func (service *GenericService) Close() error {
-	return service.proc.Close()
+func (gs *GenericService) Close() error {
+	return gs.proc.Close()
+}
+
+func (gs *GenericService) handleNodePub() error {
+	topic, err := gs.ns.Pubsub.Join(types.NodeTopic(gs.ns.NetworkName))
+	if err != nil {
+		return err
+	}
+
+	sub, err := topic.Subscribe()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		for {
+			received, err := sub.Next(gs.ctx)
+			if err != nil {
+				return
+			}
+			gs.handleIncoming(received)
+		}
+	}()
+
+	return nil
+}
+
+func (gs *GenericService) handleIncoming(pMsg *pubsub.Message) {
+	from := pMsg.GetFrom()
+
+	if gs.localID != from {
+		// handle it
+		gotID, err := peer.IDFromBytes(pMsg.GetData())
+		if err != nil {
+			return
+		}
+
+		if gotID == gs.localID {
+			// send nodINfo
+			//gs.SendMetaRequest()
+		}
+	}
 }
