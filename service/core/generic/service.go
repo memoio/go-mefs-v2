@@ -10,18 +10,15 @@ import (
 	host "github.com/libp2p/go-libp2p-core/host"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/service/core/generic/internal/net"
 	"github.com/memoio/go-mefs-v2/service/core/instance"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
 var logger = log.Logger("generic_service")
-
-const DefaultPrefix protocol.ID = "/memo"
 
 type GenericService struct {
 	localID peer.ID
@@ -48,7 +45,7 @@ type GenericService struct {
 func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscriber) (*GenericService, error) {
 	var protocols, serverProtocols []protocol.ID
 
-	v1proto := DefaultPrefix + protocol.ID("/core/"+ns.NetworkName)
+	v1proto := build.MemoriaeNet(ns.NetworkName)
 
 	protocols = []protocol.ID{v1proto}
 	serverProtocols = []protocol.ID{v1proto}
@@ -85,11 +82,6 @@ func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscribe
 	// register for network notifications
 	ns.Host.Network().Notify(sn)
 
-	err = sn.service.handleNodePub()
-	if err != nil {
-		return nil, err
-	}
-
 	logger.Info("start generic service")
 
 	return service, nil
@@ -117,45 +109,4 @@ func (gs *GenericService) Host() host.Host {
 
 func (gs *GenericService) Close() error {
 	return gs.proc.Close()
-}
-
-func (gs *GenericService) handleNodePub() error {
-	topic, err := gs.ns.Pubsub.Join(types.NodeTopic(gs.ns.NetworkName))
-	if err != nil {
-		return err
-	}
-
-	sub, err := topic.Subscribe()
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		for {
-			received, err := sub.Next(gs.ctx)
-			if err != nil {
-				return
-			}
-			gs.handleIncoming(received)
-		}
-	}()
-
-	return nil
-}
-
-func (gs *GenericService) handleIncoming(pMsg *pubsub.Message) {
-	from := pMsg.GetFrom()
-
-	if gs.localID != from {
-		// handle it
-		gotID, err := peer.IDFromBytes(pMsg.GetData())
-		if err != nil {
-			return
-		}
-
-		if gotID == gs.localID {
-			// send nodINfo
-			//gs.SendMetaRequest()
-		}
-	}
 }

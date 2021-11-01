@@ -1,0 +1,20 @@
+package build
+
+import (
+	"fmt"
+
+	"github.com/libp2p/go-libp2p-core/protocol"
+)
+
+// broadcast an event
+func EventTopic(netName string) string { return "/memo/event/" + string(netName) }
+func MsgTopic(netName string) string   { return "/memo/msg/" + string(netName) }
+
+// MemoriaeDHT is creates a protocol for the memoriae DHT.
+func MemoriaeDHT(netName string) protocol.ID {
+	return protocol.ID(fmt.Sprintf("/memo/dht/%s", netName))
+}
+
+func MemoriaeNet(netName string) protocol.ID {
+	return protocol.ID(fmt.Sprintf("/memo/net/%s", netName))
+}

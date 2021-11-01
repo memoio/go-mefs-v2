@@ -23,16 +23,12 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/memoio/go-mefs-v2/app/api"
+	"github.com/memoio/go-mefs-v2/build"
 	config "github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/lib/utils/net"
 	"github.com/memoio/go-mefs-v2/lib/utils/storeutil"
 )
-
-// MemoriaeDHT is creates a protocol for the memoriae DHT.
-func MemoriaeDHT(netName string) protocol.ID {
-	return protocol.ID(fmt.Sprintf("/memo/dht/%s", netName))
-}
 
 // NetworkSubmodule enhances the `Node` with networking capabilities.
 type NetworkSubmodule struct { //nolint
@@ -107,7 +103,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 	dhtopts := []dht.Option{dht.Mode(dht.ModeAutoServer),
 		dht.Datastore(nds),
 		dht.Validator(validator),
-		dht.ProtocolPrefix(MemoriaeDHT(networkName)),
+		dht.ProtocolPrefix(build.MemoriaeDHT(networkName)),
 		dht.QueryFilter(dht.PublicQueryFilter),
 		dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
 		dht.BootstrapPeers(bootNodes...),
@@ -127,12 +123,12 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 		return nil, err
 	}
 
-	// do NOT start `peerMgr` in `offline` mode
+	// offline for what?
 	if !config.OfflineMode() {
 		go peerMgr.Run(ctx)
 	}
 
-	mdnsdisc, err := SetupDiscovery(10, ctx, peerHost, DiscoveryHandler(ctx, peerHost))
+	mdnsdisc, err := SetupDiscovery(ctx, peerHost, DiscoveryHandler(ctx, peerHost))
 	if err != nil {
 		log.Error("Setup Discovery falied, error:", err)
 	}

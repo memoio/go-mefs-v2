@@ -19,7 +19,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/rpc_builder"
-	"github.com/memoio/go-mefs-v2/service"
+	core_service "github.com/memoio/go-mefs-v2/service/core"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/network"
@@ -37,11 +37,11 @@ type BaseNode struct {
 
 	*mconfig.ConfigModule
 
+	*core_service.CoreServiceImpl
+
 	ctx context.Context
 
 	repo repo.Repo
-
-	Service service.CoreService
 
 	jsonRPCService *jsonrpc.RPCServer
 

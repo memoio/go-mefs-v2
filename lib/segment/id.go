@@ -28,27 +28,27 @@ func (bm *BaseSegmentID) GetFsID() []byte {
 }
 
 func (bm *BaseSegmentID) GetBucketID() int64 {
-	return int64(binary.LittleEndian.Uint64(bm.buf[FSID_LEN : FSID_LEN+8]))
+	return int64(binary.BigEndian.Uint64(bm.buf[FSID_LEN : FSID_LEN+8]))
 }
 
 func (bm *BaseSegmentID) GetStripeID() int64 {
-	return int64(binary.LittleEndian.Uint64(bm.buf[FSID_LEN+8 : FSID_LEN+16]))
+	return int64(binary.BigEndian.Uint64(bm.buf[FSID_LEN+8 : FSID_LEN+16]))
 }
 
 func (bm *BaseSegmentID) GetChunkID() uint32 {
-	return binary.LittleEndian.Uint32(bm.buf[FSID_LEN+16 : SEGMENTID_LEN])
+	return binary.BigEndian.Uint32(bm.buf[FSID_LEN+16 : SEGMENTID_LEN])
 }
 
 func (bm *BaseSegmentID) SetBucketID(bid int64) {
-	binary.LittleEndian.PutUint64(bm.buf[FSID_LEN:FSID_LEN+8], uint64(bid))
+	binary.BigEndian.PutUint64(bm.buf[FSID_LEN:FSID_LEN+8], uint64(bid))
 }
 
 func (bm *BaseSegmentID) SetStripeID(sid int64) {
-	binary.LittleEndian.PutUint64(bm.buf[FSID_LEN+8:FSID_LEN+16], uint64(sid))
+	binary.BigEndian.PutUint64(bm.buf[FSID_LEN+8:FSID_LEN+16], uint64(sid))
 }
 
 func (bm *BaseSegmentID) SetChunkID(cid uint32) {
-	binary.LittleEndian.PutUint32(bm.buf[FSID_LEN+16:SEGMENTID_LEN], cid)
+	binary.BigEndian.PutUint32(bm.buf[FSID_LEN+16:SEGMENTID_LEN], cid)
 }
 
 func (bm *BaseSegmentID) Bytes() []byte {
@@ -78,9 +78,9 @@ func NewSegmentID(fid []byte, bid, sid int64, cid uint32) (SegmentID, error) {
 	segID := make([]byte, SEGMENTID_LEN)
 	copy(segID[:FSID_LEN], fid)
 
-	binary.LittleEndian.PutUint64(segID[FSID_LEN:FSID_LEN+8], uint64(bid))
-	binary.LittleEndian.PutUint64(segID[FSID_LEN+8:FSID_LEN+16], uint64(sid))
-	binary.LittleEndian.PutUint32(segID[FSID_LEN+16:SEGMENTID_LEN], cid)
+	binary.BigEndian.PutUint64(segID[FSID_LEN:FSID_LEN+8], uint64(bid))
+	binary.BigEndian.PutUint64(segID[FSID_LEN+8:FSID_LEN+16], uint64(sid))
+	binary.BigEndian.PutUint32(segID[FSID_LEN+16:SEGMENTID_LEN], cid)
 
 	return &BaseSegmentID{buf: segID}, nil
 }

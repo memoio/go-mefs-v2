@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/pkg/errors"
@@ -126,12 +127,17 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.LocalWallet = wallet.New(b.walletPassword, b.repo.KeyStore())
 
-	cs, err := core_service.New(ctx, nd.NetworkSubmodule, nil)
+	id, err := strconv.Atoi(b.repo.Config().Identity.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	cs, err := core_service.New(ctx, uint64(id), b.repo.MetaStore(), nd.NetworkSubmodule, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create core service")
 	}
 
-	nd.Service = cs
+	nd.CoreServiceImpl = cs
 
 	jauth, err := auth.NewJwtAuth(b.repo)
 	if err != nil {

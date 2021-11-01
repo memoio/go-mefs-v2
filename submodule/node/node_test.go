@@ -9,19 +9,20 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/config"
+	"github.com/memoio/go-mefs-v2/lib/minit"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 )
 
 func TestBaseNode(t *testing.T) {
-	repoDir1 := "/home/fjt/testmemo1"
+	repoDir1 := "/home/fjt/testmemo8"
 
 	repo.InitFSRepoDirect(repoDir1, repo.LatestVersion, config.NewDefaultConfig())
 
 	bn1 := startBaseNode(repoDir1, t)
 	defer bn1.Stop(context.Background())
 
-	repoDir2 := "/home/fjt/testmemo2"
+	repoDir2 := "/home/fjt/testmemo9"
 
 	cfg := config.NewDefaultConfig()
 
@@ -38,12 +39,11 @@ func TestBaseNode(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	p1 := bn1.NetworkSubmodule.Host.ID()
+	p1 := bn1.NodeID()
 
 	go func() {
-
 		log.Println("start hello")
-		res, err := bn2.Service.SendMetaRequest(ctx, p1, pb.NetMessage_SayHello, []byte("hello"))
+		res, err := bn2.SendMetaRequest(ctx, p1, pb.NetMessage_SayHello, []byte("hello"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -53,7 +53,7 @@ func TestBaseNode(t *testing.T) {
 
 	go func() {
 		log.Println("start get")
-		res, err := bn2.Service.SendMetaRequest(ctx, p1, pb.NetMessage_Get, []byte("get"))
+		res, err := bn2.SendMetaRequest(ctx, p1, pb.NetMessage_Get, []byte("get"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,6 +115,14 @@ func TestBaseNode(t *testing.T) {
 func startBaseNode(repoDir string, t *testing.T) *BaseNode {
 	rp, err := repo.OpenFSRepo(repoDir, repo.LatestVersion)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := minit.Init(context.Background(), rp, "memoriae"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := rp.ReplaceConfig(rp.Config()); err != nil {
 		t.Fatal(err)
 	}
 

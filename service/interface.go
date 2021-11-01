@@ -14,8 +14,8 @@ import (
 
 // send/handle msg directly over network
 type CoreService interface {
-	SendMetaMessage(ctx context.Context, to peer.ID, mes_typ pb.NetMessage_MsgType, val []byte) error
-	SendMetaRequest(ctx context.Context, to peer.ID, mes_typ pb.NetMessage_MsgType, val []byte) (*pb.NetMessage, error)
+	SendMetaMessage(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) error
+	SendMetaRequest(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) (*pb.NetMessage, error)
 }
 
 type UserDataService interface {

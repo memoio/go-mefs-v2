@@ -2,33 +2,51 @@ package core_service
 
 import (
 	"context"
-	"fmt"
+	"encoding/binary"
+	"errors"
+	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
-	"github.com/pkg/errors"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
+	"github.com/memoio/go-mefs-v2/build"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service"
 	generic_service "github.com/memoio/go-mefs-v2/service/core/generic"
 	"github.com/memoio/go-mefs-v2/service/core/instance"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
+var logger = logging.Logger("core")
+
 var _ service.CoreService = (*CoreServiceImpl)(nil)
 
+var ErrTimeOut = errors.New("time out")
+
+// wrap net interface
 type CoreServiceImpl struct {
+	sync.RWMutex
 	*generic_service.GenericService
-	// MetaDs   repo.Datastore
-	accounts *lru.ARCCache // nodeid->netid
-	rt       routing.Routing
-	h        host.Host
+	ctx        context.Context
+	nodeID     uint64  // local node id
+	netID      peer.ID // local net id
+	ds         store.KVStore
+	idMap      map[uint64]peer.ID
+	wants      map[uint64]time.Time
+	rt         routing.Routing
+	h          host.Host
+	eventTopic *pubsub.Topic
+
+	related []uint64
 }
 
-func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscriber) (*CoreServiceImpl, error) {
+func New(ctx context.Context, nodeID uint64, ds store.KVStore, ns *network.NetworkSubmodule, s instance.Subscriber) (*CoreServiceImpl, error) {
 	if s == nil {
 		s = instance.New()
 	}
@@ -38,61 +56,209 @@ func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscribe
 		return nil, err
 	}
 
-	accounts, err := lru.NewARC(2048)
+	topic, err := ns.Pubsub.Join(build.EventTopic(ns.NetworkName))
 	if err != nil {
 		return nil, err
 	}
 
-	core := &CoreServiceImpl{}
-	core.GenericService = service
-	core.rt = ns.Router
-	core.h = ns.Host
-	core.accounts = accounts
+	core := &CoreServiceImpl{
+		GenericService: service,
+		ctx:            ctx,
+		nodeID:         nodeID,
+		netID:          ns.NetID(ctx),
+		ds:             ds,
+		rt:             ns.Router,
+		h:              ns.Host,
+		idMap:          make(map[uint64]peer.ID),
+		wants:          make(map[uint64]time.Time),
+		related:        make([]uint64, 0, 128),
+		eventTopic:     topic,
+	}
+
+	go core.handleIncomingEvent(ctx)
+	go core.handlePeerFind(ctx)
+
 	return core, nil
 }
 
-func (c *CoreServiceImpl) Host() host.Host {
-	return c.h
+func (c *CoreServiceImpl) NodeID() uint64 {
+	return c.nodeID
 }
 
-func (c *CoreServiceImpl) Routing() routing.Routing {
-	return c.rt
-}
+// add a new node
+func (c *CoreServiceImpl) AddNode(id uint64) {
+	c.Lock()
+	has := false
+	for _, uid := range c.related {
+		if uid == id {
+			has = true
+		}
+	}
 
-func (c *CoreServiceImpl) Info(ctx context.Context, to string) (*pb.NetInfo, error) {
-	val, ok := c.accounts.Get(to)
+	if !has {
+		c.related = append(c.related, id)
+	}
+
+	_, ok := c.idMap[id]
 	if !ok {
-		return nil, errors.New("not found")
+		_, ok = c.wants[id]
+		if !ok {
+			c.wants[id] = time.Now()
+			c.FindPeerID(c.ctx, id)
+		}
 	}
-	return val.(*pb.NetInfo), nil
+	c.Unlock()
 }
 
-func (c *CoreServiceImpl) NetAddr(ctx context.Context, to string) (peer.AddrInfo, error) {
-	val, ok := c.accounts.Get(to)
-	if !ok {
-		return peer.AddrInfo{}, errors.New("not found")
+func (c *CoreServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) error {
+	pid, ok := c.idMap[id]
+	if ok {
+		return c.GenericService.SendMetaMessage(ctx, pid, typ, value)
 	}
-	info := val.(*pb.NetInfo)
-
-	return peer.AddrInfo{
-		ID: peer.ID(info.NetID),
-	}, nil
+	return nil
 }
 
-func (c *CoreServiceImpl) GetNetInfo(ctx context.Context, to peer.ID) (*pb.NetInfo, error) {
-	fmt.Println("CoreServiceImpl.GetInfo")
+func (c *CoreServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) (*pb.NetMessage, error) {
+	ctx, cancle := context.WithTimeout(ctx, 30*time.Second)
 
-	resp, err := c.SendMetaRequest(ctx, to, pb.NetMessage_Get, []byte("Role"))
-	if err != nil {
-		fmt.Println("GetInfo,err 2: ", err)
-		return nil, err
-	}
-	res := &pb.NetInfo{}
+	defer cancle()
 
-	err = proto.Unmarshal(resp.GetData().GetMsgInfo(), res)
-	if err != nil {
-		fmt.Println("GetInfo,err 3: ", err)
-		return nil, err
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ErrTimeOut
+		default:
+			c.RLock()
+			pid, ok := c.idMap[id]
+			c.RUnlock()
+			if !ok {
+				c.RLock()
+				_, has := c.wants[id]
+				c.RUnlock()
+				if !has {
+					c.Lock()
+					c.wants[id] = time.Now()
+					c.Unlock()
+					c.FindPeerID(ctx, id)
+				}
+
+				time.Sleep(1 * time.Second)
+			} else {
+				return c.GenericService.SendMetaRequest(ctx, pid, typ, value)
+			}
+		}
+
 	}
-	return res, nil
+}
+
+func (c *CoreServiceImpl) FindPeerID(ctx context.Context, id uint64) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, id)
+
+	em := &pb.EventMessage{
+		Type: pb.EventMessage_GetPeer,
+		Data: buf,
+	}
+
+	data, _ := proto.Marshal(em)
+	c.eventTopic.Publish(ctx, data)
+}
+
+func (c *CoreServiceImpl) PutPeerID(ctx context.Context) {
+	pi := &pb.PutPeerInfo{
+		NodeID: c.nodeID,
+		NetID:  []byte(c.netID),
+	}
+
+	pdata, _ := proto.Marshal(pi)
+
+	em := &pb.EventMessage{
+		Type: pb.EventMessage_PutPeer,
+		Data: pdata,
+	}
+
+	data, _ := proto.Marshal(em)
+	c.eventTopic.Publish(ctx, data)
+}
+
+func (c *CoreServiceImpl) handlePeerFind(ctx context.Context) {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			c.Lock()
+			for id, t := range c.wants {
+				nt := time.Now()
+				if t.Add(30 * time.Second).Before(nt) {
+					c.FindPeerID(ctx, id)
+					c.wants[id] = nt
+				}
+			}
+			c.Unlock()
+		case <-c.ctx.Done():
+			return
+		}
+	}
+}
+
+func (c *CoreServiceImpl) handleIncomingEvent(ctx context.Context) {
+	sub, err := c.eventTopic.Subscribe()
+	if err != nil {
+		return
+	}
+
+	go func() {
+		for {
+			received, err := sub.Next(ctx)
+			if err != nil {
+				return
+			}
+			c.handleMsg(received)
+		}
+	}()
+}
+
+func (c *CoreServiceImpl) handleMsg(pMsg *pubsub.Message) {
+	from := pMsg.GetFrom()
+
+	if c.netID != from {
+		// handle it
+		// umarshal pmsg data
+		em := new(pb.EventMessage)
+		err := proto.Unmarshal(pMsg.GetData(), em)
+		if err != nil {
+			return
+		}
+		// handle it according to its type
+		switch em.GetType() {
+		case pb.EventMessage_GetPeer:
+			id := binary.BigEndian.Uint64(em.GetData())
+			if id == c.nodeID {
+				logger.Debug(c.netID.Pretty(), "handle find peer:", id)
+				c.PutPeerID(c.ctx)
+			}
+		case pb.EventMessage_PutPeer:
+			ppi := new(pb.PutPeerInfo)
+			proto.Unmarshal(em.GetData(), ppi)
+
+			netID, err := peer.IDFromBytes(ppi.NetID)
+			if err != nil {
+				return
+			}
+
+			logger.Debug(c.netID.Pretty(), "handle put peer:", netID.Pretty())
+
+			c.Lock()
+			_, ok := c.wants[ppi.GetNodeID()]
+			if ok {
+				c.idMap[ppi.NodeID] = netID
+				delete(c.wants, ppi.NodeID)
+			}
+			c.Unlock()
+		default:
+			logger.Debug("unsupported event type:", em.GetType())
+			return
+		}
+	}
 }

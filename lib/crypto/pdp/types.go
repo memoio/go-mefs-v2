@@ -46,7 +46,7 @@ func (pfv *ProofWithVersion) Serialize() ([]byte, error) {
 		return nil, pdpcommon.ErrKeyIsNil
 	}
 	lenBuf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(lenBuf, pfv.Ver)
+	binary.BigEndian.PutUint16(lenBuf, pfv.Ver)
 	pf := pfv.Proof.Serialize()
 	buf := make([]byte, 0, 2+len(pf))
 	buf = append(buf, lenBuf[:2]...)
@@ -58,7 +58,7 @@ func (pfv *ProofWithVersion) Deserialize(data []byte) error {
 	if len(data) <= 2 {
 		return pdpcommon.ErrNumOutOfRange
 	}
-	v := binary.LittleEndian.Uint16(data[:2])
+	v := binary.BigEndian.Uint16(data[:2])
 	var proof pdpcommon.Proof
 	switch v {
 	case PDPV2:
@@ -91,7 +91,7 @@ func (ch *ChallengeWithVersion) Serialize() ([]byte, error) {
 		return nil, pdpcommon.ErrKeyIsNil
 	}
 	lenBuf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(lenBuf, ch.Ver)
+	binary.BigEndian.PutUint16(lenBuf, ch.Ver)
 	chal := ch.Chal.Serialize()
 	buf := make([]byte, 0, 2+len(chal))
 	buf = append(buf, lenBuf[:2]...)
@@ -100,7 +100,7 @@ func (ch *ChallengeWithVersion) Serialize() ([]byte, error) {
 }
 
 func (ch *ChallengeWithVersion) Deserialize(data []byte) error {
-	v := binary.LittleEndian.Uint16(data[:2])
+	v := binary.BigEndian.Uint16(data[:2])
 	var chal pdpcommon.Challenge
 	switch v {
 	case PDPV2:

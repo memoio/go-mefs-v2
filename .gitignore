@@ -26,4 +26,6 @@
 /mefs-provider
 /mefs-net
 
+./mefs*
+
 app/mefs/mefs*

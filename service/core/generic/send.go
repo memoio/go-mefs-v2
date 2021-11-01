@@ -17,7 +17,14 @@ func (gs *GenericService) SendMetaMessage(ctx context.Context, p peer.ID, typ pb
 
 func (gs *GenericService) SendMetaRequest(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value []byte) (*pb.NetMessage, error) {
 	if gs.ns.Host.Network().Connectedness(p) != network.Connected {
-		return nil, nil
+		pai := peer.AddrInfo{
+			ID: p,
+		}
+
+		err := gs.ns.NetConnect(ctx, pai)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	nm := &pb.NetMessage{
@@ -30,9 +37,4 @@ func (gs *GenericService) SendMetaRequest(ctx context.Context, p peer.ID, typ pb
 	}
 
 	return gs.msgSender.SendRequest(ctx, p, nm)
-}
-
-// find peerID according to its name
-func (gs *GenericService) FindPeer(ctx context.Context, id string) {
-
 }

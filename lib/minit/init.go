@@ -2,7 +2,9 @@ package minit
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"strconv"
 
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -28,8 +30,11 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 
 	fmt.Println("addr: ", addr.String())
 
-	config := r.Config()
-	config.Wallet.DefaultAddress = addr.String()
+	id := binary.BigEndian.Uint64(addr.Bytes()[:8])
+
+	cfg := r.Config()
+	cfg.Identity.Name = strconv.Itoa(int(id))
+	cfg.Wallet.DefaultAddress = addr.String()
 
 	return nil
 }

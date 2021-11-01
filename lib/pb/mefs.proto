@@ -27,6 +27,6 @@ message NodeInfo {
     RoleType role = 1;
     uint64 nodeID = 2;
     uint64 groupID = 3;
-    bytes chainSignKey = 4;      // address/pubkey on chain
-	bytes blsSignKey = 5;         
+    bytes chainVerifyKey = 4;      // address/pubkey on chain
+	bytes blsVerifyKey = 5;         
 }

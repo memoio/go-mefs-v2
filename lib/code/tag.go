@@ -30,6 +30,6 @@ func (d *DataCoder) GenTag(index, data []byte) ([]byte, error) {
 //将uint32切片转成[]byte
 func uint32ToBytes(vs uint32) []byte {
 	buf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(buf, vs)
+	binary.BigEndian.PutUint32(buf, vs)
 	return buf
 }

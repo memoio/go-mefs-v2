@@ -32,10 +32,8 @@ func DiscoveryHandler(ctx context.Context, host host.Host) *discoveryHandler {
 	}
 }
 
-func SetupDiscovery(mdnsInterval int, ctx context.Context, host host.Host, handler *discoveryHandler) (discovery.Service, error) {
-	if mdnsInterval == 0 {
-		mdnsInterval = 5
-	}
+func SetupDiscovery(ctx context.Context, host host.Host, handler *discoveryHandler) (discovery.Service, error) {
+	mdnsInterval := 5
 	service, err := discovery.NewMdnsService(ctx, host, time.Duration(mdnsInterval)*time.Second, discovery.ServiceTag)
 	if err != nil {
 		log.Error("mdns error: ", err)

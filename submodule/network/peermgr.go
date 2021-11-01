@@ -34,10 +34,6 @@ var _ IPeerMgr = &MockPeerMgr{}
 type PeerMgr struct {
 	bootstrappers []peer.AddrInfo
 
-	// peerLeads is a set of peers we hear about through the network
-	// and who may be good peers to connect to for expanding our peer set
-	//peerLeads map[peer.ID]time.Time // TODO: unused
-
 	peersLk sync.Mutex
 	peers   map[peer.ID]time.Duration
 
@@ -49,8 +45,8 @@ type PeerMgr struct {
 	h   host.Host
 	dht *dht.IpfsDHT
 
-	notifee        *net.NotifyBundle
-	filPeerEmitter event.Emitter
+	notifee     *net.NotifyBundle
+	peerEmitter event.Emitter
 
 	done chan struct{}
 }
@@ -76,9 +72,9 @@ func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*Peer
 
 	emitter, err := h.EventBus().Emitter(new(NewPeer))
 	if err != nil {
-		return nil, xerrors.Errorf("creating NewFilPeer emitter: %w", err)
+		return nil, xerrors.Errorf("creating NewPeer emitter: %w", err)
 	}
-	pm.filPeerEmitter = emitter
+	pm.peerEmitter = emitter
 
 	pm.notifee = &net.NotifyBundle{
 		DisconnectedF: func(_ net.Network, c net.Conn) {
@@ -92,7 +88,7 @@ func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*Peer
 }
 
 func (pmgr *PeerMgr) AddPeer(p peer.ID) {
-	_ = pmgr.filPeerEmitter.Emit(NewPeer{Id: p}) //nolint:errcheck
+	_ = pmgr.peerEmitter.Emit(NewPeer{Id: p}) //nolint:errcheck
 	pmgr.peersLk.Lock()
 	defer pmgr.peersLk.Unlock()
 	pmgr.peers[p] = time.Duration(0)
@@ -124,7 +120,7 @@ func (pmgr *PeerMgr) Disconnect(p peer.ID) {
 
 func (pmgr *PeerMgr) Stop(ctx context.Context) error {
 	log.Warn("closing peermgr done")
-	_ = pmgr.filPeerEmitter.Close()
+	_ = pmgr.peerEmitter.Close()
 	close(pmgr.done)
 	return nil
 }

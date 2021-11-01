@@ -37,3 +37,19 @@ message NetMessage {
 	MsgHeader header = 1;
 	MsgData data = 2;
 }
+
+// pubsub message content
+message EventMessage {
+	enum MsgType {
+		GetPeer = 0;  // data is nodeID
+		PutPeer = 1;  // data is nodeID + netID 
+	}
+
+	MsgType type = 1;
+	bytes data = 2;
+}
+
+message PutPeerInfo {
+	uint64 nodeID = 1;
+	bytes netID = 2;
+}
