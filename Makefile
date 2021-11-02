@@ -31,8 +31,15 @@ mefs: $(BUILD_DEPS)
 .PHONY: mefs
 BINS+=mefs
 
+keeper: $(BUILD_DEPS)
+	rm -f mefs-keeper
+	go build $(GOFLAGS) -o mefs-keeper ./app/keeper
 
-build: mefs
+.PHONY: mefs-keeper
+BINS+=mefs-keeper 
+
+
+build: mefs keeper 
 
 .PHONY: build
 

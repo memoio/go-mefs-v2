@@ -28,6 +28,8 @@ import (
 
 var logger = log.Logger("basenode")
 
+var _ api.FullNode = (*BaseNode)(nil)
+
 type BaseNode struct {
 	*network.NetworkSubmodule
 
@@ -38,6 +40,8 @@ type BaseNode struct {
 	*mconfig.ConfigModule
 
 	*core_service.CoreServiceImpl
+
+	*jsonrpc.RPCServer
 
 	repo.Repo
 
@@ -59,6 +63,9 @@ func (n *BaseNode) Start() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to create core service")
 	}
+
+	n.RPCServer = jsonrpc.NewServer()
+	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
 
 	n.CoreServiceImpl = cs
 	return nil
@@ -91,11 +98,7 @@ func (n *BaseNode) RunDaemon(ready chan interface{}) error {
 	netListener := manet.NetListener(apiListener) //nolint
 
 	handler := http.NewServeMux()
-
-	rpcServer := jsonrpc.NewServer()
-	rpcServer.Register("Memoriae", api.PermissionedFullAPI(n))
-
-	handler.Handle("/rpc/v0", rpcServer)
+	handler.Handle("/rpc/v0", n.RPCServer)
 
 	// todo: add auth
 	ah := &auth.Handler{
