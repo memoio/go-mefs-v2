@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"runtime"
@@ -24,8 +23,8 @@ const (
 )
 
 type Node interface {
-	Start(context.Context) error
-	RunRPCAndWait(context.Context, chan interface{}) error
+	Start() error
+	RunDaemon(chan interface{}) error
 	Online() bool
 	GetHost() host.Host
 }
@@ -114,7 +113,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		}
 
 		password := cctx.String("password")
-		opts = append(opts, basenode.SetWalletPassword(password))
+		opts = append(opts, basenode.SetPassword(password))
 
 		node, err = basenode.New(cctx.Context, opts...)
 		if err != nil {
@@ -125,7 +124,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	printSwarmAddrs(node)
 
 	// Start the node
-	if err := node.Start(cctx.Context); err != nil {
+	if err := node.Start(); err != nil {
 		return err
 	}
 
@@ -139,7 +138,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		fmt.Printf("Daemon is ready\n")
 	}()
 
-	return node.RunRPCAndWait(cctx.Context, ready)
+	return node.RunDaemon(ready)
 }
 
 func printVersion() {

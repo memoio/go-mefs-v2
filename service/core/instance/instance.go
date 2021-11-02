@@ -32,16 +32,16 @@ type Subscriber interface {
 	Close()
 }
 
-var _ Subscriber = (*impl)(nil)
+var _ Subscriber = (*Impl)(nil)
 
-type impl struct {
+type Impl struct {
 	sync.RWMutex
 	close bool
 	hmap  map[pb.NetMessage_MsgType]HandlerFunc
 }
 
-func New() Subscriber {
-	i := &impl{
+func New() *Impl {
+	i := &Impl{
 		hmap: make(map[pb.NetMessage_MsgType]HandlerFunc),
 	}
 
@@ -50,7 +50,7 @@ func New() Subscriber {
 	return i
 }
 
-func (i *impl) HandlerForMsgType(mt pb.NetMessage_MsgType) HandlerFunc {
+func (i *Impl) HandlerForMsgType(mt pb.NetMessage_MsgType) HandlerFunc {
 	i.RLock()
 	defer i.RUnlock()
 
@@ -65,19 +65,19 @@ func (i *impl) HandlerForMsgType(mt pb.NetMessage_MsgType) HandlerFunc {
 	return nil
 }
 
-func (i *impl) Register(mt pb.NetMessage_MsgType, h HandlerFunc) {
+func (i *Impl) Register(mt pb.NetMessage_MsgType, h HandlerFunc) {
 	i.Lock()
 	defer i.Unlock()
 	i.hmap[mt] = h
 }
 
-func (i *impl) UnRegister(mt pb.NetMessage_MsgType) {
+func (i *Impl) UnRegister(mt pb.NetMessage_MsgType) {
 	i.Lock()
 	defer i.Unlock()
 	delete(i.hmap, mt)
 }
 
-func (i *impl) Close() {
+func (i *Impl) Close() {
 	i.Lock()
 	defer i.Unlock()
 	i.close = true

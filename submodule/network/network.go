@@ -55,7 +55,6 @@ type NetworkSubmodule struct { //nolint
 }
 
 type networkConfig interface {
-	OfflineMode() bool
 	Libp2pOpts() []libp2p.Option
 }
 
@@ -123,10 +122,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 		return nil, err
 	}
 
-	// offline for what?
-	if !config.OfflineMode() {
-		go peerMgr.Run(ctx)
-	}
+	go peerMgr.Run(ctx)
 
 	mdnsdisc, err := SetupDiscovery(ctx, peerHost, DiscoveryHandler(ctx, peerHost))
 	if err != nil {

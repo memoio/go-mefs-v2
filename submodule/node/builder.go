@@ -3,30 +3,52 @@ package node
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/pkg/errors"
 
 	"github.com/memoio/go-mefs-v2/lib/repo"
-	core_service "github.com/memoio/go-mefs-v2/service/core"
 	"github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
-// Builder is a helper to aid in the construction of a filecoin node.
+// Builder
 type Builder struct {
-	Online bool // enable network
+	daemon bool // daemon mod
 
-	offlineMode bool            // need start network module
-	libp2pOpts  []libp2p.Option // network ops
+	libp2pOpts []libp2p.Option // network ops
 
 	repo repo.Repo
 
 	walletPassword string // en/decrypt wallet from keystore
 	authURL        string
+}
+
+// construct build ops from repo.
+func OptionsFromRepo(r repo.Repo) ([]BuilderOpt, error) {
+	_, sk, err := network.GetSelfNetKey(r.KeyStore())
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := r.Config()
+	cfgopts := []BuilderOpt{
+		// Libp2pOptions can only be called once, so add all options here.
+		Libp2pOptions(
+			libp2p.ListenAddrStrings(cfg.Net.Addresses...),
+			libp2p.Identity(sk),
+			libp2p.DisableRelay(),
+		),
+	}
+
+	dsopt := func(c *Builder) error {
+		c.repo = r
+		return nil
+	}
+
+	return append(cfgopts, dsopt), nil
 }
 
 // Builder private method accessors for impl's
@@ -43,24 +65,23 @@ func (b builder) Libp2pOpts() []libp2p.Option {
 	return b.libp2pOpts
 }
 
-// OfflineMode get the p2p network mode
-func (b builder) OfflineMode() bool {
-	return b.offlineMode
+func (b builder) DaemonMode() bool {
+	return b.daemon
 }
 
 // BuilderOpt is an option for building a filecoin node.
 type BuilderOpt func(*Builder) error
 
-// offlineMode enables or disables offline mode.
-func OfflineMode(offlineMode bool) BuilderOpt {
+// DaemonMode enables or disables daemon mode.
+func DaemonMode(daemon bool) BuilderOpt {
 	return func(c *Builder) error {
-		c.offlineMode = offlineMode
+		c.daemon = daemon
 		return nil
 	}
 }
 
-// SetWalletPassword set wallet password
-func SetWalletPassword(password string) BuilderOpt {
+// SetPassword set wallet password
+func SetPassword(password string) BuilderOpt {
 	return func(c *Builder) error {
 		c.walletPassword = password
 		return nil
@@ -91,7 +112,7 @@ func Libp2pOptions(opts ...libp2p.Option) BuilderOpt {
 func New(ctx context.Context, opts ...BuilderOpt) (*BaseNode, error) {
 	// initialize builder and set base values
 	builder := &Builder{
-		offlineMode: false,
+		daemon: true,
 	}
 
 	// apply builder options
@@ -116,7 +137,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	// create the node
 	nd := &BaseNode{
 		ctx:  ctx,
-		repo: b.repo,
+		Repo: b.repo,
 	}
 
 	nd.NetworkSubmodule, err = network.NewNetworkSubmodule(ctx, (*builder)(b), b.repo.Config(), b.repo.MetaStore())
@@ -126,18 +147,6 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.IsOnline = true
 
 	nd.LocalWallet = wallet.New(b.walletPassword, b.repo.KeyStore())
-
-	id, err := strconv.Atoi(b.repo.Config().Identity.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	cs, err := core_service.New(ctx, uint64(id), b.repo.MetaStore(), nd.NetworkSubmodule, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create core service")
-	}
-
-	nd.CoreServiceImpl = cs
 
 	jauth, err := auth.NewJwtAuth(b.repo)
 	if err != nil {

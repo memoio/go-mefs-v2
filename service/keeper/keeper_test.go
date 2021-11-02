@@ -1,4 +1,4 @@
-package node
+package keeper
 
 import (
 	"context"
@@ -12,10 +12,11 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/minit"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
-func TestBaseNode(t *testing.T) {
-	repoDir1 := "/home/fjt/testmemo8"
+func TestKeeperNode(t *testing.T) {
+	repoDir1 := "/home/fjt/testmemo0"
 
 	cfg1 := config.NewDefaultConfig()
 	cfg1.Identity.Role = "keeper"
@@ -24,7 +25,7 @@ func TestBaseNode(t *testing.T) {
 	bn1 := startBaseNode(repoDir1, t)
 	defer bn1.Stop(context.Background())
 
-	repoDir2 := "/home/fjt/testmemo9"
+	repoDir2 := "/home/fjt/testmemo1"
 
 	cfg := config.NewDefaultConfig()
 
@@ -114,7 +115,7 @@ func TestBaseNode(t *testing.T) {
 	t.Fatal(bn1.NetworkSubmodule.NetPeers(context.Background()))
 }
 
-func startBaseNode(repoDir string, t *testing.T) *BaseNode {
+func startBaseNode(repoDir string, t *testing.T) *KeeperNode {
 	rp, err := repo.OpenFSRepo(repoDir, repo.LatestVersion)
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +129,7 @@ func startBaseNode(repoDir string, t *testing.T) *BaseNode {
 		t.Fatal(err)
 	}
 
-	opts, err := OptionsFromRepo(rp)
+	opts, err := node.OptionsFromRepo(rp)
 	if err != nil {
 		t.Fatal(err)
 	}

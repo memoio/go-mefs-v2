@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/filecoin-project/go-jsonrpc"
@@ -18,7 +19,6 @@ import (
 	"github.com/memoio/go-mefs-v2/app/api"
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/repo"
-	"github.com/memoio/go-mefs-v2/lib/rpc_builder"
 	core_service "github.com/memoio/go-mefs-v2/service/core"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
@@ -39,11 +39,9 @@ type BaseNode struct {
 
 	*core_service.CoreServiceImpl
 
+	repo.Repo
+
 	ctx context.Context
-
-	repo repo.Repo
-
-	jsonRPCService *jsonrpc.RPCServer
 
 	ShutdownChan chan struct{}
 
@@ -51,34 +49,33 @@ type BaseNode struct {
 }
 
 // Start boots up the node.
-func (n *BaseNode) Start(ctx context.Context) error {
-	apiBuilder := rpc_builder.NewBuiler()
-	apiBuilder.NameSpace("Memoriae")
-	err := apiBuilder.AddServices(
-		n.NetworkSubmodule,
-		n.LocalWallet,
-		n.JwtAuth,
-		n.ConfigModule,
-	)
+func (n *BaseNode) Start() error {
+	id, err := strconv.Atoi(n.Config().Identity.Name)
 	if err != nil {
-		return errors.Wrap(err, "add service failed ")
+		return err
 	}
-	n.jsonRPCService = apiBuilder.Build()
+
+	cs, err := core_service.New(n.ctx, uint64(id), n.MetaStore(), n.NetworkSubmodule, nil)
+	if err != nil {
+		return errors.Wrap(err, "failed to create core service")
+	}
+
+	n.CoreServiceImpl = cs
 	return nil
 }
 
 func (n *BaseNode) Stop(ctx context.Context) {
 	n.NetworkSubmodule.Stop(ctx)
 
-	if err := n.repo.Close(); err != nil {
+	if err := n.Repo.Close(); err != nil {
 		fmt.Printf("error closing repo: %s\n", err)
 	}
 
 	fmt.Println("\nstopping Memoriae :(")
 }
 
-func (n *BaseNode) RunRPCAndWait(ctx context.Context, ready chan interface{}) error {
-	cfg := n.repo.Config()
+func (n *BaseNode) RunDaemon(ready chan interface{}) error {
+	cfg := n.Repo.Config()
 	apiAddr, err := ma.NewMultiaddr(cfg.API.APIAddress)
 	if err != nil {
 		return err
@@ -111,7 +108,7 @@ func (n *BaseNode) RunRPCAndWait(ctx context.Context, ready chan interface{}) er
 	}
 
 	cfg.API.APIAddress = apiListener.Multiaddr().String()
-	if err := n.repo.SetAPIAddr(cfg.API.APIAddress); err != nil {
+	if err := n.Repo.SetAPIAddr(cfg.API.APIAddress); err != nil {
 		return err
 	}
 
@@ -132,11 +129,11 @@ func (n *BaseNode) RunRPCAndWait(ctx context.Context, ready chan interface{}) er
 		}
 
 		logger.Warn("shutdown...")
-		err = apiserv.Shutdown(ctx)
+		err = apiserv.Shutdown(n.ctx)
 		if err != nil {
 			return
 		}
-		n.Stop(ctx)
+		n.Stop(n.ctx)
 	}()
 	return apiserv.Serve(netListener)
 }
