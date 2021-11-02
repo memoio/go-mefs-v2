@@ -32,22 +32,26 @@ type Config struct {
 }
 
 type WalletConfig struct {
-	DefaultAddress string `json:"defaultAddress,omitempty"`
+	DefaultAddress string `json:"address,omitempty"`
 }
 
 type IdentityConfig struct {
-	Name string `json:"name"`
-	Role string `json:"role"`
+	Role  string `json:"role"`
+	Name  string `json:"name"`
+	Group string `json:"group"`
 }
 
 func newDefaultIdentityConfig() IdentityConfig {
-	return IdentityConfig{}
+	return IdentityConfig{
+		Role:  "user",
+		Group: "group",
+	}
 }
 
 // APIConfig holds all configuration options related to the api.
 // nolint
 type APIConfig struct {
-	APIAddress                    string   `json:"apiAddress"`
+	APIAddress                    string   `json:"address"`
 	AccessControlAllowOrigin      []string `json:"accessControlAllowOrigin"`
 	AccessControlAllowCredentials bool     `json:"accessControlAllowCredentials"`
 	AccessControlAllowMethods     []string `json:"accessControlAllowMethods"`
@@ -75,16 +79,6 @@ type BootstrapConfig struct {
 func newDefaultBootstrapConfig() BootstrapConfig {
 	return BootstrapConfig{
 		Addresses: []string{},
-	}
-}
-
-type NetworkParamsConfig struct {
-	NetName string `json:"netName"`
-}
-
-func newDefaultNetworkParamsConfig() NetworkParamsConfig {
-	return NetworkParamsConfig{
-		NetName: "beta",
 	}
 }
 

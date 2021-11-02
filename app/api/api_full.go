@@ -10,6 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -60,4 +61,8 @@ type INetwork interface {
 	NetBandwidthStats(ctx context.Context) (metrics.Stats, error)
 	NetBandwidthStatsByPeer(ctx context.Context) (map[string]metrics.Stats, error)
 	NetBandwidthStatsByProtocol(ctx context.Context) (map[protocol.ID]metrics.Stats, error)
+}
+
+type IRole interface {
+	RoleGet(uint64) (pb.RoleInfo, error)
 }

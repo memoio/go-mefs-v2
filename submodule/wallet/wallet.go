@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"sync"
@@ -78,7 +79,7 @@ func (w *LocalWallet) WalletNew(ctx context.Context, kt types.KeyType) (address.
 		return address.Undef, err
 	}
 
-	cbyte, err := pubKey.CompressedByte()
+	cbyte, err := pubKey.Raw()
 	if err != nil {
 		return address.Undef, err
 	}
@@ -158,5 +159,36 @@ func (w *LocalWallet) WalletExport(ctx context.Context, addr address.Address) (*
 }
 
 func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (address.Address, error) {
-	return address.Address{}, nil
+	switch ki.Type {
+	case types.Secp256k1, types.BLS:
+		privkey, err := signature.ParsePrivateKey(ki.SecretKey, ki.Type)
+		if err != nil {
+			return address.Undef, err
+		}
+
+		pubKey := privkey.GetPublic()
+
+		cbyte, err := pubKey.Raw()
+		if err != nil {
+			return address.Undef, err
+		}
+
+		addr, err := address.NewAddress(cbyte)
+		if err != nil {
+			return address.Undef, err
+		}
+
+		err = w.keystore.Put(addr.String(), w.password, *ki)
+		if err != nil {
+			return address.Undef, err
+		}
+
+		w.Lock()
+		w.accounts[addr] = privkey
+		w.Unlock()
+		return addr, nil
+	default:
+		return address.Undef, errors.New("unsupported key type")
+	}
+
 }

@@ -17,7 +17,9 @@ import (
 func TestBaseNode(t *testing.T) {
 	repoDir1 := "/home/fjt/testmemo8"
 
-	repo.InitFSRepoDirect(repoDir1, repo.LatestVersion, config.NewDefaultConfig())
+	cfg1 := config.NewDefaultConfig()
+	cfg1.Identity.Role = "keeper"
+	repo.InitFSRepoDirect(repoDir1, repo.LatestVersion, cfg1)
 
 	bn1 := startBaseNode(repoDir1, t)
 	defer bn1.Stop(context.Background())
@@ -100,7 +102,7 @@ func TestBaseNode(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	fn := func(key, val []byte) error {
-		fmt.Println(string(key), "and", string(val))
+		fmt.Println(string(key))
 		return nil
 	}
 

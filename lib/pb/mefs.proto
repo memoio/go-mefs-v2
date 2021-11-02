@@ -18,13 +18,13 @@ message NetInfo {
 // key: 'RoleInfoKey'/'RoleType'/RoleID 
 message RoleInfo {
     enum Type {
-        Unknown = 0;
+        Unknown = 0; 
         User = 1;
         Provider = 2;
         Keeper = 3;
     }
 
-    Type type = 1;
+    Type type = 1;  
     uint64 ID = 2;
     uint64 groupID = 3;
     bytes chainVerifyKey = 4;      // address/pubkey on chain

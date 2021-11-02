@@ -19,7 +19,7 @@ type SwarmConfig struct {
 	// addresses for the swarm to listen on
 	Addresses []string `json:"addresses"`
 
-	EnableRelay bool
+	EnableRelay bool `json:"enableRelay"`
 
 	PublicRelayAddress string `json:"public_relay_address,omitempty"`
 }

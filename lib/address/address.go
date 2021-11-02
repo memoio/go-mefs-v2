@@ -25,7 +25,7 @@ var (
 var UndefAddressString = "<empty>"
 
 // Secp256k1PublicKeyBytes defines of a SECP256K1 public key.
-const Secp256k1PublicKeyBytes = 20
+const Secp256k1PublicKeyBytes = 65
 
 // BlsPublicKeyBytes is the length of a BLS public key
 const BlsPublicKeyBytes = 48
@@ -34,8 +34,9 @@ const BlsPublicKeyBytes = 48
 const ChecksumHashLength = 4
 
 // MaxAddressStringLength is the max length of an address encoded as a string
-// it include the network prefx, and bls publickey
-const MaxAddressStringLength = AddrPrefixLen + 72
+// it include the network prefx, and publickey encode ength
+// 2 + 1.36*(publickey length + ChecksumHashLength)
+const MaxAddressStringLength = AddrPrefixLen + 94
 
 // Address is the go type that represents an address.
 // publickey or hash(public)
@@ -105,7 +106,6 @@ func ToEthAddress(pubkey []byte) ([]byte, error) {
 }
 
 func NewAddress(payload []byte) (Address, error) {
-
 	return newAddress(payload)
 }
 

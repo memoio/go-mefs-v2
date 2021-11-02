@@ -20,7 +20,7 @@ func TestAddress(t *testing.T) {
 	sk, err := signature.GenerateKey(types.Secp256k1)
 	assert.NoError(err)
 
-	aByte, err := sk.GetPublic().CompressedByte()
+	aByte, err := sk.GetPublic().Raw()
 	assert.NoError(err)
 
 	addr, err := NewAddress(aByte)
@@ -43,10 +43,11 @@ func TestSecp256k1Address(t *testing.T) {
 
 	pk := sk.GetPublic()
 
-	aByte, err := pk.CompressedByte()
+	aByte, err := pk.Raw()
 	assert.NoError(err)
 
 	addr, err := NewAddress(aByte)
+	t.Log(addr.String(), len(addr.String()), len(aByte))
 	panic(addr.String())
 
 	assert.NoError(err)
@@ -67,7 +68,7 @@ func TestBLSAddress(t *testing.T) {
 
 	pk := sk.GetPublic()
 
-	aByte, err := pk.CompressedByte()
+	aByte, err := pk.Raw()
 	assert.NoError(err)
 
 	addr, err := NewAddress(aByte)

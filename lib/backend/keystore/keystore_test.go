@@ -39,7 +39,7 @@ func TestWallet(t *testing.T) {
 		Type:      privkey.Type(),
 	}
 
-	pubByte, _ := privkey.GetPublic().CompressedByte()
+	pubByte, _ := privkey.GetPublic().Raw()
 
 	addr, err := address.NewAddress(pubByte)
 	if err != nil {
