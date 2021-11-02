@@ -47,39 +47,39 @@ func (NetInfo_NetType) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_2b3c77393cf6fe78, []int{0, 0}
 }
 
-type NodeInfo_RoleType int32
+type RoleInfo_Type int32
 
 const (
-	NodeInfo_Unknown  NodeInfo_RoleType = 0
-	NodeInfo_User     NodeInfo_RoleType = 1
-	NodeInfo_Provider NodeInfo_RoleType = 2
-	NodeInfo_Keeper   NodeInfo_RoleType = 3
+	RoleInfo_Unknown  RoleInfo_Type = 0
+	RoleInfo_User     RoleInfo_Type = 1
+	RoleInfo_Provider RoleInfo_Type = 2
+	RoleInfo_Keeper   RoleInfo_Type = 3
 )
 
-var NodeInfo_RoleType_name = map[int32]string{
+var RoleInfo_Type_name = map[int32]string{
 	0: "Unknown",
 	1: "User",
 	2: "Provider",
 	3: "Keeper",
 }
 
-var NodeInfo_RoleType_value = map[string]int32{
+var RoleInfo_Type_value = map[string]int32{
 	"Unknown":  0,
 	"User":     1,
 	"Provider": 2,
 	"Keeper":   3,
 }
 
-func (x NodeInfo_RoleType) String() string {
-	return proto.EnumName(NodeInfo_RoleType_name, int32(x))
+func (x RoleInfo_Type) String() string {
+	return proto.EnumName(RoleInfo_Type_name, int32(x))
 }
 
-func (NodeInfo_RoleType) EnumDescriptor() ([]byte, []int) {
+func (RoleInfo_Type) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_2b3c77393cf6fe78, []int{1, 0}
 }
 
 // register on data chain
-// key: 'NetInfoKey'/NodeID(fsID);
+// key: 'NetInfoKey'/RoleID;
 type NetInfo struct {
 	Type                 NetInfo_NetType `protobuf:"varint,1,opt,name=type,proto3,enum=pb.NetInfo_NetType" json:"type,omitempty"`
 	NetID                []byte          `protobuf:"bytes,2,opt,name=netID,proto3" json:"netID,omitempty"`
@@ -143,30 +143,30 @@ func (m *NetInfo) GetAddr() []byte {
 	return nil
 }
 
-// key: 'NodeInfoKey'/'RoleType'/NodeID
-type NodeInfo struct {
-	Role                 NodeInfo_RoleType `protobuf:"varint,1,opt,name=role,proto3,enum=pb.NodeInfo_RoleType" json:"role,omitempty"`
-	NodeID               uint64            `protobuf:"varint,2,opt,name=nodeID,proto3" json:"nodeID,omitempty"`
-	GroupID              uint64            `protobuf:"varint,3,opt,name=groupID,proto3" json:"groupID,omitempty"`
-	ChainVerifyKey       []byte            `protobuf:"bytes,4,opt,name=chainVerifyKey,proto3" json:"chainVerifyKey,omitempty"`
-	BlsVerifyKey         []byte            `protobuf:"bytes,5,opt,name=blsVerifyKey,proto3" json:"blsVerifyKey,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
-	XXX_unrecognized     []byte            `json:"-"`
-	XXX_sizecache        int32             `json:"-"`
+// key: 'RoleInfoKey'/'RoleType'/RoleID
+type RoleInfo struct {
+	Type                 RoleInfo_Type `protobuf:"varint,1,opt,name=type,proto3,enum=pb.RoleInfo_Type" json:"type,omitempty"`
+	ID                   uint64        `protobuf:"varint,2,opt,name=ID,json=iD,proto3" json:"ID,omitempty"`
+	GroupID              uint64        `protobuf:"varint,3,opt,name=groupID,proto3" json:"groupID,omitempty"`
+	ChainVerifyKey       []byte        `protobuf:"bytes,4,opt,name=chainVerifyKey,proto3" json:"chainVerifyKey,omitempty"`
+	BlsVerifyKey         []byte        `protobuf:"bytes,5,opt,name=blsVerifyKey,proto3" json:"blsVerifyKey,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
 }
 
-func (m *NodeInfo) Reset()         { *m = NodeInfo{} }
-func (m *NodeInfo) String() string { return proto.CompactTextString(m) }
-func (*NodeInfo) ProtoMessage()    {}
-func (*NodeInfo) Descriptor() ([]byte, []int) {
+func (m *RoleInfo) Reset()         { *m = RoleInfo{} }
+func (m *RoleInfo) String() string { return proto.CompactTextString(m) }
+func (*RoleInfo) ProtoMessage()    {}
+func (*RoleInfo) Descriptor() ([]byte, []int) {
 	return fileDescriptor_2b3c77393cf6fe78, []int{1}
 }
-func (m *NodeInfo) XXX_Unmarshal(b []byte) error {
+func (m *RoleInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *NodeInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *RoleInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_NodeInfo.Marshal(b, m, deterministic)
+		return xxx_messageInfo_RoleInfo.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -176,47 +176,47 @@ func (m *NodeInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *NodeInfo) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_NodeInfo.Merge(m, src)
+func (m *RoleInfo) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RoleInfo.Merge(m, src)
 }
-func (m *NodeInfo) XXX_Size() int {
+func (m *RoleInfo) XXX_Size() int {
 	return m.Size()
 }
-func (m *NodeInfo) XXX_DiscardUnknown() {
-	xxx_messageInfo_NodeInfo.DiscardUnknown(m)
+func (m *RoleInfo) XXX_DiscardUnknown() {
+	xxx_messageInfo_RoleInfo.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_NodeInfo proto.InternalMessageInfo
+var xxx_messageInfo_RoleInfo proto.InternalMessageInfo
 
-func (m *NodeInfo) GetRole() NodeInfo_RoleType {
+func (m *RoleInfo) GetType() RoleInfo_Type {
 	if m != nil {
-		return m.Role
+		return m.Type
 	}
-	return NodeInfo_Unknown
+	return RoleInfo_Unknown
 }
 
-func (m *NodeInfo) GetNodeID() uint64 {
+func (m *RoleInfo) GetID() uint64 {
 	if m != nil {
-		return m.NodeID
+		return m.ID
 	}
 	return 0
 }
 
-func (m *NodeInfo) GetGroupID() uint64 {
+func (m *RoleInfo) GetGroupID() uint64 {
 	if m != nil {
 		return m.GroupID
 	}
 	return 0
 }
 
-func (m *NodeInfo) GetChainVerifyKey() []byte {
+func (m *RoleInfo) GetChainVerifyKey() []byte {
 	if m != nil {
 		return m.ChainVerifyKey
 	}
 	return nil
 }
 
-func (m *NodeInfo) GetBlsVerifyKey() []byte {
+func (m *RoleInfo) GetBlsVerifyKey() []byte {
 	if m != nil {
 		return m.BlsVerifyKey
 	}
@@ -225,35 +225,34 @@ func (m *NodeInfo) GetBlsVerifyKey() []byte {
 
 func init() {
 	proto.RegisterEnum("pb.NetInfo_NetType", NetInfo_NetType_name, NetInfo_NetType_value)
-	proto.RegisterEnum("pb.NodeInfo_RoleType", NodeInfo_RoleType_name, NodeInfo_RoleType_value)
+	proto.RegisterEnum("pb.RoleInfo_Type", RoleInfo_Type_name, RoleInfo_Type_value)
 	proto.RegisterType((*NetInfo)(nil), "pb.NetInfo")
-	proto.RegisterType((*NodeInfo)(nil), "pb.NodeInfo")
+	proto.RegisterType((*RoleInfo)(nil), "pb.RoleInfo")
 }
 
 func init() { proto.RegisterFile("mefs.proto", fileDescriptor_2b3c77393cf6fe78) }
 
 var fileDescriptor_2b3c77393cf6fe78 = []byte{
-	// 305 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x5c, 0x91, 0x4f, 0x4a, 0xfb, 0x40,
-	0x14, 0xc7, 0x3b, 0xed, 0xb4, 0x0d, 0xef, 0x57, 0xca, 0xf0, 0x7e, 0x2a, 0x59, 0x85, 0x12, 0x41,
-	0xeb, 0x26, 0x8b, 0xba, 0x74, 0xa5, 0x74, 0x53, 0x0a, 0xa5, 0x04, 0xeb, 0xbe, 0x71, 0x5e, 0xb5,
-	0x58, 0x67, 0x86, 0x49, 0x54, 0xb2, 0xf4, 0x16, 0x1e, 0xc9, 0xa5, 0x47, 0x90, 0x78, 0x01, 0x8f,
-	0x20, 0x99, 0x24, 0x48, 0x5d, 0xcd, 0x7c, 0xff, 0xcc, 0xf0, 0x79, 0x3c, 0x80, 0x47, 0xda, 0xa4,
-	0x91, 0xb1, 0x3a, 0xd3, 0xd8, 0x36, 0x49, 0xf8, 0xca, 0xa0, 0xbf, 0xa0, 0x6c, 0xa6, 0x36, 0x1a,
-	0x4f, 0x81, 0x67, 0xb9, 0x21, 0x9f, 0x8d, 0xd8, 0x78, 0x38, 0xf9, 0x1f, 0x99, 0x24, 0xaa, 0xa3,
-	0xf2, 0xbc, 0xce, 0x0d, 0xc5, 0xae, 0x80, 0x07, 0xd0, 0x55, 0x94, 0xcd, 0xa6, 0x7e, 0x7b, 0xc4,
-	0xc6, 0x83, 0xb8, 0x12, 0x88, 0xc0, 0xd7, 0x52, 0x5a, 0xbf, 0xe3, 0x4c, 0x77, 0x0f, 0x8f, 0xdd,
-	0xef, 0xe5, 0x53, 0xfc, 0x07, 0xfd, 0x95, 0x7a, 0x50, 0xfa, 0x45, 0x89, 0x56, 0x29, 0x96, 0x93,
-	0xe5, 0xa5, 0x94, 0x56, 0xb0, 0xf0, 0x9b, 0x81, 0xb7, 0xd0, 0x92, 0x1c, 0xc4, 0x19, 0x70, 0xab,
-	0x77, 0x0d, 0xc4, 0xa1, 0x83, 0xa8, 0xb3, 0x28, 0xd6, 0x3b, 0xaa, 0x30, 0xca, 0x0a, 0x1e, 0x41,
-	0x4f, 0x95, 0x51, 0xc5, 0xc1, 0xe3, 0x5a, 0xa1, 0x0f, 0xfd, 0x3b, 0xab, 0x9f, 0xcc, 0x6c, 0xea,
-	0x58, 0x78, 0xdc, 0x48, 0x3c, 0x81, 0xe1, 0xed, 0xfd, 0x7a, 0xab, 0x6e, 0xc8, 0x6e, 0x37, 0xf9,
-	0x9c, 0x72, 0x9f, 0x3b, 0xd8, 0x3f, 0x2e, 0x86, 0x30, 0x48, 0x76, 0xe9, 0x6f, 0xab, 0xeb, 0x5a,
-	0x7b, 0x5e, 0x78, 0x01, 0x5e, 0xc3, 0xb3, 0x3f, 0x9b, 0x07, 0x7c, 0x95, 0x92, 0x15, 0x0c, 0x07,
-	0xe0, 0x2d, 0xad, 0x7e, 0xde, 0x4a, 0xb2, 0xa2, 0x8d, 0x00, 0xbd, 0x39, 0x91, 0x21, 0x2b, 0x3a,
-	0x57, 0xe2, 0xbd, 0x08, 0xd8, 0x47, 0x11, 0xb0, 0xcf, 0x22, 0x60, 0x6f, 0x5f, 0x41, 0x2b, 0xe9,
-	0xb9, 0x9d, 0x9c, 0xff, 0x04, 0x00, 0x00, 0xff, 0xff, 0x97, 0x7f, 0x2d, 0x13, 0xa1, 0x01, 0x00,
-	0x00,
+	// 291 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x64, 0x91, 0x31, 0x4e, 0xc3, 0x30,
+	0x18, 0x85, 0xeb, 0xd4, 0x6d, 0xa2, 0x9f, 0x28, 0x32, 0x86, 0x21, 0x53, 0x54, 0x05, 0x01, 0x9d,
+	0x32, 0x94, 0x81, 0x19, 0x94, 0x25, 0xaa, 0x84, 0xa2, 0x88, 0xb2, 0x37, 0xe4, 0x0f, 0x44, 0x14,
+	0xdb, 0x72, 0x02, 0x28, 0x23, 0xb7, 0xe0, 0x48, 0x8c, 0x1c, 0xa1, 0x0a, 0x17, 0x41, 0x31, 0xad,
+	0xa0, 0x30, 0xd9, 0xef, 0xfd, 0xcf, 0x7e, 0x9f, 0x65, 0x80, 0x47, 0x2c, 0xeb, 0x48, 0x69, 0xd9,
+	0x48, 0x6e, 0xa9, 0x3c, 0x7c, 0x25, 0x60, 0x5f, 0x61, 0x93, 0x88, 0x52, 0xf2, 0x53, 0xa0, 0x4d,
+	0xab, 0xd0, 0x27, 0x13, 0x32, 0xf5, 0x66, 0x07, 0x91, 0xca, 0xa3, 0xcd, 0xa8, 0x5f, 0xaf, 0x5b,
+	0x85, 0x99, 0x09, 0xf0, 0x43, 0x18, 0x09, 0x6c, 0x92, 0xd8, 0xb7, 0x26, 0x64, 0xea, 0x66, 0xdf,
+	0x82, 0x73, 0xa0, 0xcb, 0xa2, 0xd0, 0xfe, 0xd0, 0x98, 0x66, 0x1f, 0x1e, 0x99, 0xdb, 0xfb, 0xa3,
+	0x7c, 0x0f, 0xec, 0x85, 0x78, 0x10, 0xf2, 0x45, 0xb0, 0x41, 0x2f, 0xd2, 0x59, 0x7a, 0x51, 0x14,
+	0x9a, 0x91, 0x70, 0x4d, 0xc0, 0xc9, 0xe4, 0x0a, 0x0d, 0xc4, 0xf1, 0x0e, 0xc4, 0x7e, 0x0f, 0xb1,
+	0x9d, 0x45, 0xbf, 0x10, 0x3c, 0xb0, 0x36, 0xfd, 0x34, 0xb3, 0xaa, 0x98, 0xfb, 0x60, 0xdf, 0x69,
+	0xf9, 0xa4, 0x92, 0xd8, 0xf4, 0xd3, 0x6c, 0x2b, 0xf9, 0x09, 0x78, 0xb7, 0xf7, 0xcb, 0x4a, 0xdc,
+	0xa0, 0xae, 0xca, 0x76, 0x8e, 0xad, 0x4f, 0x0d, 0xe0, 0x1f, 0x97, 0x87, 0xe0, 0xe6, 0xab, 0xfa,
+	0x27, 0x35, 0x32, 0xa9, 0x1d, 0x2f, 0x3c, 0x07, 0xfa, 0xff, 0x2d, 0x0e, 0xd0, 0x45, 0x8d, 0x9a,
+	0x11, 0xee, 0x82, 0x93, 0x6a, 0xf9, 0x5c, 0x15, 0xa8, 0x99, 0xc5, 0x01, 0xc6, 0x73, 0x44, 0x85,
+	0x9a, 0x0d, 0x2f, 0xd9, 0x7b, 0x17, 0x90, 0x8f, 0x2e, 0x20, 0xeb, 0x2e, 0x20, 0x6f, 0x9f, 0xc1,
+	0x20, 0x1f, 0x9b, 0x3f, 0x38, 0xfb, 0x0a, 0x00, 0x00, 0xff, 0xff, 0xa3, 0xd2, 0xf0, 0xa8, 0x91,
+	0x01, 0x00, 0x00,
 }
 
 func (m *NetInfo) Marshal() (dAtA []byte, err error) {
@@ -302,7 +301,7 @@ func (m *NetInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *NodeInfo) Marshal() (dAtA []byte, err error) {
+func (m *RoleInfo) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -312,12 +311,12 @@ func (m *NodeInfo) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *NodeInfo) MarshalTo(dAtA []byte) (int, error) {
+func (m *RoleInfo) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *NodeInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *RoleInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -345,13 +344,13 @@ func (m *NodeInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x18
 	}
-	if m.NodeID != 0 {
-		i = encodeVarintMefs(dAtA, i, uint64(m.NodeID))
+	if m.ID != 0 {
+		i = encodeVarintMefs(dAtA, i, uint64(m.ID))
 		i--
 		dAtA[i] = 0x10
 	}
-	if m.Role != 0 {
-		i = encodeVarintMefs(dAtA, i, uint64(m.Role))
+	if m.Type != 0 {
+		i = encodeVarintMefs(dAtA, i, uint64(m.Type))
 		i--
 		dAtA[i] = 0x8
 	}
@@ -392,17 +391,17 @@ func (m *NetInfo) Size() (n int) {
 	return n
 }
 
-func (m *NodeInfo) Size() (n int) {
+func (m *RoleInfo) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if m.Role != 0 {
-		n += 1 + sovMefs(uint64(m.Role))
+	if m.Type != 0 {
+		n += 1 + sovMefs(uint64(m.Type))
 	}
-	if m.NodeID != 0 {
-		n += 1 + sovMefs(uint64(m.NodeID))
+	if m.ID != 0 {
+		n += 1 + sovMefs(uint64(m.ID))
 	}
 	if m.GroupID != 0 {
 		n += 1 + sovMefs(uint64(m.GroupID))
@@ -565,7 +564,7 @@ func (m *NetInfo) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *NodeInfo) Unmarshal(dAtA []byte) error {
+func (m *RoleInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -588,17 +587,17 @@ func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: NodeInfo: wiretype end group for non-group")
+			return fmt.Errorf("proto: RoleInfo: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: NodeInfo: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: RoleInfo: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Role", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
 			}
-			m.Role = 0
+			m.Type = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowMefs
@@ -608,16 +607,16 @@ func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Role |= NodeInfo_RoleType(b&0x7F) << shift
+				m.Type |= RoleInfo_Type(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field NodeID", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
 			}
-			m.NodeID = 0
+			m.ID = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowMefs
@@ -627,7 +626,7 @@ func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.NodeID |= uint64(b&0x7F) << shift
+				m.ID |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

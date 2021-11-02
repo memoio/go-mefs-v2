@@ -3,7 +3,7 @@ syntax = "proto3";
 package pb;
 
 // register on data chain
-// key: 'NetInfoKey'/NodeID(fsID); 
+// key: 'NetInfoKey'/RoleID; 
 message NetInfo {
     enum NetType {
         Unknown = 0;
@@ -15,17 +15,17 @@ message NetInfo {
 	bytes addr = 3;    // multi net addrs？
 }
 
-// key: 'NodeInfoKey'/'RoleType'/NodeID 
-message NodeInfo {
-    enum RoleType {
+// key: 'RoleInfoKey'/'RoleType'/RoleID 
+message RoleInfo {
+    enum Type {
         Unknown = 0;
         User = 1;
         Provider = 2;
         Keeper = 3;
     }
 
-    RoleType role = 1;
-    uint64 nodeID = 2;
+    Type type = 1;
+    uint64 ID = 2;
     uint64 groupID = 3;
     bytes chainVerifyKey = 4;      // address/pubkey on chain
 	bytes blsVerifyKey = 5;         

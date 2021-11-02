@@ -29,7 +29,7 @@ enum MetaType {
 
 	// key in state tree
 	ST_GasMoneyKey = 20;     // key: x/type/id; val: gasMoney  
-	ST_NodeInfoKey = 21;     // key: x/type/id; val: nodeInfo
+	ST_RoleInfoKey = 21;     // key: x/type/id; val: roleInfo
 	ST_BucketOptKey = 23;    // key: x/userID/bucketID; val: bucket option
 	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID
 	ST_SegExpireKey = 25;    // key: x/userID/bucketID/stripeID; value: length, expire

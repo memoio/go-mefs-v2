@@ -34,7 +34,7 @@ type CoreServiceImpl struct {
 	sync.RWMutex
 	*generic_service.GenericService
 	ctx        context.Context
-	nodeID     uint64  // local node id
+	roleID     uint64  // local node id
 	netID      peer.ID // local net id
 	ds         store.KVStore
 	idMap      map[uint64]peer.ID
@@ -46,7 +46,7 @@ type CoreServiceImpl struct {
 	related []uint64
 }
 
-func New(ctx context.Context, nodeID uint64, ds store.KVStore, ns *network.NetworkSubmodule, s instance.Subscriber) (*CoreServiceImpl, error) {
+func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.NetworkSubmodule, s instance.Subscriber) (*CoreServiceImpl, error) {
 	if s == nil {
 		s = instance.New()
 	}
@@ -64,7 +64,7 @@ func New(ctx context.Context, nodeID uint64, ds store.KVStore, ns *network.Netwo
 	core := &CoreServiceImpl{
 		GenericService: service,
 		ctx:            ctx,
-		nodeID:         nodeID,
+		roleID:         roleID,
 		netID:          ns.NetID(ctx),
 		ds:             ds,
 		rt:             ns.Router,
@@ -81,8 +81,8 @@ func New(ctx context.Context, nodeID uint64, ds store.KVStore, ns *network.Netwo
 	return core, nil
 }
 
-func (c *CoreServiceImpl) NodeID() uint64 {
-	return c.nodeID
+func (c *CoreServiceImpl) RoleID() uint64 {
+	return c.roleID
 }
 
 // add a new node
@@ -166,7 +166,7 @@ func (c *CoreServiceImpl) FindPeerID(ctx context.Context, id uint64) {
 
 func (c *CoreServiceImpl) PutPeerID(ctx context.Context) {
 	pi := &pb.PutPeerInfo{
-		NodeID: c.nodeID,
+		RoleID: c.roleID,
 		NetID:  []byte(c.netID),
 	}
 
@@ -234,8 +234,8 @@ func (c *CoreServiceImpl) handleMsg(pMsg *pubsub.Message) {
 		switch em.GetType() {
 		case pb.EventMessage_GetPeer:
 			id := binary.BigEndian.Uint64(em.GetData())
-			if id == c.nodeID {
-				logger.Debug(c.netID.Pretty(), "handle find peer:", id)
+			if id == c.roleID {
+				logger.Debug(c.netID.Pretty(), "handle find peer of role:", id)
 				c.PutPeerID(c.ctx)
 			}
 		case pb.EventMessage_PutPeer:
@@ -250,10 +250,10 @@ func (c *CoreServiceImpl) handleMsg(pMsg *pubsub.Message) {
 			logger.Debug(c.netID.Pretty(), "handle put peer:", netID.Pretty())
 
 			c.Lock()
-			_, ok := c.wants[ppi.GetNodeID()]
+			_, ok := c.wants[ppi.GetRoleID()]
 			if ok {
-				c.idMap[ppi.NodeID] = netID
-				delete(c.wants, ppi.NodeID)
+				c.idMap[ppi.RoleID] = netID
+				delete(c.wants, ppi.RoleID)
 			}
 			c.Unlock()
 		default:

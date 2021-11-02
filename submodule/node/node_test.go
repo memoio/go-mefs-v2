@@ -39,7 +39,7 @@ func TestBaseNode(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	p1 := bn1.NodeID()
+	p1 := bn1.RoleID()
 
 	go func() {
 		log.Println("start hello")
