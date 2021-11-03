@@ -12,6 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/minit"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -50,6 +51,10 @@ func TestKeeperNode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		sm := new(tx.SignedMessage)
+
+		bn2.PublishMsg(ctx, sm)
 
 		log.Println(string(res.Data.MsgInfo))
 	}()

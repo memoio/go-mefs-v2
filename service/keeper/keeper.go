@@ -8,6 +8,7 @@ import (
 	"github.com/memoio/go-mefs-v2/app/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -39,8 +40,10 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 
 // start service related
 func (k *KeeperNode) Start() error {
-	// register new handles
+	// register net msg handle
 	k.GenericService.Register(pb.NetMessage_Get, k.defaultHandler)
+
+	k.Handle.Register(tx.DataTxErr, k.defaultPubsubHandler)
 
 	k.RPCServer = jsonrpc.NewServer()
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))

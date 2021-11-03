@@ -15,6 +15,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal/net"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
+	"github.com/memoio/go-mefs-v2/service/netapp/pubsubIn"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
@@ -42,7 +43,7 @@ type GenericService struct {
 	plk sync.Mutex
 }
 
-func New(ctx context.Context, ns *network.NetworkSubmodule, s handler.Subscriber) (*GenericService, error) {
+func New(ctx context.Context, ns *network.NetworkSubmodule, s handler.Subscriber, p pubsubIn.Handle) (*GenericService, error) {
 	var protocols, serverProtocols []protocol.ID
 
 	v1proto := build.MemoriaeNet(ns.NetworkName)

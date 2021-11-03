@@ -1,11 +1,13 @@
-package message
+package tx
 
 import (
 	"math/big"
 )
 
+type MsgType = uint32
+
 const (
-	DataTxErr uint32 = iota
+	DataTxErr MsgType = iota
 
 	// register
 	CreateRole     // 更新，在结算链上的信息改变的时候；by keeper/provider/user
@@ -78,4 +80,8 @@ type SignedMessage struct {
 
 func (sm *SignedMessage) Serialize() []byte {
 	return nil
+}
+
+func Deserilize([]byte) (*SignedMessage, error) {
+	return new(SignedMessage), nil
 }

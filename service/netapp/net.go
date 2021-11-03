@@ -16,9 +16,11 @@ import (
 	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
+	"github.com/memoio/go-mefs-v2/service/netapp/pubsubIn"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
@@ -32,6 +34,8 @@ var ErrTimeOut = errors.New("time out")
 type NetServiceImpl struct {
 	sync.RWMutex
 	*generic.GenericService
+	pubsubIn.Handle
+
 	ctx        context.Context
 	roleID     uint64  // local node id
 	netID      peer.ID // local net id
@@ -40,26 +44,34 @@ type NetServiceImpl struct {
 	wants      map[uint64]time.Time
 	rt         routing.Routing
 	h          host.Host
-	eventTopic *pubsub.Topic
+	eventTopic *pubsub.Topic // used to find peerid depends on roleID
+	msgTopic   *pubsub.Topic
 
 	related []uint64
 }
 
 func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.NetworkSubmodule) (*NetServiceImpl, error) {
-	s := handler.NewSub()
+	s := handler.New()
+	p := pubsubIn.New()
 
-	service, err := generic.New(ctx, ns, s)
+	service, err := generic.New(ctx, ns, s, p)
 	if err != nil {
 		return nil, err
 	}
 
-	topic, err := ns.Pubsub.Join(build.EventTopic(ns.NetworkName))
+	eTopic, err := ns.Pubsub.Join(build.EventTopic(ns.NetworkName))
+	if err != nil {
+		return nil, err
+	}
+
+	mTopic, err := ns.Pubsub.Join(build.MsgTopic(ns.NetworkName))
 	if err != nil {
 		return nil, err
 	}
 
 	core := &NetServiceImpl{
 		GenericService: service,
+		Handle:         p,
 		ctx:            ctx,
 		roleID:         roleID,
 		netID:          ns.NetID(ctx),
@@ -69,11 +81,14 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		idMap:          make(map[uint64]peer.ID),
 		wants:          make(map[uint64]time.Time),
 		related:        make([]uint64, 0, 128),
-		eventTopic:     topic,
+		eventTopic:     eTopic,
+		msgTopic:       mTopic,
 	}
 
 	go core.handleIncomingEvent(ctx)
 	go core.handlePeerFind(ctx)
+
+	go core.handleIncomingMessage(ctx)
 
 	return core, nil
 }
@@ -258,4 +273,35 @@ func (c *NetServiceImpl) handleMsg(pMsg *pubsub.Message) {
 			return
 		}
 	}
+}
+
+func (c *NetServiceImpl) handleIncomingMessage(ctx context.Context) {
+	sub, err := c.msgTopic.Subscribe()
+	if err != nil {
+		return
+	}
+
+	go func() {
+		for {
+			received, err := sub.Next(ctx)
+			if err != nil {
+				return
+			}
+
+			from := received.GetFrom()
+
+			if c.netID != from {
+				// handle it
+				// umarshal pmsg data
+				sm, err := tx.Deserilize(received.GetData())
+				if err == nil {
+					c.HandleMessage(sm)
+				}
+			}
+		}
+	}()
+}
+
+func (c *NetServiceImpl) PublishMsg(ctx context.Context, msg *tx.SignedMessage) error {
+	return c.msgTopic.Publish(ctx, msg.Params)
 }

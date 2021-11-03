@@ -1,4 +1,4 @@
-package message
+package tx
 
 import (
 	"math/big"

@@ -39,7 +39,7 @@ type Impl struct {
 	hmap  map[pb.NetMessage_MsgType]HandlerFunc
 }
 
-func NewSub() *Impl {
+func New() *Impl {
 	i := &Impl{
 		hmap: make(map[pb.NetMessage_MsgType]HandlerFunc),
 	}
