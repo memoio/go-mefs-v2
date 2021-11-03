@@ -14,7 +14,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 
-	"github.com/memoio/go-mefs-v2/app/api"
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/netapp"

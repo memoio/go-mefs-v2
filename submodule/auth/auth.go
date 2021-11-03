@@ -10,7 +10,7 @@ import (
 	"github.com/gbrlsnchs/jwt/v3"
 	"golang.org/x/xerrors"
 
-	"github.com/memoio/go-mefs-v2/app/api"
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )

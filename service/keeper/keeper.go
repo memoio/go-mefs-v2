@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/go-jsonrpc"
-	"github.com/memoio/go-mefs-v2/app/api"
+	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"

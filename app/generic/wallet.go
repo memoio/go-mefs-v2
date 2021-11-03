@@ -3,7 +3,7 @@ package generic
 import (
 	"fmt"
 
-	"github.com/memoio/go-mefs-v2/app/api/client"
+	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/urfave/cli/v2"
 )

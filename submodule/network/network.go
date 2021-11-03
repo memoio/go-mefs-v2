@@ -22,7 +22,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 
-	"github.com/memoio/go-mefs-v2/app/api"
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	config "github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/types/store"

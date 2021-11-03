@@ -1,7 +1,7 @@
 package role
 
 import (
-	"github.com/memoio/go-mefs-v2/app/api"
+	"github.com/memoio/go-mefs-v2/api"
 )
 
 var _ api.IRole = &roleAPI{}

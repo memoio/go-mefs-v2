@@ -7,7 +7,7 @@ import (
 	"path"
 
 	"github.com/filecoin-project/go-jsonrpc"
-	"github.com/memoio/go-mefs-v2/app/api"
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/utils/paths"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"

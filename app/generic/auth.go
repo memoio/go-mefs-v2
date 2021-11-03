@@ -3,8 +3,8 @@ package generic
 import (
 	"fmt"
 
-	"github.com/memoio/go-mefs-v2/app/api"
-	"github.com/memoio/go-mefs-v2/app/api/client"
+	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/urfave/cli/v2"
 )
 
