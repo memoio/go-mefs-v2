@@ -1,17 +1,18 @@
 package pubsubIn
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
 
-type HandlerFunc func(*tx.SignedMessage) error
+type HandlerFunc func(context.Context, *tx.SignedMessage) error
 
 // Handle is used for handle received msg from pubsub
 type Handle interface {
-	HandleMessage(*tx.SignedMessage) error
+	HandleMessage(context.Context, *tx.SignedMessage) error
 	Register(tx.MsgType, HandlerFunc)
 	UnRegister(tx.MsgType)
 	Close()
@@ -34,7 +35,7 @@ func New() *Impl {
 	return i
 }
 
-func (i *Impl) HandleMessage(mes *tx.SignedMessage) error {
+func (i *Impl) HandleMessage(ctx context.Context, mes *tx.SignedMessage) error {
 	i.RLock()
 	defer i.RUnlock()
 
@@ -44,7 +45,7 @@ func (i *Impl) HandleMessage(mes *tx.SignedMessage) error {
 
 	h, ok := i.hmap[mes.Method]
 	if ok {
-		return h(mes)
+		return h(ctx, mes)
 	}
 	return nil
 }
@@ -67,7 +68,7 @@ func (i *Impl) Close() {
 	i.close = true
 }
 
-func defaultHandler(msg *tx.SignedMessage) error {
+func defaultHandler(ctx context.Context, msg *tx.SignedMessage) error {
 	fmt.Println("received msg:", msg.From)
 	return nil
 }

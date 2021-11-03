@@ -14,7 +14,7 @@ func (k *KeeperNode) defaultHandler(ctx context.Context, p peer.ID, mes *pb.NetM
 	return mes, nil
 }
 
-func (k *KeeperNode) defaultPubsubHandler(mes *tx.SignedMessage) error {
+func (k *KeeperNode) defaultPubsubHandler(ctx context.Context, mes *tx.SignedMessage) error {
 	fmt.Println("keeper received pub msg")
 	return nil
 }

@@ -295,7 +295,7 @@ func (c *NetServiceImpl) handleIncomingMessage(ctx context.Context) {
 				// umarshal pmsg data
 				sm, err := tx.Deserilize(received.GetData())
 				if err == nil {
-					c.HandleMessage(sm)
+					c.HandleMessage(ctx, sm)
 				}
 			}
 		}
