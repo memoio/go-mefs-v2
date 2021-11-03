@@ -1,4 +1,4 @@
-package core_service
+package netapp
 
 import (
 	"context"
@@ -17,22 +17,21 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/service"
-	generic_service "github.com/memoio/go-mefs-v2/service/core/generic"
-	"github.com/memoio/go-mefs-v2/service/core/instance"
+	"github.com/memoio/go-mefs-v2/service/netapp/generic"
+	"github.com/memoio/go-mefs-v2/service/netapp/handler"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
-var logger = logging.Logger("core")
+var logger = logging.Logger("NetService")
 
-var _ service.CoreService = (*CoreServiceImpl)(nil)
+var _ NetService = (*NetServiceImpl)(nil)
 
 var ErrTimeOut = errors.New("time out")
 
 // wrap net interface
-type CoreServiceImpl struct {
+type NetServiceImpl struct {
 	sync.RWMutex
-	*generic_service.GenericService
+	*generic.GenericService
 	ctx        context.Context
 	roleID     uint64  // local node id
 	netID      peer.ID // local net id
@@ -46,12 +45,10 @@ type CoreServiceImpl struct {
 	related []uint64
 }
 
-func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.NetworkSubmodule, s instance.Subscriber) (*CoreServiceImpl, error) {
-	if s == nil {
-		s = instance.New()
-	}
+func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.NetworkSubmodule) (*NetServiceImpl, error) {
+	s := handler.NewSub()
 
-	service, err := generic_service.New(ctx, ns, s)
+	service, err := generic.New(ctx, ns, s)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +58,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		return nil, err
 	}
 
-	core := &CoreServiceImpl{
+	core := &NetServiceImpl{
 		GenericService: service,
 		ctx:            ctx,
 		roleID:         roleID,
@@ -81,12 +78,12 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 	return core, nil
 }
 
-func (c *CoreServiceImpl) RoleID() uint64 {
+func (c *NetServiceImpl) RoleID() uint64 {
 	return c.roleID
 }
 
 // add a new node
-func (c *CoreServiceImpl) AddNode(id uint64) {
+func (c *NetServiceImpl) AddNode(id uint64) {
 	c.Lock()
 	has := false
 	for _, uid := range c.related {
@@ -110,7 +107,7 @@ func (c *CoreServiceImpl) AddNode(id uint64) {
 	c.Unlock()
 }
 
-func (c *CoreServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) error {
+func (c *NetServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) error {
 	pid, ok := c.idMap[id]
 	if ok {
 		return c.GenericService.SendMetaMessage(ctx, pid, typ, value)
@@ -118,7 +115,7 @@ func (c *CoreServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb
 	return nil
 }
 
-func (c *CoreServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) (*pb.NetMessage, error) {
+func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) (*pb.NetMessage, error) {
 	ctx, cancle := context.WithTimeout(ctx, 30*time.Second)
 
 	defer cancle()
@@ -151,7 +148,7 @@ func (c *CoreServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb
 	}
 }
 
-func (c *CoreServiceImpl) FindPeerID(ctx context.Context, id uint64) {
+func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, id)
 
@@ -164,7 +161,7 @@ func (c *CoreServiceImpl) FindPeerID(ctx context.Context, id uint64) {
 	c.eventTopic.Publish(ctx, data)
 }
 
-func (c *CoreServiceImpl) PutPeerID(ctx context.Context) {
+func (c *NetServiceImpl) PutPeerID(ctx context.Context) {
 	pi := &pb.PutPeerInfo{
 		RoleID: c.roleID,
 		NetID:  []byte(c.netID),
@@ -181,7 +178,7 @@ func (c *CoreServiceImpl) PutPeerID(ctx context.Context) {
 	c.eventTopic.Publish(ctx, data)
 }
 
-func (c *CoreServiceImpl) handlePeerFind(ctx context.Context) {
+func (c *NetServiceImpl) handlePeerFind(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -202,7 +199,7 @@ func (c *CoreServiceImpl) handlePeerFind(ctx context.Context) {
 	}
 }
 
-func (c *CoreServiceImpl) handleIncomingEvent(ctx context.Context) {
+func (c *NetServiceImpl) handleIncomingEvent(ctx context.Context) {
 	sub, err := c.eventTopic.Subscribe()
 	if err != nil {
 		return
@@ -219,7 +216,7 @@ func (c *CoreServiceImpl) handleIncomingEvent(ctx context.Context) {
 	}()
 }
 
-func (c *CoreServiceImpl) handleMsg(pMsg *pubsub.Message) {
+func (c *NetServiceImpl) handleMsg(pMsg *pubsub.Message) {
 	from := pMsg.GetFrom()
 
 	if c.netID != from {

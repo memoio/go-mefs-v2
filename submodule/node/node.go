@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/filecoin-project/go-jsonrpc"
@@ -14,12 +13,11 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
-	"github.com/pkg/errors"
 
 	"github.com/memoio/go-mefs-v2/app/api"
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/repo"
-	core_service "github.com/memoio/go-mefs-v2/service/core"
+	"github.com/memoio/go-mefs-v2/service/netapp"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/network"
@@ -39,7 +37,7 @@ type BaseNode struct {
 
 	*mconfig.ConfigModule
 
-	*core_service.CoreServiceImpl
+	*netapp.NetServiceImpl
 
 	*jsonrpc.RPCServer
 
@@ -54,24 +52,15 @@ type BaseNode struct {
 
 // Start boots up the node.
 func (n *BaseNode) Start() error {
-	id, err := strconv.Atoi(n.Config().Identity.Name)
-	if err != nil {
-		return err
-	}
-
-	cs, err := core_service.New(n.ctx, uint64(id), n.MetaStore(), n.NetworkSubmodule, nil)
-	if err != nil {
-		return errors.Wrap(err, "failed to create core service")
-	}
-
 	n.RPCServer = jsonrpc.NewServer()
 	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
 
-	n.CoreServiceImpl = cs
 	return nil
 }
 
 func (n *BaseNode) Stop(ctx context.Context) {
+	n.GenericService.Subscriber.Close()
+
 	n.NetworkSubmodule.Stop(ctx)
 
 	if err := n.Repo.Close(); err != nil {

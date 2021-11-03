@@ -1,4 +1,4 @@
-package generic_service
+package generic
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package generic_service
+package generic
 
 import (
 	"bufio"
@@ -94,7 +94,7 @@ func (service *GenericService) handleNewMessage(s network.Stream) bool {
 
 		startTime := time.Now()
 
-		handler := service.sub.HandlerForMsgType(req.GetHeader().GetType())
+		handler := service.HandlerForMsgType(req.GetHeader().GetType())
 		if handler == nil {
 			fmt.Println("handle for ", req.GetHeader().GetType())
 			// stats.Record(ctx, metrics.ReceivedMessageErrors.M(1))

@@ -1,4 +1,4 @@
-package instance
+package handler
 
 import (
 	"context"
@@ -39,13 +39,12 @@ type Impl struct {
 	hmap  map[pb.NetMessage_MsgType]HandlerFunc
 }
 
-func New() *Impl {
+func NewSub() *Impl {
 	i := &Impl{
 		hmap: make(map[pb.NetMessage_MsgType]HandlerFunc),
 	}
 
 	i.Register(pb.NetMessage_SayHello, defaultHandler)
-	i.Register(pb.NetMessage_Get, defaultGetHandler)
 	return i
 }
 
@@ -84,10 +83,5 @@ func (i *Impl) Close() {
 
 func defaultHandler(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
 	mes.Data.MsgInfo = []byte("hello")
-	return mes, nil
-}
-
-func defaultGetHandler(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	mes.Data.MsgInfo = []byte("get")
 	return mes, nil
 }

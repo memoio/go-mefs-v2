@@ -1,4 +1,4 @@
-package generic_service
+package generic
 
 import (
 	"context"
@@ -13,14 +13,16 @@ import (
 
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/service/core/generic/internal/net"
-	"github.com/memoio/go-mefs-v2/service/core/instance"
+	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal/net"
+	"github.com/memoio/go-mefs-v2/service/netapp/handler"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
 var logger = log.Logger("generic_service")
 
 type GenericService struct {
+	handler.Subscriber
+
 	localID peer.ID
 	ns      *network.NetworkSubmodule
 
@@ -38,11 +40,9 @@ type GenericService struct {
 	serverProtocols []protocol.ID
 
 	plk sync.Mutex
-
-	sub instance.Subscriber
 }
 
-func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscriber) (*GenericService, error) {
+func New(ctx context.Context, ns *network.NetworkSubmodule, s handler.Subscriber) (*GenericService, error) {
 	var protocols, serverProtocols []protocol.ID
 
 	v1proto := build.MemoriaeNet(ns.NetworkName)
@@ -51,12 +51,12 @@ func New(ctx context.Context, ns *network.NetworkSubmodule, s instance.Subscribe
 	serverProtocols = []protocol.ID{v1proto}
 
 	service := &GenericService{
+		Subscriber:      s,
 		localID:         ns.Host.ID(),
 		protocols:       protocols,
 		protocolsStrs:   protocol.ConvertToStrings(protocols),
 		serverProtocols: serverProtocols,
 		ns:              ns,
-		sub:             s,
 	}
 
 	// create a DHT proc with the given context

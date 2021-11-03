@@ -17,7 +17,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/service/core/generic/internal"
+	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal"
 )
 
 var dhtReadMessageTimeout = 10 * time.Second

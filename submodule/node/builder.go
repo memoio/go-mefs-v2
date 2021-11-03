@@ -3,11 +3,13 @@ package node
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/pkg/errors"
 
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/service/netapp"
 	"github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/network"
@@ -147,6 +149,18 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.IsOnline = true
 
 	nd.LocalWallet = wallet.New(b.walletPassword, b.repo.KeyStore())
+
+	id, err := strconv.Atoi(b.repo.Config().Identity.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	cs, err := netapp.New(ctx, uint64(id), nd.MetaStore(), nd.NetworkSubmodule)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create core service")
+	}
+
+	nd.NetServiceImpl = cs
 
 	jauth, err := auth.NewJwtAuth(b.repo)
 	if err != nil {
