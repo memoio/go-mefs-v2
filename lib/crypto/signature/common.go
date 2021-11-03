@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
+	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
@@ -69,13 +70,16 @@ func ParsePubByte(pubbyte []byte) (common.PubKey, error) {
 	return pubKey, nil
 }
 
-func Verify(pubBytes []byte, msg, sig []byte) (bool, error) {
+func Verify(pubBytes []byte, data, sig []byte) (bool, error) {
 	plen := len(pubBytes)
 
 	switch plen {
 	case 20:
 		// for eth address
-		rePub, err := secp256k1.EcRecover(msg, sig)
+
+		msg := blake3.Sum256(data)
+
+		rePub, err := secp256k1.EcRecover(msg[:], sig)
 		if err != nil {
 			return false, err
 		}
@@ -92,7 +96,7 @@ func Verify(pubBytes []byte, msg, sig []byte) (bool, error) {
 			return false, err
 		}
 
-		return pk.Verify(msg, sig)
+		return pk.Verify(data, sig)
 	}
 	return false, nil
 }

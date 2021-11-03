@@ -1,10 +1,22 @@
 package tx
 
 import (
+	"encoding/binary"
+	"errors"
 	"math/big"
+
+	"github.com/fxamacker/cbor/v2"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 type MsgType = uint32
+
+const MsgMaxLen = 1<<16 - 1
+
+var (
+	ErrMsgLen      = errors.New("message length too longth")
+	ErrMsgLenShort = errors.New("message length too short")
+)
 
 const (
 	DataTxErr MsgType = iota
@@ -35,36 +47,60 @@ const (
 	PostIncome   // add post income for provider; by keeper
 )
 
-// hash(message) as key
+// MsgID(message) as key
 // gasLimit: 根据数据量，非线性
 type Message struct {
 	Version uint32
 
-	To   uint64
-	From uint64 // userID/providerID/keeperID
-
+	From  string
+	To    string
 	Nonce uint64
-
 	Value *big.Int
 
 	GasLimit uint64
 	GasPrice *big.Int
 
 	Method uint32
-	Params []byte // Record bytes?
+	Params []byte // decode accoording to method
 }
 
 func NewMessage() Message {
 	return Message{
-		Version:  0,
+		Version:  1,
 		Value:    big.NewInt(0),
 		GasPrice: big.NewInt(0),
 	}
 }
 
-func (m *Message) Serialize() []byte {
-	// cbor?
-	return nil
+func (m *Message) Serialize() ([]byte, error) {
+	res, err := cbor.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res) > int(MsgMaxLen) {
+		return nil, ErrMsgLen
+	}
+	return res, nil
+}
+
+// get message hash for sign
+func (m *Message) Hash() (types.MsgID, error) {
+	res, err := m.Serialize()
+	if err != nil {
+		return types.Undef, err
+	}
+
+	return types.NewMsgID(res), nil
+}
+
+func (m *Message) Deserilize(b []byte) (types.MsgID, error) {
+	err := cbor.Unmarshal(b, m)
+	if err != nil {
+		return types.Undef, err
+	}
+
+	return types.NewMsgID(b), nil
 }
 
 // verify:
@@ -75,13 +111,46 @@ func (m *Message) Serialize() []byte {
 // 4. gas is enough
 type SignedMessage struct {
 	Message
+	ID        types.MsgID
 	Signature []byte // signed by Tx.From;
 }
 
-func (sm *SignedMessage) Serialize() []byte {
-	return nil
+func (sm *SignedMessage) Serialize() ([]byte, error) {
+	res, err := sm.Message.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	rLen := len(res)
+
+	buf := make([]byte, 2+rLen+len(sm.Signature))
+	binary.BigEndian.PutUint16(buf[:2], uint16(rLen))
+
+	copy(buf[2:2+rLen], res)
+	copy(buf[2+rLen:], sm.Signature)
+
+	return buf, nil
 }
 
-func Deserilize([]byte) (*SignedMessage, error) {
-	return new(SignedMessage), nil
+func (sm *SignedMessage) Deserilize(b []byte) error {
+	if len(b) < 2 {
+		return ErrMsgLenShort
+	}
+
+	rLen := binary.BigEndian.Uint16(b[:2])
+	if len(b) < 2+int(rLen) {
+		return ErrMsgLenShort
+	}
+
+	m := new(Message)
+	mid, err := m.Deserilize(b[2 : 2+rLen])
+	if err != nil {
+		return err
+	}
+
+	sm.Message = *m
+	sm.ID = mid
+	sm.Signature = b[2+rLen:]
+
+	return nil
 }

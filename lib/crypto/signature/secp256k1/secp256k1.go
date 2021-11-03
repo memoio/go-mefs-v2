@@ -9,6 +9,7 @@ import (
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/zeebo/blake3"
 )
 
 var _ common.PrivKey = (*PrivateKey)(nil)
@@ -75,12 +76,15 @@ func (k *PrivateKey) Raw() ([]byte, error) {
 }
 
 // Sign returns a signature from input data
-func (k *PrivateKey) Sign(msg []byte) ([]byte, error) {
+func (k *PrivateKey) Sign(data []byte) ([]byte, error) {
 	sk, err := k.Raw()
 	if err != nil {
 		return nil, err
 	}
-	sig, err := Sign(sk, msg)
+
+	msg := blake3.Sum256(data)
+
+	sig, err := Sign(sk, msg[:])
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +181,7 @@ func (k *PublicKey) Deserialize(data []byte) error {
 }
 
 // Verify compares a signature against the input data
-func (k *PublicKey) Verify(msg, sig []byte) (bool, error) {
+func (k *PublicKey) Verify(data, sig []byte) (bool, error) {
 	if len(sig) != SignatureSize {
 		return false, common.ErrBadSign
 	}
@@ -187,7 +191,9 @@ func (k *PublicKey) Verify(msg, sig []byte) (bool, error) {
 		return false, err
 	}
 
-	rePub, err := EcRecover(msg, sig)
+	msg := blake3.Sum256(data)
+
+	rePub, err := EcRecover(msg[:], sig)
 	if err != nil {
 		return false, err
 	}

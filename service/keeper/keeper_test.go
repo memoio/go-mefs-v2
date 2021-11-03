@@ -53,7 +53,7 @@ func TestKeeperNode(t *testing.T) {
 		}
 
 		sm := new(tx.SignedMessage)
-
+		sm.From = "keeperfrom"
 		bn2.PublishMsg(ctx, sm)
 
 		log.Println(string(res.Data.MsgInfo))

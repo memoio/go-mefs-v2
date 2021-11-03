@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/routing"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -24,9 +25,9 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
-var logger = logging.Logger("NetService")
+var logger = logging.Logger("NetApp")
 
-var _ NetService = (*NetServiceImpl)(nil)
+var _ api.INetService = (*NetServiceImpl)(nil)
 
 var ErrTimeOut = errors.New("time out")
 
@@ -36,15 +37,19 @@ type NetServiceImpl struct {
 	*generic.GenericService
 	pubsubIn.Handle
 
-	ctx        context.Context
-	roleID     uint64  // local node id
-	netID      peer.ID // local net id
-	ds         store.KVStore
-	idMap      map[uint64]peer.ID
-	wants      map[uint64]time.Time
-	rt         routing.Routing
-	h          host.Host
-	eventTopic *pubsub.Topic // used to find peerid depends on roleID
+	ctx    context.Context
+	roleID uint64  // local node id
+	netID  peer.ID // local net id
+
+	ds store.KVStore
+
+	idMap map[uint64]peer.ID
+	wants map[uint64]time.Time
+
+	rt routing.Routing
+	h  host.Host
+
+	eventTopic *pubsub.Topic // used to find peerID depends on roleID
 	msgTopic   *pubsub.Topic
 
 	related []uint64
@@ -163,7 +168,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 	}
 }
 
-func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) {
+func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, id)
 
@@ -172,11 +177,10 @@ func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) {
 		Data: buf,
 	}
 
-	data, _ := proto.Marshal(em)
-	c.eventTopic.Publish(ctx, data)
+	return c.PublishEvent(ctx, em)
 }
 
-func (c *NetServiceImpl) PutPeerID(ctx context.Context) {
+func (c *NetServiceImpl) PutPeerID(ctx context.Context) error {
 	pi := &pb.PutPeerInfo{
 		RoleID: c.roleID,
 		NetID:  []byte(c.netID),
@@ -189,8 +193,7 @@ func (c *NetServiceImpl) PutPeerID(ctx context.Context) {
 		Data: pdata,
 	}
 
-	data, _ := proto.Marshal(em)
-	c.eventTopic.Publish(ctx, data)
+	return c.PublishEvent(ctx, em)
 }
 
 func (c *NetServiceImpl) handlePeerFind(ctx context.Context) {
@@ -226,12 +229,12 @@ func (c *NetServiceImpl) handleIncomingEvent(ctx context.Context) {
 			if err != nil {
 				return
 			}
-			c.handleMsg(received)
+			c.handleEventMsg(received)
 		}
 	}()
 }
 
-func (c *NetServiceImpl) handleMsg(pMsg *pubsub.Message) {
+func (c *NetServiceImpl) handleEventMsg(pMsg *pubsub.Message) {
 	from := pMsg.GetFrom()
 
 	if c.netID != from {
@@ -293,7 +296,8 @@ func (c *NetServiceImpl) handleIncomingMessage(ctx context.Context) {
 			if c.netID != from {
 				// handle it
 				// umarshal pmsg data
-				sm, err := tx.Deserilize(received.GetData())
+				sm := new(tx.SignedMessage)
+				err := sm.Deserilize(received.GetData())
 				if err == nil {
 					c.HandleMessage(ctx, sm)
 				}
@@ -303,5 +307,25 @@ func (c *NetServiceImpl) handleIncomingMessage(ctx context.Context) {
 }
 
 func (c *NetServiceImpl) PublishMsg(ctx context.Context, msg *tx.SignedMessage) error {
-	return c.msgTopic.Publish(ctx, msg.Params)
+	data, err := msg.Serialize()
+	if err != nil {
+		return err
+	}
+	return c.msgTopic.Publish(ctx, data)
+}
+
+func (c *NetServiceImpl) PublishEvent(ctx context.Context, msg *pb.EventMessage) error {
+	data, _ := proto.Marshal(msg)
+	return c.eventTopic.Publish(ctx, data)
+}
+
+// fetch
+func (c *NetServiceImpl) FetchMsg(ctx context.Context, msgID []byte) error {
+	// iter over connected peers
+	return nil
+}
+
+func (c *NetServiceImpl) FetchBlock(ctx context.Context, msgID []byte) error {
+	// iter over connected peers
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/zeebo/blake3"
 )
 
 var _ common.PrivKey = (*PrivateKey)(nil)
@@ -71,7 +72,9 @@ func (k *PrivateKey) Sign(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	sig, err := bls.Sign(sk, data[:])
+	msg := blake3.Sum256(data)
+
+	sig, err := bls.Sign(sk, msg[:])
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +154,7 @@ func (k *PublicKey) Deserialize(data []byte) error {
 }
 
 // Verify compares a signature against the input data
-func (k *PublicKey) Verify(msg, sig []byte) (bool, error) {
+func (k *PublicKey) Verify(data, sig []byte) (bool, error) {
 	pubBytes, err := k.Raw()
 	if err != nil {
 		return false, err
@@ -161,7 +164,9 @@ func (k *PublicKey) Verify(msg, sig []byte) (bool, error) {
 		return false, common.ErrBadSign
 	}
 
-	err = bls.Verify(pubBytes, msg, sig)
+	msg := blake3.Sum256(data)
+
+	err = bls.Verify(pubBytes, msg[:], sig)
 	if err != nil {
 		return false, err
 	}

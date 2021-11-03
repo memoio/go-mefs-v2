@@ -75,7 +75,7 @@ func testSign(typ types.KeyType) {
 		pk = sk.GetPublic()
 	}
 
-	msg := blake3.Sum256([]byte("1"))
+	msg := blake3.Sum512([]byte("1"))
 
 	sig, err := sk.Sign(msg[:])
 	if err != nil {

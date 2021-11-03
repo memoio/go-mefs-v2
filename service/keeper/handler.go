@@ -2,7 +2,7 @@ package keeper
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -15,6 +15,6 @@ func (k *KeeperNode) defaultHandler(ctx context.Context, p peer.ID, mes *pb.NetM
 }
 
 func (k *KeeperNode) defaultPubsubHandler(ctx context.Context, mes *tx.SignedMessage) error {
-	fmt.Println("keeper received pub msg")
+	log.Println("keeper received pub msg:", mes.Method, mes.From)
 	return nil
 }

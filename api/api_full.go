@@ -11,6 +11,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -65,4 +66,13 @@ type INetwork interface {
 
 type IRole interface {
 	RoleGet(uint64) (pb.RoleInfo, error)
+}
+
+type INetService interface {
+	// send/handle msg directly over network
+	SendMetaMessage(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) error
+	SendMetaRequest(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) (*pb.NetMessage, error)
+
+	PublishMsg(ctx context.Context, msg *tx.SignedMessage) error
+	PublishEvent(ctx context.Context, msg *pb.EventMessage) error
 }
