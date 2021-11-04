@@ -7,20 +7,26 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/gogo/protobuf/proto"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/libp2p/go-libp2p-core/host"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/network"
+	"github.com/memoio/go-mefs-v2/submodule/role"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
@@ -39,6 +45,8 @@ type BaseNode struct {
 
 	*netapp.NetServiceImpl
 
+	*role.RoleMgr
+
 	*jsonrpc.RPCServer
 
 	repo.Repo
@@ -52,10 +60,56 @@ type BaseNode struct {
 
 // Start boots up the node.
 func (n *BaseNode) Start() error {
+
+	go n.test()
+
 	n.RPCServer = jsonrpc.NewServer()
 	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
 
 	return nil
+}
+
+func (n *BaseNode) test() error {
+	ticker := time.NewTicker(4 * time.Second)
+	defer ticker.Stop()
+	pi, _ := n.RoleMgr.RoleSelf()
+	data, _ := proto.Marshal(&pi)
+	n.MsgHandle.Register(pb.NetMessage_PutPeer, n.TestHanderPutPeer)
+
+	lc, _ := lru.NewARC(256)
+
+	for {
+		select {
+		case <-ticker.C:
+			pinfos, err := n.NetworkSubmodule.NetPeers(n.ctx)
+			if err == nil {
+				for _, pi := range pinfos {
+					if !lc.Contains(pi.ID.Pretty()) {
+						n.GenericService.SendMetaRequest(n.ctx, pi.ID, pb.NetMessage_PutPeer, data)
+						lc.Add(pi.ID.Pretty(), pi.ID)
+					}
+				}
+			}
+		case <-n.ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (n *BaseNode) TestHanderPutPeer(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	fmt.Println("handle put peer msg from: ", p.Pretty())
+	ri := new(pb.RoleInfo)
+	err := proto.Unmarshal(mes.GetData().GetMsgInfo(), ri)
+	if err != nil {
+		return nil, err
+	}
+
+	go n.RoleMgr.AddRoleInfo(*ri)
+	go n.NetServiceImpl.AddNode(ri.ID, p)
+
+	resp := new(pb.NetMessage)
+
+	return resp, nil
 }
 
 func (n *BaseNode) Stop(ctx context.Context) {

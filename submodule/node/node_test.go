@@ -15,7 +15,7 @@ import (
 )
 
 func TestBaseNode(t *testing.T) {
-	repoDir1 := "/home/fjt/testmemo8"
+	repoDir1 := "/home/fjt/testmemo10"
 
 	cfg1 := config.NewDefaultConfig()
 	cfg1.Identity.Role = "keeper"
@@ -24,7 +24,7 @@ func TestBaseNode(t *testing.T) {
 	bn1 := startBaseNode(repoDir1, t)
 	defer bn1.Stop(context.Background())
 
-	repoDir2 := "/home/fjt/testmemo9"
+	repoDir2 := "/home/fjt/testmemo11"
 
 	cfg := config.NewDefaultConfig()
 
@@ -99,7 +99,7 @@ func TestBaseNode(t *testing.T) {
 	log.Println("publish")
 	topic2.Publish(ctx, []byte("ok"))
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	fn := func(key, val []byte) error {
 		fmt.Println(string(key))

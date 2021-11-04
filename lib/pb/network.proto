@@ -12,7 +12,7 @@ message NetMessage {
 		SayHello = 0;
 		Get = 1;
 		Put = 2;
-		FindPeer = 3;
+		PutPeer = 3;
 		SubmitTX = 4;
 
     	// data message; user<->provider; offline ops

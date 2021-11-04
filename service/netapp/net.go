@@ -48,6 +48,8 @@ type NetServiceImpl struct {
 	idMap map[uint64]peer.ID
 	wants map[uint64]time.Time
 
+	peers map[peer.ID]struct{}
+
 	rt routing.Routing
 	h  host.Host
 
@@ -96,6 +98,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		h:              ns.Host,
 		idMap:          make(map[uint64]peer.ID),
 		wants:          make(map[uint64]time.Time),
+		peers:          make(map[peer.ID]struct{}),
 		related:        make([]uint64, 0, 128),
 		eventTopic:     eTopic,
 		msgTopic:       mTopic,
@@ -120,8 +123,10 @@ func (c *NetServiceImpl) RoleID() uint64 {
 }
 
 // add a new node
-func (c *NetServiceImpl) AddNode(id uint64) {
+func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
 	c.Lock()
+	defer c.Unlock()
+
 	has := false
 	for _, uid := range c.related {
 		if uid == id {
@@ -133,6 +138,11 @@ func (c *NetServiceImpl) AddNode(id uint64) {
 		c.related = append(c.related, id)
 	}
 
+	if pid.Validate() == nil {
+		c.idMap[id] = pid
+		return
+	}
+
 	_, ok := c.idMap[id]
 	if !ok {
 		_, ok = c.wants[id]
@@ -141,48 +151,7 @@ func (c *NetServiceImpl) AddNode(id uint64) {
 			c.FindPeerID(c.ctx, id)
 		}
 	}
-	c.Unlock()
-}
 
-func (c *NetServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) error {
-	pid, ok := c.idMap[id]
-	if ok {
-		return c.GenericService.SendMetaMessage(ctx, pid, typ, value)
-	}
-	return nil
-}
-
-func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) (*pb.NetMessage, error) {
-	ctx, cancle := context.WithTimeout(ctx, 30*time.Second)
-
-	defer cancle()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ErrTimeOut
-		default:
-			c.RLock()
-			pid, ok := c.idMap[id]
-			c.RUnlock()
-			if !ok {
-				c.RLock()
-				_, has := c.wants[id]
-				c.RUnlock()
-				if !has {
-					c.Lock()
-					c.wants[id] = time.Now()
-					c.Unlock()
-					c.FindPeerID(ctx, id)
-				}
-
-				time.Sleep(1 * time.Second)
-			} else {
-				return c.GenericService.SendMetaRequest(ctx, pid, typ, value)
-			}
-		}
-
-	}
 }
 
 func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
@@ -198,13 +167,17 @@ func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
 }
 
 func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(300 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			c.Lock()
 			for id, t := range c.wants {
+				_, ok := c.idMap[id]
+				if ok {
+					continue
+				}
 				nt := time.Now()
 				if t.Add(30 * time.Second).Before(nt) {
 					c.FindPeerID(ctx, id)
@@ -345,33 +318,4 @@ func (c *NetServiceImpl) handleIncomingBlock(ctx context.Context) {
 			}
 		}
 	}()
-}
-
-func (c *NetServiceImpl) PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
-	data, err := msg.Serialize()
-	if err != nil {
-		return err
-	}
-	return c.msgTopic.Publish(ctx, data)
-}
-
-func (c *NetServiceImpl) PublishTxBlock(ctx context.Context, msg *tx.Block) error {
-	data, _ := msg.Serialize()
-	return c.blockTopic.Publish(ctx, data)
-}
-
-func (c *NetServiceImpl) PublishEvent(ctx context.Context, msg *pb.EventMessage) error {
-	data, _ := proto.Marshal(msg)
-	return c.eventTopic.Publish(ctx, data)
-}
-
-// fetch
-func (c *NetServiceImpl) FetchMsg(ctx context.Context, msgID []byte) error {
-	// iter over connected peers
-	return nil
-}
-
-func (c *NetServiceImpl) FetchBlock(ctx context.Context, msgID []byte) error {
-	// iter over connected peers
-	return nil
 }

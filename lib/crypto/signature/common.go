@@ -76,7 +76,6 @@ func Verify(pubBytes []byte, data, sig []byte) (bool, error) {
 	switch plen {
 	case 20:
 		// for eth address
-
 		msg := blake3.Sum256(data)
 
 		rePub, err := secp256k1.EcRecover(msg[:], sig)

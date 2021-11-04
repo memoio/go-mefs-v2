@@ -15,6 +15,7 @@ import (
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/network"
+	"github.com/memoio/go-mefs-v2/submodule/role"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
@@ -181,12 +182,19 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, errors.New("donot have default address")
 	}
 
-	cs, err := netapp.New(ctx, uint64(id), nd.MetaStore(), nd.NetworkSubmodule)
+	cs, err := netapp.New(ctx, id, nd.MetaStore(), nd.NetworkSubmodule)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create core service")
 	}
 
 	nd.NetServiceImpl = cs
+
+	rm, err := role.New(ctx, id, gid, nd.MetaStore(), nd.LocalWallet)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create role service")
+	}
+
+	nd.RoleMgr = rm
 
 	jauth, err := auth.NewJwtAuth(b.repo)
 	if err != nil {

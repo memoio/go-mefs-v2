@@ -7,8 +7,8 @@ enum MetaType {
     Unknown = 0;
 
 	LocalNetKey = 1;          // key: x; val: local netid and its private key
-	LocalID = 2;              // key: x; val: NodeInfo
-	LocalAddr = 3;            // key: x; val: chain address
+	LocalAddrKey = 2;         // key: x; val: chain address
+	RoleInfoKey = 3;          // key: x/id; val: RoleInfo
 	NetInfoKey = 4;           // key: x/netid; val: NetInfo
 
     PDPProveKey = 5;          // key: x/userID; val: Bls Prove key set, sign; gen proof on provider
