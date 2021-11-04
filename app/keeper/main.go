@@ -27,8 +27,13 @@ func main() {
 			&cli.StringFlag{
 				Name:    generic_cmd.FlagNodeRepo,
 				EnvVars: []string{"MEMO_PATH"},
-				Value:   "~/.memo", // TODO: Consider XDG_DATA_HOME
+				Value:   "~/.memo",
 				Usage:   "Specify memoriae path.",
+			},
+			&cli.StringFlag{
+				Name:  generic_cmd.FlagRoleType,
+				Value: "keeper",
+				Usage: "set role type.",
 			},
 		},
 

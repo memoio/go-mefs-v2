@@ -12,7 +12,10 @@ import (
 
 var log = logging.Logger("main")
 
-const FlagNodeRepo = "repo"
+const (
+	FlagNodeRepo = "repo"
+	FlagRoleType = "roleType"
+)
 
 var InitCmd = &cli.Command{
 	Name:  "init",
@@ -63,6 +66,9 @@ func InitRun(cctx *cli.Context) error {
 	defer func() {
 		_ = rep.Close()
 	}()
+
+	rType := cctx.String(FlagRoleType)
+	rep.Config().Identity.Role = rType
 
 	password := cctx.String("password")
 

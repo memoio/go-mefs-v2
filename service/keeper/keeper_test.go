@@ -120,13 +120,15 @@ func TestKeeperNode(t *testing.T) {
 	t.Fatal(bn1.NetworkSubmodule.NetPeers(context.Background()))
 }
 
+const pw = "memoriae"
+
 func startBaseNode(repoDir string, t *testing.T) *KeeperNode {
 	rp, err := repo.OpenFSRepo(repoDir, repo.LatestVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := minit.Init(context.Background(), rp, "memoriae"); err != nil {
+	if err := minit.Init(context.Background(), rp, pw); err != nil {
 		t.Fatal(err)
 	}
 
@@ -138,6 +140,8 @@ func startBaseNode(repoDir string, t *testing.T) *KeeperNode {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	opts = append(opts, node.SetPassword(pw))
 
 	bn, err := New(context.Background(), opts...)
 	if err != nil {

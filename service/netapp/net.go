@@ -60,7 +60,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 	ph := handler.NewTxMsgHandle()
 	peh := handler.NewEventHandle()
 
-	service, err := generic.New(ctx, ns)
+	gs, err := generic.New(ctx, ns)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 	}
 
 	core := &NetServiceImpl{
-		GenericService: service,
+		GenericService: gs,
 		TxMsgHandle:    ph,
 		EventHandle:    peh,
 		ctx:            ctx,

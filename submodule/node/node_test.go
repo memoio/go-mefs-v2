@@ -133,6 +133,8 @@ func startBaseNode(repoDir string, t *testing.T) *BaseNode {
 		t.Fatal(err)
 	}
 
+	opts = append(opts, SetPassword("memoriae"))
+
 	bn, err := New(context.Background(), opts...)
 	if err != nil {
 		t.Fatal(err)

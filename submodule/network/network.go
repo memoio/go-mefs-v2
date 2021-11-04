@@ -64,7 +64,7 @@ func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
 func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 // NewNetworkSubmodule creates a new network submodule.
-func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.Config, ds store.KVStore) (*NetworkSubmodule, error) {
+func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.Config, ds store.KVStore, networkName string) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
 
 	libP2pOpts := append(config.Libp2pOpts(), Transport())
@@ -92,7 +92,6 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 	}
 
 	// setup dht
-	networkName := cfg.Net.Name + "/" + cfg.Identity.Group
 	validator := blankValidator{}
 	bootNodes, err := net.ParseAddresses(ctx, cfg.Bootstrap.Addresses)
 	if err != nil {

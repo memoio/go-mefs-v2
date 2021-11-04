@@ -8,10 +8,12 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"github.com/pkg/errors"
 
+	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	"github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
@@ -142,7 +144,27 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		Repo: b.repo,
 	}
 
-	nd.NetworkSubmodule, err = network.NewNetworkSubmodule(ctx, (*builder)(b), b.repo.Config(), b.repo.MetaStore())
+	cfg := b.repo.Config()
+
+	saddr := cfg.Wallet.DefaultAddress
+	defaultAddr, err := address.NewFromString(saddr)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := settle.GetRoleID(defaultAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	gid := settle.GetGroupID(id)
+
+	networkName := cfg.Net.Name + "/group" + strconv.Itoa(int(gid))
+
+	fmt.Println("networkName is :", networkName)
+	fmt.Println("password is:", b.walletPassword)
+
+	nd.NetworkSubmodule, err = network.NewNetworkSubmodule(ctx, (*builder)(b), b.repo.Config(), b.repo.MetaStore(), networkName)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build node Network")
 	}
@@ -150,9 +172,13 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.LocalWallet = wallet.New(b.walletPassword, b.repo.KeyStore())
 
-	id, err := strconv.Atoi(b.repo.Config().Identity.Name)
+	ok, err := nd.LocalWallet.WalletHas(ctx, defaultAddr)
 	if err != nil {
 		return nil, err
+	}
+
+	if !ok {
+		return nil, errors.New("donot have default address")
 	}
 
 	cs, err := netapp.New(ctx, uint64(id), nd.MetaStore(), nd.NetworkSubmodule)

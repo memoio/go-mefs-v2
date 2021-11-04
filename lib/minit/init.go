@@ -2,7 +2,6 @@ package minit
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
@@ -23,6 +22,10 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 
 	if _, _, err := network.GetSelfNetKey(r.KeyStore()); err != nil {
 		return err
+	}
+
+	if r.Config().Wallet.DefaultAddress != "" {
+		return nil
 	}
 
 	w := wallet.New(password, r.KeyStore())
@@ -94,9 +97,6 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 		return errors.New("unsupported type")
 	}
 
-	id := binary.BigEndian.Uint64(addr.Bytes()[:8])
-
-	cfg.Identity.Name = strconv.Itoa(int(id))
 	cfg.Wallet.DefaultAddress = addr.String()
 
 	return nil
