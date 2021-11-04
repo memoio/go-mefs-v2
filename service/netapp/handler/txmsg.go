@@ -1,4 +1,4 @@
-package pubsubIn
+package handler
 
 import (
 	"context"
@@ -10,15 +10,15 @@ import (
 
 type HandlerFunc func(context.Context, *tx.SignedMessage) error
 
-// Handle is used for handle received msg from pubsub
-type Handle interface {
+// TxMsgHandle is used for handle received msg from pubsub
+type TxMsgHandle interface {
 	HandleMessage(context.Context, *tx.SignedMessage) error
 	Register(tx.MsgType, HandlerFunc)
 	UnRegister(tx.MsgType)
 	Close()
 }
 
-var _ Handle = (*Impl)(nil)
+var _ TxMsgHandle = (*Impl)(nil)
 
 type Impl struct {
 	sync.RWMutex
@@ -26,7 +26,7 @@ type Impl struct {
 	hmap  map[tx.MsgType]HandlerFunc
 }
 
-func New() *Impl {
+func NewTxMsgHandle() *Impl {
 	i := &Impl{
 		hmap: make(map[tx.MsgType]HandlerFunc),
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
-	"github.com/memoio/go-mefs-v2/service/netapp/pubsubIn"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
@@ -35,7 +35,8 @@ var ErrTimeOut = errors.New("time out")
 type NetServiceImpl struct {
 	sync.RWMutex
 	*generic.GenericService
-	pubsubIn.Handle
+	handler.TxMsgHandle // handle pubsub tx msg
+	handler.EventHandle // handle pubsub event msg
 
 	ctx    context.Context
 	roleID uint64  // local node id
@@ -56,10 +57,10 @@ type NetServiceImpl struct {
 }
 
 func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.NetworkSubmodule) (*NetServiceImpl, error) {
-	s := handler.New()
-	p := pubsubIn.New()
+	ph := handler.NewTxMsgHandle()
+	peh := handler.NewEventHandle()
 
-	service, err := generic.New(ctx, ns, s, p)
+	service, err := generic.New(ctx, ns)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +77,8 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 
 	core := &NetServiceImpl{
 		GenericService: service,
-		Handle:         p,
+		TxMsgHandle:    ph,
+		EventHandle:    peh,
 		ctx:            ctx,
 		roleID:         roleID,
 		netID:          ns.NetID(ctx),
@@ -90,10 +92,14 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		msgTopic:       mTopic,
 	}
 
-	go core.handleIncomingEvent(ctx)
-	go core.handlePeerFind(ctx)
+	// register for find peer
+	peh.Register(pb.EventMessage_GetPeer, core.handleGetPeer)
+	peh.Register(pb.EventMessage_PutPeer, core.handlePutPeer)
 
+	go core.handleIncomingEvent(ctx)
 	go core.handleIncomingMessage(ctx)
+
+	go core.regularPeerFind(ctx)
 
 	return core, nil
 }
@@ -180,23 +186,7 @@ func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
 	return c.PublishEvent(ctx, em)
 }
 
-func (c *NetServiceImpl) PutPeerID(ctx context.Context) error {
-	pi := &pb.PutPeerInfo{
-		RoleID: c.roleID,
-		NetID:  []byte(c.netID),
-	}
-
-	pdata, _ := proto.Marshal(pi)
-
-	em := &pb.EventMessage{
-		Type: pb.EventMessage_PutPeer,
-		Data: pdata,
-	}
-
-	return c.PublishEvent(ctx, em)
-}
-
-func (c *NetServiceImpl) handlePeerFind(ctx context.Context) {
+func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -217,6 +207,7 @@ func (c *NetServiceImpl) handlePeerFind(ctx context.Context) {
 	}
 }
 
+// handle event msg
 func (c *NetServiceImpl) handleIncomingEvent(ctx context.Context) {
 	sub, err := c.eventTopic.Subscribe()
 	if err != nil {
@@ -229,55 +220,66 @@ func (c *NetServiceImpl) handleIncomingEvent(ctx context.Context) {
 			if err != nil {
 				return
 			}
-			c.handleEventMsg(received)
+			from := received.GetFrom()
+
+			if c.netID != from {
+				em := new(pb.EventMessage)
+				err := proto.Unmarshal(received.GetData(), em)
+				if err == nil {
+					fmt.Println("handle event message: ", em.Type)
+					c.EventHandle.HandleMessage(ctx, em)
+				}
+			}
 		}
 	}()
 }
 
-func (c *NetServiceImpl) handleEventMsg(pMsg *pubsub.Message) {
-	from := pMsg.GetFrom()
-
-	if c.netID != from {
-		// handle it
-		// umarshal pmsg data
-		em := new(pb.EventMessage)
-		err := proto.Unmarshal(pMsg.GetData(), em)
-		if err != nil {
-			return
+func (c *NetServiceImpl) handleGetPeer(ctx context.Context, mes *pb.EventMessage) error {
+	id := binary.BigEndian.Uint64(mes.GetData())
+	if id == c.roleID {
+		logger.Debug(c.netID.Pretty(), "handle find peer of role:", id)
+		pi := &pb.PutPeerInfo{
+			RoleID: c.roleID,
+			NetID:  []byte(c.netID),
 		}
-		// handle it according to its type
-		switch em.GetType() {
-		case pb.EventMessage_GetPeer:
-			id := binary.BigEndian.Uint64(em.GetData())
-			if id == c.roleID {
-				logger.Debug(c.netID.Pretty(), "handle find peer of role:", id)
-				c.PutPeerID(c.ctx)
-			}
-		case pb.EventMessage_PutPeer:
-			ppi := new(pb.PutPeerInfo)
-			proto.Unmarshal(em.GetData(), ppi)
 
-			netID, err := peer.IDFromBytes(ppi.NetID)
-			if err != nil {
-				return
-			}
-
-			logger.Debug(c.netID.Pretty(), "handle put peer:", netID.Pretty())
-
-			c.Lock()
-			_, ok := c.wants[ppi.GetRoleID()]
-			if ok {
-				c.idMap[ppi.RoleID] = netID
-				delete(c.wants, ppi.RoleID)
-			}
-			c.Unlock()
-		default:
-			logger.Debug("unsupported event type:", em.GetType())
-			return
+		pdata, _ := proto.Marshal(pi)
+		em := &pb.EventMessage{
+			Type: pb.EventMessage_PutPeer,
+			Data: pdata,
 		}
+
+		return c.PublishEvent(ctx, em)
 	}
+
+	return nil
 }
 
+func (c *NetServiceImpl) handlePutPeer(ctx context.Context, mes *pb.EventMessage) error {
+	ppi := new(pb.PutPeerInfo)
+	err := proto.Unmarshal(mes.GetData(), ppi)
+	if err != nil {
+		return err
+	}
+
+	netID, err := peer.IDFromBytes(ppi.NetID)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug(c.netID.Pretty(), "handle put peer:", netID.Pretty())
+
+	c.Lock()
+	_, ok := c.wants[ppi.GetRoleID()]
+	if ok {
+		c.idMap[ppi.RoleID] = netID
+		delete(c.wants, ppi.RoleID)
+	}
+	c.Unlock()
+	return nil
+}
+
+// handle net message
 func (c *NetServiceImpl) handleIncomingMessage(ctx context.Context) {
 	sub, err := c.msgTopic.Subscribe()
 	if err != nil {
@@ -299,7 +301,7 @@ func (c *NetServiceImpl) handleIncomingMessage(ctx context.Context) {
 				sm := new(tx.SignedMessage)
 				err := sm.Deserilize(received.GetData())
 				if err == nil {
-					c.HandleMessage(ctx, sm)
+					c.TxMsgHandle.HandleMessage(ctx, sm)
 				}
 			}
 		}

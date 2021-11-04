@@ -15,14 +15,13 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal/net"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
-	"github.com/memoio/go-mefs-v2/service/netapp/pubsubIn"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
 var logger = log.Logger("generic_service")
 
 type GenericService struct {
-	handler.Subscriber
+	handler.MsgHandle
 
 	localID peer.ID
 	ns      *network.NetworkSubmodule
@@ -43,7 +42,7 @@ type GenericService struct {
 	plk sync.Mutex
 }
 
-func New(ctx context.Context, ns *network.NetworkSubmodule, s handler.Subscriber, p pubsubIn.Handle) (*GenericService, error) {
+func New(ctx context.Context, ns *network.NetworkSubmodule) (*GenericService, error) {
 	var protocols, serverProtocols []protocol.ID
 
 	v1proto := build.MemoriaeNet(ns.NetworkName)
@@ -52,7 +51,7 @@ func New(ctx context.Context, ns *network.NetworkSubmodule, s handler.Subscriber
 	serverProtocols = []protocol.ID{v1proto}
 
 	service := &GenericService{
-		Subscriber:      s,
+		MsgHandle:       handler.NewMsgHandle(),
 		localID:         ns.Host.ID(),
 		protocols:       protocols,
 		protocolsStrs:   protocol.ConvertToStrings(protocols),

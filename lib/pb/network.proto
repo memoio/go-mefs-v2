@@ -40,12 +40,13 @@ message NetMessage {
 
 // pubsub message content
 message EventMessage {
-	enum MsgType {
-		GetPeer = 0;  // data is roleID
-		PutPeer = 1;  // data is roleID + netID 
+	enum Type {
+		Unknown = 0;
+		GetPeer = 1;  // data is roleID
+		PutPeer = 2;  // data is roleID + netID 
 	}
 
-	MsgType type = 1;
+	Type type = 1;
 	bytes data = 2;
 }
 

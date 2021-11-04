@@ -59,7 +59,7 @@ func (n *BaseNode) Start() error {
 }
 
 func (n *BaseNode) Stop(ctx context.Context) {
-	n.GenericService.Subscriber.Close()
+	n.GenericService.MsgHandle.Close()
 
 	n.NetworkSubmodule.Stop(ctx)
 

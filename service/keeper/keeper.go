@@ -43,7 +43,7 @@ func (k *KeeperNode) Start() error {
 	// register net msg handle
 	k.GenericService.Register(pb.NetMessage_Get, k.defaultHandler)
 
-	k.Handle.Register(tx.DataTxErr, k.defaultPubsubHandler)
+	k.TxMsgHandle.Register(tx.DataTxErr, k.defaultPubsubHandler)
 
 	k.RPCServer = jsonrpc.NewServer()
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
