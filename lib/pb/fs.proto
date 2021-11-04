@@ -24,8 +24,9 @@ enum MetaType {
     LFS_OpCountKey = 15;      // key: x/userID/bucketID; val: op number
     LFS_StripeCountKey = 16;  // key: x/userID/bucketID; val: stripe number
 
-	MessageKey = 18;       // key: x/messageHash; value: message content, sign
-	MessageStateKey = 19;  // key: x/messageHash; value: heigth, state(applied?), 
+	Tx_HeightKey = 17;		  // key: x/blockHeight; value: blk hash,	
+	TX_MessageKey = 18;       // key: x/messageHash; value: message content, sign
+	TX_BlockKey = 19;         // key: x/blockHash; value: blk content, 
 
 	// key in state tree
 	ST_GasMoneyKey = 20;     // key: x/type/id; val: gasMoney  

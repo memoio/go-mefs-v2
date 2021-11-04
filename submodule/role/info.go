@@ -11,7 +11,10 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
+	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
+	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -240,4 +243,52 @@ func (rm *RoleMgr) Verify(id uint64, msg []byte, sig types.Signature) bool {
 	}
 
 	return ok
+}
+
+func (rm *RoleMgr) VerifyMulti(msg []byte, sig mSign.MultiSignature) bool {
+	switch sig.Type {
+	case types.SigSecp256k1:
+		for i, id := range sig.Signer {
+			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
+				return false
+			}
+			pubByte := rm.GetPubKey(id)
+			sign := sig.Data[i*secp256k1.SignatureSize : (i+1)*secp256k1.SignatureSize]
+			ok, err := signature.Verify(pubByte, msg, sign)
+			if err != nil {
+				return false
+			}
+
+			if !ok {
+				return false
+			}
+		}
+		return true
+	case types.SigBLS:
+		apub := make([][]byte, len(sig.Signer))
+		for i, id := range sig.Signer {
+			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
+				return false
+			}
+			pubByte := rm.GetPubKey(id)
+			if len(pubByte) == 0 {
+				return false
+			}
+			apub[i] = pubByte
+		}
+
+		apk, err := bls.AggregatePublicKey(apub...)
+		if err != nil {
+			return false
+		}
+		ok, err := signature.Verify(apk, msg, sig.Data)
+		if err != nil {
+			return false
+		}
+
+		return ok
+
+	default:
+		return false
+	}
 }

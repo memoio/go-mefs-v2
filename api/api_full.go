@@ -65,6 +65,7 @@ type INetwork interface {
 }
 
 type IRole interface {
+	RoleSelf() (pb.RoleInfo, error)
 	RoleGet(uint64) (pb.RoleInfo, error)
 }
 
