@@ -23,7 +23,13 @@ func TestMessage(t *testing.T) {
 
 	priv, _ := signature.GenerateKey(types.Secp256k1)
 	sign, _ := priv.Sign(id.Bytes())
-	sm.Signature = sign
+
+	sig := types.Signature{
+		Data: sign,
+		Type: types.SigSecp256k1,
+	}
+
+	sm.Signature = sig
 
 	sms, err := sm.Serialize()
 	if err != nil {
@@ -36,7 +42,7 @@ func TestMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := priv.GetPublic().Verify(nsm.ID.Bytes(), nsm.Signature)
+	ok, err := priv.GetPublic().Verify(nsm.ID.Bytes(), nsm.Signature.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +57,25 @@ func TestMessage(t *testing.T) {
 func TestBlock(t *testing.T) {
 	b := new(Block)
 	b.BlockHeader.MinerID = 100
-	b.Signature.Signer = []uint64{1}
+	b.MultiSignature.Type = types.SigBLS
+
+	id, err := b.Hash()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	priv, _ := signature.GenerateKey(types.BLS)
+	sign, _ := priv.Sign(id.Bytes())
+
+	sig := types.Signature{
+		Data: sign,
+		Type: types.SigBLS,
+	}
+
+	err = b.MultiSignature.Add(0, sig)
+	if err != nil {
+		t.Fatal("add fail")
+	}
 
 	bbyte, err := b.Serialize()
 	if err != nil {
@@ -67,6 +91,15 @@ func TestBlock(t *testing.T) {
 	err = nb.Deserilize(bbyte)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	ok, err := priv.GetPublic().Verify(nb.ID.Bytes(), nb.MultiSignature.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !ok {
+		t.Fatal("signature wrong")
 	}
 
 	t.Fatal(bid.String(), nb.ID.String())

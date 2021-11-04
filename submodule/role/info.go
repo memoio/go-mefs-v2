@@ -6,7 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
@@ -14,12 +17,17 @@ var ErrNotFound = errors.New("not found")
 
 type RoleMgr struct {
 	sync.RWMutex
+	api.IWallet
 
 	ctx     context.Context
 	roleID  uint64
 	groupID uint64
-	self    pb.RoleInfo            // local node info
-	infos   map[uint64]pb.RoleInfo // get from chain
+
+	localAddr address.Address
+	blsAddr   address.Address
+
+	self  pb.RoleInfo            // local node info
+	infos map[uint64]pb.RoleInfo // get from chain
 
 	users     []uint64 // related role
 	keepers   []uint64
@@ -45,7 +53,7 @@ func (rm *RoleMgr) API() *roleAPI {
 
 // load infos from local store
 func (rm *RoleMgr) load() {
-
+	// load pb.NodeInfo from local
 }
 
 // save infos to local store
@@ -108,4 +116,18 @@ func (rm *RoleMgr) Sync(ctx context.Context) {
 
 func (rm *RoleMgr) SyncFromChain(ctx context.Context) {
 
+}
+
+func (rm *RoleMgr) Sign(msg []byte, typ types.KeyType) ([]byte, error) {
+	switch typ {
+	case types.Secp256k1:
+		return rm.WalletSign(rm.ctx, rm.localAddr, msg)
+	case types.BLS:
+		return rm.WalletSign(rm.ctx, rm.blsAddr, msg)
+	default:
+		return nil, ErrNotFound
+	}
+}
+
+func (rm *RoleMgr) Verify(id uint64, msg, sig []byte, typ types.KeyType) {
 }

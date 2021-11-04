@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	msign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -40,22 +41,9 @@ func (bh *BlockHeader) Deserilize(b []byte) (types.MsgID, error) {
 	return types.NewMsgID(b), nil
 }
 
-type Signature struct {
-	Signer []uint64
-	Sign   []byte
-}
-
-func (s *Signature) Serialize() ([]byte, error) {
-	return cbor.Marshal(s)
-}
-
-func (s *Signature) Deserilize(b []byte) error {
-	return cbor.Unmarshal(b, s)
-}
-
 type Block struct {
 	BlockHeader
-	Signature
+	msign.MultiSignature
 
 	ID types.MsgID
 }
@@ -66,7 +54,7 @@ func (b *Block) Serialize() ([]byte, error) {
 		return nil, err
 	}
 
-	s, err := b.Signature.Serialize()
+	s, err := b.MultiSignature.Serialize()
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +86,7 @@ func (b *Block) Deserilize(d []byte) error {
 		return err
 	}
 
-	s := new(Signature)
+	s := new(msign.MultiSignature)
 	err = s.Deserilize(d[2+rLen:])
 	if err != nil {
 		return err
@@ -106,7 +94,7 @@ func (b *Block) Deserilize(d []byte) error {
 
 	b.BlockHeader = *bh
 	b.ID = mid
-	b.Signature = *s
+	b.MultiSignature = *s
 
 	return nil
 }

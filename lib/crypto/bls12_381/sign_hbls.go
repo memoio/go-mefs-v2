@@ -111,7 +111,7 @@ func Verify(publicKey, msg, signature []byte) error {
 }
 
 // todo: add aggregate and verify
-func AggregateSignature(signatures [][]byte) ([]byte, error) {
+func AggregateSignature(signatures ...[]byte) ([]byte, error) {
 	size := len(signatures)
 	signs := make([]hbls.Sign, size)
 	for i := 0; i < size; i++ {
@@ -125,7 +125,7 @@ func AggregateSignature(signatures [][]byte) ([]byte, error) {
 	return aggregatedSignature.Serialize(), nil
 }
 
-func AggregatePublicKey(publicKeys [][]byte) ([]byte, error) {
+func AggregatePublicKey(publicKeys ...[]byte) ([]byte, error) {
 	size := len(publicKeys)
 	aggregatedPublicKey := new(hbls.PublicKey)
 	for i := 0; i < size; i++ {

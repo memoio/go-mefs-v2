@@ -117,6 +117,48 @@ func Verify(publicKey, msg, signature []byte) error {
 	return errInvalidSignature
 }
 
+func AggregateSignature(signatures ...[]byte) ([]byte, error) {
+	if len(signatures) == 0 {
+		return nil, errZeroPublicKey
+	}
+
+	g := kbls.NewG2()
+	aggregated, err := g.FromCompressed(signatures[0])
+	if err != nil {
+		return nil, err
+	}
+	for i := 1; i < len(signatures); i++ {
+		sig, err := g.FromCompressed(signatures[i])
+		if err != nil {
+			return nil, err
+		}
+
+		g.Add(aggregated, aggregated, sig)
+	}
+	return g.ToCompressed(aggregated), nil
+}
+
+func AggregatePublicKey(publicKeys ...[]byte) ([]byte, error) {
+	if len(publicKeys) == 0 {
+		return nil, errZeroPublicKey
+	}
+
+	g := kbls.NewG1()
+	aggregated, err := g.FromCompressed(publicKeys[0])
+	if err != nil {
+		return nil, err
+	}
+	for i := 1; i < len(publicKeys); i++ {
+		pk, err := g.FromCompressed(publicKeys[i])
+		if err != nil {
+			return nil, err
+		}
+
+		g.Add(aggregated, aggregated, pk)
+	}
+	return g.ToCompressed(aggregated), nil
+}
+
 // GenerateKeyFromSeed generates a new key from the given reader.
 func GenerateKeyFromSeed(seed []byte) ([]byte, error) {
 	sk := new(kbls.Fr).FromBytes(blake3.New().Sum(seed))

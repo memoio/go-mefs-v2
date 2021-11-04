@@ -3,6 +3,7 @@ package txPool
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
@@ -23,12 +24,12 @@ type PushPool struct {
 	wallet address.Address // for sign
 	bls    address.Address
 
-	min     uint64                            // pending
-	max     uint64                            // pending
-	pending map[types.MsgID]*tx.SignedMessage // topush
+	min     uint64                    // pending
+	max     uint64                    // pending
+	pending map[types.MsgID]time.Time // topush
 }
 
-func NewPushPool() *PushPool {
+func NewPushPool(ctx context.Context, ds store.KVStore) *PushPool {
 	pp := &PushPool{}
 	return pp
 }
@@ -42,10 +43,10 @@ func (pp *PushPool) AddMessage(mes *tx.Message) error {
 	sm := &tx.SignedMessage{
 		Message: *mes,
 	}
-	return pp.INetService.PublishMsg(pp.ctx, sm)
+	return pp.INetService.PublishTxMsg(pp.ctx, sm)
 }
 
-func (pp *PushPool) Push() {
+func (pp *PushPool) Push(force bool) {
 
 }
 

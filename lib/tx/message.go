@@ -111,8 +111,9 @@ func (m *Message) Deserilize(b []byte) (types.MsgID, error) {
 // 4. gas is enough
 type SignedMessage struct {
 	Message
-	ID        types.MsgID
-	Signature []byte // signed by Tx.From;
+	Signature types.Signature // signed by Tx.From;
+
+	ID types.MsgID
 }
 
 func (sm *SignedMessage) Serialize() ([]byte, error) {
@@ -123,11 +124,16 @@ func (sm *SignedMessage) Serialize() ([]byte, error) {
 
 	rLen := len(res)
 
-	buf := make([]byte, 2+rLen+len(sm.Signature))
+	sbyte, err := sm.Signature.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, 2+rLen+len(sbyte))
 	binary.BigEndian.PutUint16(buf[:2], uint16(rLen))
 
 	copy(buf[2:2+rLen], res)
-	copy(buf[2+rLen:], sm.Signature)
+	copy(buf[2+rLen:], sbyte)
 
 	return buf, nil
 }
@@ -148,9 +154,15 @@ func (sm *SignedMessage) Deserilize(b []byte) error {
 		return err
 	}
 
+	sig := new(types.Signature)
+	err = sig.Deserilize(b[2+rLen:])
+	if err != nil {
+		return err
+	}
+
 	sm.Message = *m
 	sm.ID = mid
-	sm.Signature = b[2+rLen:]
+	sm.Signature = *sig
 
 	return nil
 }
