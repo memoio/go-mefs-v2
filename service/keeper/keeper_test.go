@@ -16,30 +16,45 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
+var baseDir = "/home/fjt/testmemo"
+
 func TestKeeperNode(t *testing.T) {
 	repoDir1 := "/home/fjt/testmemo0"
-
+	ctx := context.Background()
 	cfg1 := config.NewDefaultConfig()
 	cfg1.Identity.Role = "keeper"
 	repo.InitFSRepoDirect(repoDir1, repo.LatestVersion, cfg1)
 
 	bn1 := startBaseNode(repoDir1, t)
-	defer bn1.Stop(context.Background())
+	defer bn1.Stop(ctx)
 
 	repoDir2 := "/home/fjt/testmemo1"
 
-	cfg := config.NewDefaultConfig()
+	cfg2 := config.NewDefaultConfig()
 
-	cfg.Net.Addresses = []string{
+	cfg2.Net.Addresses = []string{
 		"/ip4/0.0.0.0/tcp/7002",
 		"/ip6/::/tcp/7002",
 	}
 
-	repo.InitFSRepoDirect(repoDir2, repo.LatestVersion, cfg)
+	repo.InitFSRepoDirect(repoDir2, repo.LatestVersion, cfg2)
 
-	ctx := context.Background()
 	bn2 := startBaseNode(repoDir2, t)
-	defer bn2.Stop(context.Background())
+	defer bn2.Stop(ctx)
+
+	repoDir3 := "/home/fjt/testmemo3"
+
+	cfg3 := config.NewDefaultConfig()
+
+	cfg3.Net.Addresses = []string{
+		"/ip4/0.0.0.0/tcp/7003",
+		"/ip6/::/tcp/7003",
+	}
+
+	repo.InitFSRepoDirect(repoDir3, repo.LatestVersion, cfg3)
+
+	bn3 := startBaseNode(repoDir3, t)
+	defer bn3.Stop(ctx)
 
 	time.Sleep(1 * time.Second)
 
@@ -54,7 +69,11 @@ func TestKeeperNode(t *testing.T) {
 
 		sm := new(tx.SignedMessage)
 		sm.From = "keeperfrom"
-		bn2.PublishMsg(ctx, sm)
+		bn2.PublishTxMsg(ctx, sm)
+
+		blk := new(tx.Block)
+		blk.Height = 1000
+		bn2.PublishTxBlock(ctx, blk)
 
 		log.Println(string(res.Data.MsgInfo))
 	}()

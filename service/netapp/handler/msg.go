@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 
 	peer "github.com/libp2p/go-libp2p-core/peer"
@@ -26,7 +27,7 @@ type MsgHandlerFunc func(context.Context, peer.ID, *pb.NetMessage) (*pb.NetMessa
 
 // MsgHandler is used fo callback on receiving msg from net
 type MsgHandle interface {
-	HandlerForMsgType(pb.NetMessage_MsgType) MsgHandlerFunc
+	Handle(context.Context, peer.ID, *pb.NetMessage) (*pb.NetMessage, error)
 	Register(pb.NetMessage_MsgType, MsgHandlerFunc)
 	UnRegister(pb.NetMessage_MsgType)
 	Close()
@@ -50,19 +51,20 @@ func NewMsgHandle() *MsgImpl {
 	return i
 }
 
-func (i *MsgImpl) HandlerForMsgType(mt pb.NetMessage_MsgType) MsgHandlerFunc {
+func (i *MsgImpl) Handle(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
 	i.RLock()
 	defer i.RUnlock()
 
 	if i.close {
-		return nil
+		return nil, nil
 	}
 
-	h, ok := i.hmap[mt]
+	h, ok := i.hmap[mes.GetHeader().GetType()]
 	if ok {
-		return h
+		log.Println("handle message")
+		return h(ctx, pid, mes)
 	}
-	return nil
+	return nil, nil
 }
 
 func (i *MsgImpl) Register(mt pb.NetMessage_MsgType, h MsgHandlerFunc) {

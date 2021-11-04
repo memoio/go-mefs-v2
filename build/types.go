@@ -9,6 +9,7 @@ import (
 // broadcast an event
 func EventTopic(netName string) string { return "/memo/event/" + string(netName) }
 func MsgTopic(netName string) string   { return "/memo/msg/" + string(netName) }
+func BlockTopic(netName string) string { return "/memo/block/" + string(netName) }
 
 // MemoriaeDHT is creates a protocol for the memoriae DHT.
 func MemoriaeDHT(netName string) protocol.ID {

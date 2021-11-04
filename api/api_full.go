@@ -73,6 +73,7 @@ type INetService interface {
 	SendMetaMessage(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) error
 	SendMetaRequest(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) (*pb.NetMessage, error)
 
-	PublishMsg(ctx context.Context, msg *tx.SignedMessage) error
+	PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error
+	PublishTxBlock(ctx context.Context, msg *tx.Block) error
 	PublishEvent(ctx context.Context, msg *pb.EventMessage) error
 }

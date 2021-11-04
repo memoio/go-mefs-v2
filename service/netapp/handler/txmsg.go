@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -12,7 +13,7 @@ type HandlerFunc func(context.Context, *tx.SignedMessage) error
 
 // TxMsgHandle is used for handle received msg from pubsub
 type TxMsgHandle interface {
-	HandleMessage(context.Context, *tx.SignedMessage) error
+	Handle(context.Context, *tx.SignedMessage) error
 	Register(tx.MsgType, HandlerFunc)
 	UnRegister(tx.MsgType)
 	Close()
@@ -35,7 +36,7 @@ func NewTxMsgHandle() *Impl {
 	return i
 }
 
-func (i *Impl) HandleMessage(ctx context.Context, mes *tx.SignedMessage) error {
+func (i *Impl) Handle(ctx context.Context, mes *tx.SignedMessage) error {
 	i.RLock()
 	defer i.RUnlock()
 
@@ -45,6 +46,7 @@ func (i *Impl) HandleMessage(ctx context.Context, mes *tx.SignedMessage) error {
 
 	h, ok := i.hmap[mes.Method]
 	if ok {
+		log.Println("handle tx mes")
 		return h(ctx, mes)
 	}
 	return nil

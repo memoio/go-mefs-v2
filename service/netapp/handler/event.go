@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -12,7 +13,7 @@ type EventHandlerFunc func(context.Context, *pb.EventMessage) error
 
 // EventHandle is used for handle received event msg from pubsub
 type EventHandle interface {
-	HandleMessage(context.Context, *pb.EventMessage) error
+	Handle(context.Context, *pb.EventMessage) error
 	Register(pb.EventMessage_Type, EventHandlerFunc)
 	UnRegister(pb.EventMessage_Type)
 	Close()
@@ -35,7 +36,7 @@ func NewEventHandle() *EventImpl {
 	return i
 }
 
-func (ei *EventImpl) HandleMessage(ctx context.Context, mes *pb.EventMessage) error {
+func (ei *EventImpl) Handle(ctx context.Context, mes *pb.EventMessage) error {
 	ei.RLock()
 	defer ei.RUnlock()
 
@@ -45,6 +46,7 @@ func (ei *EventImpl) HandleMessage(ctx context.Context, mes *pb.EventMessage) er
 
 	h, ok := ei.hmap[mes.GetType()]
 	if ok {
+		log.Println("handle event")
 		return h(ctx, mes)
 	}
 	return nil

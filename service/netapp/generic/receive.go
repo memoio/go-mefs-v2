@@ -94,16 +94,7 @@ func (service *GenericService) handleNewMessage(s network.Stream) bool {
 
 		startTime := time.Now()
 
-		handler := service.HandlerForMsgType(req.GetHeader().GetType())
-		if handler == nil {
-			fmt.Println("handle for ", req.GetHeader().GetType())
-			// stats.Record(ctx, metrics.ReceivedMessageErrors.M(1))
-			return false
-		}
-
-		// // a peer has queried us, let's add it to RT
-		// service.peerFound(service.ctx, mPeer, true)
-		resp, err := handler(ctx, mPeer, &req)
+		resp, err := service.MsgHandle.Handle(ctx, mPeer, &req)
 		if err != nil {
 			// stats.Record(ctx, metrics.ReceivedMessageErrors.M(1))
 			return false

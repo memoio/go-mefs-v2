@@ -1,6 +1,7 @@
 package txPool
 
 import (
+	"context"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -15,13 +16,13 @@ type PushPool struct {
 	api.IWallet // sign message
 	api.INetService
 
-	ds store.KVStore
+	ctx context.Context
+	ds  store.KVStore
 
 	roleID uint64
 	wallet address.Address // for sign
 	bls    address.Address
 
-	nonce   uint64                            // confirmed
 	min     uint64                            // pending
 	max     uint64                            // pending
 	pending map[types.MsgID]*tx.SignedMessage // topush
@@ -32,11 +33,16 @@ func NewPushPool() *PushPool {
 	return pp
 }
 
-func (pp *PushPool) AddMessage() {
-	// add nonce
+func (pp *PushPool) AddMessage(mes *tx.Message) error {
+	// get nonce
 	// sign
 	// store
 	// push out immediately or regular
+
+	sm := &tx.SignedMessage{
+		Message: *mes,
+	}
+	return pp.INetService.PublishMsg(pp.ctx, sm)
 }
 
 func (pp *PushPool) Push() {

@@ -37,6 +37,7 @@ type NetServiceImpl struct {
 	*generic.GenericService
 	handler.TxMsgHandle // handle pubsub tx msg
 	handler.EventHandle // handle pubsub event msg
+	handler.BlockHandle
 
 	ctx    context.Context
 	roleID uint64  // local node id
@@ -52,6 +53,7 @@ type NetServiceImpl struct {
 
 	eventTopic *pubsub.Topic // used to find peerID depends on roleID
 	msgTopic   *pubsub.Topic
+	blockTopic *pubsub.Topic
 
 	related []uint64
 }
@@ -59,6 +61,7 @@ type NetServiceImpl struct {
 func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.NetworkSubmodule) (*NetServiceImpl, error) {
 	ph := handler.NewTxMsgHandle()
 	peh := handler.NewEventHandle()
+	bh := handler.NewBlockHandle()
 
 	gs, err := generic.New(ctx, ns)
 	if err != nil {
@@ -75,10 +78,16 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		return nil, err
 	}
 
+	bTopic, err := ns.Pubsub.Join(build.BlockTopic(ns.NetworkName))
+	if err != nil {
+		return nil, err
+	}
+
 	core := &NetServiceImpl{
 		GenericService: gs,
 		TxMsgHandle:    ph,
 		EventHandle:    peh,
+		BlockHandle:    bh,
 		ctx:            ctx,
 		roleID:         roleID,
 		netID:          ns.NetID(ctx),
@@ -90,6 +99,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		related:        make([]uint64, 0, 128),
 		eventTopic:     eTopic,
 		msgTopic:       mTopic,
+		blockTopic:     bTopic,
 	}
 
 	// register for find peer
@@ -98,6 +108,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 
 	go core.handleIncomingEvent(ctx)
 	go core.handleIncomingMessage(ctx)
+	go core.handleIncomingBlock(ctx)
 
 	go core.regularPeerFind(ctx)
 
@@ -227,7 +238,7 @@ func (c *NetServiceImpl) handleIncomingEvent(ctx context.Context) {
 				err := proto.Unmarshal(received.GetData(), em)
 				if err == nil {
 					fmt.Println("handle event message: ", em.Type)
-					c.EventHandle.HandleMessage(ctx, em)
+					c.EventHandle.Handle(ctx, em)
 				}
 			}
 		}
@@ -301,19 +312,52 @@ func (c *NetServiceImpl) handleIncomingMessage(ctx context.Context) {
 				sm := new(tx.SignedMessage)
 				err := sm.Deserilize(received.GetData())
 				if err == nil {
-					c.TxMsgHandle.HandleMessage(ctx, sm)
+					c.TxMsgHandle.Handle(ctx, sm)
 				}
 			}
 		}
 	}()
 }
 
-func (c *NetServiceImpl) PublishMsg(ctx context.Context, msg *tx.SignedMessage) error {
+func (c *NetServiceImpl) handleIncomingBlock(ctx context.Context) {
+	sub, err := c.blockTopic.Subscribe()
+	if err != nil {
+		return
+	}
+
+	go func() {
+		for {
+			received, err := sub.Next(ctx)
+			if err != nil {
+				return
+			}
+
+			from := received.GetFrom()
+
+			if c.netID != from {
+				// handle it
+				// umarshal pmsg data
+				sm := new(tx.Block)
+				err := sm.Deserilize(received.GetData())
+				if err == nil {
+					c.BlockHandle.Handle(ctx, sm)
+				}
+			}
+		}
+	}()
+}
+
+func (c *NetServiceImpl) PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
 	data, err := msg.Serialize()
 	if err != nil {
 		return err
 	}
 	return c.msgTopic.Publish(ctx, data)
+}
+
+func (c *NetServiceImpl) PublishTxBlock(ctx context.Context, msg *tx.Block) error {
+	data, _ := msg.Serialize()
+	return c.blockTopic.Publish(ctx, data)
 }
 
 func (c *NetServiceImpl) PublishEvent(ctx context.Context, msg *pb.EventMessage) error {

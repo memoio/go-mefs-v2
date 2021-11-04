@@ -14,7 +14,8 @@ type BlockHeader struct {
 	PrevID  types.MsgID // previous block id
 	Time    time.Time   // block time
 
-	Txs []types.MsgID
+	Txs      []types.MsgID
+	Receipts []Receipt
 }
 
 func (bh *BlockHeader) Serialize() ([]byte, error) {
