@@ -8,7 +8,6 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
-	"github.com/memoio/go-mefs-v2/lib/txStore"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/submodule/role"
@@ -23,7 +22,7 @@ type SyncPool struct {
 	sync.Mutex
 	api.INetService
 	*role.RoleMgr
-	txStore.TxStore
+	tx.TxStore
 
 	ctx context.Context
 	ds  store.KVStore

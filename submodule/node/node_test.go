@@ -21,7 +21,6 @@ func TestBaseNode(t *testing.T) {
 
 	cfg1 := config.NewDefaultConfig()
 	cfg1.Identity.Role = "keeper"
-	repo.NewFSRepo(repoDir1, cfg1)
 
 	bn1 := startBaseNode(repoDir1, cfg1, t)
 	defer bn1.Stop(context.Background())

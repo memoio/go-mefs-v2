@@ -74,7 +74,10 @@ func (n *BaseNode) Start() error {
 func (n *BaseNode) HandleGet(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
 	fmt.Println("handle get msg from: ", p.Pretty())
 
-	resp := new(pb.NetMessage)
+	resp := &pb.NetMessage{
+		Header: &pb.NetMessage_MsgHeader{},
+		Data:   &pb.NetMessage_MsgData{},
+	}
 	val, err := n.MetaStore().Get(mes.GetData().GetMsgInfo())
 	if err != nil {
 		return resp, nil

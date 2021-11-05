@@ -19,7 +19,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 
 	lockfile "github.com/ipfs/go-fs-lock"
-
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
 )
@@ -78,8 +77,6 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 		return nil, errors.Wrap(err, "no writable directory")
 	}
 
-	fmt.Println("initializing memo repo at", repoPath)
-
 	hasConfig, err := hasConfig(repoPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to check for repo config")
@@ -87,6 +84,7 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 
 	if !hasConfig {
 		if cfg != nil {
+			fmt.Println("initializing memo repo at", repoPath)
 			if err = initFSRepo(repoPath, cfg); err != nil {
 				return nil, err
 			}
