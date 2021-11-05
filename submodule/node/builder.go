@@ -74,7 +74,6 @@ func (b builder) DaemonMode() bool {
 	return b.daemon
 }
 
-// BuilderOpt is an option for building a filecoin node.
 type BuilderOpt func(*Builder) error
 
 // DaemonMode enables or disables daemon mode.
