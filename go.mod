@@ -53,6 +53,5 @@ require (
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
-	gotest.tools v2.2.0+incompatible
 	lukechampine.com/frand v1.4.2
 )

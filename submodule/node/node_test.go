@@ -8,35 +8,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
-	"github.com/memoio/go-mefs-v2/lib/minit"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 )
 
 func TestBaseNode(t *testing.T) {
+	ctx := context.Background()
+
 	repoDir1 := "/home/fjt/testmemo10"
 
 	cfg1 := config.NewDefaultConfig()
 	cfg1.Identity.Role = "keeper"
-	repo.InitFSRepoDirect(repoDir1, repo.LatestVersion, cfg1)
+	repo.NewFSRepo(repoDir1, cfg1)
 
-	bn1 := startBaseNode(repoDir1, t)
+	bn1 := startBaseNode(repoDir1, cfg1, t)
 	defer bn1.Stop(context.Background())
 
 	repoDir2 := "/home/fjt/testmemo11"
 
-	cfg := config.NewDefaultConfig()
-
-	cfg.Net.Addresses = []string{
+	cfg2 := config.NewDefaultConfig()
+	cfg2.Net.Addresses = []string{
 		"/ip4/0.0.0.0/tcp/7002",
 		"/ip6/::/tcp/7002",
 	}
 
-	repo.InitFSRepoDirect(repoDir2, repo.LatestVersion, cfg)
-
-	ctx := context.Background()
-	bn2 := startBaseNode(repoDir2, t)
+	bn2 := startBaseNode(repoDir2, cfg2, t)
 	defer bn2.Stop(context.Background())
 
 	time.Sleep(1 * time.Second)
@@ -114,13 +112,13 @@ func TestBaseNode(t *testing.T) {
 	t.Fatal(bn1.NetworkSubmodule.NetPeers(context.Background()))
 }
 
-func startBaseNode(repoDir string, t *testing.T) *BaseNode {
-	rp, err := repo.OpenFSRepo(repoDir, repo.LatestVersion)
+func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *BaseNode {
+	rp, err := repo.NewFSRepo(repoDir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := minit.Init(context.Background(), rp, "memoriae"); err != nil {
+	if err := minit.Create(context.Background(), rp, "memoriae"); err != nil {
 		t.Fatal(err)
 	}
 

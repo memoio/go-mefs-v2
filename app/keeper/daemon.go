@@ -73,7 +73,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	repoDir := cctx.String(cmd.FlagNodeRepo)
 
 	// third precedence is config file.
-	rep, err := cmd.OpenRepo(repoDir)
+	rep, err := repo.NewFSRepo(repoDir, nil)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,6 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 func printVersion() {
 	v := build.UserVersion()
 	fmt.Printf("Memoriae version: %s\n", v)
-	fmt.Printf("Repo version: %d\n", repo.LatestVersion)
 	fmt.Printf("System version: %s\n", runtime.GOARCH+"/"+runtime.GOOS)
 	fmt.Printf("Golang version: %s\n", runtime.Version())
 }

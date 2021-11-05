@@ -7,8 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/config"
@@ -26,11 +24,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Version is the version of repo schema that this code understands.
-const LatestVersion uint = 3
-
 const (
-	// apiFile is the filename containing the filecoin node's api address.
 	apiFile            = "api"
 	configFilename     = "config.json"
 	tempConfigFilename = ".config.json.temp"
@@ -54,8 +48,7 @@ var logger = logging.Logger("repo")
 // FSRepo is a repo implementation backed by a filesystem.
 type FSRepo struct {
 	// Path to the repo root directory.
-	path    string
-	version uint
+	path string
 
 	// lk protects the config file
 	lk  sync.RWMutex
@@ -71,96 +64,21 @@ type FSRepo struct {
 
 var _ Repo = (*FSRepo)(nil)
 
-// InitFSRepo initializes a new repo at the target path with the provided configuration.
-// The successful result creates a symlink at targetPath pointing to a sibling directory
-// named with a timestamp and repo version number.
-// The link path must be empty prior. If the computed actual directory exists, it must be empty.
-func InitFSRepo(targetPath string, version uint, cfg *config.Config) error {
-	repoPath, err := homedir.Expand(targetPath)
+func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
+	repoPath, err := homedir.Expand(dir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if repoPath == "" { // path contained no separator
 		repoPath = "./"
 	}
 
-	fmt.Println("initializing Memo repo at", repoPath)
-
-	cfgPath := path.Join(repoPath, "config")
-
-	exists, err := fileExists(cfgPath)
-	if err != nil {
-		return errors.Wrapf(err, "error inspecting repo path %s", repoPath)
-	} else if exists {
-		return errors.Errorf("repo at %s, file exists", repoPath)
-	}
-
-	// Create the actual directory and then the link to it.
-	if err = InitFSRepoDirect(repoPath, version, cfg); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// InitFSRepoDirect initializes a new repo at a target path, establishing a provided configuration.
-// The target path must not exist, or must reference an empty, read/writable directory.
-func InitFSRepoDirect(targetPath string, version uint, cfg *config.Config) error {
-	repoPath, err := homedir.Expand(targetPath)
-	if err != nil {
-		return err
-	}
-
 	if err := ensureWritableDirectory(repoPath); err != nil {
-		return errors.Wrap(err, "no writable directory")
+		return nil, errors.Wrap(err, "no writable directory")
 	}
 
-	// skip due to log directory
-	/*
-		empty, err := isEmptyDir(repoPath)
-		if err != nil {
-			return errors.Wrapf(err, "failed to list repo directory %s", repoPath)
-		}
-
-		if !empty {
-			return fmt.Errorf("refusing to initialize repo in non-empty directory %s", repoPath)
-		}
-	*/
-
-	if err := WriteVersion(repoPath, version); err != nil {
-		return errors.Wrap(err, "initializing repo version failed")
-	}
-
-	if err := initConfig(repoPath, cfg); err != nil {
-		return errors.Wrap(err, "initializing config file failed")
-	}
-	return nil
-}
-
-func Exists(repoPath string) (bool, error) {
-	_, err := os.Stat(filepath.Join(repoPath, keyStorePathPrefix))
-	notExist := os.IsNotExist(err)
-	if notExist {
-		err = nil
-
-		_, err = os.Stat(filepath.Join(repoPath, configFilename))
-		notExist = os.IsNotExist(err)
-		if notExist {
-			err = nil
-		}
-	}
-	return !notExist, err
-}
-
-// OpenFSRepo opens an initialized fsrepo, expecting a specific version.
-// The provided path may be to a directory, or a symbolic link pointing at a directory, which
-// will be resolved just once at open.
-func OpenFSRepo(repoPath string, version uint) (*FSRepo, error) {
-	repoPath, err := homedir.Expand(repoPath)
-	if err != nil {
-		return nil, err
-	}
+	fmt.Println("initializing memo repo at", repoPath)
 
 	hasConfig, err := hasConfig(repoPath)
 	if err != nil {
@@ -168,7 +86,13 @@ func OpenFSRepo(repoPath string, version uint) (*FSRepo, error) {
 	}
 
 	if !hasConfig {
-		return nil, errors.Errorf("no repo found at %s; run: 'memo init [--repo=%s]'", repoPath, repoPath)
+		if cfg != nil {
+			if err = initFSRepo(repoPath, cfg); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, errors.Errorf("no repo found at %s; run: 'init [--repo=%s]'", repoPath, repoPath)
+		}
 	}
 
 	info, err := os.Stat(repoPath)
@@ -187,7 +111,7 @@ func OpenFSRepo(repoPath string, version uint) (*FSRepo, error) {
 		}
 	}
 
-	r := &FSRepo{path: actualPath, version: version}
+	r := &FSRepo{path: actualPath}
 
 	r.lockfile, err = lockfile.Lock(r.path, lockFile)
 	if err != nil {
@@ -199,19 +123,25 @@ func OpenFSRepo(repoPath string, version uint) (*FSRepo, error) {
 		return nil, err
 	}
 
+	logger.Info("open repo at:", repoPath)
+
 	return r, nil
 }
 
+func initFSRepo(dir string, cfg *config.Config) error {
+	if err := initConfig(dir, cfg); err != nil {
+		return errors.Wrap(err, "initializing config file failed")
+	}
+
+	kstorePath := filepath.Join(dir, keyStorePathPrefix)
+	if err := os.MkdirAll(kstorePath, 0700); err != nil {
+		return errors.Wrap(err, "initializing keystore directory failed")
+	}
+
+	return nil
+}
+
 func (r *FSRepo) loadFromDisk() error {
-	localVersion, err := r.readVersion()
-	if err != nil {
-		return errors.Wrap(err, "failed to read version")
-	}
-
-	if localVersion > r.version {
-		return fmt.Errorf("binary needs update to handle repo version, got %d expected %d. Update binary to latest release", localVersion, LatestVersion)
-	}
-
 	if err := r.loadConfig(); err != nil {
 		return errors.Wrap(err, "failed to load config file")
 	}
@@ -231,7 +161,6 @@ func (r *FSRepo) loadFromDisk() error {
 	return nil
 }
 
-// configModule returns the configuration object.
 func (r *FSRepo) Config() *config.Config {
 	r.lk.RLock()
 	defer r.lk.RUnlock()
@@ -269,11 +198,6 @@ func (r *FSRepo) FileStore() store.FileStore {
 	return r.fileDs
 }
 
-// Version returns the version of the repo
-func (r *FSRepo) Version() uint {
-	return r.version
-}
-
 // Close closes the repo.
 func (r *FSRepo) Close() error {
 	if err := r.metaDs.Close(); err != nil {
@@ -307,7 +231,6 @@ func (r *FSRepo) removeAPIFile() error {
 	return r.removeFile(filepath.Join(r.path, apiFile))
 }
 
-// Tests whether a repo directory contains the expected config file.
 func hasConfig(p string) (bool, error) {
 	configPath := filepath.Join(p, configFilename)
 
@@ -332,11 +255,6 @@ func (r *FSRepo) loadConfig() error {
 
 	r.cfg = cfg
 	return nil
-}
-
-// readVersion reads the repo's version file (but does not change r.version).
-func (r *FSRepo) readVersion() (uint, error) {
-	return ReadVersion(r.path)
 }
 
 func (r *FSRepo) openKeyStore() error {
@@ -386,26 +304,6 @@ func (r *FSRepo) openFileStore() error {
 	return nil
 }
 
-// WriteVersion writes the given version to the repo version file.
-func WriteVersion(p string, version uint) error {
-	return ioutil.WriteFile(filepath.Join(p, versionFilename), []byte(strconv.Itoa(int(version))), 0644)
-}
-
-// ReadVersion returns the unparsed (string) version
-// from the version file in the specified repo.
-func ReadVersion(repoPath string) (uint, error) {
-	file, err := ioutil.ReadFile(filepath.Join(repoPath, versionFilename))
-	if err != nil {
-		return 0, err
-	}
-	verStr := strings.Trim(string(file), "\n")
-	version, err := strconv.ParseUint(verStr, 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	return uint(version), nil
-}
-
 func initConfig(p string, cfg *config.Config) error {
 	configFile := filepath.Join(p, configFilename)
 	exists, err := fileExists(configFile)
@@ -446,6 +344,21 @@ func ensureWritableDirectory(path string) error {
 		return errors.Errorf("insufficient permissions for path %s, got %04o need %04o", path, stat.Mode(), 0600)
 	}
 	return nil
+}
+
+func Exists(repoPath string) (bool, error) {
+	_, err := os.Stat(filepath.Join(repoPath, keyStorePathPrefix))
+	notExist := os.IsNotExist(err)
+	if notExist {
+		err = nil
+
+		_, err = os.Stat(filepath.Join(repoPath, configFilename))
+		notExist = os.IsNotExist(err)
+		if notExist {
+			err = nil
+		}
+	}
+	return !notExist, err
 }
 
 // Tests whether the directory at path is empty
@@ -499,25 +412,6 @@ func (r *FSRepo) Path() (string, error) {
 	return r.path, nil
 }
 
-// JournalPath returns the path the journal is at.
-func (r *FSRepo) JournalPath() string {
-	return fmt.Sprintf("%s/journal.json", r.path)
-}
-
-// APIAddrFromRepoPath returns the api addr from the filecoin repo
-func APIAddrFromRepoPath(repoPath string) (string, error) {
-	repoPath, err := homedir.Expand(repoPath)
-	if err != nil {
-		return "", errors.Wrap(err, fmt.Sprintf("can't resolve local repo path %s", repoPath))
-	}
-	return apiAddrFromFile(repoPath)
-}
-
-// APIAddrFromFile reads the address from the API file at the given path.
-// A relevant comment from a similar function at go-ipfs/repo/fsrepo/fsrepo.go:
-// This is a concurrent operation, meaning that any process may read this file.
-// Modifying this file, therefore, should use "mv" to replace the whole file
-// and avoid interleaved read/writes
 func apiAddrFromFile(repoPath string) (string, error) {
 	jsonrpcFile := filepath.Join(repoPath, apiFile)
 	jsonrpcAPI, err := ioutil.ReadFile(jsonrpcFile)

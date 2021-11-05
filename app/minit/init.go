@@ -3,7 +3,6 @@ package minit
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
@@ -13,14 +12,14 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
 // init ops for mefs
-func Init(ctx context.Context, r repo.Repo, password string) error {
-
+func Create(ctx context.Context, r repo.Repo, password string) error {
 	if _, _, err := network.GetSelfNetKey(r.KeyStore()); err != nil {
 		return err
 	}
@@ -33,7 +32,7 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 
 	w := wallet.New(password, r.KeyStore())
 
-	fmt.Println("generating wallet address...")
+	fmt.Println("generating wallet key...")
 
 	privkey, err := signature.GenerateKey(types.Secp256k1)
 	if err != nil {
@@ -55,7 +54,7 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 		return err
 	}
 
-	fmt.Println("wallet addr: ", addr.String())
+	fmt.Println("wallet: ", addr.String())
 
 	ri.ChainVerifyKey = addr.Bytes()
 
@@ -68,6 +67,8 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 
 	cfg := r.Config()
 	roleType := cfg.Identity.Role
+
+	fmt.Println("generating bls key...")
 
 	switch roleType {
 	case "keeper", "provider":
@@ -90,7 +91,7 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 
 		ri.BlsVerifyKey = blsAddr.Bytes()
 
-		fmt.Println("bls addr: ", blsAddr.String())
+		fmt.Println("bls: ", blsAddr.String())
 	case "user":
 		ri.Type = pb.RoleInfo_User
 		pdpKeySet, err := pdpv2.GenKeySetWithSeed(sBytes, pdpv2.SCount)
@@ -113,9 +114,11 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 
 		// store pdp pubkey and verify key
 
-		r.MetaStore().Put([]byte(strconv.Itoa(int(pb.MetaType_PDPProveKey))), pdpKeySet.PublicKey().Serialize())
-		r.MetaStore().Put([]byte(strconv.Itoa(int(pb.MetaType_PDPVerifyKey))), pdpKeySet.VerifyKey().Serialize())
-		fmt.Println("generate bls pdp key ")
+		r.MetaStore().Put(store.NewKey(pb.MetaType_PDPProveKey), pdpKeySet.PublicKey().Serialize())
+
+		r.MetaStore().Put(store.NewKey(pb.MetaType_PDPVerifyKey), pdpKeySet.VerifyKey().Serialize())
+
+		fmt.Println("generate user bls pdp key")
 	default:
 		ri.Type = pb.RoleInfo_Unknown
 		fmt.Println("unsupported type:", roleType)
@@ -123,7 +126,7 @@ func Init(ctx context.Context, r repo.Repo, password string) error {
 
 	// store roleinfo
 	data, _ := proto.Marshal(ri)
-	r.MetaStore().Put([]byte(strconv.Itoa(int(pb.MetaType_RoleInfoKey))), data)
+	r.MetaStore().Put(store.NewKey(pb.MetaType_RoleInfoKey), data)
 
 	cfg.Wallet.DefaultAddress = addr.String()
 

@@ -20,8 +20,6 @@ type Repo interface {
 
 	SetAPIToken(token []byte) error
 
-	Version() uint
-
 	Path() (string, error)
 
 	Close() error

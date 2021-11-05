@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
-	"github.com/memoio/go-mefs-v2/lib/minit"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -23,9 +23,8 @@ func TestKeeperNode(t *testing.T) {
 	ctx := context.Background()
 	cfg1 := config.NewDefaultConfig()
 	cfg1.Identity.Role = "keeper"
-	repo.InitFSRepoDirect(repoDir1, repo.LatestVersion, cfg1)
 
-	bn1 := startBaseNode(repoDir1, t)
+	bn1 := startBaseNode(repoDir1, cfg1, t)
 	defer bn1.Stop(ctx)
 
 	repoDir2 := "/home/fjt/testmemo1"
@@ -37,9 +36,7 @@ func TestKeeperNode(t *testing.T) {
 		"/ip6/::/tcp/7002",
 	}
 
-	repo.InitFSRepoDirect(repoDir2, repo.LatestVersion, cfg2)
-
-	bn2 := startBaseNode(repoDir2, t)
+	bn2 := startBaseNode(repoDir2, cfg2, t)
 	defer bn2.Stop(ctx)
 
 	repoDir3 := "/home/fjt/testmemo3"
@@ -51,9 +48,7 @@ func TestKeeperNode(t *testing.T) {
 		"/ip6/::/tcp/7003",
 	}
 
-	repo.InitFSRepoDirect(repoDir3, repo.LatestVersion, cfg3)
-
-	bn3 := startBaseNode(repoDir3, t)
+	bn3 := startBaseNode(repoDir3, cfg3, t)
 	defer bn3.Stop(ctx)
 
 	time.Sleep(1 * time.Second)
@@ -141,13 +136,13 @@ func TestKeeperNode(t *testing.T) {
 
 const pw = "memoriae"
 
-func startBaseNode(repoDir string, t *testing.T) *KeeperNode {
-	rp, err := repo.OpenFSRepo(repoDir, repo.LatestVersion)
+func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode {
+	rp, err := repo.NewFSRepo(repoDir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := minit.Init(context.Background(), rp, pw); err != nil {
+	if err := minit.Create(context.Background(), rp, pw); err != nil {
 		t.Fatal(err)
 	}
 
