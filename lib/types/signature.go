@@ -21,6 +21,6 @@ func (s *Signature) Serialize() ([]byte, error) {
 	return cbor.Marshal(s)
 }
 
-func (s *Signature) Deserilize(b []byte) error {
+func (s *Signature) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, s)
 }

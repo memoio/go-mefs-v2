@@ -94,7 +94,7 @@ func (m *Message) Hash() (types.MsgID, error) {
 	return types.NewMsgID(res), nil
 }
 
-func (m *Message) Deserilize(b []byte) (types.MsgID, error) {
+func (m *Message) Deserialize(b []byte) (types.MsgID, error) {
 	err := cbor.Unmarshal(b, m)
 	if err != nil {
 		return types.Undef, err
@@ -138,7 +138,7 @@ func (sm *SignedMessage) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (sm *SignedMessage) Deserilize(b []byte) error {
+func (sm *SignedMessage) Deserialize(b []byte) error {
 	if len(b) < 2 {
 		return ErrMsgLenShort
 	}
@@ -149,13 +149,13 @@ func (sm *SignedMessage) Deserilize(b []byte) error {
 	}
 
 	m := new(Message)
-	mid, err := m.Deserilize(b[2 : 2+rLen])
+	mid, err := m.Deserialize(b[2 : 2+rLen])
 	if err != nil {
 		return err
 	}
 
 	sig := new(types.Signature)
-	err = sig.Deserilize(b[2+rLen:])
+	err = sig.Deserialize(b[2+rLen:])
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	"github.com/memoio/go-mefs-v2/lib/txStore"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/submodule/role"
@@ -20,8 +21,8 @@ var (
 type SyncPool struct {
 	sync.Mutex
 	api.INetService
-
 	*role.RoleMgr
+	txStore.TxStore
 
 	ctx context.Context
 	ds  store.KVStore
@@ -46,7 +47,7 @@ func NewSyncPool(ctx context.Context, ds store.KVStore, rm *role.RoleMgr, ins ap
 	return sp
 }
 
-func (sp *SyncPool) AddBlock(tb *tx.Block) error {
+func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 	if tb.Height < sp.height {
 		return ErrLowHeight
 	}
@@ -59,7 +60,12 @@ func (sp *SyncPool) AddBlock(tb *tx.Block) error {
 	if !sp.RoleMgr.VerifyMulti(bid.Bytes(), tb.MultiSignature) {
 		return ErrInvalidSign
 	}
+
 	// store local
+	err = sp.PutTxBlock(tb)
+	if err != nil {
+		return err
+	}
 
 	sp.Lock()
 	defer sp.Unlock()
@@ -67,5 +73,21 @@ func (sp *SyncPool) AddBlock(tb *tx.Block) error {
 	sp.height = tb.Height
 	sp.blks[bid] = tb
 
+	return nil
+}
+
+// over network
+func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.Block, error) {
+	// fetch it over network
+
+	return nil, nil
+}
+
+func (sp *SyncPool) AddTxMsg(tb *tx.SignedMessage) error {
+	return nil
+}
+
+// fetch msg over network
+func (sp *SyncPool) GetTxMsgRemote() error {
 	return nil
 }

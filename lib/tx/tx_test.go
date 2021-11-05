@@ -37,7 +37,7 @@ func TestMessage(t *testing.T) {
 	}
 
 	nsm := new(SignedMessage)
-	err = nsm.Deserilize(sms)
+	err = nsm.Deserialize(sms)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestBlock(t *testing.T) {
 	}
 
 	nb := new(Block)
-	err = nb.Deserilize(bbyte)
+	err = nb.Deserialize(bbyte)
 	if err != nil {
 		t.Fatal(err)
 	}

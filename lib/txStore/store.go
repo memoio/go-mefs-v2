@@ -1,4 +1,4 @@
-package txPool
+package txStore
 
 import (
 	"context"
@@ -75,7 +75,7 @@ func (ts *TxStoreImpl) GetTXMsg(mid types.MsgID) (*tx.SignedMessage, error) {
 	}
 
 	sm := new(tx.SignedMessage)
-	err = sm.Deserilize(res)
+	err = sm.Deserialize(res)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*tx.Block, error) {
 	}
 
 	tb := new(tx.Block)
-	err = tb.Deserilize(res)
+	err = tb.Deserialize(res)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,27 @@ func (ts *TxStoreImpl) PutTxBlock(tb *tx.Block) error {
 
 	key = store.NewKey(pb.MetaType_Tx_HeightKey, tb.Height)
 
-	return ts.ds.Put(key, bid.Bytes())
+	err = ts.ds.Put(key, bid.Bytes())
+	if err != nil {
+		return err
+	}
+
+	// store msg state; for what?
+	for i, mes := range tb.Txs {
+		ms := &tx.TxMsgState{
+			BlockID: mes,
+			Height:  tb.Height,
+			Status:  tb.Receipts[i].Err,
+		}
+
+		msb, err := ms.Serialize()
+		if err == nil {
+			key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mes.String())
+			ts.ds.Put(key, msb)
+		}
+	}
+
+	return nil
 }
 
 func (ts *TxStoreImpl) GetTxBlockByHeight(ht uint64) (types.MsgID, error) {
@@ -183,4 +203,16 @@ func (ts *TxStoreImpl) GetTxBlockByHeight(ht uint64) (types.MsgID, error) {
 	ts.htCache.Add(ht, bid)
 
 	return bid, nil
+}
+
+func (ts *TxStoreImpl) GetTxMsgState(mid types.MsgID) (*tx.TxMsgState, error) {
+	key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mid.String())
+	val, err := ts.ds.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	tms := new(tx.TxMsgState)
+	err = tms.Deserialize(val)
+	return tms, err
 }

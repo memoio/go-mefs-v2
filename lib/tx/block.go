@@ -32,7 +32,7 @@ func (bh *BlockHeader) Hash() (types.MsgID, error) {
 	return types.NewMsgID(res), nil
 }
 
-func (bh *BlockHeader) Deserilize(b []byte) (types.MsgID, error) {
+func (bh *BlockHeader) Deserialize(b []byte) (types.MsgID, error) {
 	err := cbor.Unmarshal(b, bh)
 	if err != nil {
 		return types.Undef, err
@@ -70,7 +70,7 @@ func (b *Block) Serialize() ([]byte, error) {
 	return buf, nil
 }
 
-func (b *Block) Deserilize(d []byte) error {
+func (b *Block) Deserialize(d []byte) error {
 	if len(d) < 2 {
 		return ErrMsgLenShort
 	}
@@ -81,13 +81,13 @@ func (b *Block) Deserilize(d []byte) error {
 	}
 
 	bh := new(BlockHeader)
-	mid, err := bh.Deserilize(d[2 : 2+rLen])
+	mid, err := bh.Deserialize(d[2 : 2+rLen])
 	if err != nil {
 		return err
 	}
 
 	s := new(msign.MultiSignature)
-	err = s.Deserilize(d[2+rLen:])
+	err = s.Deserialize(d[2+rLen:])
 	if err != nil {
 		return err
 	}

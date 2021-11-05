@@ -9,11 +9,12 @@ package pb;
 message NetMessage {
 	
 	enum MsgType {
-		SayHello = 0;
-		Get = 1;
-		Put = 2;
-		PutPeer = 3;
-		SubmitTX = 4;
+		Err = 0;
+		SayHello = 1;
+		Get = 2;
+		Put = 3;
+		PutPeer = 4;
+		SubmitTX = 5;
 
     	// data message; user<->provider; offline ops
 		AskPrice = 6;     // 询价

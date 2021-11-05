@@ -9,9 +9,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/routing"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -50,8 +48,7 @@ type NetServiceImpl struct {
 
 	peers map[peer.ID]struct{}
 
-	rt routing.Routing
-	h  host.Host
+	ns *network.NetworkSubmodule
 
 	eventTopic *pubsub.Topic // used to find peerID depends on roleID
 	msgTopic   *pubsub.Topic
@@ -94,8 +91,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		roleID:         roleID,
 		netID:          ns.NetID(ctx),
 		ds:             ds,
-		rt:             ns.Router,
-		h:              ns.Host,
+		ns:             ns,
 		idMap:          make(map[uint64]peer.ID),
 		wants:          make(map[uint64]time.Time),
 		peers:          make(map[peer.ID]struct{}),
@@ -283,7 +279,7 @@ func (c *NetServiceImpl) handleIncomingMessage(ctx context.Context) {
 				// handle it
 				// umarshal pmsg data
 				sm := new(tx.SignedMessage)
-				err := sm.Deserilize(received.GetData())
+				err := sm.Deserialize(received.GetData())
 				if err == nil {
 					c.TxMsgHandle.Handle(ctx, sm)
 				}
@@ -311,7 +307,7 @@ func (c *NetServiceImpl) handleIncomingBlock(ctx context.Context) {
 				// handle it
 				// umarshal pmsg data
 				sm := new(tx.Block)
-				err := sm.Deserilize(received.GetData())
+				err := sm.Deserialize(received.GetData())
 				if err == nil {
 					c.BlockHandle.Handle(ctx, sm)
 				}

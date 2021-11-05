@@ -69,9 +69,27 @@ func (c *NetServiceImpl) PublishEvent(ctx context.Context, msg *pb.EventMessage)
 }
 
 // fetch
-func (c *NetServiceImpl) FetchMsg(ctx context.Context, msgID []byte) error {
+func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) {
 	// iter over connected peers
-	return nil
+	pinfos, err := c.ns.NetPeers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pi := range pinfos {
+		resp, err := c.GenericService.SendMetaRequest(ctx, pi.ID, pb.NetMessage_Get, key)
+		if err != nil {
+			continue
+		}
+
+		if resp.GetHeader().GetType() == pb.NetMessage_Err {
+			continue
+		}
+
+		return resp.GetData().GetMsgInfo(), nil
+	}
+
+	return nil, ErrTimeOut
 }
 
 func (c *NetServiceImpl) FetchBlock(ctx context.Context, msgID []byte) error {

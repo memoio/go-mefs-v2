@@ -46,6 +46,6 @@ func (ms *MultiSignature) Serialize() ([]byte, error) {
 	return cbor.Marshal(ms)
 }
 
-func (ms *MultiSignature) Deserilize(b []byte) error {
+func (ms *MultiSignature) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, ms)
 }
