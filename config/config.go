@@ -12,16 +12,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Validators hold the list of validation functions for each configuration
-// property. Validators must take a key and json string respectively as
-// arguments, and must return either an error or nil depending on whether or not
-// the given key and value are valid. Validators will only be run if a property
-// being set matches the name given in this map.
 var Validators = map[string]func(string, string) error{
 	"heartbeat.nickname": validateLettersOnly,
 }
 
-// Config is an in memory representation of the filecoin configuration file
 type Config struct {
 	Identity  IdentityConfig  `json:"identity"`
 	Wallet    WalletConfig    `json:"wallet"`
@@ -48,8 +42,28 @@ func newDefaultIdentityConfig() IdentityConfig {
 	}
 }
 
-// APIConfig holds all configuration options related to the api.
-// nolint
+type SwarmConfig struct {
+	Name string `json:"name"`
+	// addresses for the swarm to listen on
+	Addresses []string `json:"addresses"`
+
+	EnableRelay bool `json:"enableRelay"`
+
+	PublicRelayAddress string `json:"public_relay_address,omitempty"`
+}
+
+func newDefaultSwarmConfig() SwarmConfig {
+	return SwarmConfig{
+		Name: "devnet",
+		Addresses: []string{
+			"/ip4/0.0.0.0/tcp/7001",
+			"/ip6/::/tcp/7001",
+			"/ip4/0.0.0.0/udp/7001/quic",
+			"/ip6/::/udp/7001/quic",
+		},
+	}
+}
+
 type APIConfig struct {
 	APIAddress                    string   `json:"address"`
 	AccessControlAllowOrigin      []string `json:"accessControlAllowOrigin"`
@@ -70,7 +84,6 @@ func newDefaultAPIConfig() APIConfig {
 	}
 }
 
-// BootstrapConfig holds all configuration options related to bootstrap nodes
 type BootstrapConfig struct {
 	Addresses []string `json:"addresses"`
 }
@@ -89,13 +102,10 @@ type StorePathConfig struct {
 	VolumeDataPath  []string `json:"volumeDataPath"`
 }
 
-// TODO: provide bootstrap node addresses
 func newDefaultStorePathConfig() StorePathConfig {
 	return StorePathConfig{}
 }
 
-// NewDefaultConfig returns a config object with all the fields filled out to
-// their default values
 func NewDefaultConfig() *Config {
 
 	return &Config{
@@ -107,7 +117,6 @@ func NewDefaultConfig() *Config {
 	}
 }
 
-// WriteFile writes the config to the given filepath.
 func (cfg *Config) WriteFile(file string) error {
 	f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
@@ -124,7 +133,6 @@ func (cfg *Config) WriteFile(file string) error {
 	return err
 }
 
-// ReadFile reads a config file from disk.
 func ReadFile(file string) (*Config, error) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -148,8 +156,6 @@ func ReadFile(file string) (*Config, error) {
 	return cfg, nil
 }
 
-// Set sets the config sub-struct referenced by `key`, e.g. 'api.address'
-// or 'datastore' to the json key value pair encoded in jsonVal.
 func (cfg *Config) Set(dottedKey string, jsonString string) error {
 	if !json.Valid([]byte(jsonString)) {
 		jsonBytes, _ := json.Marshal(jsonString)
@@ -171,7 +177,6 @@ func (cfg *Config) Set(dottedKey string, jsonString string) error {
 	return decoder.Decode(&cfg)
 }
 
-// Get gets the config sub-struct referenced by `key`, e.g. 'api.address'
 func (cfg *Config) Get(key string) (interface{}, error) {
 	v := reflect.Indirect(reflect.ValueOf(cfg))
 	keyTags := strings.Split(key, ".")

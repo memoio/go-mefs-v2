@@ -2,7 +2,6 @@ package generic
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -23,23 +22,6 @@ func newSubscriberNotifiee(service *GenericService) (*subscriberNotifee, error) 
 	}
 
 	return nn, nil
-}
-
-func (nn *subscriberNotifee) Connected(n network.Network, v network.Conn) {
-	service := nn.service
-
-	p := v.RemotePeer()
-
-	// Lock and check to see if we're still connected. We lock to make sure
-	// we don't concurrently process a connect event.
-	service.plk.Lock()
-	defer service.plk.Unlock()
-	if service.Host().Network().Connectedness(p) == network.NotConnected {
-		// We're not connected.
-		return
-	}
-
-	fmt.Println("local and remote: ", v.LocalPeer().Pretty(), p.Pretty())
 }
 
 type disconnector interface {
@@ -74,6 +56,7 @@ func (nn *subscriberNotifee) Disconnected(n network.Network, v network.Conn) {
 	ms.OnDisconnect(service.Context(), p)
 }
 
+func (nn *subscriberNotifee) Connected(n network.Network, v network.Conn)  {}
 func (nn *subscriberNotifee) OpenedStream(network.Network, network.Stream) {}
 func (nn *subscriberNotifee) ClosedStream(network.Network, network.Stream) {}
 func (nn *subscriberNotifee) Listen(network.Network, ma.Multiaddr)         {}

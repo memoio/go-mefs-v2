@@ -2,15 +2,18 @@ package main
 
 import (
 	"fmt"
+	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"sort"
 	"strings"
 
+	mprome "github.com/ipfs/go-metrics-prometheus"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
@@ -55,6 +58,12 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonFunc(cctx *cli.Context) (_err error) {
+	err := mprome.Inject()
+	if err != nil {
+		fmt.Errorf("Injecting prometheus handler for metrics failed with message: %s\n", err.Error())
+		return err
+	}
+
 	// let the user know we're going.
 	fmt.Printf("Initializing daemon...\n")
 
@@ -68,6 +77,12 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	}()
 
 	printVersion()
+
+	stopFunc, err := minit.ProfileIfEnabled()
+	if err != nil {
+		return err
+	}
+	defer stopFunc()
 
 	repoDir := cctx.String(cmd.FlagNodeRepo)
 

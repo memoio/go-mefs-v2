@@ -11,6 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/keeper"
@@ -69,6 +70,12 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	}()
 
 	printVersion()
+
+	stopFunc, err := minit.ProfileIfEnabled()
+	if err != nil {
+		return err
+	}
+	defer stopFunc()
 
 	repoDir := cctx.String(cmd.FlagNodeRepo)
 

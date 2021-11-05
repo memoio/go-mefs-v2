@@ -25,9 +25,9 @@ import (
 
 var logger = logging.Logger("netApp")
 
-var _ api.INetService = (*NetServiceImpl)(nil)
-
 var ErrTimeOut = errors.New("time out")
+
+var _ api.INetService = (*NetServiceImpl)(nil)
 
 // wrap net interface
 type NetServiceImpl struct {

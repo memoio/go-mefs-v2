@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -161,8 +162,10 @@ func (n *BaseNode) RunDaemon(ready chan interface{}) error {
 
 	handler := http.NewServeMux()
 	handler.Handle("/rpc/v0", n.RPCServer)
+	handler.Handle("/", http.DefaultServeMux)
+	handler.Handle("/debug/metrics", exporter())
 
-	// todo: add auth
+	// add auth
 	ah := &auth.Handler{
 		Verify: n.AuthVerify,
 		Next:   handler.ServeHTTP,

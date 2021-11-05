@@ -3,6 +3,7 @@ module github.com/memoio/go-mefs-v2
 go 1.15
 
 require (
+	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/bits-and-blooms/bitset v1.2.1
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/celestiaorg/smt v0.0.0-20210714161708-2c9076637cd9
@@ -21,6 +22,7 @@ require (
 	github.com/ipfs/go-cid v0.1.0 // indirect
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-fs-lock v0.0.7
+	github.com/ipfs/go-metrics-prometheus v0.0.2
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
 	github.com/klauspost/reedsolomon v1.9.13
@@ -44,6 +46,7 @@ require (
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.11.0
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/urfave/cli/v2 v2.3.0

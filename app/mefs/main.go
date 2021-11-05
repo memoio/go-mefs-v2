@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	_ "net/http/pprof"
 	"os"
 
 	"github.com/urfave/cli/v2"

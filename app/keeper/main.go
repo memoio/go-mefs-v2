@@ -9,7 +9,6 @@ import (
 	"github.com/memoio/go-mefs-v2/app/cmd"
 )
 
-// full compatible with ipfs
 func main() {
 	local := []*cli.Command{
 		DaemonCmd,

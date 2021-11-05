@@ -1,18 +1,26 @@
 package config
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/mitchellh/go-homedir"
+)
 
 func TestConfig(t *testing.T) {
 	cfg := NewDefaultConfig()
 
-	err := cfg.WriteFile("/home/fjt/test/config1")
+	cfgName, _ := homedir.Expand("~/test/config1")
+
+	err := cfg.WriteFile(cfgName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	cfg.Set("swarm.EnableRelay", "true")
 
-	err = cfg.WriteFile("/home/fjt/test/config2")
+	cfgName2, _ := homedir.Expand("~/test/config2")
+
+	err = cfg.WriteFile(cfgName2)
 	if err != nil {
 		t.Fatal(err)
 	}

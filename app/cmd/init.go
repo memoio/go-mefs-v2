@@ -10,7 +10,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/repo"
 )
 
-var logger = logging.Logger("main")
+var logger = logging.Logger("cmd")
 
 const (
 	FlagNodeRepo = "repo"
