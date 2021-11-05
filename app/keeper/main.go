@@ -6,16 +6,16 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	generic_cmd "github.com/memoio/go-mefs-v2/app/generic"
+	"github.com/memoio/go-mefs-v2/app/cmd"
 )
 
 // full compatible with ipfs
 func main() {
 	local := []*cli.Command{
 		DaemonCmd,
-		generic_cmd.InitCmd,
-		generic_cmd.AuthCmd,
-		generic_cmd.WalletCmd,
+		cmd.InitCmd,
+		cmd.AuthCmd,
+		cmd.WalletCmd,
 	}
 	//no ipfs commands
 	app := &cli.App{
@@ -25,13 +25,13 @@ func main() {
 		EnableBashCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    generic_cmd.FlagNodeRepo,
+				Name:    cmd.FlagNodeRepo,
 				EnvVars: []string{"MEMO_PATH"},
 				Value:   "~/.memo",
 				Usage:   "Specify memoriae path.",
 			},
 			&cli.StringFlag{
-				Name:  generic_cmd.FlagRoleType,
+				Name:  cmd.FlagRoleType,
 				Value: "keeper",
 				Usage: "set role type.",
 			},

@@ -10,11 +10,11 @@ import (
 	badger "github.com/dgraph-io/badger/v2"
 	"go.uber.org/zap"
 
-	logger "github.com/memoio/go-mefs-v2/lib/log"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-var log = logger.Logger("badger")
+var logger = logging.Logger("badger")
 
 var ErrClosed = errors.New("badger closed")
 
@@ -109,7 +109,7 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 
 	opt.Dir = path
 	opt.ValueDir = path
-	opt.Logger = &compatLogger{log}
+	opt.Logger = &compatLogger{logger}
 
 	kv, err := badger.Open(opt)
 	if err != nil {
@@ -130,6 +130,7 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 		go ds.periodicGC()
 	}
 
+	logger.Info("start badger ds")
 	return ds, nil
 }
 
@@ -152,7 +153,7 @@ func (d *BadgerStore) periodicGC() {
 			case ErrClosed:
 				return
 			default:
-				log.Errorf("error during a GC cycle: %s", err)
+				logger.Errorf("error during a GC cycle: %s", err)
 				// Not much we can do on a random error but log it and continue.
 				gcTimeout.Reset(d.gcInterval)
 			}

@@ -10,11 +10,11 @@ import (
 	wtype "github.com/chrislusf/seaweedfs/weed/storage/types"
 	"github.com/mr-tron/base58/base58"
 
-	"github.com/memoio/go-mefs-v2/lib/log"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-var logger = log.Logger("volume")
+var logger = logging.Logger("volume")
 
 var _ store.FileStore = (*Weed)(nil)
 

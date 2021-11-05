@@ -1,4 +1,4 @@
-package generic
+package cmd
 
 import (
 	"github.com/urfave/cli/v2"
@@ -10,7 +10,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/repo"
 )
 
-var log = logging.Logger("main")
+var logger = logging.Logger("main")
 
 const (
 	FlagNodeRepo = "repo"
@@ -28,9 +28,9 @@ var InitCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		log.Info("Initializing memoriae node")
+		logger.Info("Initializing memoriae node")
 
-		log.Info("Checking if repo exists")
+		logger.Info("Checking if repo exists")
 
 		repoDir := cctx.String(FlagNodeRepo)
 
@@ -42,7 +42,7 @@ var InitCmd = &cli.Command{
 			return xerrors.Errorf("repo at '%s' is already initialized", repoDir)
 		}
 
-		log.Infof("Initializing repo at '%s'", repoDir)
+		logger.Infof("Initializing repo at '%s'", repoDir)
 
 		if err := repo.InitFSRepo(repoDir, repo.LatestVersion, config.NewDefaultConfig()); err != nil {
 			return err
@@ -73,12 +73,12 @@ func InitRun(cctx *cli.Context) error {
 	password := cctx.String("password")
 
 	if err := minit.Init(cctx.Context, rep, password); err != nil {
-		log.Errorf("Error initializing node %s", err)
+		logger.Errorf("Error initializing node %s", err)
 		return err
 	}
 
 	if err := rep.ReplaceConfig(rep.Config()); err != nil {
-		log.Errorf("Error replacing config %s", err)
+		logger.Errorf("Error replacing config %s", err)
 		return err
 	}
 

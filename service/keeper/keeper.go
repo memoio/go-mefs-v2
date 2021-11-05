@@ -12,7 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
-var logger = logging.Logger("basenode")
+var logger = logging.Logger("keeper")
 
 var _ api.FullNode = (*KeeperNode)(nil)
 

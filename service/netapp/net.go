@@ -23,7 +23,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
-var logger = logging.Logger("NetApp")
+var logger = logging.Logger("netApp")
 
 var _ api.INetService = (*NetServiceImpl)(nil)
 

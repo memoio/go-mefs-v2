@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/txStore"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -79,8 +80,14 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 // over network
 func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.Block, error) {
 	// fetch it over network
-
-	return nil, nil
+	key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
+	res, err := sp.INetService.Fetch(sp.ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	tb := new(tx.Block)
+	err = tb.Deserialize(res)
+	return tb, err
 }
 
 func (sp *SyncPool) AddTxMsg(tb *tx.SignedMessage) error {
@@ -88,6 +95,13 @@ func (sp *SyncPool) AddTxMsg(tb *tx.SignedMessage) error {
 }
 
 // fetch msg over network
-func (sp *SyncPool) GetTxMsgRemote() error {
-	return nil
+func (sp *SyncPool) GetTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
+	key := store.NewKey(pb.MetaType_TX_MessageKey, mid.String())
+	res, err := sp.INetService.Fetch(sp.ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	sm := new(tx.SignedMessage)
+	err = sm.Deserialize(res)
+	return sm, err
 }

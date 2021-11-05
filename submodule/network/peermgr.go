@@ -119,7 +119,7 @@ func (pmgr *PeerMgr) Disconnect(p peer.ID) {
 }
 
 func (pmgr *PeerMgr) Stop(ctx context.Context) error {
-	log.Warn("closing peermgr done")
+	logger.Warn("closing peermgr done")
 	_ = pmgr.peerEmitter.Close()
 	close(pmgr.done)
 	return nil
@@ -134,10 +134,10 @@ func (pmgr *PeerMgr) Run(ctx context.Context) {
 			if pcount < pmgr.minPeers {
 				pmgr.expandPeers()
 			} else if pcount > pmgr.maxPeers {
-				log.Debugf("peer count about threshold: %d > %d", pcount, pmgr.maxPeers)
+				logger.Debugf("peer count about threshold: %d > %d", pcount, pmgr.maxPeers)
 			}
 		case <-pmgr.done:
-			log.Warn("exiting peermgr run")
+			logger.Warn("exiting peermgr run")
 			return
 		}
 	}
@@ -170,14 +170,14 @@ func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 	pcount := pmgr.getPeerCount()
 	if pcount == 0 {
 		if len(pmgr.bootstrappers) == 0 {
-			log.Warn("no peers connected, and no bootstrappers configured")
+			logger.Warn("no peers connected, and no bootstrappers configured")
 			return
 		}
 
-		log.Info("connecting to bootstrap peers")
+		logger.Info("connecting to bootstrap peers")
 		for _, bsp := range pmgr.bootstrappers {
 			if err := pmgr.h.Connect(ctx, bsp); err != nil {
-				log.Warnf("failed to connect to bootstrap peer: %s", err)
+				logger.Warnf("failed to connect to bootstrap peer: %s", err)
 			}
 		}
 		return
@@ -185,7 +185,7 @@ func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 
 	// if we already have some peers and need more, the dht is really good at connecting to most peers. Use that for now until something better comes along.
 	if err := pmgr.dht.Bootstrap(ctx); err != nil {
-		log.Warnf("dht bootstrapping failed: %s", err)
+		logger.Warnf("dht bootstrapping failed: %s", err)
 	}
 }
 

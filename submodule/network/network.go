@@ -125,7 +125,8 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 
 	mdnsdisc, err := SetupDiscovery(ctx, peerHost, DiscoveryHandler(ctx, peerHost))
 	if err != nil {
-		log.Error("Setup Discovery falied, error:", err)
+		logger.Error("Setup Discovery falied, error:", err)
+		return nil, err
 	}
 
 	// Set up pubsub

@@ -19,7 +19,7 @@ import (
 	manet "github.com/multiformats/go-multiaddr/net"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/lib/log"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/netapp"
@@ -30,7 +30,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
-var logger = log.Logger("basenode")
+var logger = logging.Logger("basenode")
 
 var _ api.FullNode = (*BaseNode)(nil)
 
@@ -63,10 +63,26 @@ func (n *BaseNode) Start() error {
 
 	go n.test()
 
+	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
+
 	n.RPCServer = jsonrpc.NewServer()
 	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
 
 	return nil
+}
+
+func (n *BaseNode) HandleGet(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	fmt.Println("handle get msg from: ", p.Pretty())
+
+	resp := new(pb.NetMessage)
+	val, err := n.MetaStore().Get(mes.GetData().GetMsgInfo())
+	if err != nil {
+		return resp, nil
+	}
+
+	resp.Data.MsgInfo = val
+
+	return resp, nil
 }
 
 func (n *BaseNode) test() error {

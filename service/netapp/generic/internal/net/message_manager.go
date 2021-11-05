@@ -15,7 +15,7 @@ import (
 	"github.com/libp2p/go-msgio"
 	"github.com/libp2p/go-msgio/protoio"
 
-	"github.com/memoio/go-mefs-v2/lib/log"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal"
 )
@@ -25,7 +25,7 @@ var dhtReadMessageTimeout = 10 * time.Second
 // ErrReadTimeout is an error that occurs when no message is read within the timeout period.
 var ErrReadTimeout = fmt.Errorf("timed out reading response")
 
-var logger = log.Logger("net")
+var logger = logging.Logger("net")
 
 // MessageSender handles sending wire protocol messages to a given peer
 type MessageSender interface {

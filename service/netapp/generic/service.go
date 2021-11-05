@@ -12,13 +12,13 @@ import (
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
 
 	"github.com/memoio/go-mefs-v2/build"
-	"github.com/memoio/go-mefs-v2/lib/log"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal/net"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
-var logger = log.Logger("generic_service")
+var logger = logging.Logger("generic")
 
 type GenericService struct {
 	handler.MsgHandle

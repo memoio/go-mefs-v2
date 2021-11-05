@@ -10,7 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/urfave/cli/v2"
 
-	generic_cmd "github.com/memoio/go-mefs-v2/app/generic"
+	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/keeper"
@@ -70,10 +70,10 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 
 	printVersion()
 
-	repoDir := cctx.String(generic_cmd.FlagNodeRepo)
+	repoDir := cctx.String(cmd.FlagNodeRepo)
 
 	// third precedence is config file.
-	rep, err := generic_cmd.OpenRepo(repoDir)
+	rep, err := cmd.OpenRepo(repoDir)
 	if err != nil {
 		return err
 	}

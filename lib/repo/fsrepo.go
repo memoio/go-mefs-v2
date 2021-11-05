@@ -49,7 +49,7 @@ const (
 	metaStorePrefix = "meta" // key prefix
 )
 
-var log = logging.Logger("repo")
+var logger = logging.Logger("repo")
 
 // FSRepo is a repo implementation backed by a filesystem.
 type FSRepo struct {

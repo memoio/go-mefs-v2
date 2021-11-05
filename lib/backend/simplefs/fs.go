@@ -6,11 +6,11 @@ import (
 	"os"
 	"path"
 
-	logger "github.com/memoio/go-mefs-v2/lib/log"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-var log = logger.Logger("simplefs")
+var logger = logging.Logger("simplefs")
 
 var _ store.FileStore = (*SimpleFs)(nil)
 
@@ -24,7 +24,7 @@ func NewSimpleFs(dir string) (*SimpleFs, error) {
 		return nil, err
 	}
 
-	log.Info("create simplefs at:", dir)
+	logger.Info("create simplefs at:", dir)
 
 	return &SimpleFs{dir}, nil
 }
