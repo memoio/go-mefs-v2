@@ -27,7 +27,8 @@ type SyncPool struct {
 	ctx context.Context
 	ds  store.KVStore
 
-	height uint64
+	syncedHeight uint64
+	remoteHeight uint64
 
 	blks  map[types.MsgID]*tx.Block // need?
 	nonce map[uint64]uint64
@@ -41,6 +42,9 @@ func NewSyncPool(ctx context.Context, ds store.KVStore, rm *role.RoleMgr, ins ap
 		ds:          ds,
 		ctx:         ctx,
 
+		syncedHeight: 0,
+		remoteHeight: 0,
+
 		nonce: make(map[uint64]uint64),
 		blks:  make(map[types.MsgID]*tx.Block),
 	}
@@ -48,7 +52,7 @@ func NewSyncPool(ctx context.Context, ds store.KVStore, rm *role.RoleMgr, ins ap
 }
 
 func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
-	if tb.Height < sp.height {
+	if tb.Height < sp.syncedHeight {
 		return ErrLowHeight
 	}
 	bid, err := tb.Hash()
@@ -70,10 +74,13 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 	sp.Lock()
 	defer sp.Unlock()
 
-	sp.height = tb.Height
+	sp.syncedHeight = tb.Height
 	sp.blks[bid] = tb
 
 	return nil
+}
+
+func (sp *SyncPool) process() {
 }
 
 // over network
