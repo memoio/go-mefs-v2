@@ -24,10 +24,6 @@ enum MetaType {
     LFS_OpCountKey = 15;      // key: x/userID/bucketID; val: op number
     LFS_StripeCountKey = 16;  // key: x/userID/bucketID; val: stripe number
 
-	Tx_HeightKey = 17;		  // key: x/blockHeight; value: blk hash,	
-	TX_MessageKey = 18;       // key: x/messageHash; value: message content, sign
-	TX_BlockKey = 19;         // key: x/blockHash; value: blk content, 
-
 	// key in state tree
 	ST_GasMoneyKey = 20;     // key: x/type/id; val: gasMoney  
 	ST_RoleInfoKey = 21;     // key: x/type/id; val: roleInfo
@@ -55,6 +51,11 @@ enum MetaType {
 	OrderNonceKey = 50;   // key: x/userID/proID; value: nonce
 	OrderBaseKey = 51;    // key x/userID/proID/nonce; value: OrderBase
 	OrderSeqKey = 52;     // key x/userID/proID/nonce/seqnum; value: OrderSeq
+		
+	TX_MessageKey = 60;       // key: x/messageHash; value: message content, sign
+	Tx_MessageStateKey = 61;  // key: x/messageHash; value: blkID, height, status
+	TX_BlockKey = 62;         // key: x/blockHash; value: blk content, 
+	Tx_HeightKey = 63;		  // key: x/blockHeight; value: blk hash	
 }
 
 //    =============  lfs information  ================

@@ -1,24 +1,29 @@
 package txPool
 
 import (
-	"bytes"
 	"context"
-	"strconv"
 
 	lru "github.com/hashicorp/golang-lru"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-var (
-	TxMesKey    = []byte(strconv.Itoa(int(pb.MetaType_TX_MessageKey)))
-	TxBlockKey  = []byte(strconv.Itoa(int(pb.MetaType_TX_BlockKey)))
-	TxHeightKey = []byte(strconv.Itoa(int(pb.MetaType_Tx_HeightKey)))
-)
+type TxStore interface {
+	GetTXMsg(mid types.MsgID) (*tx.SignedMessage, error)
+	PutTXMsg(sm *tx.SignedMessage) error
 
-type TxStore struct {
+	GetTxBlock(bid types.MsgID) (*tx.Block, error)
+	PutTxBlock(tb *tx.Block) error
+
+	GetTxBlockByHeight(ht uint64) (types.MsgID, error)
+}
+
+var _ TxStore = (*TxStoreImpl)(nil)
+
+type TxStoreImpl struct {
 	ctx context.Context
 	ds  store.KVStore
 
@@ -28,8 +33,7 @@ type TxStore struct {
 	htCache *lru.ARCCache
 }
 
-func NewTxStore(ctx context.Context, ds store.KVStore) (*TxStore, error) {
-
+func NewTxStore(ctx context.Context, ds store.KVStore) (*TxStoreImpl, error) {
 	mc, err := lru.NewARC(1024)
 	if err != nil {
 		return nil, err
@@ -45,7 +49,7 @@ func NewTxStore(ctx context.Context, ds store.KVStore) (*TxStore, error) {
 		return nil, err
 	}
 
-	ts := &TxStore{
+	ts := &TxStoreImpl{
 		ctx: ctx,
 		ds:  ds,
 
@@ -57,13 +61,13 @@ func NewTxStore(ctx context.Context, ds store.KVStore) (*TxStore, error) {
 	return ts, nil
 }
 
-func (ts *TxStore) GetTXMsg(mid types.MsgID) (*tx.SignedMessage, error) {
+func (ts *TxStoreImpl) GetTXMsg(mid types.MsgID) (*tx.SignedMessage, error) {
 	val, ok := ts.msgCache.Get(mid)
 	if ok {
 		return val.(*tx.SignedMessage), nil
 	}
 
-	key := concat(TxMesKey, mid.Bytes())
+	key := store.NewKey(pb.MetaType_TX_MessageKey, mid.String())
 
 	res, err := ts.ds.Get(key)
 	if err != nil {
@@ -81,7 +85,7 @@ func (ts *TxStore) GetTXMsg(mid types.MsgID) (*tx.SignedMessage, error) {
 	return sm, nil
 }
 
-func (ts *TxStore) PutTXMsg(sm *tx.SignedMessage) error {
+func (ts *TxStoreImpl) PutTXMsg(sm *tx.SignedMessage) error {
 	mid, err := sm.Hash()
 	if err != nil {
 		return err
@@ -92,7 +96,7 @@ func (ts *TxStore) PutTXMsg(sm *tx.SignedMessage) error {
 		return nil
 	}
 
-	key := concat(TxMesKey, mid.Bytes())
+	key := store.NewKey(pb.MetaType_TX_MessageKey, mid.String())
 	sbyte, err := sm.Serialize()
 	if err != nil {
 		return err
@@ -103,22 +107,80 @@ func (ts *TxStore) PutTXMsg(sm *tx.SignedMessage) error {
 	return ts.ds.Put(key, sbyte)
 }
 
-func (ts *TxStore) GetTxBlock(types.MsgID) (*tx.Block, error) {
-	return nil, nil
-}
-
-func (ts *TxStore) PutTxBlock(tb *tx.Block) error {
-	return nil
-}
-
-func (ts *TxStore) GetTxBlockByHeight(ht uint64) (*tx.Block, error) {
-	return nil, nil
-}
-
-func concat(vs ...[]byte) []byte {
-	var b bytes.Buffer
-	for _, v := range vs {
-		b.Write(v)
+func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*tx.Block, error) {
+	val, ok := ts.blkCache.Get(bid)
+	if ok {
+		return val.(*tx.Block), nil
 	}
-	return b.Bytes()
+
+	key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
+
+	res, err := ts.ds.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	tb := new(tx.Block)
+	err = tb.Deserilize(res)
+	if err != nil {
+		return nil, err
+	}
+
+	ts.blkCache.Add(bid, tb)
+
+	return tb, nil
+}
+
+func (ts *TxStoreImpl) PutTxBlock(tb *tx.Block) error {
+	bid, err := tb.Hash()
+	if err != nil {
+		return err
+	}
+
+	ok := ts.blkCache.Contains(bid)
+	if ok {
+		return nil
+	}
+
+	ts.blkCache.Add(bid, tb)
+	ts.htCache.Add(tb.Height, bid)
+
+	key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
+	sbyte, err := tb.Serialize()
+	if err != nil {
+		return err
+	}
+
+	err = ts.ds.Put(key, sbyte)
+	if err != nil {
+		return err
+	}
+
+	key = store.NewKey(pb.MetaType_Tx_HeightKey, tb.Height)
+
+	return ts.ds.Put(key, bid.Bytes())
+}
+
+func (ts *TxStoreImpl) GetTxBlockByHeight(ht uint64) (types.MsgID, error) {
+	bid := types.MsgID{}
+	val, ok := ts.htCache.Get(ht)
+	if ok {
+		return val.(types.MsgID), nil
+	}
+
+	key := store.NewKey(pb.MetaType_Tx_HeightKey, ht)
+
+	res, err := ts.ds.Get(key)
+	if err != nil {
+		return bid, err
+	}
+
+	bid, err = types.FromBytes(res)
+	if err != nil {
+		return bid, err
+	}
+
+	ts.htCache.Add(ht, bid)
+
+	return bid, nil
 }
