@@ -16,13 +16,15 @@ enum MetaType {
 	FsMemberKey = 7;          // key: x/userID: val: keepers/providers
 
    	// lfs meta
-    LFS_BucketCountKey = 10;  // key: x/userID; val: bucketNumber
-    LFS_BucketOptionKey = 11; // key: x/userID/bucketID; val: BucketOption
-    LFS_BucketInfoKey = 12;   // key: x/userID/bucketID; val: BucketInfo
-    LFS_OpInfoKey = 13;       // key: x/userID/bucketID/opID; val: BucketRecord
-    LFS_OpDoneKey = 14;		  // key: x/userID/bucketID; val: opdone number	 
-    LFS_OpCountKey = 15;      // key: x/userID/bucketID; val: op number
-    LFS_StripeCountKey = 16;  // key: x/userID/bucketID; val: stripe number
+	LFS_SuperBlockInfoKey = 10; // key: x/fsID; val: SuperBlockInfo
+	LFS_BucketInfoKey = 11;     // key: x/fsID/bucketID; val: BucketInfo
+	LFS_ObjectInfoKey = 12;     // key: x/fsID/bucketID/objectID; val: OpIDs
+	
+    LFS_BucketOptionKey = 13; // key: x/fsID/bucketID; val: BucketOption 
+    LFS_OpInfoKey = 14;       // key: x/fsID/bucketID/opID; val: BucketRecord
+    LFS_OpDoneKey = 16;		  // key: x/fsID/bucketID; val: opdone number	 
+    LFS_OpCountKey = 17;      // key: x/fsID/bucketID; val: op number
+    LFS_StripeCountKey = 18;  // key: x/fsID/bucketID; val: stripe number
 
 	// key in state tree
 	ST_GasMoneyKey = 20;     // key: x/type/id; val: gasMoney  
@@ -59,6 +61,14 @@ enum MetaType {
 }
 
 //    =============  lfs information  ================
+
+// 'SuperBlockInfoKey'/fsID
+message SuperBlockInfo {
+	uint32 Version      = 1;         
+	uint32 ReplicaNum = 2;
+	uint64 NextBucketID = 3;
+}
+
 // 'BucketCountKey'/fsID
 // 'StripeCountKey'/fsID/bucketID
 // key: 'BucketOptionKey'/fsID/bucketID
@@ -74,52 +84,61 @@ message BucketOption {
 // key: 'BucketInfoKey'/fsID/bucketID
 message BucketInfo {
 	uint64 BucketID = 1;
-	uint64 CTime = 2;   // create time
-	uint64 MTime = 3;   // modify time
-	uint64 Size = 4;    
-	uint64 UsedBytes = 5;
-	uint64 ObjectCount = 6; // next avail
-	uint64 OpCount = 7;
+	int64 CTime = 2;      // create time
+	int64 MTime = 3;      // modify time
+	uint64 Length = 4;     // data_count * segSize 
+	uint64 UsedBytes = 5;  // chunk_count * (segSize + prefix + tagCount*tagSize)
+	uint64 NextObjectID = 6;
+	uint64 NextOpID = 7;  
 	bool deletion = 8;
 	string Name = 9;
 	bytes Root = 10;  // merkle root of ops; used for verify
+}
+
+message ObjectForm {
+	repeated uint64 OpRecord = 1;
 }
 
 // object information; when create object 
 message ObjectInfo {
 	uint64 ObjectID = 1;
 	uint64 BucketID = 2;
-	uint64 Time = 3;
+	int64 Time = 3;  
 	uint64 Expire = 4;
 	string Name = 5;
 	string Encryption = 6; // enc method
 }
 
+// object delete information; when delete object 
+message ObjectDeleteInfo {
+    uint64  ObjectID = 1;
+    int64  Time     = 2;
+}
+
 // opart informations, insert into object when add data to an existing object
-message PartInfo {
+message ObjectPartInfo {
 	uint64 ObjectID = 1;          // 此分块所属的ObjectID
-	uint64 OpID = 2;              // 此分块的ID
-	uint64 Time = 3;              // append此Part的时间
-	uint64 Offset = 4;            // offset in bucket space  
-	uint64 Size = 5;              // 对象长度
-	uint64 UsedBytes = 6;         //  
-	bytes ETag = 7;               // MD5
+	int64 Time = 2;              // append此Part的时间
+	uint64 Offset = 3;            // offset in bucket space  
+	uint64 Length = 4;            // 对象长度
+	uint64 UsedBytes = 5;         //  
+	bytes ETag = 7;               // MD5 of this part
 }
 
 // 'OpDoneKey'/fsID/bucketID
 // 'OpCountKey'/fsID/bucketID
 // key: 'OpInfoKey'/fsID/bucketID/opID
-message BucketRecord {
+message OpRecord {
     enum OpType {
 	    Unknown = 0; 
 	    CreateObject = 1;     // create an object; payload is ObjectInfo
 	    AddData = 2;          // add data to objec; payload is PartInfo
-	    DeleteObject = 3;     // delete an object; payload is objectID
+	    DeleteObject = 3;     // delete an object; payload is DeleteObject
     }
 
 	OpType Type = 1;
 	uint64 OpID = 2;
-	uint64 Time = 3;  // time of this op
+	int64 Time = 3;  // time of this op, need ?
 	bytes Payload = 4;    
 }
 

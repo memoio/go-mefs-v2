@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"io"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/libp2p/go-libp2p-core/metrics"
@@ -79,4 +80,21 @@ type INetService interface {
 	PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error
 	PublishTxBlock(ctx context.Context, msg *tx.Block) error
 	PublishEvent(ctx context.Context, msg *pb.EventMessage) error
+}
+
+type ILfsService interface {
+	ListBuckets(ctx context.Context, prefix string) ([]*types.BucketInfo, error)
+	CreateBucket(ctx context.Context, bucketName string, options *pb.BucketOption) (*types.BucketInfo, error)
+	HeadBucket(ctx context.Context, bucketName string) (*types.BucketInfo, error)
+	DeleteBucket(ctx context.Context, bucketName string) (*types.BucketInfo, error)
+
+	ListObjects(ctx context.Context, bucketName string, opts types.ListObjectsOptions) ([]*types.ObjectInfo, error)
+
+	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts types.PutObjectOptions) (*types.ObjectInfo, error)
+	GetObject(ctx context.Context, bucketName, objectName string, writer io.Writer, completeFuncs []types.CompleteFunc, opts types.DownloadObjectOptions) error
+	HeadObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)
+	DeleteObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)
+
+	ShowStorage(ctx context.Context) (uint64, error)
+	ShowBucketStorage(ctx context.Context, bucketName string) (uint64, error)
 }

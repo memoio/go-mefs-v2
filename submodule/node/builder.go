@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/libp2p/go-libp2p"
 	"github.com/pkg/errors"
 
@@ -202,6 +203,8 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.ConfigModule = mconfig.NewConfigModule(b.repo)
 
 	nd.JwtAuth = jauth
+
+	nd.RPCServer = jsonrpc.NewServer()
 
 	return nd, nil
 }

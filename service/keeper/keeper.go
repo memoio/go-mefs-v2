@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -45,7 +44,6 @@ func (k *KeeperNode) Start() error {
 
 	k.TxMsgHandle.Register(tx.DataTxErr, k.defaultPubsubHandler)
 
-	k.RPCServer = jsonrpc.NewServer()
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
 
 	logger.Info("start keeper for: ", k.RoleID())

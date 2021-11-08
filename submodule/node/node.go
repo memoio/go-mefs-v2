@@ -65,7 +65,6 @@ func (n *BaseNode) Start() error {
 
 	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
 
-	n.RPCServer = jsonrpc.NewServer()
 	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
 
 	return nil
