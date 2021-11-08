@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 
@@ -71,6 +70,6 @@ func (i *EventImpl) Close() {
 }
 
 func defaultEventHandler(ctx context.Context, msg *pb.EventMessage) error {
-	fmt.Println("received event unknown msg")
+	log.Println("received event unknown msg")
 	return nil
 }

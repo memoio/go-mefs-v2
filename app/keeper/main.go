@@ -7,7 +7,10 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
+
+var logger = logging.Logger("mefs")
 
 func main() {
 	local := []*cli.Command{
@@ -16,7 +19,7 @@ func main() {
 		cmd.AuthCmd,
 		cmd.WalletCmd,
 	}
-	//no ipfs commands
+
 	app := &cli.App{
 		Name:                 "mefs-keeper",
 		Usage:                "Memoriae decentralized storage network node",

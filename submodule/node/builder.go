@@ -161,8 +161,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	networkName := cfg.Net.Name + "/group" + strconv.Itoa(int(gid))
 
-	fmt.Println("networkName is :", networkName)
-	fmt.Println("password is:", b.walletPassword)
+	logger.Debug("networkName is :", networkName)
 
 	nd.NetworkSubmodule, err = network.NewNetworkSubmodule(ctx, (*builder)(b), b.repo.Config(), b.repo.MetaStore(), networkName)
 	if err != nil {

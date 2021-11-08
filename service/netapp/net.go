@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -206,7 +205,7 @@ func (c *NetServiceImpl) handleIncomingEvent(ctx context.Context) {
 				em := new(pb.EventMessage)
 				err := proto.Unmarshal(received.GetData(), em)
 				if err == nil {
-					fmt.Println("handle event message: ", em.Type)
+					logger.Debug("handle event message: ", em.Type)
 					c.EventHandle.Handle(ctx, em)
 				}
 			}

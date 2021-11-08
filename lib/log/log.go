@@ -1,6 +1,8 @@
 package log
 
 import (
+	"fmt"
+
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -9,18 +11,27 @@ import (
 
 var mLogger *zap.SugaredLogger
 
+const WriteToFile = false
+
 func Logger(name string) *zap.SugaredLogger {
 	return mLogger.Named(name)
 }
 
 // StartLogger starts
 func init() {
-
 	debugLevel := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
 		return lvl >= zapcore.DebugLevel
 	})
 
-	debugWriter := getLogWriter("debug")
+	outputs := []string{"stdout"}
+	debugWriter, _, err := zap.Open(outputs...)
+	if err != nil {
+		panic(fmt.Sprintf("unable to open logging output: %v", err))
+	}
+
+	if WriteToFile {
+		debugWriter = getLogWriter("debug")
+	}
 
 	encoder := getEncoder()
 

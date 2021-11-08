@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 
@@ -71,6 +70,6 @@ func (i *Impl) Close() {
 }
 
 func defaultHandler(ctx context.Context, msg *tx.SignedMessage) error {
-	fmt.Println("received msg:", msg.From)
+	log.Println("received tx msg:", msg.From)
 	return nil
 }

@@ -3,7 +3,6 @@ package role
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -14,11 +13,14 @@ import (
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
+
+var logger = logging.Logger("roleinfo")
 
 var ErrNotFound = errors.New("not found")
 
@@ -64,7 +66,7 @@ func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.I
 	}
 
 	if ri.ID != roleID {
-		fmt.Println("roleID not equal")
+		logger.Debug("roleID not equal")
 	}
 
 	rm.infos[roleID] = *ri
@@ -158,7 +160,7 @@ func (rm *RoleMgr) SyncFromChain(ctx context.Context) {
 func (rm *RoleMgr) AddRoleInfo(ri pb.RoleInfo) {
 	rm.Lock()
 	defer rm.Unlock()
-	fmt.Println("add role info for: ", ri.ID)
+	logger.Debug("add role info for: ", ri.ID)
 	_, ok := rm.infos[ri.ID]
 	if !ok {
 		switch ri.Type {

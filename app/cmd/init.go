@@ -23,7 +23,7 @@ var InitCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "password",
-			Usage: "password for aaacess private key",
+			Usage: "set password for access private key",
 			Value: "memoriae",
 		},
 	},

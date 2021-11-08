@@ -2,17 +2,15 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"runtime"
-	"sort"
+	"log"
+	_ "net/http/pprof"
 	"strings"
 
-	"github.com/libp2p/go-libp2p-core/host"
+	mprome "github.com/ipfs/go-metrics-prometheus"
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
-	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/keeper"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
@@ -23,13 +21,6 @@ const (
 	apiAddrKwd         = "api"
 	swarmPortKwd       = "swarm-port"
 )
-
-type Node interface {
-	Start() error
-	RunDaemon(chan interface{}) error
-	Online() bool
-	GetHost() host.Host
-}
 
 var DaemonCmd = &cli.Command{
 	Name:  "daemon",
@@ -42,13 +33,13 @@ var DaemonCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  apiAddrKwd,
-			Usage: "set the api port to use",
-			Value: "7000",
+			Usage: "set the api addr to use",
+			Value: "/ip4/127.0.0.1/tcp/8000",
 		},
 		&cli.StringFlag{
 			Name:  swarmPortKwd,
 			Usage: "set the swarm port to use",
-			Value: "12000",
+			Value: "7000",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -57,8 +48,13 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonFunc(cctx *cli.Context) (_err error) {
-	// let the user know we're going.
-	fmt.Printf("Initializing daemon...\n")
+	err := mprome.Inject()
+	if err != nil {
+		fmt.Errorf("Injecting prometheus handler for metrics failed with message: %s\n", err.Error())
+		return err
+	}
+
+	log.Printf("Initializing daemon...\n")
 
 	defer func() {
 		if _err != nil {
@@ -69,7 +65,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		}
 	}()
 
-	printVersion()
+	minit.PrintVersion()
 
 	stopFunc, err := minit.ProfileIfEnabled()
 	if err != nil {
@@ -78,23 +74,15 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	defer stopFunc()
 
 	repoDir := cctx.String(cmd.FlagNodeRepo)
-
-	// third precedence is config file.
 	rep, err := repo.NewFSRepo(repoDir, nil)
 	if err != nil {
 		return err
 	}
 
-	// The node will also close the repo but there are many places we could
-	// fail before we get to that. It can't hurt to close it twice.
 	defer rep.Close()
 
+	// handle config
 	config := rep.Config()
-
-	// second highest precedence is env vars.
-	if envAPI := os.Getenv("MEMO_API"); envAPI != "" {
-		config.API.APIAddress = envAPI
-	}
 
 	if swarmPort := cctx.String(swarmPortKwd); swarmPort != "" {
 		changed := make([]string, 0, len(config.Net.Addresses))
@@ -112,7 +100,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 
 	rep.ReplaceConfig(config)
 
-	var node Node
+	var node minit.Node
 	switch config.Identity.Role {
 	default:
 		opts, err := basenode.OptionsFromRepo(rep)
@@ -129,7 +117,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		}
 	}
 
-	printSwarmAddrs(node)
+	minit.PrintSwarmAddrs(node)
 
 	// Start the node
 	if err := node.Start(); err != nil {
@@ -142,46 +130,9 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		<-ready
 
 		// The daemon is *finally* ready.
-		fmt.Printf("Network PeerID is %s\n", node.GetHost().ID().String())
-		fmt.Printf("Daemon is ready\n")
+		log.Printf("Network PeerID is %s\n", node.GetHost().ID().String())
+		log.Printf("Daemon is ready\n")
 	}()
 
 	return node.RunDaemon(ready)
-}
-
-func printVersion() {
-	v := build.UserVersion()
-	fmt.Printf("Memoriae version: %s\n", v)
-	fmt.Printf("System version: %s\n", runtime.GOARCH+"/"+runtime.GOOS)
-	fmt.Printf("Golang version: %s\n", runtime.Version())
-}
-
-// printSwarmAddrs prints the addresses of the host
-func printSwarmAddrs(node Node) {
-	if !node.Online() {
-		fmt.Println("Swarm not listening, running in offline mode.")
-		return
-	}
-
-	var lisAddrs []string
-	ifaceAddrs, err := node.GetHost().Network().InterfaceListenAddresses()
-	if err != nil {
-		fmt.Errorf("failed to read listening addresses: %s", err)
-	}
-	for _, addr := range ifaceAddrs {
-		lisAddrs = append(lisAddrs, addr.String())
-	}
-	sort.Strings(lisAddrs)
-	for _, addr := range lisAddrs {
-		fmt.Printf("Swarm listening on %s\n", addr)
-	}
-
-	var addrs []string
-	for _, addr := range node.GetHost().Addrs() {
-		addrs = append(addrs, addr.String())
-	}
-	sort.Strings(addrs)
-	for _, addr := range addrs {
-		fmt.Printf("Swarm announcing %s\n", addr)
-	}
 }

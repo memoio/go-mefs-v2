@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 
@@ -86,7 +85,7 @@ func (i *MsgImpl) Close() {
 }
 
 func defaultMsgHandler(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	fmt.Println("handle type::", mes.Header.Type)
+	log.Println("handle type::", mes.Header.Type)
 	mes.Data.MsgInfo = []byte("hello")
 	return mes, nil
 }

@@ -3,9 +3,10 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/api/client"
-	"github.com/urfave/cli/v2"
 )
 
 var AuthCmd = &cli.Command{

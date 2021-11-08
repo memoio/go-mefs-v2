@@ -16,7 +16,7 @@ const (
 
 func ProfileIfEnabled() (func(), error) {
 	if os.Getenv(EnvEnableProfiling) != "" {
-		stopProfilingFunc, err := startProfiling() // TODO maybe change this to its own option... profiling makes it slower.
+		stopProfilingFunc, err := startProfiling()
 		if err != nil {
 			return nil, err
 		}
@@ -26,7 +26,6 @@ func ProfileIfEnabled() (func(), error) {
 }
 
 func startProfiling() (func(), error) {
-	// start CPU profiling as early as possible
 	ofi, err := os.Create(cpuProfile)
 	if err != nil {
 		return nil, err
@@ -46,7 +45,7 @@ func startProfiling() (func(), error) {
 
 	stopProfiling := func() {
 		pprof.StopCPUProfile()
-		err = ofi.Close() // captured by the closure
+		err = ofi.Close()
 		if err != nil {
 			fmt.Println("ofi.Close() falied: ", err)
 		}
@@ -59,6 +58,6 @@ func writeHeapProfileToFile() error {
 	if err != nil {
 		return err
 	}
-	defer mprof.Close() // _after_ writing the heap profile
+	defer mprof.Close()
 	return pprof.WriteHeapProfile(mprof)
 }

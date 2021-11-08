@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 
@@ -63,6 +62,6 @@ func (i *BlockImpl) Close() {
 }
 
 func defaultBlockHandler(ctx context.Context, msg *tx.Block) error {
-	fmt.Println("received block:", msg.Height)
+	log.Println("received block:", msg.Height)
 	return nil
 }

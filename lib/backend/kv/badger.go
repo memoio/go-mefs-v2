@@ -2,7 +2,6 @@ package kv
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -361,7 +360,7 @@ func (d *BadgerStore) Sync() error {
 }
 
 func (d *BadgerStore) Close() error {
-	fmt.Println("badger close")
+	logger.Info("badger close")
 
 	d.closeOnce.Do(func() {
 		close(d.closing)

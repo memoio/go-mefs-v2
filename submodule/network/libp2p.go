@@ -2,7 +2,6 @@ package network
 
 import (
 	"crypto/rand"
-	"fmt"
 
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -18,7 +17,7 @@ const (
 	SelfNetKey = "libp2p-self"
 )
 
-// create or load net provate key
+// create or load net private key
 func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 	ki, err := store.Get(SelfNetKey, SelfNetKey)
 	if err == nil {
@@ -32,13 +31,13 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 			return peer.ID(""), nil, errors.Wrap(err, "failed to get peer ID")
 		}
 
-		fmt.Println("load peer identity: ", p.Pretty())
+		logger.Info("load local peerID: ", p.Pretty())
 
 		return p, sk, nil
 	}
 
-	// ed25519 305 faster than secp256k1
-	fmt.Println("generating ED25519 keypair for p2p network...")
+	// ed25519 30% faster than secp256k1
+	logger.Info("generating ED25519 keypair for p2p network...")
 	sk, _, err := crypto.GenerateEd25519Key(rand.Reader)
 	if err != nil {
 		return peer.ID(""), nil, errors.Wrap(err, "failed to create peer key")
@@ -63,6 +62,6 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 		return peer.ID(""), nil, errors.Wrap(err, "failed to get peer ID")
 	}
 
-	fmt.Println("create peer identity: ", p.Pretty())
+	logger.Info("generated peerID: ", p.Pretty())
 	return p, sk, nil
 }

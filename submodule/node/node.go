@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -73,7 +72,7 @@ func (n *BaseNode) Start() error {
 }
 
 func (n *BaseNode) HandleGet(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	fmt.Println("handle get msg from: ", p.Pretty())
+	logger.Debug("handle get msg from: ", p.Pretty())
 
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{},
@@ -117,7 +116,7 @@ func (n *BaseNode) test() error {
 }
 
 func (n *BaseNode) TestHanderPutPeer(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	fmt.Println("handle put peer msg from: ", p.Pretty())
+	logger.Debug("handle put peer msg from: ", p.Pretty())
 	ri := new(pb.RoleInfo)
 	err := proto.Unmarshal(mes.GetData().GetMsgInfo(), ri)
 	if err != nil {
@@ -138,10 +137,10 @@ func (n *BaseNode) Stop(ctx context.Context) {
 	n.NetworkSubmodule.Stop(ctx)
 
 	if err := n.Repo.Close(); err != nil {
-		fmt.Printf("error closing repo: %s\n", err)
+		logger.Errorf("error closing repo: %s\n", err)
 	}
 
-	fmt.Println("\nstopping Memoriae :(")
+	logger.Info("stopping Memoriae :(")
 }
 
 func (n *BaseNode) RunDaemon(ready chan interface{}) error {
