@@ -185,15 +185,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 					Payload: payload,
 				}
 
-				err = saveOpRecord(l.userID, bucket.BucketID, op, l.ds)
-				if err != nil {
-					return err
-				}
-
-				bucket.NextOpID++
 				bucket.Length += uint64(dp.stripeSize * stripeCount)
-				bucket.dirty = true
-				err = bucket.Save(l.userID, l.ds)
+				err = bucket.addOpRecord(l.userID, op, l.ds)
 				if err != nil {
 					return err
 				}
@@ -207,7 +200,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 				// send out
 
-				// update data
+				// update
 				h.Reset()
 				rawLen = 0
 				curStripe += uint64(stripeCount)
@@ -245,11 +238,14 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, aesDec ciphe
 				}
 
 				segID.SetChunkID(uint32(i))
-				// get from remote
-				var chunk []byte
+				seg, err := l.segStore.Get(segID)
+				if err != nil {
+					// get from remote
+					continue
+				}
 
-				log.Println("receive chunk len:", len(chunk))
-				stripe[i] = chunk
+				log.Println("receive chunk len:", len(seg.RawData()))
+				stripe[i] = seg.RawData()
 				sucCount++
 			}
 

@@ -11,20 +11,18 @@ var logger = logging.Logger("lfs")
 
 const (
 	defaultWeighted = 100
+	MaxBucket       = 16
 )
 
 var (
-	ErrPolicy               = errors.New("policy is error")
-	ErrLfsServiceNotReady   = errors.New("lfs service is not ready, please restart lfs")
-	ErrLfsReadOnly          = errors.New("lfs service is read only")
-	ErrLfsStarting          = errors.New("another lfs instance is starting")
-	ErrCannotGetEnoughBlock = errors.New("cannot get enough block")
-	ErrCannotLoadMetaBlock  = errors.New("cannot load metaBlock")
-	ErrCannotLoadSuperBlock = errors.New("cannot load superblock")
-	ErrUpload               = errors.New("upload fails")
-	ErrResourceUnavailable  = errors.New("resource unavailable, wait other option about lfs completed")
-	ErrWrongParameters      = errors.New("wrong parameters")
-	ErrTaskCanceled         = errors.New("task canceled")
+	ErrPolicy              = errors.New("policy is error")
+	ErrLfsServiceNotReady  = errors.New("lfs service is not ready, please restart lfs")
+	ErrLfsReadOnly         = errors.New("lfs service is read only")
+	ErrLfsStarting         = errors.New("another lfs instance is starting")
+	ErrUpload              = errors.New("upload fails")
+	ErrResourceUnavailable = errors.New("resource unavailable, wait other option about lfs completed")
+	ErrWrongParameters     = errors.New("wrong parameters")
+	ErrCanceled            = errors.New("canceled")
 
 	ErrNoProviders      = errors.New("there is no providers has the designated block")
 	ErrNoKeepers        = errors.New("there is no keepers")
@@ -35,6 +33,7 @@ var (
 	ErrBucketAlreadyExist = errors.New("bucket already exists")
 	ErrBucketNotEmpty     = errors.New("bucket is not empty")
 	ErrBucketNameInvalid  = errors.New("bucket name is invalid")
+	ErrBucketTooMany      = errors.New("bucket is too many")
 
 	ErrObjectNotExist       = errors.New("object not exist")
 	ErrObjectIsNil          = errors.New("object is nil")

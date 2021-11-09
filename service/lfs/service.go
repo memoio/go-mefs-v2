@@ -10,6 +10,7 @@ import (
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/zeebo/blake3"
 )
 
 type LfsService struct {
@@ -34,15 +35,35 @@ type LfsService struct {
 	sw *semaphore.Weighted
 }
 
-func New(ctx context.Context, ds store.KVStore, ss segment.SegmentStore) *LfsService {
+func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore) (*LfsService, error) {
 	ls := &LfsService{
-		ctx:      ctx,
+		ctx: ctx,
+
+		userID: userID,
+		fsID:   make([]byte, 20),
+
 		ds:       ds,
 		segStore: ss,
-		sw:       semaphore.NewWeighted(defaultWeighted),
+		keyset:   keyset,
+
+		sb:  newSuperBlock(),
+		dps: make(map[uint64]*dataProcess),
+		sw:  semaphore.NewWeighted(defaultWeighted),
 	}
 
-	return ls
+	vk := keyset.VerifyKey().Serialize()
+	fsIDBytes := blake3.Sum256(vk)
+	copy(ls.fsID, fsIDBytes[:20])
+
+	// load lfs info first
+	err := ls.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	go ls.persistMeta()
+
+	return ls, nil
 }
 
 func (l *LfsService) Start() error {

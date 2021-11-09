@@ -51,7 +51,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		return nil, ErrObjectAlreadyExist
 	}
 
-	// 1. save ops
+	// 1. save op
 	// 2. save bucket
 	// 3. save object
 
@@ -70,27 +70,11 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 
 	op := &pb.OpRecord{
 		Type:    pb.OpRecord_CreateObject,
-		OpID:    bucket.NextOpID,
 		Payload: payload,
 	}
 
-	err = saveOpRecord(l.userID, bucket.BucketID, op, l.ds)
-	if err != nil {
-		return nil, err
-	}
-
-	bucket.NextOpID++
 	bucket.NextObjectID++
-	tag, err := proto.Marshal(op)
-	if err != nil {
-		return nil, err
-	}
-	bucket.mtree.Push(tag)
-	bucket.Root = bucket.mtree.Root()
-	bucket.MTime = time.Now().Unix()
-	bucket.dirty = true
-
-	err = bucket.Save(l.userID, l.ds)
+	err = bucket.addOpRecord(l.userID, op, l.ds)
 	if err != nil {
 		return nil, err
 	}

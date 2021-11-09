@@ -1,7 +1,7 @@
 package lfs
 
 import (
-	"crypto/sha256"
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -10,7 +10,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	mt "gitlab.com/NebulousLabs/merkletree"
+	"github.com/zeebo/blake3"
 )
 
 type superBlock struct {
@@ -30,7 +30,6 @@ type bucket struct {
 
 	dirty   bool
 	objects *rbtree.Tree // store objects; key is object name
-	mtree   *mt.Tree     // ops merkle tree
 }
 
 type object struct {
@@ -43,7 +42,7 @@ type object struct {
 	dirty    bool
 }
 
-func NewSuperBlock() *superBlock {
+func newSuperBlock() *superBlock {
 	return &superBlock{
 		SuperBlockInfo: pb.SuperBlockInfo{
 			Version:      0,
@@ -51,7 +50,7 @@ func NewSuperBlock() *superBlock {
 			NextBucketID: 0,
 		},
 		dirty:          true,
-		bucketMax:      0,
+		bucketMax:      MaxBucket, // todo
 		bucketNameToID: make(map[string]uint64),
 	}
 }
@@ -97,8 +96,11 @@ func (sbl *superBlock) Save(userID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func (l *LfsService) newBucket(bucketID uint64, bucketName string, opt *pb.BucketOption) (*bucket, error) {
+func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.BucketOption) (*bucket, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, bucketID)
 
+	beignHash := blake3.Sum256(buf)
 	bi := types.BucketInfo{
 		BucketOption: *opt,
 		BucketInfo: pb.BucketInfo{
@@ -106,13 +108,14 @@ func (l *LfsService) newBucket(bucketID uint64, bucketName string, opt *pb.Bucke
 			CTime:    time.Now().Unix(),
 			MTime:    time.Now().Unix(),
 			Name:     bucketName,
+			Root:     beignHash[:],
 		},
 	}
+
 	bu := &bucket{
 		BucketInfo: bi,
 		dirty:      true,
 		objects:    rbtree.NewTree(),
-		mtree:      mt.New(sha256.New()),
 	}
 
 	err := bu.Save(l.userID, l.ds)
@@ -186,6 +189,37 @@ func (bu *bucket) SaveOptions(userID uint64, ds store.KVStore) error {
 		return err
 	}
 	err = ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (bu *bucket) addOpRecord(userID uint64, por *pb.OpRecord, ds store.KVStore) error {
+	por.OpID = bu.NextOpID
+
+	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bu.BucketID, por.OpID)
+	data, err := proto.Marshal(por)
+	if err != nil {
+		return err
+	}
+	err = ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	bu.NextOpID++
+
+	nh := blake3.New()
+	nh.Write(bu.Root)
+	nh.Write(data)
+	bu.Root = nh.Sum(nil)
+
+	bu.MTime = time.Now().Unix()
+	bu.dirty = true
+
+	err = bu.Save(userID, ds)
 	if err != nil {
 		return err
 	}
@@ -333,15 +367,17 @@ func saveOpRecord(userID uint64, bucketID uint64, or *pb.OpRecord, ds store.KVSt
 	return ds.Put(key, data)
 }
 
-// wrap all above
+// wrap all above load
 func (l *LfsService) Load() error {
 	l.sb.Lock()
 	defer l.sb.Unlock()
+	// 1. load super block
 	err := l.sb.Load(l.userID, l.ds)
 	if err != nil {
 		return err
 	}
 
+	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
 		bu := new(bucket)
 
@@ -358,7 +394,7 @@ func (l *LfsService) Load() error {
 		if !bu.BucketInfo.Deletion {
 			l.sb.bucketNameToID[bu.Name] = i
 
-			// load object
+			// 3. load objects
 			for j := uint64(0); j < bu.NextObjectID; j++ {
 				obj := new(object)
 				err := obj.Load(l.userID, i, j, l.ds)
@@ -376,6 +412,7 @@ func (l *LfsService) Load() error {
 	}
 
 	l.sb.ready = true
+	l.sb.write = true
 	return nil
 }
 
@@ -406,8 +443,8 @@ func (l *LfsService) Save() error {
 	return nil
 }
 
-func (l *LfsService) persistMeta() error {
-	tick := time.NewTicker(30 * time.Second)
+func (l *LfsService) persistMeta() {
+	tick := time.NewTicker(60 * time.Second)
 	defer tick.Stop()
 	for {
 		select {
@@ -425,7 +462,7 @@ func (l *LfsService) persistMeta() error {
 					logger.Warn("Cannot Persist Meta: ", err)
 				}
 			}
-			return nil
+			return
 		}
 	}
 }

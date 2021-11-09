@@ -91,32 +91,14 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		Payload: payload,
 	}
 
-	// leaf is OpID + PayLoad
-	tag, err := proto.Marshal(op)
+	err = bucket.addOpRecord(l.userID, op, l.ds)
 	if err != nil {
 		return nil, err
 	}
-	bucket.mtree.Push(tag)
-	bucket.BucketInfo.Root = bucket.mtree.Root()
-
-	err = saveOpRecord(l.userID, bucket.BucketID, op, l.ds)
-	if err != nil {
-		return nil, err
-	}
-
-	bucket.BucketInfo.NextOpID++
 
 	object.deletion = true
 	object.dirty = true
-
 	err = object.Save(l.userID, l.ds)
-	if err != nil {
-		return nil, err
-	}
-
-	bucket.dirty = true
-	bucket.objects.Delete(MetaName(object.Name))
-	err = bucket.Save(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}

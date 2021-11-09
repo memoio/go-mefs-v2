@@ -27,7 +27,7 @@ func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.
 
 	bucketID := l.sb.NextBucketID
 
-	bucket, err := l.newBucket(bucketID, bucketName, opt)
+	bucket, err := l.createBucket(bucketID, bucketName, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +78,15 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 	}
 	defer l.sw.Release(1)
 
+	err := checkBucketName(bucketName)
+	if err != nil {
+		return nil, ErrBucketNameInvalid
+	}
+
+	if len(l.sb.buckets) >= int(l.sb.bucketMax) {
+		return nil, ErrBucketTooMany
+	}
+
 	switch opt.Policy {
 	case code.MulPolicy:
 		chunkCount := opt.DataCount + opt.ParityCount
@@ -90,11 +99,6 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 
 	if opt.DataCount < 1 || opt.ParityCount < 1 {
 		return nil, ErrWrongParameters
-	}
-
-	err := checkBucketName(bucketName)
-	if err != nil {
-		return nil, ErrBucketNameInvalid
 	}
 
 	return l.addBucket(bucketName, opt)

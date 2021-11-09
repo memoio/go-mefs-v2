@@ -26,7 +26,6 @@ require (
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
 	github.com/klauspost/reedsolomon v1.9.13
-	github.com/libp2p/go-buffer-pool v0.0.2
 	github.com/libp2p/go-eventbus v0.2.1
 	github.com/libp2p/go-libp2p v0.14.0
 	github.com/libp2p/go-libp2p-core v0.8.6
@@ -53,7 +52,6 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/zeebo/blake3 v0.2.1
-	gitlab.com/NebulousLabs/merkletree v0.0.0-20200118113624-07fbf710afc4
 	go.uber.org/zap v1.19.1
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
