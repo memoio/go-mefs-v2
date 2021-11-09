@@ -16,15 +16,14 @@ enum MetaType {
 	FsMemberKey = 7;          // key: x/userID: val: keepers/providers
 
    	// lfs meta
-	LFS_SuperBlockInfoKey = 10; // key: x/fsID; val: SuperBlockInfo
-	LFS_BucketInfoKey = 11;     // key: x/fsID/bucketID; val: BucketInfo
-	LFS_ObjectInfoKey = 12;     // key: x/fsID/bucketID/objectID; val: OpIDs
+	LFS_SuperBlockInfoKey = 10; // key: x/userID; val: SuperBlockInfo
+	LFS_BucketInfoKey = 11;     // key: x/userID/bucketID; val: BucketInfo
+	LFS_ObjectInfoKey = 12;     // key: x/userID/bucketID/objectID; val: OpIDs
 	
-    LFS_BucketOptionKey = 13; // key: x/fsID/bucketID; val: BucketOption 
-    LFS_OpInfoKey = 14;       // key: x/fsID/bucketID/opID; val: BucketRecord
-    LFS_OpDoneKey = 16;		  // key: x/fsID/bucketID; val: opdone number	 
-    LFS_OpCountKey = 17;      // key: x/fsID/bucketID; val: op number
-    LFS_StripeCountKey = 18;  // key: x/fsID/bucketID; val: stripe number
+    LFS_BucketOptionKey = 13; // key: x/userID/bucketID; val: BucketOption 
+    LFS_OpInfoKey = 14;       // key: x/userID/bucketID/opID; val: BucketRecord
+    LFS_OpDoneKey = 16;		  // key: x/userID/bucketID/opID; val: opstate	 
+    LFS_OpCountKey = 17;      // key: x/userID/bucketID; val: op number
 
 	// key in state tree
 	ST_GasMoneyKey = 20;     // key: x/type/id; val: gasMoney  

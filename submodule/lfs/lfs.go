@@ -6,7 +6,6 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	"github.com/memoio/go-mefs-v2/api"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -16,23 +15,20 @@ import (
 type LfsService struct {
 	sync.RWMutex
 
-	api.IWallet
-	api.IRole
-
+	ctx      context.Context
+	keyset   pdpcommon.KeySet
 	ds       store.KVStore
 	segStore segment.SegmentStore
 
-	ctx        context.Context
 	userID     uint64
 	fsID       []byte // keyset的verifyKey的hash
 	encryptKey []byte
 
-	keyset pdpcommon.KeySet
-	sb     *superBlock
+	sb *superBlock
 
 	dps map[uint64]*dataProcess
 
-	sw *semaphore.Weighted
+	sw *semaphore.Weighted // manage resource
 }
 
 func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore) (*LfsService, error) {
