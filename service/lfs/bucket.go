@@ -27,15 +27,13 @@ func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.
 
 	bucketID := l.sb.NextBucketID
 
-	bucket := newBucket(bucketID, bucketName, opt)
-
-	bucket.Lock()
-	defer bucket.Unlock()
-
-	err := bucket.Save(l.fsID, l.ds)
+	bucket, err := l.newBucket(bucketID, bucketName, opt)
 	if err != nil {
 		return nil, err
 	}
+
+	bucket.Lock()
+	defer bucket.Unlock()
 
 	//将此Bucket信息添加到LFS中
 	l.sb.bucketNameToID[bucketName] = bucketID
@@ -43,7 +41,7 @@ func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.
 	l.sb.NextBucketID++
 	l.sb.dirty = true
 
-	err = l.sb.Save(l.fsID, l.ds)
+	err = l.sb.Save(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +134,7 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) (*type
 	bucket.BucketInfo.Deletion = true
 	bucket.dirty = true
 
-	err = bucket.Save(l.fsID, l.ds)
+	err = bucket.Save(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}

@@ -2,12 +2,13 @@ package lfs
 
 import (
 	"context"
+	"crypto/cipher"
+	"encoding/binary"
 	"io"
-	"time"
 
-	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/zeebo/blake3"
 )
 
 func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, writer io.Writer, completeFuncs []types.CompleteFunc, opts types.DownloadObjectOptions) error {
@@ -45,83 +46,76 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	readStart := opts.Start
 	readLength := opts.Length
 
-	if readLength <= 0 {
-		readLength = int64(object.Length - uint64(readStart))
-	}
-
 	if readStart > int64(object.Length) ||
 		readStart+readLength > int64(object.Length) {
 		return ErrObjectOptionsInvalid
 	}
 
-	decoder, err := code.NewDataCoderWithBopts(l.keyset, &bucket.BucketOption)
-	if err != nil {
-		return err
+	if readLength <= 0 {
+		readLength = int64(object.Length - uint64(readStart))
 	}
 
-	dl := &downloadInstance{
-		fsID:      l.fsID,
-		encrypt:   object.Encryption,
-		bucket:    bucket,
-		decoder:   decoder,
-		startTime: time.Now(),
-		writer:    writer,
-	}
-
-	// default AES
-	if dl.encrypt == "aes" {
-		dl.sKey = aes.CreateAesKey([]byte(l.encryptKey), l.fsID, int64(bucket.BucketID), int64(object.ObjectID))
-	}
-
-	cumuLength := uint64(0)
-	for _, part := range object.Parts {
-		if cumuLength >= uint64(readStart+readLength) {
-			break
-		}
-
-		if part.Length+cumuLength < uint64(readStart) {
-			cumuLength += part.Length
-			continue
-		}
-
-		var partStart = int64(0)
-		var partLength = int64(0)
-
-		if readStart > int64(cumuLength) {
-			partStart = int64(part.Offset) + readStart - int64(cumuLength)
-		} else {
-			partStart = int64(part.Offset)
-		}
-
-		partLength = readLength + readStart - int64(cumuLength)
-
-		dl.start = partStart
-		dl.length = partLength
-		dl.sizeReceived = 0
-
-		err = dl.Start(ctx)
+	dp, ok := l.dps[bucket.BucketID]
+	if !ok {
+		ndp, err := l.newDataProcess(bucket.BucketID, &bucket.BucketOption)
 		if err != nil {
 			return err
 		}
-
-		cumuLength += part.Length
+		dp = ndp
 	}
-	return nil
-}
 
-type downloadInstance struct {
-	start        int64 //在Bucket里起始的字节起始
-	length       int64
-	sizeReceived int64
-	sKey         [32]byte
-	fsID         []byte
-	encrypt      string
-	bucket       *bucket
-	decoder      *code.DataCoder //用于解码数据
-	startTime    time.Time
-	writer       io.Writer
-}
+	var aesDec cipher.BlockMode
+	if object.Encryption == "aes" {
+		tmpkey := make([]byte, 40)
+		copy(tmpkey, dp.aesKey[:])
+		binary.BigEndian.PutUint64(tmpkey[32:], object.ObjectID)
+		hres := blake3.Sum256(tmpkey)
 
-func (dl *downloadInstance) Start(ctx context.Context) error {
+		tmpEnc, err := aes.ContructAesDec(hres[:])
+		if err != nil {
+			return err
+		}
+		aesDec = tmpEnc
+
+		// read from begin if encrypts
+		readLength += readStart
+		readStart = 0
+	}
+
+	// read from each part
+	accLen := uint64(0)
+	rLen := uint64(0)
+	for _, part := range object.Parts {
+		if rLen >= uint64(readLength) {
+			break
+		}
+
+		if accLen >= uint64(readStart+readLength) {
+			break
+		}
+
+		if part.Length+accLen < uint64(readStart) {
+			accLen += part.Length
+			continue
+		}
+
+		partStart := part.Offset
+		if uint64(readStart) > accLen {
+			partStart += (uint64(readStart) - accLen)
+		}
+
+		partLength := part.Length
+		if uint64(readStart+readLength) < accLen+part.Length {
+			partLength = (uint64(readStart+readLength) - accLen)
+		}
+
+		err = l.download(ctx, dp, aesDec, bucket, object, int(partStart), int(partLength), writer)
+		if err != nil {
+			return err
+		}
+		rLen += partLength
+
+		accLen += part.Length
+	}
 	return nil
 }

@@ -118,10 +118,10 @@ message ObjectDeleteInfo {
 // opart informations, insert into object when add data to an existing object
 message ObjectPartInfo {
 	uint64 ObjectID = 1;          // 此分块所属的ObjectID
-	int64 Time = 2;              // append此Part的时间
+	int64 Time = 2;               // append此Part的时间
 	uint64 Offset = 3;            // offset in bucket space  
-	uint64 Length = 4;            // 对象长度
-	uint64 UsedBytes = 5;         //  
+	uint64 Length = 4;            // mod stripeSize
+	uint64 RawLength = 5;         // actual size of this part  
 	bytes ETag = 7;               // MD5 of this part
 }
 

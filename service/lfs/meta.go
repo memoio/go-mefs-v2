@@ -1,7 +1,6 @@
 package lfs
 
 import (
-	"crypto/md5"
 	"crypto/sha256"
 	"sync"
 	"time"
@@ -25,6 +24,25 @@ type superBlock struct {
 	buckets        []*bucket         // 所有的bucket信息
 }
 
+type bucket struct {
+	sync.RWMutex
+	types.BucketInfo
+
+	dirty   bool
+	objects *rbtree.Tree // store objects; key is object name
+	mtree   *mt.Tree     // ops merkle tree
+}
+
+type object struct {
+	sync.RWMutex
+
+	types.ObjectInfo
+
+	ops      []uint64
+	deletion bool
+	dirty    bool
+}
+
 func NewSuperBlock() *superBlock {
 	return &superBlock{
 		SuperBlockInfo: pb.SuperBlockInfo{
@@ -38,9 +56,9 @@ func NewSuperBlock() *superBlock {
 	}
 }
 
-func (sbl *superBlock) Load(fsID []byte, ds store.KVStore) error {
+func (sbl *superBlock) Load(userID uint64, ds store.KVStore) error {
 	// from local
-	key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, fsID)
+	key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, userID)
 	data, err := ds.Get(key)
 	if err != nil {
 		// if miss; init?
@@ -60,10 +78,10 @@ func (sbl *superBlock) Load(fsID []byte, ds store.KVStore) error {
 	return nil
 }
 
-func (sbl *superBlock) Save(fsID []byte, ds store.KVStore) error {
+func (sbl *superBlock) Save(userID uint64, ds store.KVStore) error {
 	// to local
 	if sbl.dirty {
-		key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, fsID)
+		key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, userID)
 		data, err := proto.Marshal(&sbl.SuperBlockInfo)
 		if err != nil {
 			return err
@@ -79,16 +97,8 @@ func (sbl *superBlock) Save(fsID []byte, ds store.KVStore) error {
 	return nil
 }
 
-type bucket struct {
-	sync.RWMutex
-	types.BucketInfo
+func (l *LfsService) newBucket(bucketID uint64, bucketName string, opt *pb.BucketOption) (*bucket, error) {
 
-	dirty   bool
-	objects *rbtree.Tree // store objects; key is object name
-	mtree   *mt.Tree     // update when done
-}
-
-func newBucket(bucketID uint64, bucketName string, opt *pb.BucketOption) *bucket {
 	bi := types.BucketInfo{
 		BucketOption: *opt,
 		BucketInfo: pb.BucketInfo{
@@ -98,17 +108,24 @@ func newBucket(bucketID uint64, bucketName string, opt *pb.BucketOption) *bucket
 			Name:     bucketName,
 		},
 	}
-	return &bucket{
+	bu := &bucket{
 		BucketInfo: bi,
 		dirty:      true,
 		objects:    rbtree.NewTree(),
 		mtree:      mt.New(sha256.New()),
 	}
+
+	err := bu.Save(l.userID, l.ds)
+	if err != nil {
+		return nil, err
+	}
+
+	return bu, nil
 }
 
-func (bu *bucket) Load(fsID []byte, bucketID uint64, ds store.KVStore) error {
+func (bu *bucket) Load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	// from local
-	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, fsID, bucketID)
+	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, userID, bucketID)
 	data, err := ds.Get(key)
 	if err != nil {
 		// if miss; init?
@@ -121,7 +138,7 @@ func (bu *bucket) Load(fsID []byte, bucketID uint64, ds store.KVStore) error {
 		return err
 	}
 
-	key = store.NewKey(pb.MetaType_LFS_BucketInfoKey, fsID, bucketID)
+	key = store.NewKey(pb.MetaType_LFS_BucketInfoKey, userID, bucketID)
 	data, err = ds.Get(key)
 	if err != nil {
 		// if miss; init?
@@ -144,10 +161,10 @@ func (bu *bucket) Load(fsID []byte, bucketID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func (bu *bucket) Save(fsID []byte, ds store.KVStore) error {
+func (bu *bucket) Save(userID uint64, ds store.KVStore) error {
 	// to local
 	if bu.dirty {
-		key := store.NewKey(pb.MetaType_LFS_BucketInfoKey, fsID, bu.BucketID)
+		key := store.NewKey(pb.MetaType_LFS_BucketInfoKey, userID, bu.BucketID)
 		data, err := proto.Marshal(&bu.BucketInfo.BucketInfo)
 		if err != nil {
 			return err
@@ -162,8 +179,8 @@ func (bu *bucket) Save(fsID []byte, ds store.KVStore) error {
 	return nil
 }
 
-func (bu *bucket) SaveOptions(fsID []byte, ds store.KVStore) error {
-	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, fsID, bu.BucketID)
+func (bu *bucket) SaveOptions(userID uint64, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, userID, bu.BucketID)
 	data, err := proto.Marshal(&bu.BucketOption)
 	if err != nil {
 		return err
@@ -176,16 +193,6 @@ func (bu *bucket) SaveOptions(fsID []byte, ds store.KVStore) error {
 	return nil
 }
 
-type object struct {
-	sync.RWMutex
-
-	types.ObjectInfo
-
-	ops      []uint64
-	deletion bool
-	dirty    bool
-}
-
 func NewObject() *object {
 	return &object{
 		ObjectInfo: types.ObjectInfo{
@@ -194,9 +201,9 @@ func NewObject() *object {
 	}
 }
 
-func (ob *object) Load(fsID []byte, bucketID, objectID uint64, ds store.KVStore) error {
+func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStore) error {
 	// from local
-	key := store.NewKey(pb.MetaType_LFS_ObjectInfoKey, fsID, bucketID, objectID)
+	key := store.NewKey(pb.MetaType_LFS_ObjectInfoKey, userID, bucketID, objectID)
 	data, err := ds.Get(key)
 	if err != nil {
 		// if miss; init?
@@ -210,7 +217,7 @@ func (ob *object) Load(fsID []byte, bucketID, objectID uint64, ds store.KVStore)
 	}
 
 	for _, opID := range of.GetOpRecord() {
-		or, err := loadOpRecord(fsID, bucketID, opID, ds)
+		or, err := loadOpRecord(userID, bucketID, opID, ds)
 		if err != nil {
 			return err
 		}
@@ -235,9 +242,7 @@ func (ob *object) Load(fsID []byte, bucketID, objectID uint64, ds store.KVStore)
 				continue
 			}
 
-			ob.Length += pi.Length
-
-			ob.ObjectInfo.Parts = append(ob.ObjectInfo.Parts, pi)
+			ob.addPartInfo(pi)
 
 		case pb.OpRecord_DeleteObject:
 			di := new(pb.ObjectDeleteInfo)
@@ -258,25 +263,34 @@ func (ob *object) Load(fsID []byte, bucketID, objectID uint64, ds store.KVStore)
 
 	ob.ops = of.GetOpRecord()
 
-	// calculated etag
+	return nil
+}
+
+func (ob *object) addPartInfo(opi *pb.ObjectPartInfo) error {
+	ob.Parts = append(ob.Parts, opi)
+
 	if len(ob.ObjectInfo.Parts) == 1 {
-		ob.ObjectInfo.Etag = ob.ObjectInfo.Parts[0].ETag
-	} else if len(ob.ObjectInfo.Parts) > 1 {
-		h := md5.New()
-		for _, op := range ob.ObjectInfo.Parts {
-			h.Write(op.ETag)
+		newTag := make([]byte, len(opi.ETag))
+		copy(newTag, opi.ETag)
+		ob.ObjectInfo.Etag = newTag
+	} else {
+		newEtag, err := xor(ob.ObjectInfo.Etag, opi.ETag)
+		if err != nil {
+			return err
 		}
 
-		ob.ObjectInfo.Etag = h.Sum(nil)
+		ob.ObjectInfo.Etag = newEtag
 	}
+
+	ob.Length += opi.GetRawLength()
 
 	return nil
 }
 
-func (ob *object) Save(fsID []byte, bucketID uint64, ds store.KVStore) error {
+func (ob *object) Save(userID uint64, ds store.KVStore) error {
 	// to local
 	if ob.dirty {
-		key := store.NewKey(pb.MetaType_LFS_ObjectInfoKey, fsID, bucketID, ob.ObjectID)
+		key := store.NewKey(pb.MetaType_LFS_ObjectInfoKey, userID, ob.BucketID, ob.ObjectID)
 		of := &pb.ObjectForm{
 			OpRecord: ob.ops,
 		}
@@ -294,8 +308,8 @@ func (ob *object) Save(fsID []byte, bucketID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func loadOpRecord(fsID []byte, bucketID, opID uint64, ds store.KVStore) (*pb.OpRecord, error) {
-	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, fsID, bucketID, opID)
+func loadOpRecord(userID uint64, bucketID, opID uint64, ds store.KVStore) (*pb.OpRecord, error) {
+	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bucketID, opID)
 	data, err := ds.Get(key)
 	if err != nil {
 		return nil, err
@@ -309,8 +323,8 @@ func loadOpRecord(fsID []byte, bucketID, opID uint64, ds store.KVStore) (*pb.OpR
 	return or, nil
 }
 
-func saveOpRecord(fsID []byte, bucketID uint64, or *pb.OpRecord, ds store.KVStore) error {
-	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, fsID, bucketID, or.OpID)
+func saveOpRecord(userID uint64, bucketID uint64, or *pb.OpRecord, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bucketID, or.OpID)
 
 	data, err := proto.Marshal(or)
 	if err != nil {
@@ -323,7 +337,7 @@ func saveOpRecord(fsID []byte, bucketID uint64, or *pb.OpRecord, ds store.KVStor
 func (l *LfsService) Load() error {
 	l.sb.Lock()
 	defer l.sb.Unlock()
-	err := l.sb.Load(l.fsID, l.ds)
+	err := l.sb.Load(l.userID, l.ds)
 	if err != nil {
 		return err
 	}
@@ -332,7 +346,7 @@ func (l *LfsService) Load() error {
 		bu := new(bucket)
 
 		bu.Lock()
-		err := bu.Load(l.fsID, i, l.ds)
+		err := bu.Load(l.userID, i, l.ds)
 		if err != nil {
 			logger.Warn("fail to load bucketID: ", i)
 			bu.Unlock()
@@ -347,7 +361,7 @@ func (l *LfsService) Load() error {
 			// load object
 			for j := uint64(0); j < bu.NextObjectID; j++ {
 				obj := new(object)
-				err := obj.Load(l.fsID, i, j, l.ds)
+				err := obj.Load(l.userID, i, j, l.ds)
 				if err != nil {
 					continue
 				}
@@ -377,13 +391,13 @@ func (l *LfsService) Save() error {
 		return nil
 	}
 
-	err := l.sb.Save(l.fsID, l.ds)
+	err := l.sb.Save(l.userID, l.ds)
 	if err != nil {
 		return err
 	}
 
 	for _, bucket := range l.sb.buckets {
-		err := bucket.Save(l.fsID, l.ds)
+		err := bucket.Save(l.userID, l.ds)
 		if err != nil {
 			logger.Errorf("Flush bucket: %s info failed: %s", &bucket.BucketInfo.Name, err)
 		}

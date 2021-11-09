@@ -99,7 +99,7 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 	bucket.mtree.Push(tag)
 	bucket.BucketInfo.Root = bucket.mtree.Root()
 
-	err = saveOpRecord(l.fsID, bucket.BucketID, op, l.ds)
+	err = saveOpRecord(l.userID, bucket.BucketID, op, l.ds)
 	if err != nil {
 		return nil, err
 	}
@@ -109,14 +109,14 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 	object.deletion = true
 	object.dirty = true
 
-	err = object.Save(l.fsID, bucket.BucketID, l.ds)
+	err = object.Save(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}
 
 	bucket.dirty = true
 	bucket.objects.Delete(MetaName(object.Name))
-	err = bucket.Save(l.fsID, l.ds)
+	err = bucket.Save(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}
@@ -156,4 +156,17 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 	}
 
 	return objects, nil
+}
+
+func xor(a []byte, b []byte) ([]byte, error) {
+	if len(a) != len(b) {
+		return nil, ErrWrongParameters
+	}
+
+	res := make([]byte, len(a))
+
+	for i := 0; i < len(a); i++ {
+		res[i] = a[i] ^ b[i]
+	}
+	return res, nil
 }

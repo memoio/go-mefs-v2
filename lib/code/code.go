@@ -111,9 +111,8 @@ func (d *DataCoder) Encode(ncidPrefix segment.SegmentID, data []byte) ([][]byte,
 
 	// 如果长度不够则填充
 	if len(data) < dc*int(d.SegSize) {
-		temp := make([]byte, dc*int(d.SegSize))
-		copy(temp, data)
-		data = temp
+		temp := make([]byte, dc*int(d.SegSize)-len(data))
+		data = append(data, temp...)
 	}
 
 	preData := d.Prefix.Serialize()

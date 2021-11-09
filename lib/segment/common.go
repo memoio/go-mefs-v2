@@ -2,12 +2,12 @@ package segment
 
 type SegmentID interface {
 	GetFsID() []byte
-	GetBucketID() int64
-	GetStripeID() int64
+	GetBucketID() uint64
+	GetStripeID() uint64
 	GetChunkID() uint32
 
-	SetBucketID(sID int64)
-	SetStripeID(sID int64)
+	SetBucketID(sID uint64)
+	SetStripeID(sID uint64)
 	SetChunkID(cID uint32)
 
 	Bytes() []byte
