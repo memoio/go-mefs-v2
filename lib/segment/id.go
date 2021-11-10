@@ -52,7 +52,9 @@ func (bm *BaseSegmentID) SetChunkID(cid uint32) {
 }
 
 func (bm *BaseSegmentID) Bytes() []byte {
-	return bm.buf
+	res := make([]byte, len(bm.buf))
+	copy(res, bm.buf)
+	return res
 }
 
 // ToString 将SegmentID结构体转换成字符串格式，进行传输
@@ -85,16 +87,21 @@ func NewSegmentID(fid []byte, bid, sid uint64, cid uint32) (SegmentID, error) {
 	return &BaseSegmentID{buf: segID}, nil
 }
 
-//NewBlockFromString convert string to blockmeta
-func NewSegmentIDFromString(key string) (SegmentID, error) {
+// FromString convert string to segmentID
+func FromString(key string) (SegmentID, error) {
 	buf, err := base58.Decode(key)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(buf) != SEGMENTID_LEN {
+	return FromBytes(buf)
+}
+
+// FromBytes convert bytes to segmentID
+func FromBytes(b []byte) (SegmentID, error) {
+	if len(b) != SEGMENTID_LEN {
 		return nil, ErrWrongKeyLength
 	}
 
-	return &BaseSegmentID{buf: buf}, nil
+	return &BaseSegmentID{buf: b}, nil
 }

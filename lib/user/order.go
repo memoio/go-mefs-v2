@@ -93,7 +93,7 @@ func (f *OrderFull) addData(d []byte) {
 	}
 
 	if f.State == Order_Running && f.prepare != nil && f.prepare.State == OrderSeq_Init {
-		f.prepare.Name = append(f.prepare.Name, d)
+		//f.prepare.Name = append(f.prepare.Name, d)
 		// update size and price
 		f.prepare.Size += 0
 		f.prepare.Price.Add(f.prepare.Price, big.NewInt(0))

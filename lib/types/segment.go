@@ -9,6 +9,12 @@ import (
 
 var FaultID uint64 = 1<<64 - 1
 
+type Segs struct {
+	BucketID uint64
+	Start    uint64
+	Length   uint64
+}
+
 // Stripe
 type Stripe struct {
 	start uint64 // stripe start

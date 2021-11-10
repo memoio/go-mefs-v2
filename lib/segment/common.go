@@ -20,10 +20,12 @@ type SegmentID interface {
 type Segment interface {
 	SetID(SegmentID)
 	SetData([]byte)
-	RawData() []byte
-	Tag() ([]byte, error)
-	SegData() ([]byte, error)
 	SegmentID() SegmentID
+	Data() []byte
+	Content() ([]byte, error)
+	Tags() ([][]byte, error)
+	Serialize() ([]byte, error)
+	Deserialize([]byte) error
 }
 
 type SegmentStore interface {

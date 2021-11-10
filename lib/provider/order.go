@@ -23,7 +23,7 @@ type OrderOne struct {
 // getdata from each user
 func (o *OrderOne) getData(userID uint64) {
 	for {
-		dn := o.active.current.Name
+		dn := o.active.current.Pieces
 		if o.active.complete < len(dn) {
 			d := dn[o.active.complete]
 			// get from user and store in local

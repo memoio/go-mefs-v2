@@ -36,6 +36,7 @@ type PublicKey interface {
 type VerifyKey interface {
 	Version() int
 	VerifyProof(chal Challenge, proof Proof) (bool, error)
+	Hash() []byte
 	Serialize() []byte
 	Deserialize(buf []byte) error
 }

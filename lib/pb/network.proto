@@ -15,13 +15,17 @@ message NetMessage {
 		Put = 3;
 		PutPeer = 4;
 		SubmitTX = 5;
+		PutSegment = 6;
+		GetSegment = 7;
 
     	// data message; user<->provider; offline ops
-		AskPrice = 6;     // 询价
-    	OrderPrepare = 7; 
-    	OrderMeta = 8;    // handle meta; by provider
-    	OrderData = 9;    // handle data; by provider
-    	OrderDone = 10;   // handle order seq done
+		AskPrice = 10;     // 询价
+    	OrderPrepare = 11; 
+    	OrderMeta = 12;    // handle meta; by provider
+    	OrderData = 13;    // handle data; by provider
+    	OrderDone = 14;    // handle order seq done
+
+		
 	}
 
 	message MsgHeader {

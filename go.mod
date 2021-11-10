@@ -9,6 +9,7 @@ require (
 	github.com/celestiaorg/smt v0.0.0-20210714161708-2c9076637cd9
 	github.com/chrislusf/seaweedfs v0.0.0-20211012155459-7700bf62f0ce
 	github.com/dgraph-io/badger/v2 v2.2007.4
+	github.com/emirpasic/gods v1.12.0
 	github.com/ethereum/go-ethereum v1.10.9
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/fxamacker/cbor/v2 v2.3.0

@@ -151,10 +151,10 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 				seg := segment.NewBaseSegment(encodedData[i], dp.segID)
 
-				segData, _ := seg.SegData()
-				segTag, _ := seg.Tag()
+				segData := seg.Data()
+				segTag, _ := seg.Tags()
 
-				ok, err := dp.keyset.PublicKey().VerifyTag(dp.segID.Bytes(), segData, segTag, 31)
+				ok, err := dp.keyset.PublicKey().VerifyTag(dp.segID.Bytes(), segData, segTag[0], 31)
 				if !ok || err != nil {
 					log.Println("Process data error:", dp.segID.String(), err)
 				}
@@ -244,8 +244,8 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, aesDec ciphe
 					continue
 				}
 
-				log.Println("receive chunk len:", len(seg.RawData()))
-				stripe[i] = seg.RawData()
+				log.Println("receive chunk len:", len(seg.Data()))
+				stripe[i] = seg.Data()
 				sucCount++
 			}
 

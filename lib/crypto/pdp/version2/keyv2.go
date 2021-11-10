@@ -205,6 +205,11 @@ func (vk *VerifyKey) Version() int {
 	return 2
 }
 
+func (vk *VerifyKey) Hash() []byte {
+	fsIDBytes := blake3.Sum256(vk.Serialize())
+	return fsIDBytes[:20]
+}
+
 func (vk *VerifyKey) Serialize() []byte {
 	if vk == nil {
 		return nil

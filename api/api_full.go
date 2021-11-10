@@ -12,6 +12,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -68,6 +69,7 @@ type INetwork interface {
 type IRole interface {
 	RoleSelf() (pb.RoleInfo, error)
 	RoleGet(uint64) (pb.RoleInfo, error)
+	RoleGetRelated(typ pb.RoleInfo_Type) []uint64
 }
 
 type INetService interface {
@@ -80,6 +82,14 @@ type INetService interface {
 	PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error
 	PublishTxBlock(ctx context.Context, msg *tx.Block) error
 	PublishEvent(ctx context.Context, msg *pb.EventMessage) error
+}
+
+type IDataService interface {
+	SendSegment(ctx context.Context, seg segment.Segment, to uint64) error
+	SendSegmentByID(ctx context.Context, sid segment.SegmentID, to uint64) error
+
+	GetSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error)
+	GetSegmentFrom(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error)
 }
 
 type ILfsService interface {

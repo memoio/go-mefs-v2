@@ -50,6 +50,7 @@ func DeserializePrefix(data []byte) (*Prefix, int, error) {
 	parityCount := binary.BigEndian.Uint32(data[12:16])
 	tagFlag := binary.BigEndian.Uint32(data[16:20])
 	segSize := binary.BigEndian.Uint32(data[20:24])
+
 	return &Prefix{
 		Version:     version,
 		Policy:      policy,
@@ -61,49 +62,89 @@ func DeserializePrefix(data []byte) (*Prefix, int, error) {
 }
 
 type BaseSegment struct {
-	SegID SegmentID
-	Data  []byte
+	segID SegmentID
+	data  []byte
 }
 
 func NewBaseSegment(data []byte, segID SegmentID) Segment {
 	return &BaseSegment{
-		Data:  data,
-		SegID: segID,
+		data:  data,
+		segID: segID,
 	}
 }
 
 func (bs *BaseSegment) SetID(segID SegmentID) {
-	bs.SegID = segID
+	bs.segID = segID
 }
 
 func (bs *BaseSegment) SetData(data []byte) {
-	bs.Data = data
+	bs.data = data
 }
 
-func (bs *BaseSegment) RawData() []byte {
-	return bs.Data
+func (bs *BaseSegment) SegmentID() SegmentID {
+	return bs.segID
 }
 
-func (bs *BaseSegment) SegData() ([]byte, error) {
-	pre, preLen, err := DeserializePrefix(bs.Data)
+func (bs *BaseSegment) Data() []byte {
+	return bs.data
+}
+
+func (bs *BaseSegment) Content() ([]byte, error) {
+	pre, preLen, err := DeserializePrefix(bs.data)
 	if err != nil {
 		return nil, err
 	}
 	seg := make([]byte, pre.SegSize)
-	copy(seg, bs.Data[preLen:])
+	copy(seg, bs.data[preLen:])
 	return seg, nil
 }
 
-func (bs *BaseSegment) Tag() ([]byte, error) {
-	pre, preLen, err := DeserializePrefix(bs.Data)
+func (bs *BaseSegment) Tags() ([][]byte, error) {
+	pre, preLen, err := DeserializePrefix(bs.data)
 	if err != nil {
 		return nil, err
 	}
-	tag := make([]byte, pdp.TagMap[int(pre.TagFlag)])
-	copy(tag, bs.Data[pre.SegSize+uint32(preLen):])
+
+	if pre.DataCount < 1 || pre.ParityCount < 1 {
+		return nil, ErrDataLength
+	}
+
+	tagLen := pdp.TagMap[int(pre.TagFlag)]
+	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
+
+	tag := make([][]byte, tagCount)
+	for i := 0; i < tagCount; i++ {
+		tag[i] = append(tag[i], bs.data[int(pre.SegSize)+preLen+i*tagLen:int(pre.SegSize)+preLen+(i+1)*tagLen]...)
+	}
+
 	return tag, nil
 }
 
-func (bs *BaseSegment) SegmentID() SegmentID {
-	return bs.SegID
+func (bs *BaseSegment) Serialize() ([]byte, error) {
+	buf := make([]byte, 40+len(bs.data))
+	copy(buf[:40], bs.segID.Bytes())
+	copy(buf[40:], bs.data)
+
+	return buf, nil
+}
+
+func (bs *BaseSegment) Deserialize(b []byte) error {
+	if len(b) < 40 {
+		return ErrDataLength
+	}
+
+	segID, err := FromBytes(b[:40])
+	if err != nil {
+		return err
+	}
+
+	_, _, err = DeserializePrefix(b[40:])
+	if err != nil {
+		return err
+	}
+
+	bs.segID = segID
+	bs.data = b[40:]
+
+	return nil
 }

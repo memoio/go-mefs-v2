@@ -48,10 +48,14 @@ enum MetaType {
     SectorSetKey = 43;      // key: x/proID, val: sectorSet; on keeper and provider
 	OrderTxKey = 44;        // key: x/userID/proID/nonce; val: []txHash;
 
+	SegLocationKey = 45;    // key: x/segID; val: proID
+
 	// order
-	OrderNonceKey = 50;   // key: x/userID/proID; value: nonce
-	OrderBaseKey = 51;    // key x/userID/proID/nonce; value: OrderBase
-	OrderSeqKey = 52;     // key x/userID/proID/nonce/seqnum; value: OrderSeq
+	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
+	OrderBaseKey = 51;       // key: x/userID/proID/nonce; value: OrderBase
+	OrderSeqNumKey = 52;     // key: x/userID/proID/nonce; value: seqnum, OrderSeqState
+	OrderSeqKey = 53;        // key: x/userID/proID/nonce/seqnum; value: OrderSeq
+	OrderProsKey = 54;       // key: x/userID; value: pros
 		
 	TX_MessageKey = 60;       // key: x/messageHash; value: message content, sign
 	Tx_MessageStateKey = 61;  // key: x/messageHash; value: blkID, height, status

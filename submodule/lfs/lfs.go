@@ -9,7 +9,6 @@ import (
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/zeebo/blake3"
 )
 
 type LfsService struct {
@@ -47,9 +46,7 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 		sw:  semaphore.NewWeighted(defaultWeighted),
 	}
 
-	vk := keyset.VerifyKey().Serialize()
-	fsIDBytes := blake3.Sum256(vk)
-	copy(ls.fsID, fsIDBytes[:20])
+	ls.fsID = keyset.VerifyKey().Hash()
 
 	// load lfs info first
 	err := ls.Load()
