@@ -6,8 +6,7 @@ package pb;
 
 // trans over network
 // persist value for tx in kv op db; verify sign before put
-message NetMessage {
-	
+message NetMessage {	
 	enum MsgType {
 		Err = 0;
 		SayHello = 1;
@@ -17,26 +16,26 @@ message NetMessage {
 		SubmitTX = 5;
 		PutSegment = 6;
 		GetSegment = 7;
+		GetPubKey = 8;
 
     	// data message; user<->provider; offline ops
 		AskPrice = 10;     // 询价
-    	OrderPrepare = 11; 
-    	OrderMeta = 12;    // handle meta; by provider
-    	OrderData = 13;    // handle data; by provider
-    	OrderDone = 14;    // handle order seq done
-
-		
+    	CreateOrder = 11;  
+		CreateSeq = 12;
+		FinishSeq = 13;
+    	OrderData = 14;    // handle data; by provider	
 	}
 
 	message MsgHeader {
 		uint32 version = 1;
-		uint32 seq = 2; // async
+		MsgType type = 2;
 		uint64 from = 3; 
-		MsgType type = 4;
+		uint64 seq = 4; // for ?
 	}
 
 	message MsgData {
-		bytes msgInfo = 1; 
+		bytes msgInfo = 1;
+		bytes sign = 2; 
 	}
 
 	MsgHeader header = 1;

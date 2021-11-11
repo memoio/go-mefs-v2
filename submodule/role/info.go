@@ -199,7 +199,7 @@ func (rm *RoleMgr) GetBlsPubKey(roleID uint64) []byte {
 	return nil
 }
 
-func (rm *RoleMgr) Sign(msg []byte, typ types.SigType) (types.Signature, error) {
+func (rm *RoleMgr) RoleSign(msg []byte, typ types.SigType) (types.Signature, error) {
 	ts := types.Signature{
 		Type: typ,
 	}
@@ -224,7 +224,7 @@ func (rm *RoleMgr) Sign(msg []byte, typ types.SigType) (types.Signature, error) 
 	return ts, nil
 }
 
-func (rm *RoleMgr) Verify(id uint64, msg []byte, sig types.Signature) bool {
+func (rm *RoleMgr) RoleVerify(id uint64, msg []byte, sig types.Signature) bool {
 	var pubByte []byte
 	switch sig.Type {
 	case types.SigSecp256k1:
@@ -247,7 +247,7 @@ func (rm *RoleMgr) Verify(id uint64, msg []byte, sig types.Signature) bool {
 	return ok
 }
 
-func (rm *RoleMgr) VerifyMulti(msg []byte, sig mSign.MultiSignature) bool {
+func (rm *RoleMgr) RoleVerifyMulti(msg []byte, sig mSign.MultiSignature) bool {
 	switch sig.Type {
 	case types.SigSecp256k1:
 		for i, id := range sig.Signer {

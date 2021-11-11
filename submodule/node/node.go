@@ -103,7 +103,7 @@ func (n *BaseNode) test() error {
 			if err == nil {
 				for _, pi := range pinfos {
 					if !lc.Contains(pi.ID.Pretty()) {
-						n.GenericService.SendMetaRequest(n.ctx, pi.ID, pb.NetMessage_PutPeer, data)
+						n.GenericService.SendMetaRequest(n.ctx, pi.ID, pb.NetMessage_PutPeer, data, nil)
 						lc.Add(pi.ID.Pretty(), pi.ID)
 					}
 				}

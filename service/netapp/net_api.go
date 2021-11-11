@@ -17,7 +17,7 @@ func (c *NetServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb.
 	return nil
 }
 
-func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) (*pb.NetMessage, error) {
+func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value, sig []byte) (*pb.NetMessage, error) {
 	ctx, cancle := context.WithTimeout(ctx, 30*time.Second)
 
 	defer cancle()
@@ -43,7 +43,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 
 				time.Sleep(1 * time.Second)
 			} else {
-				return c.GenericService.SendMetaRequest(ctx, pid, typ, value)
+				return c.GenericService.SendMetaRequest(ctx, pid, typ, value, sig)
 			}
 		}
 
@@ -77,7 +77,7 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 	}
 
 	for _, pi := range pinfos {
-		resp, err := c.GenericService.SendMetaRequest(ctx, pi.ID, pb.NetMessage_Get, key)
+		resp, err := c.GenericService.SendMetaRequest(ctx, pi.ID, pb.NetMessage_Get, key, nil)
 		if err != nil {
 			continue
 		}

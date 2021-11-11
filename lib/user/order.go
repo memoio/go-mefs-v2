@@ -258,8 +258,8 @@ func (m *OrderMgr) addOrderBase(quo *types.Quotation) error {
 		TokenIndex: quo.TokenIndex,
 		SegPrice:   quo.SegPrice,
 		PiecePrice: quo.PiecePrice,
-		Start:      uint64(time.Now().Unix()),
-		End:        uint64(time.Now().Unix()) + 100,
+		Start:      time.Now().Unix(),
+		End:        time.Now().Unix() + 100,
 	}
 
 	of := &OrderFull{

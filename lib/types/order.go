@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
@@ -24,8 +25,8 @@ type OrderBase struct {
 	UserID     uint64
 	ProID      uint64
 	Nonce      uint64
-	Start      uint64
-	End        uint64
+	Start      int64
+	End        int64
 	TokenIndex uint32
 	SegPrice   *big.Int
 	PiecePrice *big.Int
@@ -52,8 +53,38 @@ func (b *OrderBase) GetShortHash() OrderHash {
 
 type SignedOrderBase struct {
 	OrderBase
-	Usign []byte
-	Psign []byte
+	Usign Signature
+	Psign Signature
+}
+
+func (sob *SignedOrderBase) Serialize() ([]byte, error) {
+	ob, err := cbor.Marshal(sob.OrderBase)
+	if err != nil {
+		return nil, err
+	}
+
+	ubyte, err := sob.Usign.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	pbyte, err := sob.Psign.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, len(ob)+len(ubyte)+len(pbyte)+4)
+	binary.BigEndian.PutUint16(buf[:2], uint16(len(ubyte)))
+	copy(buf[2:2+len(ubyte)], ubyte)
+	binary.BigEndian.PutUint16(buf[2+len(ubyte):4+len(ubyte)], uint16(len(pbyte)))
+	copy(buf[4+len(ubyte):4+len(ubyte)+len(pbyte)], pbyte)
+	copy(buf[4+len(ubyte)+len(pbyte):], ob)
+
+	return buf, nil
+}
+
+func (sob *SignedOrderBase) Deserialize(b []byte) error {
+	return nil
 }
 
 // key: 'OrderSeq'/user/pro/nonce/seqnum; value: OrderSeq
@@ -62,8 +93,7 @@ type OrderSeq struct {
 	SeqNum      uint32    // strict incremental from 0
 	Size        uint64    // accumulated
 	Price       *big.Int  //
-	Segments    []Segs    // dataType/name/size; 多个dataName;
-	Pieces      [][]byte  // piece
+	DataName    [][]byte  // dataType/name/size; 多个dataName;
 	UserDataSig []byte    // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
 	ProDataSig  []byte
 	UserSig     []byte // for settlement chain; hash(fsID+proID+nonce+start+end+size+price)

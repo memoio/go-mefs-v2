@@ -42,6 +42,17 @@ func UintToBytes(v interface{}) []byte {
 	}
 }
 
+func Disorder(array []interface{}) {
+	var temp interface{}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := len(array) - 1; i >= 0; i-- {
+		num := r.Intn(i + 1)
+		temp = array[i]
+		array[i] = array[num]
+		array[num] = temp
+	}
+}
+
 func DisorderUint(array []uint64) {
 	var temp uint64
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))

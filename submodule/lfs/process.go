@@ -151,7 +151,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 				seg := segment.NewBaseSegment(encodedData[i], dp.segID)
 
-				segData := seg.Data()
+				segData, _ := seg.Content()
 				segTag, _ := seg.Tags()
 
 				ok, err := dp.keyset.PublicKey().VerifyTag(dp.segID.Bytes(), segData, segTag[0], 31)

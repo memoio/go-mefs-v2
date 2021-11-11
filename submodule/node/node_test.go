@@ -42,7 +42,7 @@ func TestBaseNode(t *testing.T) {
 
 	go func() {
 		log.Println("start hello")
-		res, err := bn2.SendMetaRequest(ctx, p1, pb.NetMessage_SayHello, []byte("hello"))
+		res, err := bn2.SendMetaRequest(ctx, p1, pb.NetMessage_SayHello, []byte("hello"), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -52,7 +52,7 @@ func TestBaseNode(t *testing.T) {
 
 	go func() {
 		log.Println("start get")
-		res, err := bn2.SendMetaRequest(ctx, p1, pb.NetMessage_Get, []byte("get"))
+		res, err := bn2.SendMetaRequest(ctx, p1, pb.NetMessage_Get, []byte("get"), nil)
 		if err != nil {
 			t.Fatal(err)
 		}

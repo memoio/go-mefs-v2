@@ -44,7 +44,7 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 	if err != nil {
 		return err
 	}
-	_, err = d.SendMetaRequest(ctx, to, pb.NetMessage_PutSegment, data)
+	_, err = d.SendMetaRequest(ctx, to, pb.NetMessage_PutSegment, data, nil)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 
 // GetSegmentFrom get segmemnt over network
 func (d *dataService) GetSegmentFrom(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error) {
-	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes())
+	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), nil)
 	if err != nil {
 		return nil, err
 	}

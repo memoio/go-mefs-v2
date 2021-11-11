@@ -3,7 +3,7 @@ package order
 import (
 	"context"
 	"encoding/binary"
-	"math/big"
+	"sync"
 	"time"
 
 	"github.com/emirpasic/gods/sets/hashset"
@@ -25,19 +25,20 @@ type OrderMgr struct {
 
 	ds store.KVStore // save order info
 
-	orders map[uint64]*OrderPer          // key: proID
-	direct map[types.OrderHash]*OrderOne // key: orderID
+	orders map[uint64]*OrderFull // key: proID
 
 	proSet *hashset.Set             // all pros
 	proMap map[uint64]*lastProvider // key: bucketID
 
-	pieceChan chan []byte
-	segChan   chan *types.Segs
+	segs    []types.Segs
+	segLock sync.Mutex
 
 	newOrderChan chan uint64
 	quoChan      chan *types.Quotation
 	confirmChan  chan *types.OrderBase
 	seqChan      chan *types.OrderSeq
+
+	ready bool
 }
 
 func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, id api.IDataService) *OrderMgr {
@@ -47,8 +48,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 		IRole:        ir,
 		IDataService: id,
 		proSet:       proset,
-		pieceChan:    make(chan []byte, 16),
-		segChan:      make(chan *types.Segs, 16),
+
 		newOrderChan: make(chan uint64, 16),
 		quoChan:      make(chan *types.Quotation, 16),
 		confirmChan:  make(chan *types.OrderBase, 16),
@@ -58,9 +58,15 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 	om.load(ctx)
 	om.addPros()
 
+	om.ready = true
+
 	go om.runSched(ctx)
 
 	return om
+}
+
+func (m *OrderMgr) Ready() bool {
+	return m.ready
 }
 
 func (m *OrderMgr) load(ctx context.Context) error {
@@ -72,7 +78,7 @@ func (m *OrderMgr) load(ctx context.Context) error {
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
 		m.proSet.Add(pid)
-		m.loadpro(pid)
+		m.newOrder(pid)
 	}
 
 	return nil
@@ -94,96 +100,15 @@ func (m *OrderMgr) addPros() {
 	for _, pro := range pros {
 		has := m.proSet.Contains(pro)
 		if !has {
-			m.loadpro(pro)
+			m.newOrder(pro)
 			m.proSet.Add(pro)
 		}
 	}
+	// check connect
 }
 
 func (m *OrderMgr) removePro() {
 	// remove it if not connected for a long time
-}
-
-func (m *OrderMgr) loadpro(id uint64) *OrderPer {
-	op := &OrderPer{
-		pro: id,
-	}
-
-	m.orders[id] = op
-
-	ns := new(NonceState)
-	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, id)
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return op
-	}
-
-	err = cbor.Unmarshal(val, ns)
-	if err != nil {
-		return op
-	}
-
-	if ns.State == Order_Done {
-		op.nonce++
-		return op
-	}
-
-	op.nonce = ns.Nonce
-
-	ob := new(types.OrderBase)
-	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, id, op.nonce)
-	val, err = m.ds.Get(key)
-	if err != nil {
-		return op
-	}
-
-	err = cbor.Unmarshal(val, ob)
-	if err != nil {
-		return op
-	}
-
-	op.current = &OrderOne{
-		StateOrderBase: StateOrderBase{
-			*ob, ns.State,
-		},
-	}
-
-	ss := new(SeqState)
-	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, id, op.nonce)
-	val, err = m.ds.Get(key)
-	if err != nil {
-		return op
-	}
-
-	err = cbor.Unmarshal(val, ss)
-	if err != nil {
-		return op
-	}
-
-	op.current.seq = ss.Number
-
-	os := new(types.OrderSeq)
-	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, id, op.nonce, ss.Number)
-	val, err = m.ds.Get(key)
-	if err != nil {
-		return op
-	}
-
-	err = cbor.Unmarshal(val, os)
-	if err != nil {
-		return op
-	}
-
-	op.current.price = new(big.Int).Set(os.Price)
-	op.current.size = os.Size
-	op.current.seq = os.SeqNum
-
-	op.current.active = &StateOrderSeq{
-		OrderSeq: *os,
-		State:    ss.State,
-	}
-
-	return op
 }
 
 func (m *OrderMgr) runSched(ctx context.Context) {
@@ -197,16 +122,10 @@ func (m *OrderMgr) runSched(ctx context.Context) {
 		case <-st.C:
 		case <-lt.C:
 			m.addPros() // add providers
+
+			go m.save(ctx)
 			// handerRunning?
 			// handleDone
-		case <-m.pieceChan:
-			// todo
-		case <-m.segChan:
-			// todo
-		case id := <-m.newOrderChan:
-			m.getQuotation(ctx, id)
-		case quo := <-m.quoChan:
-			m.addOrderBase(quo)
 		case ob := <-m.confirmChan:
 			m.confirmOrderBase(ob)
 		case <-m.seqChan:
@@ -217,13 +136,8 @@ func (m *OrderMgr) runSched(ctx context.Context) {
 	}
 }
 
-// add seg to proID depends on its chunkID
-// add piece to random number of proID
-func (m *OrderMgr) AddData(dataName []byte) {
-}
-
 func (m *OrderMgr) getQuotation(ctx context.Context, id uint64) error {
-	resp, err := m.SendMetaRequest(ctx, id, pb.NetMessage_AskPrice, nil)
+	resp, err := m.SendMetaRequest(ctx, id, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -239,34 +153,6 @@ func (m *OrderMgr) getQuotation(ctx context.Context, id uint64) error {
 	return nil
 }
 
-// quotation -> base
-func (m *OrderMgr) addOrderBase(quo *types.Quotation) error {
-	ob := types.OrderBase{
-		UserID:     m.localID,
-		ProID:      quo.ProID,
-		TokenIndex: quo.TokenIndex,
-		SegPrice:   quo.SegPrice,
-		PiecePrice: quo.PiecePrice,
-		Start:      uint64(time.Now().Unix()),
-		End:        uint64(time.Now().Unix()) + 100,
-	}
-
-	// state:init
-	or, ok := m.orders[quo.ProID]
-	if ok {
-		or = m.loadpro(quo.ProID)
-	}
-
-	of, err := or.new(&ob)
-	if err != nil {
-		return err
-	}
-
-	m.direct[ob.GetShortHash()] = of
-
-	return nil
-}
-
 // confirm base
 func (m *OrderMgr) confirmOrderBase(ob *types.OrderBase) error {
 	// state:->confirm
@@ -275,7 +161,7 @@ func (m *OrderMgr) confirmOrderBase(ob *types.OrderBase) error {
 		return ErrState
 	}
 
-	or.confirm(ob)
+	or.run()
 
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
+	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -70,12 +71,16 @@ type IRole interface {
 	RoleSelf() (pb.RoleInfo, error)
 	RoleGet(uint64) (pb.RoleInfo, error)
 	RoleGetRelated(typ pb.RoleInfo_Type) []uint64
+
+	RoleSign(msg []byte, typ types.SigType) (types.Signature, error)
+	RoleVerify(id uint64, msg []byte, sig types.Signature) bool
+	RoleVerifyMulti(msg []byte, sig mSign.MultiSignature) bool
 }
 
 type INetService interface {
 	// send/handle msg directly over network
 	SendMetaMessage(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) error
-	SendMetaRequest(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) (*pb.NetMessage, error)
+	SendMetaRequest(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val, sig []byte) (*pb.NetMessage, error)
 
 	Fetch(ctx context.Context, key []byte) ([]byte, error)
 
