@@ -2,6 +2,7 @@ package lfs
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -44,6 +45,16 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	if err != nil {
 		return nil, err
 	}
+
+	dist, donet, tt := 0, 0, 0
+	for _, opID := range object.ops {
+		dis, done, total := l.om.GetSegJogState(object.BucketID, opID)
+		dist += dis
+		donet += done
+		tt += total
+	}
+
+	object.State = fmt.Sprintf("state: %d, %d, %d", dist, donet, tt)
 
 	return &object.ObjectInfo, nil
 }

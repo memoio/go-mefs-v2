@@ -16,6 +16,7 @@ type ObjectInfo struct {
 	Parts  []*pb.ObjectPartInfo
 	Length uint64
 	Mtime  int64
+	State  string
 	Etag   []byte
 }
 

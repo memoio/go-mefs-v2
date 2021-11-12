@@ -3,11 +3,11 @@ package order
 import (
 	"context"
 	"encoding/binary"
+	"math/big"
 	"sync"
 	"time"
 
 	"github.com/emirpasic/gods/sets/hashset"
-	"github.com/fxamacker/cbor/v2"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -20,56 +20,74 @@ type OrderMgr struct {
 	api.INetService
 	api.IDataService
 
+	ctx context.Context
+	ds  store.KVStore // save order info
+
 	localID uint64
 	fsID    []byte
 
-	ds store.KVStore // save order info
+	segPrice *big.Int
 
 	orders map[uint64]*OrderFull // key: proID
 
-	proSet *hashset.Set             // all pros
-	proMap map[uint64]*lastProvider // key: bucketID
+	proSet  *hashset.Set                  // all pros
+	proMap  map[uint64]*lastProsPerBucket // key: bucketID
+	proLock sync.RWMutex
 
-	segs    []types.Segs
-	segLock sync.Mutex
+	segs    []*segJob
+	segLock sync.RWMutex
 
 	newOrderChan chan uint64
 	quoChan      chan *types.Quotation
 	confirmChan  chan *types.OrderBase
 	seqChan      chan *types.OrderSeq
 
+	segAddChan  chan *types.SegJob
+	segRedoChan chan *types.SegJob
+	segDoneChan chan *types.SegJob
+
 	ready bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, id api.IDataService) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
 	proset := hashset.New()
 
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
-		proSet:       proset,
+		INetService:  in,
+
+		ctx: ctx,
+
+		proSet: proset,
+
+		segPrice: big.NewInt(100),
 
 		newOrderChan: make(chan uint64, 16),
 		quoChan:      make(chan *types.Quotation, 16),
 		confirmChan:  make(chan *types.OrderBase, 16),
 		seqChan:      make(chan *types.OrderSeq, 16),
+
+		segAddChan:  make(chan *types.SegJob, 16),
+		segRedoChan: make(chan *types.SegJob, 16),
+		segDoneChan: make(chan *types.SegJob, 16),
 	}
 
-	om.load(ctx)
+	om.load()
 	om.addPros()
 
 	om.ready = true
 
-	go om.runSched(ctx)
+	go om.runSched()
+
+	go om.dispatch()
+
+	logger.Info("creaet order manager")
 
 	return om
 }
 
-func (m *OrderMgr) Ready() bool {
-	return m.ready
-}
-
-func (m *OrderMgr) load(ctx context.Context) error {
+func (m *OrderMgr) load() error {
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID)
 	val, err := m.ds.Get(key)
 	if err != nil {
@@ -78,7 +96,7 @@ func (m *OrderMgr) load(ctx context.Context) error {
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
 		m.proSet.Add(pid)
-		m.newOrder(pid)
+		m.orders[pid] = m.newOrder(pid)
 	}
 
 	return nil
@@ -100,22 +118,17 @@ func (m *OrderMgr) addPros() {
 	for _, pro := range pros {
 		has := m.proSet.Contains(pro)
 		if !has {
-			m.newOrder(pro)
+			m.orders[pro] = m.newOrder(pro)
 			m.proSet.Add(pro)
 		}
 	}
-	// check connect
 }
 
-func (m *OrderMgr) removePro() {
-	// remove it if not connected for a long time
-}
-
-func (m *OrderMgr) runSched(ctx context.Context) {
+func (m *OrderMgr) runSched() {
 	st := time.NewTicker(time.Minute)
 	defer st.Stop()
 
-	lt := time.NewTicker(time.Minute)
+	lt := time.NewTicker(5 * time.Minute)
 	defer lt.Stop()
 	for {
 		select {
@@ -123,65 +136,17 @@ func (m *OrderMgr) runSched(ctx context.Context) {
 		case <-lt.C:
 			m.addPros() // add providers
 
-			go m.save(ctx)
-			// handerRunning?
-			// handleDone
-		case ob := <-m.confirmChan:
-			m.confirmOrderBase(ob)
+			go m.save(m.ctx)
+
+			m.proLock.RLock()
+			for _, lp := range m.proMap {
+				m.saveLastProsPerBucket(lp)
+			}
+			m.proLock.RUnlock()
 		case <-m.seqChan:
 			// todo
-		case <-ctx.Done():
+		case <-m.ctx.Done():
 			return
 		}
 	}
 }
-
-func (m *OrderMgr) getQuotation(ctx context.Context, id uint64) error {
-	resp, err := m.SendMetaRequest(ctx, id, pb.NetMessage_AskPrice, nil, nil)
-	if err != nil {
-		return err
-	}
-
-	quo := new(types.Quotation)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), quo)
-	if err != nil {
-		return err
-	}
-
-	m.quoChan <- quo
-
-	return nil
-}
-
-// confirm base
-func (m *OrderMgr) confirmOrderBase(ob *types.OrderBase) error {
-	// state:->confirm
-	or, ok := m.orders[ob.ProID]
-	if !ok {
-		return ErrState
-	}
-
-	or.run()
-
-	return nil
-}
-
-// handle ack pro pro
-
-// receive order ack; Order_Init -> Order_Running
-func (m *OrderMgr) handleOrderConfirm(ob *types.OrderBase) {
-	// verify sign; persist
-	m.confirmChan <- ob
-}
-
-// receive seq ack; OrderSeq_Running -> OrderSeq_Sending
-func (m *OrderMgr) handleSeqConfirm(s *types.OrderSeq) {
-	m.seqChan <- s
-}
-
-// receive seq done ack;OrderSeq_Sending -> OrderSeq_Done
-func (m *OrderMgr) handleSeqDoneConfirm(s *types.OrderSeq) {
-	m.seqChan <- s
-}
-
-// get information

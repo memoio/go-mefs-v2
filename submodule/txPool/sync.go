@@ -61,7 +61,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 	}
 
 	// verify
-	if !sp.RoleMgr.VerifyMulti(bid.Bytes(), tb.MultiSignature) {
+	if !sp.RoleMgr.RoleVerifyMulti(bid.Bytes(), tb.MultiSignature) {
 		return ErrInvalidSign
 	}
 

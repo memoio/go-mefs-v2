@@ -9,10 +9,13 @@ import (
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	uorder "github.com/memoio/go-mefs-v2/service/user/order"
 )
 
 type LfsService struct {
 	sync.RWMutex
+
+	om *uorder.OrderMgr
 
 	ctx      context.Context
 	keyset   pdpcommon.KeySet
@@ -30,13 +33,14 @@ type LfsService struct {
 	sw *semaphore.Weighted // manage resource
 }
 
-func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore) (*LfsService, error) {
+func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, om *uorder.OrderMgr) (*LfsService, error) {
 	ls := &LfsService{
 		ctx: ctx,
 
 		userID: userID,
 		fsID:   make([]byte, 20),
 
+		om:       om,
 		ds:       ds,
 		segStore: ss,
 		keyset:   keyset,

@@ -18,6 +18,14 @@ type Quotation struct {
 	PiecePrice *big.Int
 }
 
+func (q *Quotation) Serialize() ([]byte, error) {
+	return cbor.Marshal(q)
+}
+
+func (q *Quotation) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, q)
+}
+
 // key: 'OrderNonce'/user/pro; value: nonce
 // key: 'OrderNonceDone'/user/pro; value: nonce
 // key: 'OrderBase'/user/pro/nonce; value: content
@@ -32,7 +40,7 @@ type OrderBase struct {
 	PiecePrice *big.Int
 }
 
-func (b *OrderBase) GetHash() []byte {
+func (b *OrderBase) Hash() []byte {
 	buf, err := cbor.Marshal(b)
 	if err != nil {
 		return nil
@@ -43,12 +51,12 @@ func (b *OrderBase) GetHash() []byte {
 	return h[:]
 }
 
-func (b *OrderBase) GetShortHash() OrderHash {
-	h := b.GetHash()
+func (b *OrderBase) Serialize() ([]byte, error) {
+	return cbor.Marshal(b)
+}
 
-	var o OrderHash
-	copy(o[:], h[:8])
-	return o
+func (b *OrderBase) Deserialize(buf []byte) error {
+	return cbor.Unmarshal(buf, b)
 }
 
 type SignedOrderBase struct {
@@ -84,20 +92,56 @@ func (sob *SignedOrderBase) Serialize() ([]byte, error) {
 }
 
 func (sob *SignedOrderBase) Deserialize(b []byte) error {
+	if len(b) < 4 {
+		return ErrLength
+	}
+
+	usign := new(Signature)
+	ulen := binary.BigEndian.Uint16(b[:2])
+	err := usign.Deserialize(b[2 : 2+ulen])
+	if err != nil {
+		return err
+	}
+
+	psign := new(Signature)
+	plen := binary.BigEndian.Uint16(b[2+ulen : 4+ulen])
+	err = psign.Deserialize(b[4+ulen : 4+ulen+plen])
+	if err != nil {
+		return err
+	}
+
+	ob := new(OrderBase)
+	err = ob.Deserialize(b[4+ulen+plen:])
+	if err != nil {
+		return err
+	}
+
+	sob.OrderBase = *ob
+	sob.Usign = *usign
+	sob.Psign = *psign
+
 	return nil
 }
 
 // key: 'OrderSeq'/user/pro/nonce/seqnum; value: OrderSeq
 type OrderSeq struct {
-	ID          OrderHash // fast lookup
-	SeqNum      uint32    // strict incremental from 0
-	Size        uint64    // accumulated
-	Price       *big.Int  //
-	DataName    [][]byte  // dataType/name/size; 多个dataName;
-	UserDataSig []byte    // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
+	ID          []byte   // fast lookup
+	SeqNum      uint32   // strict incremental from 0
+	Size        uint64   // accumulated
+	Price       *big.Int //
+	DataName    [][]byte // dataType/name/size; 多个dataName;
+	UserDataSig []byte   // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
 	ProDataSig  []byte
 	UserSig     []byte // for settlement chain; hash(fsID+proID+nonce+start+end+size+price)
 	ProSig      []byte
+}
+
+func (os *OrderSeq) Serialize() ([]byte, error) {
+	return cbor.Marshal(os)
+}
+
+func (os *OrderSeq) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, os)
 }
 
 type OrderData struct {

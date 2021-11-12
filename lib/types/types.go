@@ -17,6 +17,7 @@ const (
 
 var (
 	ErrHexString = errors.New("string format is not right")
+	ErrLength    = errors.New("length is illegal")
 )
 
 func ToHexString(sep string, id ...uint64) string {

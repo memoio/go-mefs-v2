@@ -22,7 +22,7 @@ enum MetaType {
 	
     LFS_BucketOptionKey = 13; // key: x/userID/bucketID; val: BucketOption 
     LFS_OpInfoKey = 14;       // key: x/userID/bucketID/opID; val: BucketRecord
-    LFS_OpDoneKey = 16;		  // key: x/userID/bucketID/opID; val: opstate	 
+    LFS_OpStateKey = 16;		  // key: x/userID/bucketID/opID; val: opstate	 
     LFS_OpCountKey = 17;      // key: x/userID/bucketID; val: op number
 
 	// key in state tree

@@ -15,6 +15,14 @@ type Segs struct {
 	Length   uint64
 }
 
+type SegJob struct {
+	JobID    uint64
+	BucketID uint64
+	Start    uint64
+	Length   uint64
+	ChunkID  uint32
+}
+
 // Stripe
 type Stripe struct {
 	start uint64 // stripe start

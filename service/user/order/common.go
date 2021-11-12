@@ -12,6 +12,7 @@ var (
 	ErrDataAdded = errors.New("add data fails")
 	ErrState     = errors.New("state is wrong")
 	ErrNotFound  = errors.New("not found")
+	ErrPrice     = errors.New("price is not right")
 )
 
 const (

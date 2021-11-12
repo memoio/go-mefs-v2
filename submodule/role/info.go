@@ -11,6 +11,8 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -197,6 +199,21 @@ func (rm *RoleMgr) GetBlsPubKey(roleID uint64) []byte {
 		return ri.BlsVerifyKey
 	}
 	return nil
+}
+
+func (rm *RoleMgr) RoleGetKeyset() (pdpcommon.KeySet, error) {
+	ki, err := rm.WalletExport(rm.ctx, rm.localAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	privBytes := ki.SecretKey
+
+	keyset, err := pdpv2.GenKeySetWithSeed(privBytes, pdpv2.SCount)
+	if err != nil {
+		return nil, err
+	}
+	return keyset, nil
 }
 
 func (rm *RoleMgr) RoleSign(msg []byte, typ types.SigType) (types.Signature, error) {

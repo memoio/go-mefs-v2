@@ -18,6 +18,7 @@ import (
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 type dataProcess struct {
@@ -199,6 +200,16 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				}
 
 				// send out
+
+				sj := &types.SegJob{
+					JobID:    op.OpID,
+					BucketID: object.BucketID,
+					Start:    curStripe,
+					Length:   uint64(stripeCount),
+					ChunkID:  bucket.DataCount + bucket.ParityCount,
+				}
+
+				l.om.AddSegJob(sj)
 
 				// update
 				h.Reset()

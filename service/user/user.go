@@ -9,6 +9,8 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	"github.com/memoio/go-mefs-v2/service/user/lfs"
+	uorder "github.com/memoio/go-mefs-v2/service/user/order"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -22,6 +24,8 @@ type UserNode struct {
 	*node.BaseNode
 
 	segStore segment.SegmentStore
+
+	lfs *lfs.LfsService
 
 	ctx context.Context
 }
@@ -37,10 +41,23 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
+	keyset, err := bn.RoleMgr.RoleGetKeyset()
+	if err != nil {
+		return nil, err
+	}
+
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), bn.MetaStore(), bn.RoleMgr, bn.NetServiceImpl, nil)
+
+	ls, err := lfs.New(ctx, bn.RoleID(), keyset, bn.MetaStore(), segStore, om)
+	if err != nil {
+		return nil, err
+	}
+
 	un := &UserNode{
 		BaseNode: bn,
 		ctx:      ctx,
 		segStore: segStore,
+		lfs:      ls,
 	}
 
 	return un, nil
