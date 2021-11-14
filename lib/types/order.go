@@ -8,7 +8,7 @@ import (
 	"github.com/zeebo/blake3"
 )
 
-type OrderHash [8]byte
+type OrderHash [32]byte
 
 // 报价单
 type Quotation struct {
@@ -40,15 +40,19 @@ type OrderBase struct {
 	PiecePrice *big.Int
 }
 
-func (b *OrderBase) Hash() []byte {
+func (b *OrderBase) Hash() OrderHash {
+	var oh OrderHash
+
 	buf, err := cbor.Marshal(b)
 	if err != nil {
-		return nil
+		return oh
 	}
 
 	h := blake3.Sum256(buf)
 
-	return h[:]
+	copy(oh[:], h[:])
+
+	return oh
 }
 
 func (b *OrderBase) Serialize() ([]byte, error) {
@@ -125,12 +129,12 @@ func (sob *SignedOrderBase) Deserialize(b []byte) error {
 
 // key: 'OrderSeq'/user/pro/nonce/seqnum; value: OrderSeq
 type OrderSeq struct {
-	ID          []byte   // fast lookup
-	SeqNum      uint32   // strict incremental from 0
-	Size        uint64   // accumulated
-	Price       *big.Int //
-	DataName    [][]byte // dataType/name/size; 多个dataName;
-	UserDataSig []byte   // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
+	ID          OrderHash // fast lookup
+	SeqNum      uint32    // strict incremental from 0
+	Size        uint64    // accumulated
+	Price       *big.Int  //
+	DataName    [][]byte  // dataType/name/size; 多个dataName;
+	UserDataSig []byte    // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
 	ProDataSig  []byte
 	UserSig     []byte // for settlement chain; hash(fsID+proID+nonce+start+end+size+price)
 	ProSig      []byte

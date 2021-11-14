@@ -9,10 +9,8 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/zeebo/blake3"
 )
 
 type OrderState uint8
@@ -48,16 +46,12 @@ type SeqState struct {
 
 // per provider
 type OrderFull struct {
-	api.IRole        // sign and veirfy
-	api.INetService  // netmessage
 	api.IDataService // segment
 
 	ctx context.Context
-	ds  store.KVStore
 
-	localID  uint64
-	fsID     []byte
-	segPrice *big.Int // price set
+	localID uint64
+	fsID    []byte
 
 	pro       uint64
 	availTime int64 // last connect time
@@ -78,42 +72,29 @@ type OrderFull struct {
 	segs     []*types.SegJob // buf and persist?
 	dataLock sync.Mutex
 
-	segDoneChan chan *types.SegJob // info higher
-	segRedoChan chan *types.SegJob // info higher to redispatch
-
-	quoChan       chan *types.Quotation // to init
-	orderChan     chan *types.OrderBase // confirm new order
-	seqNewChan    chan *types.OrderSeq  // confirm new seq
-	seqFinishChan chan *types.OrderSeq  // confirm current seq
+	segDoneChan chan *types.SegJob
 }
 
-func (m *OrderMgr) newOrder(id uint64) *OrderFull {
+func (m *OrderMgr) newOrder(id uint64) {
+	of := m.loadOrder(id)
+	m.proChan <- of
+}
+
+func (m *OrderMgr) loadOrder(id uint64) *OrderFull {
 	op := &OrderFull{
-		IRole:        m.IRole,
-		INetService:  m.INetService,
 		IDataService: m.IDataService,
 
 		pro:     id,
 		fsID:    m.fsID,
 		localID: m.localID,
 
-		ds:       m.ds,
-		segPrice: m.segPrice,
-
 		ctx: m.ctx,
 
 		segs: make([]*types.SegJob, 0, 16),
 
 		segDoneChan: m.segDoneChan,
-		segRedoChan: m.segRedoChan,
-
-		quoChan:       make(chan *types.Quotation),
-		orderChan:     make(chan *types.OrderBase),
-		seqNewChan:    make(chan *types.OrderSeq),
-		seqFinishChan: make(chan *types.OrderSeq),
 	}
 
-	go op.check()
 	go op.sendData()
 
 	ns := new(NonceState)
@@ -173,7 +154,7 @@ func (m *OrderMgr) newOrder(id uint64) *OrderFull {
 	return op
 }
 
-func (o *OrderFull) check() {
+func (m *OrderMgr) check(o *OrderFull) {
 	// 1. done -> new
 
 	// 2  closing; push seq to done
@@ -186,149 +167,63 @@ func (o *OrderFull) check() {
 
 	// 4 init; wait confirm
 
-	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
-
-	for {
-		select {
-		case quo := <-o.quoChan:
-			o.init(quo)
-		case ob := <-o.orderChan:
-			o.run(ob)
-		case s := <-o.seqNewChan:
-			o.send(s)
-		case s := <-o.seqFinishChan:
-			o.finish(s)
-		case <-t.C:
-			nt := time.Now().Unix()
-			switch o.orderState {
-			case Order_Init:
-				if nt-o.orderTime > DefaultAckWaiting {
-					o.init(nil)
-					continue
-				}
-			case Order_Running:
-				if nt-o.orderTime > DefaultOrderLast {
-					o.close()
-					continue
-				}
-				switch o.seqState {
-				case OrderSeq_Prepare:
-					if nt-o.seqTime > DefaultAckWaiting {
-						o.prepare()
-					}
-				case OrderSeq_Send:
-					if nt-o.seqTime > DefaultOrderSeqLast {
-						o.commit()
-						continue
-					}
-				case OrderSeq_Lock:
-					if nt-o.seqTime > 10 {
-						o.commit()
-						continue
-					}
-				case OrderSeq_Commit:
-					if nt-o.seqTime > DefaultAckWaiting {
-						o.commit()
-					}
-				case OrderSeq_Finish:
-				}
-
-			case Order_Closing:
-				if o.seqState == OrderSeq_Finish {
-					o.done()
-				}
-			case Order_Done:
-				o.dataLock.Lock()
-				if len(o.segs) == 0 {
-					o.dataLock.Unlock()
-					continue
-				}
-				o.dataLock.Unlock()
-				// init, inform higher
-			}
-
-			if nt-o.availTime > 1800 {
-				go o.connect()
-			}
-
-			if nt-o.availTime > 3600 {
-				o.stop()
-			}
-		case <-o.ctx.Done():
-			return
+	nt := time.Now().Unix()
+	switch o.orderState {
+	case Order_Init:
+		if nt-o.orderTime > DefaultAckWaiting {
+			m.init(o, nil)
 		}
-	}
-}
+	case Order_Running:
+		if nt-o.orderTime > DefaultOrderLast {
+			m.close(o)
+		}
+		switch o.seqState {
+		case OrderSeq_Prepare:
+			if nt-o.seqTime > DefaultAckWaiting {
+				m.prepare(o)
+			}
+		case OrderSeq_Send:
+			if nt-o.seqTime > DefaultOrderSeqLast {
+				m.commit(o)
+			}
+		case OrderSeq_Lock:
+			if nt-o.seqTime > 10 {
+				m.commit(o)
+			}
+		case OrderSeq_Commit:
+			if nt-o.seqTime > DefaultAckWaiting {
+				m.commit(o)
+			}
+		case OrderSeq_Finish:
+		}
 
-func (o *OrderFull) addSeg(sj *types.SegJob) error {
-
-	o.dataLock.Lock()
-	if o.inStop {
+	case Order_Closing:
+		if o.seqState == OrderSeq_Finish {
+			m.done(o)
+		}
+	case Order_Done:
+		o.dataLock.Lock()
+		if len(o.segs) == 0 {
+			o.dataLock.Unlock()
+		}
 		o.dataLock.Unlock()
-		return ErrState
+		// init, inform higher
 	}
-	o.segs = append(o.segs, sj)
-	o.dataLock.Unlock()
 
-	return nil
-}
+	if nt-o.availTime > 1800 {
+		go m.connect(o.pro)
+	}
 
-func (o *OrderFull) sendData() {
-	for {
-		select {
-		case <-o.ctx.Done():
-			return
-		default:
-			if o.base == nil || o.orderState != Order_Running {
-				continue
-			}
-
-			if o.seq == nil || o.seqState != OrderSeq_Send {
-				continue
-			}
-
-			o.dataLock.Lock()
-			if len(o.segs) > 0 {
-				o.dataLock.Unlock()
-				continue
-			}
-			sj := o.segs[0]
-			o.inflight = true
-			o.dataLock.Unlock()
-
-			sid, err := segment.NewSegmentID(o.fsID, sj.BucketID, sj.Start, sj.ChunkID)
-			if err != nil {
-				o.dataLock.Lock()
-				o.inflight = false
-				o.dataLock.Unlock()
-				continue
-			}
-			err = o.SendSegmentByID(o.ctx, sid, o.pro)
-			if err != nil {
-				o.dataLock.Lock()
-				o.inflight = false
-				o.dataLock.Unlock()
-				continue
-			}
-
-			o.availTime = time.Now().Unix()
-
-			o.dataLock.Lock()
-			o.seq.DataName = append(o.seq.DataName, sid.Bytes())
-			// update price and size
-			o.segs = o.segs[1:]
-			o.inflight = false
-			o.dataLock.Unlock()
-		}
+	if nt-o.availTime > 3600 {
+		m.stop(o)
 	}
 }
 
 // create a new order
-func (o *OrderFull) init(quo *types.Quotation) error {
+func (m *OrderMgr) init(o *OrderFull, quo *types.Quotation) error {
 	if quo != nil && o.base == nil && o.orderState == Order_Done {
-		if quo.SegPrice.Cmp(o.segPrice) > 0 {
-			o.stop()
+		if quo.SegPrice.Cmp(m.segPrice) > 0 {
+			m.stop(o)
 			return ErrPrice
 		}
 
@@ -347,8 +242,13 @@ func (o *OrderFull) init(quo *types.Quotation) error {
 		o.orderState = Order_Init
 		o.orderTime = time.Now().Unix()
 
-		go o.getNewOrderAck()
 		// send to pro
+		data, err := o.base.Serialize()
+		if err != nil {
+			return err
+		}
+
+		go m.getNewOrderAck(o.pro, data)
 
 		return nil
 	}
@@ -357,8 +257,13 @@ func (o *OrderFull) init(quo *types.Quotation) error {
 		o.orderState = Order_Init
 		o.orderTime = time.Now().Unix()
 
-		go o.getNewOrderAck()
 		// send to pro
+		data, err := o.base.Serialize()
+		if err != nil {
+			return err
+		}
+
+		go m.getNewOrderAck(o.pro, data)
 
 		return nil
 	}
@@ -367,7 +272,7 @@ func (o *OrderFull) init(quo *types.Quotation) error {
 }
 
 // confirm base when receive pro ack; init -> running
-func (o *OrderFull) run(ob *types.OrderBase) error {
+func (m *OrderMgr) run(o *OrderFull, ob *types.OrderBase) error {
 	if o.base == nil || o.orderState != Order_Init {
 		return ErrState
 	}
@@ -378,7 +283,7 @@ func (o *OrderFull) run(ob *types.OrderBase) error {
 }
 
 // time up to close current order
-func (o *OrderFull) close() error {
+func (m *OrderMgr) close(o *OrderFull) error {
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
 	}
@@ -390,7 +295,7 @@ func (o *OrderFull) close() error {
 }
 
 // finish all seqs
-func (o *OrderFull) done() error {
+func (m *OrderMgr) done(o *OrderFull) error {
 	if o.base == nil || o.orderState != Order_Closing {
 		return ErrState
 	}
@@ -406,18 +311,18 @@ func (o *OrderFull) done() error {
 	// trigger a new order
 
 	if len(o.segs) > 0 {
-		go o.getQuotation()
+		go m.getQuotation(o.pro)
 	}
 
 	return nil
 }
 
-func (o *OrderFull) stop() {
+func (m *OrderMgr) stop(o *OrderFull) {
 	o.dataLock.Lock()
 	o.inStop = true
 
 	for i := 0; i < len(o.segs); i++ {
-		o.segRedoChan <- o.segs[i]
+		m.redoSegJob(o.segs[i])
 	}
 
 	o.segs = o.segs[:0]
@@ -425,7 +330,7 @@ func (o *OrderFull) stop() {
 }
 
 // create a new orderseq for prepare
-func (o *OrderFull) prepare() error {
+func (m *OrderMgr) prepare(o *OrderFull) error {
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
 	}
@@ -446,7 +351,13 @@ func (o *OrderFull) prepare() error {
 		o.seqTime = time.Now().Unix()
 
 		// send to pro
-		go o.getNewSeqAck()
+
+		data, err := o.seq.Serialize()
+		if err != nil {
+			return err
+		}
+
+		go m.getNewSeqAck(o.pro, data)
 
 		return nil
 	}
@@ -455,7 +366,7 @@ func (o *OrderFull) prepare() error {
 }
 
 // init -> send; when receive confirm ack
-func (o *OrderFull) send(s *types.OrderSeq) error {
+func (m *OrderMgr) send(o *OrderFull, s *types.OrderSeq) error {
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
 	}
@@ -471,7 +382,7 @@ func (o *OrderFull) send(s *types.OrderSeq) error {
 }
 
 // time is up
-func (o *OrderFull) commit() error {
+func (m *OrderMgr) commit(o *OrderFull) error {
 	if o.base == nil || o.orderState == Order_Init || o.orderState == Order_Done {
 		return ErrState
 	}
@@ -486,13 +397,18 @@ func (o *OrderFull) commit() error {
 	o.seqState = OrderSeq_Commit
 	o.seqTime = time.Now().Unix()
 
-	go o.getSeqFinishAck()
+	data, err := o.seq.Serialize()
+	if err != nil {
+		return err
+	}
+
+	go m.getSeqFinishAck(o.pro, data)
 
 	return nil
 }
 
 // when recieve pro seq done ack; confirm -> done
-func (o *OrderFull) finish(s *types.OrderSeq) error {
+func (m *OrderMgr) finish(o *OrderFull, s *types.OrderSeq) error {
 	if o.base == nil || o.orderState != Order_Closing {
 		return ErrState
 	}
@@ -506,208 +422,5 @@ func (o *OrderFull) finish(s *types.OrderSeq) error {
 	// persist
 
 	// trigger new()
-	return nil
-}
-
-func (o *OrderFull) connect() {
-	_, err := o.SendMetaRequest(o.ctx, o.pro, pb.NetMessage_SayHello, nil, nil)
-	if err != nil {
-		return
-	}
-
-	o.availTime = time.Now().Unix()
-}
-
-func (o *OrderFull) getQuotation() error {
-	resp, err := o.SendMetaRequest(o.ctx, o.pro, pb.NetMessage_AskPrice, nil, nil)
-	if err != nil {
-		return err
-	}
-
-	if resp.GetHeader().GetFrom() != o.pro {
-		return ErrState
-	}
-
-	o.availTime = time.Now().Unix()
-
-	quo := new(types.Quotation)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), quo)
-	if err != nil {
-		return err
-	}
-
-	sig := new(types.Signature)
-	err = sig.Deserialize(resp.GetData().GetSign())
-	if err != nil {
-		return err
-	}
-
-	// verify
-
-	msg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok := o.RoleVerify(o.pro, msg[:], *sig)
-	if ok {
-		o.quoChan <- quo
-	}
-
-	return nil
-}
-
-func (o *OrderFull) getNewOrderAck() error {
-	if o.base == nil || o.orderState != Order_Init {
-		return ErrState
-	}
-
-	data, err := o.base.Serialize()
-	if err != nil {
-		return err
-	}
-
-	msg := blake3.Sum256(data)
-	sig, err := o.RoleSign(msg[:], types.SigSecp256k1)
-	if err != nil {
-		return err
-	}
-
-	sigByte, err := sig.Serialize()
-	if err != nil {
-		return err
-	}
-
-	resp, err := o.SendMetaRequest(o.ctx, o.pro, pb.NetMessage_CreateOrder, data, sigByte)
-	if err != nil {
-		return err
-	}
-
-	o.availTime = time.Now().Unix()
-
-	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return ErrNotFound
-	}
-
-	ob := new(types.OrderBase)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), ob)
-	if err != nil {
-		return err
-	}
-
-	psig := new(types.Signature)
-	err = psig.Deserialize(resp.GetData().GetSign())
-	if err != nil {
-		return err
-	}
-
-	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok := o.RoleVerify(o.pro, pmsg[:], *psig)
-	if ok {
-		o.orderChan <- ob
-	}
-
-	return nil
-}
-
-func (o *OrderFull) getNewSeqAck() error {
-	if o.seq == nil || o.seqState != OrderSeq_Prepare {
-		return ErrState
-	}
-
-	data, err := o.seq.Serialize()
-	if err != nil {
-		return err
-	}
-
-	msg := blake3.Sum256(data)
-	sig, err := o.RoleSign(msg[:], types.SigSecp256k1)
-	if err != nil {
-		return err
-	}
-
-	sigByte, err := sig.Serialize()
-	if err != nil {
-		return err
-	}
-
-	resp, err := o.SendMetaRequest(o.ctx, o.pro, pb.NetMessage_CreateSeq, data, sigByte)
-	if err != nil {
-		return err
-	}
-
-	o.availTime = time.Now().Unix()
-
-	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return ErrNotFound
-	}
-
-	os := new(types.OrderSeq)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), os)
-	if err != nil {
-		return err
-	}
-
-	psig := new(types.Signature)
-	err = psig.Deserialize(resp.GetData().GetSign())
-	if err != nil {
-		return err
-	}
-
-	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok := o.RoleVerify(o.pro, pmsg[:], *psig)
-	if ok {
-		o.seqNewChan <- os
-	}
-
-	return nil
-}
-
-func (o *OrderFull) getSeqFinishAck() error {
-	if o.seq == nil || o.seqState != OrderSeq_Commit {
-		return ErrState
-	}
-
-	data, err := o.seq.Serialize()
-	if err != nil {
-		return err
-	}
-
-	msg := blake3.Sum256(data)
-	sig, err := o.RoleSign(msg[:], types.SigSecp256k1)
-	if err != nil {
-		return err
-	}
-
-	sigByte, err := sig.Serialize()
-	if err != nil {
-		return err
-	}
-
-	resp, err := o.SendMetaRequest(o.ctx, o.pro, pb.NetMessage_FinishSeq, data, sigByte)
-	if err != nil {
-		return err
-	}
-
-	o.availTime = time.Now().Unix()
-
-	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return ErrNotFound
-	}
-
-	os := new(types.OrderSeq)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), os)
-	if err != nil {
-		return err
-	}
-
-	psig := new(types.Signature)
-	err = psig.Deserialize(resp.GetData().GetSign())
-	if err != nil {
-		return err
-	}
-
-	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok := o.RoleVerify(o.pro, pmsg[:], *psig)
-	if ok {
-		o.seqFinishChan <- os
-	}
-
 	return nil
 }
