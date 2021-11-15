@@ -48,13 +48,18 @@ type OrderMgr struct {
 	ready bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
+
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
 		INetService:  in,
 
 		ctx: ctx,
+		ds:  ds,
+
+		localID: roleID,
+		fsID:    fsID,
 
 		segPrice: big.NewInt(100),
 
@@ -98,7 +103,7 @@ func (m *OrderMgr) load() error {
 
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		m.orders[pid] = m.loadOrder(pid)
+		m.orders[pid] = m.loadProOrder(pid)
 	}
 
 	pros := m.IRole.RoleGetRelated(pb.RoleInfo_Provider)
@@ -111,7 +116,7 @@ func (m *OrderMgr) load() error {
 		}
 
 		if !has {
-			m.orders[pid] = m.loadOrder(pid)
+			m.orders[pid] = m.loadProOrder(pid)
 		}
 	}
 
@@ -141,7 +146,7 @@ func (m *OrderMgr) addPros() {
 		}
 
 		if !has {
-			go m.newOrder(pro)
+			go m.newProOrder(pro)
 		}
 	}
 
@@ -176,25 +181,25 @@ func (m *OrderMgr) runSched() {
 			of, ok := m.orders[quo.ProID]
 			if ok {
 				of.availTime = time.Now().Unix()
-				m.init(of, quo)
+				m.createOrder(of, quo)
 			}
 		case ob := <-m.orderChan:
 			of, ok := m.orders[ob.ProID]
 			if ok {
 				of.availTime = time.Now().Unix()
-				m.run(of, ob)
+				m.runOrder(of, ob)
 			}
 		case s := <-m.seqNewChan:
 			of, ok := m.orders[s.proID]
 			if ok {
 				of.availTime = time.Now().Unix()
-				m.send(of, s.os)
+				m.sendSeq(of, s.os)
 			}
 		case s := <-m.seqFinishChan:
 			of, ok := m.orders[s.proID]
 			if ok {
 				of.availTime = time.Now().Unix()
-				m.finish(of, s.os)
+				m.finishSeq(of, s.os)
 			}
 		case of := <-m.proChan:
 			m.orders[of.pro] = of

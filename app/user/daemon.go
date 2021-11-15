@@ -12,7 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/lib/repo"
-	"github.com/memoio/go-mefs-v2/service/keeper"
+	"github.com/memoio/go-mefs-v2/service/user"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -34,12 +34,12 @@ var DaemonCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  apiAddrKwd,
 			Usage: "set the api addr to use",
-			Value: "/ip4/127.0.0.1/tcp/8001",
+			Value: "/ip4/127.0.0.1/tcp/8003",
 		},
 		&cli.StringFlag{
 			Name:  swarmPortKwd,
 			Usage: "set the swarm port to use",
-			Value: "7001",
+			Value: "7003",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -98,10 +98,6 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		config.Net.Addresses = changed
 	}
 
-	if apiAddr := cctx.String(apiAddrKwd); apiAddr != "" {
-		config.API.Address = apiAddr
-	}
-
 	rep.ReplaceConfig(config)
 
 	var node minit.Node
@@ -115,7 +111,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		password := cctx.String("password")
 		opts = append(opts, basenode.SetPassword(password))
 
-		node, err = keeper.New(cctx.Context, opts...)
+		node, err = user.New(cctx.Context, opts...)
 		if err != nil {
 			return err
 		}

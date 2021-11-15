@@ -1,14 +1,39 @@
 package order
 
 import (
-	"context"
-	"time"
-
+	"github.com/fxamacker/cbor/v2"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	"github.com/memoio/go-mefs-v2/lib/segment"
+	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
+
+type OrderState uint8
+
+const (
+	Order_Init OrderState = iota //
+	Order_Done                   // order is done
+)
+
+type NonceState struct {
+	Nonce uint64
+	Time  int64
+	State OrderState
+}
+
+type OrderSeqState uint8
+
+const (
+	OrderSeq_Init   OrderSeqState = iota // can receiving data
+	OrderSeq_Finish                      // finished
+)
+
+type SeqState struct {
+	Number uint32
+	Time   int64
+	State  OrderSeqState
+}
 
 type OrderFull struct {
 	ds store.KVStore
@@ -16,100 +41,93 @@ type OrderFull struct {
 	userID uint64
 	fsID   []byte
 
-	base *types.OrderBase
-	seq  *types.OrderSeq // 当前处理
+	base       *types.OrderBase
+	orderTime  int64
+	orderState OrderState
+
+	seq      *types.OrderSeq // 当前处理
+	seqTime  int64
+	seqState OrderSeqState
 
 	nonce  uint64 // next nonce
 	seqNum uint32 // next seq
 
 	pk pdpcommon.PublicKey
-
 	dv pdpcommon.DataVerifier
 }
 
-type SegReceived struct {
-	seg segment.Segment // for verify
-	uid uint64
-}
+func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
+	op := &OrderFull{}
 
-type OrderMgr struct {
-	local uint64
-
-	quo *types.Quotation
-
-	orders map[uint64]*OrderFull // key: userID
-
-	segChan       chan *SegReceived
-	orderChan     chan *types.OrderBase
-	seqChan       chan *types.OrderSeq
-	seqFinishChan chan *types.OrderSeq
-	orderDoneChan chan *types.OrderBase
-}
-
-func (m *OrderMgr) runSched(ctx context.Context) {
-	st := time.NewTicker(time.Minute)
-	defer st.Stop()
-
-	for {
-		select {
-		case <-st.C:
-		case d := <-m.segChan:
-			m.handleData(d)
-		case ob := <-m.orderChan:
-			m.handleNewOrder(ob)
-		case seq := <-m.seqChan:
-			m.handleNewSeq(seq)
-		case seq := <-m.seqFinishChan:
-			m.handleFinishSeq(seq)
-		case ob := <-m.orderDoneChan:
-			m.handleDoneOrder(ob)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func (m *OrderMgr) newUserOrder(uid uint64) *OrderFull {
-	// get pubkey from user
-	return nil
-}
-
-func (m *OrderMgr) handleData(d *SegReceived) error {
-	or, ok := m.orders[d.uid]
-	if !ok {
-
-		m.orders[d.uid] = or
+	pk, err := m.getBlsPubkey(userID)
+	if err != nil {
+		return nil
 	}
 
-	return nil
-}
+	op.pk = pk
+	op.dv = pdpv2.NewDataVerifier(pk, nil)
 
-func (m *OrderMgr) handleNewOrder(ob *types.OrderBase) error {
-	or, ok := m.orders[ob.UserID]
-	if !ok {
-
-		m.orders[ob.UserID] = or
+	ns := new(NonceState)
+	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
+	val, err := m.ds.Get(key)
+	if err != nil {
+		return op
+	}
+	err = cbor.Unmarshal(val, ns)
+	if err != nil {
+		return op
 	}
 
-	return nil
-}
-
-func (m *OrderMgr) handleDoneOrder(ob *types.OrderBase) error {
-	or, ok := m.orders[ob.UserID]
-	if !ok {
-
-		m.orders[ob.UserID] = or
+	op.nonce = ns.Nonce + 1
+	op.orderState = ns.State
+	if ns.State == Order_Done {
+		return op
 	}
 
-	return nil
-}
+	ob := new(types.OrderBase)
+	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, userID, op.nonce)
+	val, err = m.ds.Get(key)
+	if err != nil {
+		return op
+	}
+	err = cbor.Unmarshal(val, ob)
+	if err != nil {
+		return op
+	}
 
-func (m *OrderMgr) handleNewSeq(os *types.OrderSeq) error {
+	op.base = ob
+	op.orderTime = ns.Time
 
-	return nil
-}
+	ss := new(SeqState)
+	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, op.nonce)
+	val, err = m.ds.Get(key)
+	if err != nil {
+		return op
+	}
+	err = cbor.Unmarshal(val, ss)
+	if err != nil {
+		return op
+	}
 
-func (m *OrderMgr) handleFinishSeq(os *types.OrderSeq) error {
+	op.seqNum = ss.Number + 1
+	op.seqState = ss.State
+	if ss.State == OrderSeq_Finish {
+		return op
+	}
 
-	return nil
+	os := new(types.OrderSeq)
+	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, op.nonce, ss.Number)
+	val, err = m.ds.Get(key)
+	if err != nil {
+		return op
+	}
+	err = cbor.Unmarshal(val, os)
+	if err != nil {
+		return op
+	}
+
+	op.seq = os
+	op.seqTime = ss.Time
+
+	return op
 }

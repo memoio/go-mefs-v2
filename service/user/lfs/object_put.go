@@ -12,6 +12,7 @@ import (
 )
 
 func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts types.PutObjectOptions) (*types.ObjectInfo, error) {
+	logger.Infof("Put object: %s to bucket: %s", objectName, bucketName)
 	ok := l.sw.TryAcquire(10)
 	if !ok {
 		return nil, ErrResourceUnavailable

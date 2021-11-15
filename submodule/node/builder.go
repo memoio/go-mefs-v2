@@ -3,12 +3,15 @@ package node
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p"
 	"github.com/pkg/errors"
 
+	"github.com/memoio/go-mefs-v2/api/httpio"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/netapp"
@@ -204,7 +207,19 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.JwtAuth = jauth
 
-	nd.RPCServer = jsonrpc.NewServer()
+	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
+
+	nd.RPCServer = jsonrpc.NewServer(readerServerOpt)
+
+	mux := mux.NewRouter()
+
+	mux.Handle("/rpc/v0", nd.RPCServer)
+	mux.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
+
+	mux.Handle("/", http.DefaultServeMux)
+	mux.Handle("/debug/metrics", exporter())
+
+	nd.Handler = mux
 
 	return nd, nil
 }

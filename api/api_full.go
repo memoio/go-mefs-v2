@@ -24,6 +24,12 @@ type FullNode interface {
 	IWallet
 }
 
+type UserNode interface {
+	FullNode
+
+	ILfsService
+}
+
 type IAuth interface {
 	AuthVerify(context.Context, string) ([]auth.Permission, error)
 	AuthNew(context.Context, []auth.Permission) ([]byte, error)
@@ -90,6 +96,9 @@ type INetService interface {
 }
 
 type IDataService interface {
+	PutSegmentToLocal(ctx context.Context, seg segment.Segment) error
+	GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error)
+
 	SendSegment(ctx context.Context, seg segment.Segment, to uint64) error
 	SendSegmentByID(ctx context.Context, sid segment.SegmentID, to uint64) error
 

@@ -49,6 +49,8 @@ type BaseNode struct {
 
 	*jsonrpc.RPCServer
 
+	http.Handler
+
 	repo.Repo
 
 	ctx context.Context
@@ -144,7 +146,7 @@ func (n *BaseNode) Stop(ctx context.Context) {
 
 func (n *BaseNode) RunDaemon(ready chan interface{}) error {
 	cfg := n.Repo.Config()
-	apiAddr, err := ma.NewMultiaddr(cfg.API.APIAddress)
+	apiAddr, err := ma.NewMultiaddr(cfg.API.Address)
 	if err != nil {
 		return err
 	}
@@ -158,23 +160,18 @@ func (n *BaseNode) RunDaemon(ready chan interface{}) error {
 
 	netListener := manet.NetListener(apiListener) //nolint
 
-	handler := http.NewServeMux()
-	handler.Handle("/rpc/v0", n.RPCServer)
-	handler.Handle("/", http.DefaultServeMux)
-	handler.Handle("/debug/metrics", exporter())
-
 	// add auth
 	ah := &auth.Handler{
 		Verify: n.AuthVerify,
-		Next:   handler.ServeHTTP,
+		Next:   n.Handler.ServeHTTP,
 	}
 
 	apiserv := &http.Server{
 		Handler: ah,
 	}
 
-	cfg.API.APIAddress = apiListener.Multiaddr().String()
-	if err := n.Repo.SetAPIAddr(cfg.API.APIAddress); err != nil {
+	cfg.API.Address = apiListener.Multiaddr().String()
+	if err := n.Repo.SetAPIAddr(cfg.API.Address); err != nil {
 		return err
 	}
 

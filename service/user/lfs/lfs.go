@@ -17,10 +17,9 @@ type LfsService struct {
 
 	om *uorder.OrderMgr
 
-	ctx      context.Context
-	keyset   pdpcommon.KeySet
-	ds       store.KVStore
-	segStore segment.SegmentStore
+	ctx    context.Context
+	keyset pdpcommon.KeySet
+	ds     store.KVStore
 
 	userID     uint64
 	fsID       []byte // keyset的verifyKey的hash
@@ -40,10 +39,9 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 		userID: userID,
 		fsID:   make([]byte, 20),
 
-		om:       om,
-		ds:       ds,
-		segStore: ss,
-		keyset:   keyset,
+		om:     om,
+		ds:     ds,
+		keyset: keyset,
 
 		sb:  newSuperBlock(),
 		dps: make(map[uint64]*dataProcess),

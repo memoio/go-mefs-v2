@@ -155,7 +155,11 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) er
 }
 
 func (w *LocalWallet) WalletExport(ctx context.Context, addr address.Address) (*types.KeyInfo, error) {
-	return nil, nil
+	ki, err := w.keystore.Get(addr.String(), w.password)
+	if err != nil {
+		return nil, err
+	}
+	return &ki, nil
 }
 
 func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (address.Address, error) {

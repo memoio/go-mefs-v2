@@ -56,6 +56,7 @@ enum MetaType {
 	OrderSeqNumKey = 52;     // key: x/userID/proID/nonce; value: seqnum, OrderSeqState
 	OrderSeqKey = 53;        // key: x/userID/proID/nonce/seqnum; value: OrderSeq
 	OrderProsKey = 54;       // key: x/userID; value: pros
+	OrderUsersKey = 55;       // key: x/proID; value: users
 		
 	TX_MessageKey = 60;       // key: x/messageHash; value: message content, sign
 	Tx_MessageStateKey = 61;  // key: x/messageHash; value: blkID, height, status

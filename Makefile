@@ -38,8 +38,22 @@ keeper: $(BUILD_DEPS)
 .PHONY: mefs-keeper
 BINS+=mefs-keeper 
 
+user: $(BUILD_DEPS)
+	rm -f mefs-user
+	go build $(GOFLAGS) -o mefs-user ./app/user
 
-build: mefs keeper 
+.PHONY: mefs-user
+BINS+=mefs-user
+
+provider: $(BUILD_DEPS)
+	rm -f mefs-provider
+	go build $(GOFLAGS) -o mefs-provider ./app/provider
+
+.PHONY: mefs-provider
+BINS+=mefs-provider
+
+
+build: mefs keeper user provider
 
 .PHONY: build
 

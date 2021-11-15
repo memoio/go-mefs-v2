@@ -33,7 +33,6 @@ type OrderSeqState uint8
 const (
 	OrderSeq_Prepare OrderSeqState = iota // wait pro ack -> send
 	OrderSeq_Send                         // can add data and send; time up -> commit
-	OrderSeq_Lock                         // incase data is inflight
 	OrderSeq_Commit                       // wait pro ack -> finish
 	OrderSeq_Finish                       // new data -> prepare
 )
@@ -46,9 +45,12 @@ type SeqState struct {
 
 // per provider
 type OrderFull struct {
+	sync.RWMutex
+
 	api.IDataService // segment
 
 	ctx context.Context
+	ds  store.KVStore
 
 	localID uint64
 	fsID    []byte
@@ -70,25 +72,25 @@ type OrderFull struct {
 	inflight bool            // data is sending
 	inStop   bool            // stop receiving data; duo to high price or long unavil
 	segs     []*types.SegJob // buf and persist?
-	dataLock sync.Mutex
 
 	segDoneChan chan *types.SegJob
 }
 
-func (m *OrderMgr) newOrder(id uint64) {
-	of := m.loadOrder(id)
+func (m *OrderMgr) newProOrder(id uint64) {
+	of := m.loadProOrder(id)
 	m.proChan <- of
 }
 
-func (m *OrderMgr) loadOrder(id uint64) *OrderFull {
+func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	op := &OrderFull{
 		IDataService: m.IDataService,
 
-		pro:     id,
-		fsID:    m.fsID,
-		localID: m.localID,
-
 		ctx: m.ctx,
+		ds:  m.ds,
+
+		localID: m.localID,
+		fsID:    m.fsID,
+		pro:     id,
 
 		segs: make([]*types.SegJob, 0, 16),
 
@@ -109,6 +111,11 @@ func (m *OrderMgr) loadOrder(id uint64) *OrderFull {
 	}
 
 	op.nonce = ns.Nonce + 1
+	op.orderState = ns.State
+
+	if ns.State == Order_Done {
+		return op
+	}
 
 	ob := new(types.OrderBase)
 	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, id, op.nonce)
@@ -122,7 +129,7 @@ func (m *OrderMgr) loadOrder(id uint64) *OrderFull {
 	}
 
 	op.base = ob
-	op.orderState = ns.State
+
 	op.orderTime = ns.Time
 
 	ss := new(SeqState)
@@ -133,6 +140,12 @@ func (m *OrderMgr) loadOrder(id uint64) *OrderFull {
 	}
 	err = cbor.Unmarshal(val, ss)
 	if err != nil {
+		return op
+	}
+
+	op.seqNum = ss.Number + 1
+	op.seqState = ss.State
+	if ss.State == OrderSeq_Finish {
 		return op
 	}
 
@@ -148,66 +161,68 @@ func (m *OrderMgr) loadOrder(id uint64) *OrderFull {
 	}
 
 	op.seq = os
-	op.seqState = ss.State
 	op.seqTime = ss.Time
 
 	return op
 }
 
 func (m *OrderMgr) check(o *OrderFull) {
-	// 1. done -> new
-
-	// 2  closing; push seq to done
-
-	// 3  running;
-	// 3.1 seq prepare: wait pro ack
-	// 3.2 seq send: wait to commit;
-	// 3.3 seq commit: wait pro ack
-	// 3.4 seq done: trigger new seq
-
-	// 4 init; wait confirm
+	// 1 init; wait confirm
+	// 2 running;
+	// 2.1 seq prepare: wait pro ack
+	// 2.2 seq send: wait to commit;
+	// 2.3 seq commit: wait pro ack
+	// 2.4 seq done: trigger new seq
+	// 3 closing; push seq to done
+	// 4. done -> new
 
 	nt := time.Now().Unix()
 	switch o.orderState {
 	case Order_Init:
 		if nt-o.orderTime > DefaultAckWaiting {
-			m.init(o, nil)
+			m.createOrder(o, nil)
 		}
 	case Order_Running:
 		if nt-o.orderTime > DefaultOrderLast {
-			m.close(o)
+			m.closeOrder(o)
 		}
 		switch o.seqState {
 		case OrderSeq_Prepare:
+			// not receive callback
 			if nt-o.seqTime > DefaultAckWaiting {
-				m.prepare(o)
+				m.createSeq(o)
 			}
 		case OrderSeq_Send:
+			// time is up for next seq
 			if nt-o.seqTime > DefaultOrderSeqLast {
-				m.commit(o)
-			}
-		case OrderSeq_Lock:
-			if nt-o.seqTime > 10 {
-				m.commit(o)
+				m.commitSeq(o)
 			}
 		case OrderSeq_Commit:
+			// not receive callback
 			if nt-o.seqTime > DefaultAckWaiting {
-				m.commit(o)
+				m.commitSeq(o)
 			}
 		case OrderSeq_Finish:
+			o.RLock()
+			if len(o.segs) > 0 && !o.inStop {
+				m.createSeq(o)
+				o.RUnlock()
+				return
+			}
+			o.RUnlock()
 		}
-
 	case Order_Closing:
 		if o.seqState == OrderSeq_Finish {
-			m.done(o)
+			m.doneOrder(o)
 		}
 	case Order_Done:
-		o.dataLock.Lock()
-		if len(o.segs) == 0 {
-			o.dataLock.Unlock()
+		o.RLock()
+		if len(o.segs) > 0 && !o.inStop {
+			go m.getQuotation(o.pro)
+			o.RUnlock()
+			return
 		}
-		o.dataLock.Unlock()
-		// init, inform higher
+		o.RUnlock()
 	}
 
 	if nt-o.availTime > 1800 {
@@ -215,15 +230,23 @@ func (m *OrderMgr) check(o *OrderFull) {
 	}
 
 	if nt-o.availTime > 3600 {
-		m.stop(o)
+		m.stopOrder(o)
 	}
 }
 
 // create a new order
-func (m *OrderMgr) init(o *OrderFull, quo *types.Quotation) error {
-	if quo != nil && o.base == nil && o.orderState == Order_Done {
-		if quo.SegPrice.Cmp(m.segPrice) > 0 {
-			m.stop(o)
+func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
+	o.RLock()
+	if o.inStop {
+		o.RUnlock()
+		return ErrState
+	}
+	o.RUnlock()
+
+	if o.base == nil && o.orderState == Order_Done {
+		// compare to set price
+		if quo != nil && quo.SegPrice.Cmp(m.segPrice) > 0 {
+			m.stopOrder(o)
 			return ErrPrice
 		}
 
@@ -241,28 +264,40 @@ func (m *OrderMgr) init(o *OrderFull, quo *types.Quotation) error {
 		o.nonce++
 		o.orderState = Order_Init
 		o.orderTime = time.Now().Unix()
-
-		// send to pro
-		data, err := o.base.Serialize()
-		if err != nil {
-			return err
-		}
-
-		go m.getNewOrderAck(o.pro, data)
-
-		return nil
 	}
 
 	if o.base != nil && o.orderState == Order_Init {
-		o.orderState = Order_Init
 		o.orderTime = time.Now().Unix()
 
-		// send to pro
 		data, err := o.base.Serialize()
 		if err != nil {
 			return err
 		}
 
+		key := store.NewKey(pb.MetaType_OrderBaseKey, m.localID, o.pro, o.nonce)
+		err = m.ds.Put(key, data)
+		if err != nil {
+			return err
+		}
+
+		ns := &NonceState{
+			Nonce: o.base.Nonce,
+			Time:  o.orderTime,
+			State: o.orderState,
+		}
+
+		val, err := cbor.Marshal(ns)
+		if err != nil {
+			return err
+		}
+
+		key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, o.pro)
+		err = m.ds.Put(key, val)
+		if err != nil {
+			return err
+		}
+
+		// send to pro
 		go m.getNewOrderAck(o.pro, data)
 
 		return nil
@@ -272,53 +307,107 @@ func (m *OrderMgr) init(o *OrderFull, quo *types.Quotation) error {
 }
 
 // confirm base when receive pro ack; init -> running
-func (m *OrderMgr) run(o *OrderFull, ob *types.OrderBase) error {
+func (m *OrderMgr) runOrder(o *OrderFull, ob *types.OrderBase) error {
 	if o.base == nil || o.orderState != Order_Init {
 		return ErrState
 	}
 
 	o.orderState = Order_Running
 	o.orderTime = time.Now().Unix()
+
+	ns := &NonceState{
+		Nonce: o.base.Nonce,
+		Time:  o.orderTime,
+		State: o.orderState,
+	}
+
+	val, err := cbor.Marshal(ns)
+	if err != nil {
+		return err
+	}
+
+	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, o.pro)
+	err = m.ds.Put(key, val)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // time up to close current order
-func (m *OrderMgr) close(o *OrderFull) error {
+func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
 	}
+
 	o.orderState = Order_Closing
 	o.orderTime = time.Now().Unix()
-	// save
+
+	ns := &NonceState{
+		Nonce: o.base.Nonce,
+		Time:  o.orderTime,
+		State: o.orderState,
+	}
+
+	val, err := cbor.Marshal(ns)
+	if err != nil {
+		return err
+	}
+
+	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, o.pro)
+	err = m.ds.Put(key, val)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // finish all seqs
-func (m *OrderMgr) done(o *OrderFull) error {
+func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	if o.base == nil || o.orderState != Order_Closing {
 		return ErrState
 	}
 
-	// verify current has done all seq
+	// seq finished
+	if o.seq != nil && o.seqState != OrderSeq_Finish {
+		return ErrState
+	}
+
 	o.orderState = Order_Done
 	o.orderTime = time.Now().Unix()
 
-	// save
+	ns := &NonceState{
+		Nonce: o.base.Nonce,
+		Time:  o.orderTime,
+		State: o.orderState,
+	}
+
+	val, err := cbor.Marshal(ns)
+	if err != nil {
+		return err
+	}
+
+	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, o.pro)
+	err = m.ds.Put(key, val)
+	if err != nil {
+		return err
+	}
 
 	o.base = nil
 
 	// trigger a new order
-
-	if len(o.segs) > 0 {
+	if len(o.segs) > 0 && !o.inStop {
 		go m.getQuotation(o.pro)
 	}
 
 	return nil
 }
 
-func (m *OrderMgr) stop(o *OrderFull) {
-	o.dataLock.Lock()
+func (m *OrderMgr) stopOrder(o *OrderFull) {
+	o.Lock()
+	defer o.Unlock()
 	o.inStop = true
 
 	for i := 0; i < len(o.segs); i++ {
@@ -326,16 +415,18 @@ func (m *OrderMgr) stop(o *OrderFull) {
 	}
 
 	o.segs = o.segs[:0]
-	o.dataLock.Unlock()
 }
 
 // create a new orderseq for prepare
-func (m *OrderMgr) prepare(o *OrderFull) error {
+func (m *OrderMgr) createSeq(o *OrderFull) error {
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
 	}
 
 	if o.seq == nil && o.seqState == OrderSeq_Finish {
+		if len(o.segs) == 0 {
+			return ErrEmpty
+		}
 		id := o.base.Hash()
 
 		s := &types.OrderSeq{
@@ -349,14 +440,37 @@ func (m *OrderMgr) prepare(o *OrderFull) error {
 		o.seqNum++
 		o.seqState = OrderSeq_Prepare
 		o.seqTime = time.Now().Unix()
+	}
 
-		// send to pro
-
+	if o.seq != nil && o.seqState == OrderSeq_Prepare {
 		data, err := o.seq.Serialize()
 		if err != nil {
 			return err
 		}
 
+		key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
+		err = m.ds.Put(key, data)
+		if err != nil {
+			return err
+		}
+
+		ss := SeqState{
+			Number: o.seq.SeqNum,
+			Time:   o.seqTime,
+			State:  o.seqState,
+		}
+		key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, o.pro, o.base.Nonce)
+		val, err := cbor.Marshal(ss)
+		if err != nil {
+			return err
+		}
+
+		err = m.ds.Put(key, val)
+		if err != nil {
+			return err
+		}
+
+		// send to pro
 		go m.getNewSeqAck(o.pro, data)
 
 		return nil
@@ -366,7 +480,7 @@ func (m *OrderMgr) prepare(o *OrderFull) error {
 }
 
 // init -> send; when receive confirm ack
-func (m *OrderMgr) send(o *OrderFull, s *types.OrderSeq) error {
+func (m *OrderMgr) sendSeq(o *OrderFull, s *types.OrderSeq) error {
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
 	}
@@ -374,7 +488,23 @@ func (m *OrderMgr) send(o *OrderFull, s *types.OrderSeq) error {
 	if o.seq != nil && o.seqState == OrderSeq_Prepare {
 		o.seqState = OrderSeq_Send
 		o.seqTime = time.Now().Unix()
-		// send to pro
+
+		ss := SeqState{
+			Number: o.seq.SeqNum,
+			Time:   o.seqTime,
+			State:  o.seqState,
+		}
+		key := store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, o.pro, o.base.Nonce)
+		val, err := cbor.Marshal(ss)
+		if err != nil {
+			return err
+		}
+
+		err = m.ds.Put(key, val)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	}
 
@@ -382,33 +512,65 @@ func (m *OrderMgr) send(o *OrderFull, s *types.OrderSeq) error {
 }
 
 // time is up
-func (m *OrderMgr) commit(o *OrderFull) error {
+func (m *OrderMgr) commitSeq(o *OrderFull) error {
 	if o.base == nil || o.orderState == Order_Init || o.orderState == Order_Done {
 		return ErrState
 	}
 
-	o.seqState = OrderSeq_Lock
-	o.seqTime = time.Now().Unix()
-	if o.inflight {
-		return nil
+	if o.seq == nil {
+		return ErrState
 	}
 
-	// send to pro
-	o.seqState = OrderSeq_Commit
-	o.seqTime = time.Now().Unix()
-
-	data, err := o.seq.Serialize()
-	if err != nil {
-		return err
+	if o.seqState == OrderSeq_Send {
+		o.seqState = OrderSeq_Commit
+		o.seqTime = time.Now().Unix()
+		if o.inflight {
+			return nil
+		}
 	}
 
-	go m.getSeqFinishAck(o.pro, data)
+	if o.seqState == OrderSeq_Commit {
+		if o.inflight {
+			return nil
+		}
 
-	return nil
+		o.seqTime = time.Now().Unix()
+		ss := SeqState{
+			Number: o.seq.SeqNum,
+			Time:   o.seqTime,
+			State:  o.seqState,
+		}
+		key := store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, o.pro, o.base.Nonce)
+		val, err := cbor.Marshal(ss)
+		if err != nil {
+			return err
+		}
+
+		err = m.ds.Put(key, val)
+		if err != nil {
+			return err
+		}
+
+		data, err := o.seq.Serialize()
+		if err != nil {
+			return err
+		}
+
+		key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
+		err = m.ds.Put(key, data)
+		if err != nil {
+			return err
+		}
+
+		// send to pro
+		go m.getSeqFinishAck(o.pro, data)
+	}
+
+	return ErrState
 }
 
 // when recieve pro seq done ack; confirm -> done
-func (m *OrderMgr) finish(o *OrderFull, s *types.OrderSeq) error {
+func (m *OrderMgr) finishSeq(o *OrderFull, s *types.OrderSeq) error {
 	if o.base == nil || o.orderState != Order_Closing {
 		return ErrState
 	}
@@ -419,8 +581,23 @@ func (m *OrderMgr) finish(o *OrderFull, s *types.OrderSeq) error {
 
 	o.seqState = OrderSeq_Finish
 	o.seqTime = time.Now().Unix()
-	// persist
 
-	// trigger new()
-	return nil
+	ss := SeqState{
+		Number: o.seq.SeqNum,
+		Time:   o.seqTime,
+		State:  o.seqState,
+	}
+	key := store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, o.pro, o.base.Nonce)
+	val, err := cbor.Marshal(ss)
+	if err != nil {
+		return err
+	}
+
+	err = m.ds.Put(key, val)
+	if err != nil {
+		return err
+	}
+
+	// trigger new seq
+	return m.createSeq(o)
 }

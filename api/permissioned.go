@@ -31,6 +31,12 @@ func PermissionedFullAPI(a FullNode) FullNode {
 	return &out
 }
 
+func PermissionedUserAPI(a UserNode) UserNode {
+	var out UserNodeStruct
+	permissionedProxies(a, &out)
+	return &out
+}
+
 var _internalField = "Internal"
 
 // GetInternalStructs extracts all pointers to 'Internal' sub-structs from the provided pointer to a proxy struct

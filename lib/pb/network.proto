@@ -20,10 +20,11 @@ message NetMessage {
 
     	// data message; user<->provider; offline ops
 		AskPrice = 10;     // 询价
-    	CreateOrder = 11;  
-		CreateSeq = 12;
-		FinishSeq = 13;
-    	OrderData = 14;    // handle data; by provider	
+    	CreateOrder = 11; 
+		DoneOrder = 12; 
+		CreateSeq = 13;
+		FinishSeq = 14;
+    	OrderSegment = 15;    // handle segment; by provider	
 	}
 
 	message MsgHeader {

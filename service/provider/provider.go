@@ -9,6 +9,8 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	"github.com/memoio/go-mefs-v2/service/data"
+	porder "github.com/memoio/go-mefs-v2/service/provider/order"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -19,9 +21,11 @@ var _ api.FullNode = (*ProviderNode)(nil)
 type ProviderNode struct {
 	sync.RWMutex
 
+	api.IDataService
+
 	*node.BaseNode
 
-	segStore segment.SegmentStore
+	*porder.OrderMgr
 
 	ctx context.Context
 }
@@ -37,10 +41,15 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 		return nil, err
 	}
 
+	ids := data.New(bn.MetaStore(), segStore, bn.NetServiceImpl)
+
+	por := porder.NewOrderMgr(ctx, bn.RoleID(), bn.MetaStore(), bn.RoleMgr, bn.NetServiceImpl, ids)
+
 	kn := &ProviderNode{
-		BaseNode: bn,
-		ctx:      ctx,
-		segStore: segStore,
+		BaseNode:     bn,
+		IDataService: ids,
+		ctx:          ctx,
+		OrderMgr:     por,
 	}
 
 	return kn, nil
@@ -49,7 +58,15 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 // start service related
 func (p *ProviderNode) Start() error {
 	// register net msg handle
-	p.GenericService.Register(pb.NetMessage_Get, p.defaultHandler)
+	p.GenericService.Register(pb.NetMessage_SayHello, p.defaultHandler)
+
+	p.GenericService.Register(pb.NetMessage_Get, p.handleGet)
+
+	p.GenericService.Register(pb.NetMessage_AskPrice, p.handleQuotation)
+	p.GenericService.Register(pb.NetMessage_CreateOrder, p.handleCreateOrder)
+	p.GenericService.Register(pb.NetMessage_CreateSeq, p.handleCreateSeq)
+	p.GenericService.Register(pb.NetMessage_FinishSeq, p.handleFinishSeq)
+	p.GenericService.Register(pb.NetMessage_OrderSegment, p.handleSegData)
 
 	p.TxMsgHandle.Register(tx.DataTxErr, p.defaultPubsubHandler)
 

@@ -271,7 +271,10 @@ func (m *OrderMgr) dispatch() {
 			continue
 		}
 
-		lp := m.proMap[seg.BucketID]
+		lp, ok := m.proMap[seg.BucketID]
+		if !ok {
+			continue
+		}
 		m.updateProsForBucket(lp)
 
 		for i, pid := range lp.pros {
@@ -313,13 +316,13 @@ func (m *OrderMgr) dispatch() {
 }
 
 func (o *OrderFull) addSeg(sj *types.SegJob) error {
-	o.dataLock.Lock()
+	o.RLock()
 	if o.inStop {
-		o.dataLock.Unlock()
+		o.RUnlock()
 		return ErrState
 	}
 	o.segs = append(o.segs, sj)
-	o.dataLock.Unlock()
+	o.RUnlock()
 
 	return nil
 }
@@ -338,39 +341,50 @@ func (o *OrderFull) sendData() {
 				continue
 			}
 
-			o.dataLock.Lock()
+			o.Lock()
 			if len(o.segs) == 0 {
-				o.dataLock.Unlock()
+				o.Unlock()
 				time.Sleep(10 * time.Second)
 				continue
 			}
 			sj := o.segs[0]
 			o.inflight = true
-			o.dataLock.Unlock()
+			o.Unlock()
 
 			sid, err := segment.NewSegmentID(o.fsID, sj.BucketID, sj.Start, sj.ChunkID)
 			if err != nil {
-				o.dataLock.Lock()
+				o.Lock()
 				o.inflight = false
-				o.dataLock.Unlock()
+				o.Unlock()
 				continue
 			}
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
 			if err != nil {
-				o.dataLock.Lock()
+				o.Lock()
 				o.inflight = false
-				o.dataLock.Unlock()
+				o.Unlock()
 				continue
 			}
 
 			o.availTime = time.Now().Unix()
 
-			o.dataLock.Lock()
+			o.Lock()
 			o.seq.DataName = append(o.seq.DataName, sid.Bytes())
 			// update price and size
 			o.segs = o.segs[1:]
 			o.inflight = false
-			o.dataLock.Unlock()
+
+			data, err := o.seq.Serialize()
+			if err != nil {
+				continue
+			}
+			o.Unlock()
+
+			key := store.NewKey(pb.MetaType_OrderSeqKey, o.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
+			err = o.ds.Put(key, data)
+			if err != nil {
+				continue
+			}
 
 			o.segDoneChan <- sj
 		}

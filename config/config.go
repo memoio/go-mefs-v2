@@ -65,7 +65,7 @@ func newDefaultSwarmConfig() SwarmConfig {
 }
 
 type APIConfig struct {
-	APIAddress                    string   `json:"address"`
+	Address                       string   `json:"address"`
 	AccessControlAllowOrigin      []string `json:"accessControlAllowOrigin"`
 	AccessControlAllowCredentials bool     `json:"accessControlAllowCredentials"`
 	AccessControlAllowMethods     []string `json:"accessControlAllowMethods"`
@@ -73,7 +73,7 @@ type APIConfig struct {
 
 func newDefaultAPIConfig() APIConfig {
 	return APIConfig{
-		APIAddress: "/ip4/127.0.0.1/tcp/8000",
+		Address: "/ip4/127.0.0.1/tcp/8000",
 		AccessControlAllowOrigin: []string{
 			"http://localhost:8000",
 			"https://localhost:8000",

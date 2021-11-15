@@ -3,10 +3,12 @@ package log
 import (
 	"fmt"
 
-	"github.com/memoio/go-mefs-v2/lib/utils"
+	ipfslog "github.com/ipfs/go-log/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var mLogger *zap.SugaredLogger
@@ -19,6 +21,8 @@ func Logger(name string) *zap.SugaredLogger {
 
 // StartLogger starts
 func init() {
+	ipfslog.SetDebugLogging()
+
 	debugLevel := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
 		return lvl >= zapcore.DebugLevel
 	})

@@ -47,14 +47,6 @@ type RoleMgr struct {
 }
 
 func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet) (*RoleMgr, error) {
-	rm := &RoleMgr{
-		IWallet: iw,
-		ctx:     ctx,
-		roleID:  roleID,
-		groupID: groupID,
-		infos:   make(map[uint64]pb.RoleInfo),
-		ds:      ds,
-	}
 
 	data, err := ds.Get([]byte(strconv.Itoa(int(pb.MetaType_RoleInfoKey))))
 	if err != nil {
@@ -69,6 +61,20 @@ func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.I
 
 	if ri.ID != roleID {
 		logger.Debug("roleID not equal")
+	}
+
+	localAddr, _ := address.NewAddress(ri.ChainVerifyKey)
+	blsAddr, _ := address.NewAddress(ri.BlsVerifyKey)
+
+	rm := &RoleMgr{
+		IWallet:   iw,
+		ctx:       ctx,
+		roleID:    roleID,
+		groupID:   groupID,
+		infos:     make(map[uint64]pb.RoleInfo),
+		ds:        ds,
+		localAddr: localAddr,
+		blsAddr:   blsAddr,
 	}
 
 	rm.infos[roleID] = *ri

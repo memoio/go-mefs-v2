@@ -32,8 +32,8 @@ var DaemonCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  apiAddrKwd,
-			Usage: "set the api port to use",
-			Value: "7000",
+			Usage: "set the api addr to use",
+			Value: "/ip4/127.0.0.1/tcp/8001",
 		},
 		&cli.StringFlag{
 			Name:  swarmPortKwd,
@@ -94,6 +94,10 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 			changed = append(changed, strings.Join(strs, "/"))
 		}
 		config.Net.Addresses = changed
+	}
+
+	if apiAddr := cctx.String(apiAddrKwd); apiAddr != "" {
+		config.API.Address = apiAddr
 	}
 
 	rep.ReplaceConfig(config)

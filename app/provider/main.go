@@ -7,10 +7,11 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	lfscmd "github.com/memoio/go-mefs-v2/app/cmd/lfs"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
 
-var logger = logging.Logger("mefs-keeper")
+var logger = logging.Logger("mefs-provider")
 
 func main() {
 	local := []*cli.Command{
@@ -18,10 +19,11 @@ func main() {
 		cmd.InitCmd,
 		cmd.AuthCmd,
 		cmd.WalletCmd,
+		lfscmd.LfsCmd,
 	}
 
 	app := &cli.App{
-		Name:                 "mefs-keeper",
+		Name:                 "mefs-provider",
 		Usage:                "Memoriae decentralized storage network node",
 		Version:              "1.0.0",
 		EnableBashCompletion: true,
@@ -29,12 +31,12 @@ func main() {
 			&cli.StringFlag{
 				Name:    cmd.FlagNodeRepo,
 				EnvVars: []string{"MEMO_PATH"},
-				Value:   "~/.memo-keeper",
+				Value:   "~/.memo-provider",
 				Usage:   "Specify memoriae path.",
 			},
 			&cli.StringFlag{
 				Name:  cmd.FlagRoleType,
-				Value: "keeper",
+				Value: "provider",
 				Usage: "set role type.",
 			},
 		},

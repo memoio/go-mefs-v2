@@ -159,7 +159,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				if !ok || err != nil {
 					log.Println("Process data error:", dp.segID.String(), err)
 				}
-				err = l.segStore.Put(seg)
+				err = l.om.PutSegmentToLocal(ctx, seg)
 				if err != nil {
 					return err
 				}
@@ -249,7 +249,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, aesDec ciphe
 				}
 
 				segID.SetChunkID(uint32(i))
-				seg, err := l.segStore.Get(segID)
+				seg, err := l.om.GetSegment(ctx, segID)
 				if err != nil {
 					// get from remote
 					continue

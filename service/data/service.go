@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -22,20 +23,37 @@ type dataService struct {
 
 	ds       store.KVStore
 	segStore segment.SegmentStore
+
+	cache *lru.ARCCache
 }
 
 func New(ds store.KVStore, ss segment.SegmentStore, is api.INetService) *dataService {
+	cache, _ := lru.NewARC(1024)
+
 	d := &dataService{
 		INetService: is,
 		ds:          ds,
 		segStore:    ss,
+		cache:       cache,
 	}
 
 	return d
 }
 
 // todo add piece put/get
-// add cache
+
+func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment) error {
+	d.cache.Add(seg.SegmentID(), seg)
+	return d.segStore.Put(seg)
+}
+
+func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
+	val, has := d.cache.Get(sid)
+	if has {
+		return val.(segment.Segment), nil
+	}
+	return d.segStore.Get(sid)
+}
 
 // SendSegment over network
 func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to uint64) error {
@@ -61,7 +79,7 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 
 func (d *dataService) SendSegmentByID(ctx context.Context, sid segment.SegmentID, to uint64) error {
 	// load segment from local
-	seg, err := d.segStore.Get(sid)
+	seg, err := d.GetSegmentFromLocal(ctx, sid)
 	if err != nil {
 		return err
 	}
@@ -72,7 +90,7 @@ func (d *dataService) SendSegmentByID(ctx context.Context, sid segment.SegmentID
 // GetSegment from local and network
 func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
 	// get location from local
-	seg, err := d.segStore.Get(sid)
+	seg, err := d.GetSegmentFromLocal(ctx, sid)
 	if err == nil {
 		return seg, nil
 	}
