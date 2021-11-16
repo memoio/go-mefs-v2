@@ -23,7 +23,9 @@ func (l *LfsService) getObjectInfo(bu *bucket, objectName string) (*object, erro
 
 	objectElement := bu.objects.Find(MetaName(objectName))
 	if objectElement != nil {
-		return objectElement.(*object), nil
+		obj := objectElement.(*object)
+		logger.Debug("has object: ", obj.Name, obj.ops)
+		return obj, nil
 	}
 
 	return nil, ErrObjectNotExist
@@ -98,7 +100,6 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 
 	op := &pb.OpRecord{
 		Type:    pb.OpRecord_DeleteObject,
-		OpID:    bucket.BucketInfo.NextObjectID,
 		Payload: payload,
 	}
 
@@ -117,7 +118,7 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 	return nil, nil
 }
 
-func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts types.ListObjectsOptions) ([]*types.ObjectInfo, error) {
+func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error) {
 	ok := l.sw.TryAcquire(2)
 	if !ok {
 		return nil, ErrResourceUnavailable

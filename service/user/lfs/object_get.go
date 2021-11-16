@@ -1,46 +1,43 @@
 package lfs
 
 import (
+	"bytes"
 	"context"
-	"crypto/cipher"
-	"encoding/binary"
-	"io"
 
-	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/zeebo/blake3"
 )
 
-func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, writer io.Writer, completeFuncs []types.CompleteFunc, opts types.DownloadObjectOptions) error {
+// read at most one stripe
+func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) {
 	ok := l.sw.TryAcquire(10)
 	if !ok {
-		return ErrResourceUnavailable
+		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(10)
 
 	if !l.Ready() {
-		return ErrLfsServiceNotReady
+		return nil, ErrLfsServiceNotReady
 	}
 
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	object, err := l.getObjectInfo(bucket, objectName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	object.RLock()
 	defer object.RUnlock()
 
 	if object.deletion {
-		return ErrObjectNotExist
+		return nil, ErrObjectNotExist
 	}
 
 	if object.Length == 0 {
-		return ErrObjectIsNil
+		return nil, ErrObjectIsNil
 	}
 
 	readStart := opts.Start
@@ -48,44 +45,30 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 	if readStart > int64(object.Length) ||
 		readStart+readLength > int64(object.Length) {
-		return ErrObjectOptionsInvalid
-	}
-
-	if readLength <= 0 {
-		readLength = int64(object.Length - uint64(readStart))
+		return nil, ErrObjectOptionsInvalid
 	}
 
 	dp, ok := l.dps[bucket.BucketID]
 	if !ok {
 		ndp, err := l.newDataProcess(bucket.BucketID, &bucket.BucketOption)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		dp = ndp
 	}
 
-	var aesDec cipher.BlockMode
-	if object.Encryption == "aes" {
-		tmpkey := make([]byte, 40)
-		copy(tmpkey, dp.aesKey[:])
-		binary.BigEndian.PutUint64(tmpkey[32:], object.ObjectID)
-		hres := blake3.Sum256(tmpkey)
-
-		tmpEnc, err := aes.ContructAesDec(hres[:])
-		if err != nil {
-			return err
-		}
-		aesDec = tmpEnc
-
-		// read from begin if encrypts
-		readLength += readStart
-		readStart = 0
+	if readLength <= 0 {
+		readLength = int64(object.Length - uint64(readStart))
 	}
+
+	buf := new(bytes.Buffer)
 
 	// read from each part
 	accLen := uint64(0)
 	rLen := uint64(0)
 	for _, part := range object.Parts {
+		logger.Debug("part: ", part.Offset, part.Length, part.RawLength)
+
 		if rLen >= uint64(readLength) {
 			break
 		}
@@ -109,13 +92,13 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 			partLength = (uint64(readStart+readLength) - accLen)
 		}
 
-		err = l.download(ctx, dp, aesDec, bucket, object, int(partStart), int(partLength), writer)
+		err = l.download(ctx, dp, bucket, object, int(partStart), int(partLength), buf)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		rLen += partLength
 
 		accLen += part.Length
 	}
-	return nil
+	return buf.Bytes(), nil
 }

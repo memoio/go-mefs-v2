@@ -168,15 +168,8 @@ func (m *OrderMgr) runSched() {
 			m.redoSegJob(sj)
 		case sj := <-m.segDoneChan:
 			m.finishSegJob(sj)
-		case <-m.ctx.Done():
-			return
-		default:
-			// dispatch to each pro
-			m.dispatch()
-		}
 
 		// handle order state
-		select {
 		case quo := <-m.quoChan:
 			of, ok := m.orders[quo.ProID]
 			if ok {
@@ -222,6 +215,9 @@ func (m *OrderMgr) runSched() {
 			}
 		case <-m.ctx.Done():
 			return
+		default:
+			// dispatch to each pro
+			m.dispatch()
 		}
 	}
 }

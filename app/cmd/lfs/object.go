@@ -1,6 +1,7 @@
 package lfscmd
 
 import (
+	"crypto/md5"
 	"fmt"
 	"os"
 
@@ -11,8 +12,46 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var listObjectCmd = &cli.Command{
+	Name:  "listObject",
+	Usage: "list object",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "bucket",
+			Usage: "bucketName",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		napi, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		bucketName := cctx.String("bucket")
+
+		ops := types.DefaultListOption()
+		loi, err := napi.ListObjects(cctx.Context, bucketName, ops)
+		if err != nil {
+			return err
+		}
+
+		for _, oi := range loi {
+			fmt.Println("list object: ", oi.ObjectID, oi.Name, oi)
+		}
+
+		return nil
+	},
+}
+
 var putObjectCmd = &cli.Command{
-	Name:  "put",
+	Name:  "putObject",
 	Usage: "put object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -56,7 +95,7 @@ var putObjectCmd = &cli.Command{
 		}
 		defer pf.Close()
 
-		poo := types.PutObjectOptions{}
+		poo := types.DefaultUploadOption()
 
 		oi, err := napi.PutObject(cctx.Context, bucketName, objectName, pf, poo)
 		if err != nil {
@@ -70,7 +109,7 @@ var putObjectCmd = &cli.Command{
 }
 
 var headObjectCmd = &cli.Command{
-	Name:  "head",
+	Name:  "headObject",
 	Usage: "head object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -110,7 +149,7 @@ var headObjectCmd = &cli.Command{
 }
 
 var getObjectCmd = &cli.Command{
-	Name:  "get",
+	Name:  "getObject",
 	Usage: "get object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -148,20 +187,22 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
-		pf, err := os.Open(p)
+		f, err := os.Create(p)
 		if err != nil {
 			return err
 		}
-		defer pf.Close()
+		defer f.Close()
 
-		doo := types.DownloadObjectOptions{}
+		doo := types.DefaultDownloadOption()
 
-		err = napi.GetObject(cctx.Context, bucketName, objectName, pf, nil, doo)
+		data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
 		if err != nil {
 			return err
 		}
 
-		fmt.Println("get object: ", objectName)
+		f.Write(data)
+
+		fmt.Println("get object: ", objectName, md5.Sum(data))
 
 		return nil
 	},

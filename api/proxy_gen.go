@@ -94,17 +94,17 @@ type UserNodeStruct struct {
 	CommonStruct
 
 	Internal struct {
-		CreateBucket func(ctx context.Context, bucketName string, options *pb.BucketOption) (*types.BucketInfo, error)                                  `perm:"write"`
-		DeleteBucket func(ctx context.Context, bucketName string) (*types.BucketInfo, error)                                                            `perm:"write"`
-		PutObject    func(ctx context.Context, bucketName, objectName string, reader io.Reader, opts types.PutObjectOptions) (*types.ObjectInfo, error) `perm:"write"`
-		DeleteObject func(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)                                                `perm:"write"`
+		CreateBucket func(ctx context.Context, bucketName string, opts *pb.BucketOption) (*types.BucketInfo, error)                                      `perm:"write"`
+		DeleteBucket func(ctx context.Context, bucketName string) (*types.BucketInfo, error)                                                             `perm:"write"`
+		PutObject    func(ctx context.Context, bucketName, objectName string, reader io.Reader, opts *types.PutObjectOptions) (*types.ObjectInfo, error) `perm:"write"`
+		DeleteObject func(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)                                                 `perm:"write"`
 
 		HeadBucket  func(ctx context.Context, bucketName string) (*types.BucketInfo, error) `perm:"read"`
 		ListBuckets func(ctx context.Context, prefix string) ([]*types.BucketInfo, error)   `perm:"read"`
 
-		GetObject   func(ctx context.Context, bucketName, objectName string, writer io.Writer, completeFuncs []types.CompleteFunc, opts types.DownloadObjectOptions) error `perm:"read"`
-		HeadObject  func(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)                                                                    `perm:"read"`
-		ListObjects func(ctx context.Context, bucketName string, opts types.ListObjectsOptions) ([]*types.ObjectInfo, error)                                               `perm:"read"`
+		GetObject   func(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) `perm:"read"`
+		HeadObject  func(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)                         `perm:"read"`
+		ListObjects func(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error)   `perm:"read"`
 
 		ShowStorage       func(ctx context.Context) (uint64, error)                    `perm:"read"`
 		ShowBucketStorage func(ctx context.Context, bucketName string) (uint64, error) `perm:"read"`
@@ -119,7 +119,7 @@ func (s *UserNodeStruct) DeleteBucket(ctx context.Context, bucketName string) (*
 	return s.Internal.DeleteBucket(ctx, bucketName)
 }
 
-func (s *UserNodeStruct) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts types.PutObjectOptions) (*types.ObjectInfo, error) {
+func (s *UserNodeStruct) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts *types.PutObjectOptions) (*types.ObjectInfo, error) {
 	return s.Internal.PutObject(ctx, bucketName, objectName, reader, opts)
 }
 
@@ -135,15 +135,15 @@ func (s *UserNodeStruct) ListBuckets(ctx context.Context, prefix string) ([]*typ
 	return s.Internal.ListBuckets(ctx, prefix)
 }
 
-func (s *UserNodeStruct) GetObject(ctx context.Context, bucketName, objectName string, writer io.Writer, completeFuncs []types.CompleteFunc, opts types.DownloadObjectOptions) error {
-	return s.Internal.GetObject(ctx, bucketName, objectName, writer, completeFuncs, opts)
+func (s *UserNodeStruct) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) {
+	return s.Internal.GetObject(ctx, bucketName, objectName, opts)
 }
 
 func (s *UserNodeStruct) HeadObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error) {
 	return s.Internal.HeadObject(ctx, bucketName, objectName)
 }
 
-func (s *UserNodeStruct) ListObjects(ctx context.Context, bucketName string, opts types.ListObjectsOptions) ([]*types.ObjectInfo, error) {
+func (s *UserNodeStruct) ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error) {
 	return s.Internal.ListObjects(ctx, bucketName, opts)
 }
 

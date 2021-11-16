@@ -11,8 +11,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts types.PutObjectOptions) (*types.ObjectInfo, error) {
-	logger.Infof("Put object: %s to bucket: %s", objectName, bucketName)
+func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts *types.PutObjectOptions) (*types.ObjectInfo, error) {
 	ok := l.sw.TryAcquire(10)
 	if !ok {
 		return nil, ErrResourceUnavailable
@@ -34,7 +33,6 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		return nil, err
 	}
 
-	// 锁住这个object
 	object.Lock()
 	defer object.Unlock()
 
@@ -46,7 +44,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	return &object.ObjectInfo, nil
 }
 
-func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectName string, opts types.PutObjectOptions) (*object, error) {
+func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectName string, opts *types.PutObjectOptions) (*object, error) {
 	objectElement := bucket.objects.Find(MetaName(objectName))
 	if objectElement != nil {
 		return nil, ErrObjectAlreadyExist
@@ -91,6 +89,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 	}
 
 	object.ops = append(object.ops, op.OpID)
+	object.dirty = true
 	err = object.Save(l.userID, l.ds)
 	if err != nil {
 		return nil, err

@@ -15,6 +15,8 @@ const (
 )
 
 var (
+	ErrEncode = errors.New("encode is wrong")
+
 	ErrPolicy              = errors.New("policy is error")
 	ErrLfsServiceNotReady  = errors.New("lfs service is not ready, please restart lfs")
 	ErrLfsReadOnly         = errors.New("lfs service is read only")

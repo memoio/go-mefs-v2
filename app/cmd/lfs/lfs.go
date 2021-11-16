@@ -19,11 +19,12 @@ var LfsCmd = &cli.Command{
 		putObjectCmd,
 		headObjectCmd,
 		getObjectCmd,
+		listObjectCmd,
 	},
 }
 
 var createBucketCmd = &cli.Command{
-	Name:  "create",
+	Name:  "createBucket",
 	Usage: "create bucket",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -58,7 +59,7 @@ var createBucketCmd = &cli.Command{
 }
 
 var listBucketsCmd = &cli.Command{
-	Name:  "list",
+	Name:  "listBucket",
 	Usage: "list buckets",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -96,7 +97,7 @@ var listBucketsCmd = &cli.Command{
 }
 
 var headBucketCmd = &cli.Command{
-	Name:  "head",
+	Name:  "headBucket",
 	Usage: "head bucket info",
 	Flags: []cli.Flag{
 		&cli.StringFlag{

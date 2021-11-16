@@ -8,11 +8,14 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/memoio/go-mefs-v2/api"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
+
+var logger = logging.Logger("mefs-user")
 
 var (
 	ErrData = errors.New("err data")
@@ -43,11 +46,13 @@ func New(ds store.KVStore, ss segment.SegmentStore, is api.INetService) *dataSer
 // todo add piece put/get
 
 func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment) error {
+	logger.Debug("put segment to local:", seg.SegmentID().String())
 	d.cache.Add(seg.SegmentID(), seg)
 	return d.segStore.Put(seg)
 }
 
 func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
+	logger.Debug("get segment from local:", sid.String())
 	val, has := d.cache.Get(sid)
 	if has {
 		return val.(segment.Segment), nil
@@ -101,6 +106,11 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 	if err != nil {
 		return nil, err
 	}
+
+	if len(val) < 8 {
+		return nil, ErrData
+	}
+
 	from := binary.BigEndian.Uint64(val)
 
 	return d.GetSegmentFrom(ctx, sid, from)

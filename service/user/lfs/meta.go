@@ -118,10 +118,17 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 		objects:    rbtree.NewTree(),
 	}
 
-	err := bu.Save(l.userID, l.ds)
+	err := bu.SaveOptions(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}
+
+	err = bu.Save(l.userID, l.ds)
+	if err != nil {
+		return nil, err
+	}
+
+	l.om.RegisterBucket(bu.BucketID, &bu.BucketOption)
 
 	return bu, nil
 }
@@ -160,6 +167,7 @@ func (bu *bucket) Load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	}
 
 	bu.BucketInfo = bi
+	bu.objects = rbtree.NewTree()
 
 	return nil
 }
@@ -251,28 +259,35 @@ func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 	}
 
 	for _, opID := range of.GetOpRecord() {
+		logger.Debug("load object ops:", objectID, opID)
 		or, err := loadOpRecord(userID, bucketID, opID, ds)
 		if err != nil {
 			return err
 		}
 
+		logger.Debug("load object ops:", objectID, opID, or.GetType())
+
 		switch or.GetType() {
 		case pb.OpRecord_CreateObject:
 			oi := new(pb.ObjectInfo)
-			err = proto.Unmarshal(data, or)
+			err = proto.Unmarshal(or.GetPayload(), oi)
 			if err != nil {
+				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
 				continue
 			}
+
 			ob.ObjectInfo.ObjectInfo = *oi
 
 		case pb.OpRecord_AddData:
 			pi := new(pb.ObjectPartInfo)
-			err = proto.Unmarshal(data, pi)
+			err = proto.Unmarshal(or.GetPayload(), pi)
 			if err != nil {
+				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
 				continue
 			}
 
 			if pi.ObjectID != ob.ObjectID {
+				logger.Debug("load object ops fail:", objectID, opID, or.GetType(), pi.ObjectID, ob.ObjectID)
 				continue
 			}
 
@@ -280,18 +295,18 @@ func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 
 		case pb.OpRecord_DeleteObject:
 			di := new(pb.ObjectDeleteInfo)
-			err = proto.Unmarshal(data, di)
+			err = proto.Unmarshal(or.GetPayload(), di)
 			if err != nil {
+				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
 				continue
 			}
 
 			if di.ObjectID != ob.ObjectID {
+				logger.Debug("load object ops fail:", objectID, opID, or.GetType(), di.ObjectID, ob.ObjectID)
 				continue
 			}
 
 			ob.deletion = true
-		default:
-			continue
 		}
 	}
 
@@ -379,6 +394,7 @@ func (l *LfsService) Load() error {
 
 	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
+		logger.Debug("load bucket: ", i)
 		bu := new(bucket)
 
 		bu.Lock()
@@ -396,7 +412,8 @@ func (l *LfsService) Load() error {
 
 			// 3. load objects
 			for j := uint64(0); j < bu.NextObjectID; j++ {
-				obj := new(object)
+				logger.Debug("load object: ", j)
+				obj := NewObject()
 				err := obj.Load(l.userID, i, j, l.ds)
 				if err != nil {
 					continue
@@ -409,6 +426,8 @@ func (l *LfsService) Load() error {
 
 		}
 		bu.Unlock()
+
+		l.om.RegisterBucket(bu.BucketID, &bu.BucketOption)
 	}
 
 	l.sb.ready = true
