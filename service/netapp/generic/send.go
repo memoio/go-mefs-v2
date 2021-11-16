@@ -10,12 +10,12 @@ import (
 )
 
 // send
-func (gs *GenericService) SendMetaMessage(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value []byte) error {
+func (gs *GenericService) SendNetMessage(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value []byte) error {
 	nm := &pb.NetMessage{}
 	return gs.msgSender.SendMessage(ctx, p, nm)
 }
 
-func (gs *GenericService) SendMetaRequest(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value, sig []byte) (*pb.NetMessage, error) {
+func (gs *GenericService) SendNetRequest(ctx context.Context, p peer.ID, id uint64, typ pb.NetMessage_MsgType, value, sig []byte) (*pb.NetMessage, error) {
 	if gs.ns.Host.Network().Connectedness(p) != network.Connected {
 		pai := peer.AddrInfo{
 			ID: p,
@@ -29,6 +29,7 @@ func (gs *GenericService) SendMetaRequest(ctx context.Context, p peer.ID, typ pb
 
 	nm := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
+			From: id,
 			Type: typ,
 		},
 		Data: &pb.NetMessage_MsgData{

@@ -8,7 +8,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("user")
+var logger = logging.Logger("uorder")
 
 var (
 	ErrDataAdded = errors.New("add data fails")

@@ -20,6 +20,7 @@ type lastProsPerBucket struct {
 }
 
 func (m *OrderMgr) RegisterBucket(bucketID uint64, bopt *pb.BucketOption) {
+	logger.Info("register order for bucket: ", bucketID)
 	storedPros := m.loadLastProsPerBucket(bucketID)
 
 	pros := make([]uint64, int(bopt.DataCount+bopt.ParityCount))
@@ -62,8 +63,24 @@ func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) error {
 	return m.ds.Put(key, buf)
 }
 
+func removeDup(a []uint64) []uint64 {
+	if len(a) < 2 {
+		return a
+	}
+	i := 0
+	for j := 1; j < len(a); j++ {
+		if a[i] != a[j] {
+			i++
+			a[i] = a[j]
+		}
+	}
+	return a[:i+1]
+}
+
 func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	otherPros := make([]uint64, 0, lp.dc+lp.pc)
+
+	lp.pros = removeDup(lp.pros)
 
 	pros := make([]uint64, 0, len(m.orders))
 	for pid := range m.orders {
@@ -97,13 +114,19 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 			}
 		}
 
-		for ; j < len(otherPros); j++ {
+		for j < len(otherPros) {
 			pid := otherPros[j]
+			j++
 			or, ok := m.orders[pid]
 			if ok {
 				if !or.inStop {
 					change = true
-					lp.pros[i] = pid
+					if i < len(lp.pros) {
+						lp.pros[i] = pid
+					} else {
+						lp.pros = append(lp.pros, pid)
+					}
+
 					break
 				}
 			}
@@ -113,7 +136,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	if change {
 		m.saveLastProsPerBucket(lp)
 	}
-
+	logger.Info("order bucket: ", lp.bucketID, lp.pros)
 }
 
 func (sj *segJob) Serialize() ([]byte, error) {
@@ -268,11 +291,13 @@ func (m *OrderMgr) dispatch() {
 	for _, seg := range m.segs {
 		cnt := uint(seg.Length) * uint(seg.ChunkID)
 		if seg.dispatch.Count() == cnt {
+			//logger.Debug("seg is done for bucket:", seg.BucketID, seg.JobID)
 			continue
 		}
 
 		lp, ok := m.proMap[seg.BucketID]
 		if !ok {
+			logger.Debug("fail dispatch for bucket:", seg.BucketID)
 			continue
 		}
 		m.updateProsForBucket(lp)
@@ -280,10 +305,11 @@ func (m *OrderMgr) dispatch() {
 		for i, pid := range lp.pros {
 			or, ok := m.orders[pid]
 			if !ok {
+				logger.Debug("fail dispatch to pro:", pid)
 				continue
 			}
 
-			for s := uint64(0); s < seg.Length; i++ {
+			for s := uint64(0); s < seg.Length; s++ {
 				id := uint(s)*uint(seg.ChunkID) + uint(i)
 				if seg.dispatch.Test(id) {
 					continue

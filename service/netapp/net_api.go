@@ -12,7 +12,7 @@ import (
 func (c *NetServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) error {
 	pid, ok := c.idMap[id]
 	if ok {
-		return c.GenericService.SendMetaMessage(ctx, pid, typ, value)
+		return c.GenericService.SendNetMessage(ctx, pid, typ, value)
 	}
 	return nil
 }
@@ -43,7 +43,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 
 				time.Sleep(1 * time.Second)
 			} else {
-				return c.GenericService.SendMetaRequest(ctx, pid, typ, value, sig)
+				return c.GenericService.SendNetRequest(ctx, pid, c.RoleID(), typ, value, sig)
 			}
 		}
 
@@ -77,7 +77,7 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 	}
 
 	for _, pi := range pinfos {
-		resp, err := c.GenericService.SendMetaRequest(ctx, pi.ID, pb.NetMessage_Get, key, nil)
+		resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.RoleID(), pb.NetMessage_Get, key, nil)
 		if err != nil {
 			continue
 		}

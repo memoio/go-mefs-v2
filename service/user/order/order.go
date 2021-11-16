@@ -77,11 +77,13 @@ type OrderFull struct {
 }
 
 func (m *OrderMgr) newProOrder(id uint64) {
+	logger.Debug("create order for provider: ", id)
 	of := m.loadProOrder(id)
 	m.proChan <- of
 }
 
 func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
+
 	op := &OrderFull{
 		IDataService: m.IDataService,
 
@@ -92,7 +94,11 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		fsID:    m.fsID,
 		pro:     id,
 
+		availTime: time.Now().Unix(),
+
 		segs: make([]*types.SegJob, 0, 16),
+
+		orderState: Order_Done,
 
 		segDoneChan: m.segDoneChan,
 	}
@@ -176,11 +182,23 @@ func (m *OrderMgr) check(o *OrderFull) {
 	// 3 closing; push seq to done
 	// 4. done -> new
 
+	logger.Debug("check state for: ", o.pro, o.orderState, o.seqState, len(o.segs), o.inStop)
+
 	nt := time.Now().Unix()
 	switch o.orderState {
 	case Order_Init:
-		if nt-o.orderTime > DefaultAckWaiting {
-			m.createOrder(o, nil)
+		if o.base == nil {
+			o.RLock()
+			if len(o.segs) > 0 && !o.inStop {
+				go m.getQuotation(o.pro)
+				o.RUnlock()
+				return
+			}
+			o.RUnlock()
+		} else {
+			if nt-o.orderTime > DefaultAckWaiting {
+				m.createOrder(o, nil)
+			}
 		}
 	case Order_Running:
 		if nt-o.orderTime > DefaultOrderLast {

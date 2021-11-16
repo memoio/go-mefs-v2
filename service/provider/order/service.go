@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"encoding/binary"
+	"math/big"
 	"sync"
 	"time"
 
@@ -40,7 +41,12 @@ type OrderMgr struct {
 }
 
 func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
-	quo := new(types.Quotation)
+	quo := &types.Quotation{
+		ProID:      roleID,
+		TokenIndex: 1,
+		SegPrice:   big.NewInt(1234),
+		PiecePrice: big.NewInt(5678),
+	}
 
 	om := &OrderMgr{
 		IRole:        ir,
@@ -116,17 +122,12 @@ func (m *OrderMgr) runSched(ctx context.Context) {
 	}
 }
 
-func (m *OrderMgr) newUserOrder(uid uint64) *OrderFull {
-	// get pubkey from user
-	return m.loadOrder(uid)
-}
-
 func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	m.RLock()
 	or, ok := m.orders[userID]
 	m.RUnlock()
 	if !ok {
-		or = m.newUserOrder(userID)
+		or = m.loadOrder(userID)
 
 		m.Lock()
 		m.orders[userID] = or
@@ -175,15 +176,25 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	or, ok := m.orders[ob.UserID]
 	m.RUnlock()
 	if !ok {
-		or = m.newUserOrder(ob.UserID)
+		or = m.loadOrder(ob.UserID)
+		m.createOrder(or)
 
 		m.Lock()
 		m.orders[ob.UserID] = or
 		m.Unlock()
 	}
 
+	if !or.ready {
+		go m.createOrder(or)
+		return nil, ErrService
+	}
+
+	logger.Debug("handle: ", or.nonce, or.seqNum)
+
+	logger.Debug("handle: ", ob)
+
 	if or.nonce == ob.Nonce {
-		if or.orderState == Order_Init {
+		if or.orderState == Order_Init && or.base != nil {
 			or.orderState = Order_Done
 			ns := &NonceState{
 				Nonce: or.base.Nonce,
@@ -251,11 +262,16 @@ func (m *OrderMgr) handleDoneOrder(userID uint64) error {
 	or, ok := m.orders[userID]
 	m.RUnlock()
 	if !ok {
-		or = m.newUserOrder(userID)
+		or = m.loadOrder(userID)
 
 		m.Lock()
 		m.orders[userID] = or
 		m.Unlock()
+	}
+
+	if !or.ready {
+		go m.createOrder(or)
+		return ErrService
 	}
 
 	if or.base != nil && or.orderState == Order_Init {
@@ -298,11 +314,16 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 	or, ok := m.orders[userID]
 	m.RUnlock()
 	if !ok {
-		or = m.newUserOrder(userID)
+		or = m.loadOrder(userID)
 
 		m.Lock()
 		m.orders[userID] = or
 		m.Unlock()
+	}
+
+	if !or.ready {
+		go m.createOrder(or)
+		return nil, ErrService
 	}
 
 	if or.base == nil || or.orderState != Order_Init {
@@ -360,11 +381,16 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 	or, ok := m.orders[userID]
 	m.RUnlock()
 	if !ok {
-		or = m.newUserOrder(userID)
+		or = m.loadOrder(userID)
 
 		m.Lock()
 		m.orders[userID] = or
 		m.Unlock()
+	}
+
+	if !or.ready {
+		go m.createOrder(or)
+		return nil, ErrService
 	}
 
 	if or.seq != nil && or.seq.SeqNum == os.SeqNum {
@@ -413,6 +439,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 // need retry?
 func (m *OrderMgr) getBlsPubkey(userID uint64) (pdpcommon.PublicKey, error) {
 	// get bls publickey from local
+	logger.Debug("get pdp publickey for: ", userID)
 	key := store.NewKey(userID, pb.MetaType_PDPProveKey)
 	pk := new(pdpv2.PublicKey)
 
@@ -420,25 +447,29 @@ func (m *OrderMgr) getBlsPubkey(userID uint64) (pdpcommon.PublicKey, error) {
 	if err == nil {
 		err = pk.Deserialize(val)
 		if err == nil {
+			logger.Debug("get pdp publickey local for: ", userID)
 			return pk, nil
 		}
 	}
 
 	// get from remote
-	resp, err := m.SendMetaRequest(m.ctx, userID, pb.NetMessage_Get, store.NewKey(pb.MetaType_PDPProveKey), nil)
+	resp, err := m.SendMetaRequest(m.ctx, userID, pb.NetMessage_Get, key, nil)
 	if err != nil {
+		logger.Debug("fail get pdp publickey for: ", userID, err)
 		return pk, err
 	}
 
 	sig := new(types.Signature)
 	err = sig.Deserialize(resp.GetData().GetSign())
 	if err != nil {
+		logger.Debug("fail get pdp publickey for: ", userID, err)
 		return pk, err
 	}
 
 	data := resp.GetData().GetMsgInfo()
 	err = pk.Deserialize(data)
 	if err != nil {
+		logger.Debug("fail get pdp publickey for: ", userID, err)
 		return pk, err
 	}
 

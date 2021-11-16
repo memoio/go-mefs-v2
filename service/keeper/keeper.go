@@ -39,10 +39,14 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 
 // start service related
 func (k *KeeperNode) Start() error {
-	// register net msg handle
-	k.GenericService.Register(pb.NetMessage_Get, k.defaultHandler)
+	go k.OpenTest()
 
-	k.TxMsgHandle.Register(tx.DataTxErr, k.defaultPubsubHandler)
+	// register net msg handle
+	k.GenericService.Register(pb.NetMessage_SayHello, k.DefaultHandler)
+
+	k.GenericService.Register(pb.NetMessage_Get, k.HandleGet)
+
+	k.TxMsgHandle.Register(tx.DataTxErr, k.DefaultPubsubHandler)
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
 

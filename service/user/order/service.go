@@ -61,7 +61,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		localID: roleID,
 		fsID:    fsID,
 
-		segPrice: big.NewInt(100),
+		segPrice: big.NewInt(100000),
 
 		orders: make(map[uint64]*OrderFull),
 		proMap: make(map[uint64]*lastProsPerBucket),
@@ -153,10 +153,10 @@ func (m *OrderMgr) addPros() {
 }
 
 func (m *OrderMgr) runSched() {
-	st := time.NewTicker(time.Minute)
+	st := time.NewTicker(10 * time.Second)
 	defer st.Stop()
 
-	lt := time.NewTicker(5 * time.Minute)
+	lt := time.NewTicker(1 * time.Minute)
 	defer lt.Stop()
 
 	for {
@@ -174,31 +174,44 @@ func (m *OrderMgr) runSched() {
 			of, ok := m.orders[quo.ProID]
 			if ok {
 				of.availTime = time.Now().Unix()
-				m.createOrder(of, quo)
+				err := m.createOrder(of, quo)
+				if err != nil {
+					logger.Debug("fail create new order:", err)
+				}
 			}
 		case ob := <-m.orderChan:
+			logger.Debug("handle get new order")
 			of, ok := m.orders[ob.ProID]
 			if ok {
 				of.availTime = time.Now().Unix()
-				m.runOrder(of, ob)
+				err := m.runOrder(of, ob)
+				if err != nil {
+					logger.Debug("fail run new order:", err)
+				}
 			}
 		case s := <-m.seqNewChan:
 			of, ok := m.orders[s.proID]
 			if ok {
 				of.availTime = time.Now().Unix()
-				m.sendSeq(of, s.os)
+				err := m.sendSeq(of, s.os)
+				if err != nil {
+					logger.Debug("fail send new seq:", err)
+				}
 			}
 		case s := <-m.seqFinishChan:
 			of, ok := m.orders[s.proID]
 			if ok {
 				of.availTime = time.Now().Unix()
-				m.finishSeq(of, s.os)
+				err := m.finishSeq(of, s.os)
+				if err != nil {
+					logger.Debug("fail finish seq:", err)
+				}
 			}
 		case of := <-m.proChan:
 			m.orders[of.pro] = of
 		case lp := <-m.bucketChan:
 			_, ok := m.proMap[lp.bucketID]
-			if ok {
+			if !ok {
 				m.proMap[lp.bucketID] = lp
 			}
 		case <-st.C:

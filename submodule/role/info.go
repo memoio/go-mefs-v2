@@ -163,6 +163,7 @@ func (rm *RoleMgr) Sync(ctx context.Context) {
 }
 
 func (rm *RoleMgr) SyncFromChain(ctx context.Context) {
+
 }
 
 func (rm *RoleMgr) AddRoleInfo(ri pb.RoleInfo) {
@@ -171,6 +172,7 @@ func (rm *RoleMgr) AddRoleInfo(ri pb.RoleInfo) {
 	logger.Debug("add role info for: ", ri.ID)
 	_, ok := rm.infos[ri.ID]
 	if !ok {
+		rm.infos[ri.ID] = ri
 		switch ri.Type {
 		case pb.RoleInfo_Keeper:
 			rm.keepers = append(rm.keepers, ri.ID)
@@ -181,8 +183,6 @@ func (rm *RoleMgr) AddRoleInfo(ri pb.RoleInfo) {
 		default:
 			return
 		}
-
-		rm.infos[ri.ID] = ri
 	}
 }
 
@@ -244,6 +244,8 @@ func (rm *RoleMgr) RoleSign(msg []byte, typ types.SigType) (types.Signature, err
 		return ts, ErrNotFound
 	}
 
+	//logger.Debug("sign message:", base64.RawStdEncoding.EncodeToString(rm.localAddr.Bytes()), base64.RawStdEncoding.EncodeToString(msg), base64.RawStdEncoding.EncodeToString(ts.Data))
+
 	return ts, nil
 }
 
@@ -259,8 +261,11 @@ func (rm *RoleMgr) RoleVerify(id uint64, msg []byte, sig types.Signature) bool {
 	}
 
 	if len(pubByte) == 0 {
+		logger.Warn("local has no pubkey for:", id)
 		return false
 	}
+
+	//logger.Debug("verify sign message:", base64.RawStdEncoding.EncodeToString(pubByte), base64.RawStdEncoding.EncodeToString(msg), base64.RawStdEncoding.EncodeToString(sig.Data))
 
 	ok, err := signature.Verify(pubByte, msg, sig.Data)
 	if err != nil {

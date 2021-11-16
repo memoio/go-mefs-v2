@@ -57,10 +57,12 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 // start service related
 func (p *ProviderNode) Start() error {
-	// register net msg handle
-	p.GenericService.Register(pb.NetMessage_SayHello, p.defaultHandler)
+	go p.OpenTest()
 
-	p.GenericService.Register(pb.NetMessage_Get, p.handleGet)
+	// register net msg handle
+	p.GenericService.Register(pb.NetMessage_SayHello, p.DefaultHandler)
+
+	p.GenericService.Register(pb.NetMessage_Get, p.HandleGet)
 
 	p.GenericService.Register(pb.NetMessage_AskPrice, p.handleQuotation)
 	p.GenericService.Register(pb.NetMessage_CreateOrder, p.handleCreateOrder)
@@ -68,11 +70,11 @@ func (p *ProviderNode) Start() error {
 	p.GenericService.Register(pb.NetMessage_FinishSeq, p.handleFinishSeq)
 	p.GenericService.Register(pb.NetMessage_OrderSegment, p.handleSegData)
 
-	p.TxMsgHandle.Register(tx.DataTxErr, p.defaultPubsubHandler)
+	p.TxMsgHandle.Register(tx.DataTxErr, p.DefaultPubsubHandler)
 
 	p.RPCServer.Register("Memoriae", api.PermissionedFullAPI(p))
 
-	logger.Info("start keeper for: ", p.RoleID())
+	logger.Info("start provider for: ", p.RoleID())
 	return nil
 }
 

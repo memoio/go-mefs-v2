@@ -60,7 +60,6 @@ func (i *MsgImpl) Handle(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (
 
 	h, ok := i.hmap[mes.GetHeader().GetType()]
 	if ok {
-		log.Println("handle message")
 		return h(ctx, pid, mes)
 	}
 	return nil, nil

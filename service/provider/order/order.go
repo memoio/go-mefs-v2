@@ -54,18 +54,31 @@ type OrderFull struct {
 
 	pk pdpcommon.PublicKey
 	dv pdpcommon.DataVerifier
+
+	ready bool
 }
 
-func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
-	op := &OrderFull{}
-
-	pk, err := m.getBlsPubkey(userID)
+func (m *OrderMgr) createOrder(op *OrderFull) *OrderFull {
+	pk, err := m.getBlsPubkey(op.userID)
 	if err != nil {
-		return nil
+		return op
 	}
 
 	op.pk = pk
 	op.dv = pdpv2.NewDataVerifier(pk, nil)
+
+	op.fsID = pk.VerifyKey().Hash()
+
+	op.ready = true
+
+	return op
+}
+
+func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
+	op := &OrderFull{
+		userID:     userID,
+		orderState: Order_Done,
+	}
 
 	ns := new(NonceState)
 	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
@@ -78,11 +91,8 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		return op
 	}
 
-	op.nonce = ns.Nonce + 1
 	op.orderState = ns.State
-	if ns.State == Order_Done {
-		return op
-	}
+	op.nonce = ns.Nonce
 
 	ob := new(types.OrderBase)
 	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, userID, op.nonce)
@@ -109,11 +119,8 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		return op
 	}
 
-	op.seqNum = ss.Number + 1
 	op.seqState = ss.State
-	if ss.State == OrderSeq_Finish {
-		return op
-	}
+	op.seqNum = ss.Number
 
 	os := new(types.OrderSeq)
 	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, op.nonce, ss.Number)
@@ -129,5 +136,9 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 	op.seq = os
 	op.seqTime = ss.Time
 
+	op.nonce = ns.Nonce + 1
+	op.seqNum = ss.Number + 1
+
 	return op
+
 }

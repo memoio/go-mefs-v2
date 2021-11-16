@@ -7,6 +7,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	uorder "github.com/memoio/go-mefs-v2/service/user/order"
@@ -49,6 +50,9 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()
+
+	ds.Put(store.NewKey(userID, pb.MetaType_PDPProveKey), keyset.PublicKey().Serialize())
+	ds.Put(store.NewKey(userID, pb.MetaType_PDPVerifyKey), keyset.VerifyKey().Serialize())
 
 	// load lfs info first
 	err := ls.Load()

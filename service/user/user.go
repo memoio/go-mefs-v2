@@ -68,10 +68,14 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 // start service related
 func (u *UserNode) Start() error {
-	// register net msg handle
-	u.GenericService.Register(pb.NetMessage_Get, u.defaultHandler)
+	go u.OpenTest()
 
-	u.TxMsgHandle.Register(tx.DataTxErr, u.defaultPubsubHandler)
+	// register net msg handle
+	u.GenericService.Register(pb.NetMessage_SayHello, u.DefaultHandler)
+
+	u.GenericService.Register(pb.NetMessage_Get, u.HandleGet)
+
+	u.TxMsgHandle.Register(tx.DataTxErr, u.DefaultPubsubHandler)
 
 	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(u))
 
