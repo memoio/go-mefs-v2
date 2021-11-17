@@ -31,6 +31,12 @@ func PermissionedFullAPI(a FullNode) FullNode {
 	return &out
 }
 
+func PermissionedProviderAPI(a ProviderNode) ProviderNode {
+	var out ProviderNodeStruct
+	permissionedProxies(a, &out)
+	return &out
+}
+
 func PermissionedUserAPI(a UserNode) UserNode {
 	var out UserNodeStruct
 	permissionedProxies(a, &out)

@@ -7,6 +7,7 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -28,18 +29,15 @@ type CommonStruct struct {
 		WalletExport func(context.Context, address.Address) (*types.KeyInfo, error) `perm:"write"`
 		WalletImport func(context.Context, *types.KeyInfo) (address.Address, error) `perm:"write"`
 
-		TestReader func(context.Context, io.Reader) ([]byte, error) `perm:"read"`
-
 		NetAddrInfo func(context.Context) (peer.AddrInfo, error) `perm:"write"`
+
+		RoleSelf        func(context.Context) (pb.RoleInfo, error)                            `perm:"read"`
+		RoleGet         func(context.Context, uint64) (pb.RoleInfo, error)                    `perm:"read"`
+		RoleGetRelated  func(context.Context, pb.RoleInfo_Type) ([]uint64, error)             `perm:"read"`
+		RoleSign        func(context.Context, []byte, types.SigType) (types.Signature, error) `perm:"write"`
+		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)  `perm:"read"`
+		RoleVerifyMulti func(context.Context, []byte, mSign.MultiSignature) (bool, error)     `perm:"read"`
 	}
-}
-
-type FullNodeStruct struct {
-	CommonStruct
-}
-
-func (s *CommonStruct) TestReader(ctx context.Context, r io.Reader) ([]byte, error) {
-	return s.Internal.TestReader(ctx, r)
 }
 
 func (s *CommonStruct) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
@@ -88,6 +86,38 @@ func (s *CommonStruct) WalletImport(ctx context.Context, ki *types.KeyInfo) (add
 
 func (s *CommonStruct) NetAddrInfo(ctx context.Context) (peer.AddrInfo, error) {
 	return s.Internal.NetAddrInfo(ctx)
+}
+
+func (s *CommonStruct) RoleSelf(ctx context.Context) (pb.RoleInfo, error) {
+	return s.Internal.RoleSelf(ctx)
+}
+
+func (s *CommonStruct) RoleGet(ctx context.Context, id uint64) (pb.RoleInfo, error) {
+	return s.Internal.RoleGet(ctx, id)
+}
+
+func (s *CommonStruct) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {
+	return s.Internal.RoleGetRelated(ctx, typ)
+}
+
+func (s *CommonStruct) RoleSign(ctx context.Context, msg []byte, typ types.SigType) (types.Signature, error) {
+	return s.Internal.RoleSign(ctx, msg, typ)
+}
+
+func (s *CommonStruct) RoleVerify(ctx context.Context, id uint64, msg []byte, sig types.Signature) (bool, error) {
+	return s.Internal.RoleVerify(ctx, id, msg, sig)
+}
+
+func (s *CommonStruct) RoleVerifyMulti(ctx context.Context, msg []byte, sig mSign.MultiSignature) (bool, error) {
+	return s.Internal.RoleVerifyMulti(ctx, msg, sig)
+}
+
+type FullNodeStruct struct {
+	CommonStruct
+}
+
+type ProviderNodeStruct struct {
+	CommonStruct
 }
 
 type UserNodeStruct struct {

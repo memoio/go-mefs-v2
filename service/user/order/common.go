@@ -19,10 +19,10 @@ var (
 )
 
 const (
-	DefaultOrderDuration = 8640000 // 10 days
+	DefaultOrderDuration = 8640000 // 100 days
 	DefaultAckWaiting    = 30
-	DefaultOrderLast     = 86400 // 1 day
-	DefaultOrderSeqLast  = 3600  // 1 hour
+	DefaultOrderLast     = 600 // 1 day
+	DefaultOrderSeqLast  = 300 // 1 hour
 )
 
 type orderSeqPro struct {

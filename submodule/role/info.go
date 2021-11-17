@@ -10,15 +10,10 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
-	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
-	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
-	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
@@ -96,58 +91,6 @@ func (rm *RoleMgr) save() {
 
 }
 
-func (rm *RoleMgr) RoleSelf() (pb.RoleInfo, error) {
-	rm.RLock()
-	defer rm.RUnlock()
-
-	ri, ok := rm.infos[rm.roleID]
-	if ok {
-		return ri, nil
-	}
-	return pb.RoleInfo{}, ErrNotFound
-}
-
-func (rm *RoleMgr) RoleGet(id uint64) (pb.RoleInfo, error) {
-	rm.RLock()
-	defer rm.RUnlock()
-	ri, ok := rm.infos[id]
-	if ok {
-		return ri, nil
-	}
-	return pb.RoleInfo{}, ErrNotFound
-}
-
-func (rm *RoleMgr) RoleGetRelated(typ pb.RoleInfo_Type) []uint64 {
-	rm.RLock()
-	defer rm.RUnlock()
-
-	switch typ {
-	case pb.RoleInfo_Keeper:
-		out := make([]uint64, len(rm.keepers))
-		for i, id := range rm.keepers {
-			out[i] = id
-		}
-
-		return out
-	case pb.RoleInfo_Provider:
-		out := make([]uint64, len(rm.providers))
-		for i, id := range rm.providers {
-			out[i] = id
-		}
-
-		return out
-	case pb.RoleInfo_User:
-		out := make([]uint64, len(rm.users))
-		for i, id := range rm.users {
-			out[i] = id
-		}
-
-		return out
-	default:
-		return nil
-	}
-}
-
 func (rm *RoleMgr) Sync(ctx context.Context) {
 	t := time.NewTicker(60 * time.Second)
 	defer t.Stop()
@@ -220,105 +163,4 @@ func (rm *RoleMgr) RoleGetKeyset() (pdpcommon.KeySet, error) {
 		return nil, err
 	}
 	return keyset, nil
-}
-
-func (rm *RoleMgr) RoleSign(msg []byte, typ types.SigType) (types.Signature, error) {
-	ts := types.Signature{
-		Type: typ,
-	}
-
-	switch typ {
-	case types.SigSecp256k1:
-		sig, err := rm.WalletSign(rm.ctx, rm.localAddr, msg)
-		if err != nil {
-			return ts, err
-		}
-		ts.Data = sig
-	case types.SigBLS:
-		sig, err := rm.WalletSign(rm.ctx, rm.blsAddr, msg)
-		if err != nil {
-			return ts, err
-		}
-		ts.Data = sig
-	default:
-		return ts, ErrNotFound
-	}
-
-	//logger.Debug("sign message:", base64.RawStdEncoding.EncodeToString(rm.localAddr.Bytes()), base64.RawStdEncoding.EncodeToString(msg), base64.RawStdEncoding.EncodeToString(ts.Data))
-
-	return ts, nil
-}
-
-func (rm *RoleMgr) RoleVerify(id uint64, msg []byte, sig types.Signature) bool {
-	var pubByte []byte
-	switch sig.Type {
-	case types.SigSecp256k1:
-		pubByte = rm.GetPubKey(id)
-	case types.SigBLS:
-		pubByte = rm.GetBlsPubKey(id)
-	default:
-		return false
-	}
-
-	if len(pubByte) == 0 {
-		logger.Warn("local has no pubkey for:", id)
-		return false
-	}
-
-	//logger.Debug("verify sign message:", base64.RawStdEncoding.EncodeToString(pubByte), base64.RawStdEncoding.EncodeToString(msg), base64.RawStdEncoding.EncodeToString(sig.Data))
-
-	ok, err := signature.Verify(pubByte, msg, sig.Data)
-	if err != nil {
-		return false
-	}
-
-	return ok
-}
-
-func (rm *RoleMgr) RoleVerifyMulti(msg []byte, sig mSign.MultiSignature) bool {
-	switch sig.Type {
-	case types.SigSecp256k1:
-		for i, id := range sig.Signer {
-			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
-				return false
-			}
-			pubByte := rm.GetPubKey(id)
-			sign := sig.Data[i*secp256k1.SignatureSize : (i+1)*secp256k1.SignatureSize]
-			ok, err := signature.Verify(pubByte, msg, sign)
-			if err != nil {
-				return false
-			}
-
-			if !ok {
-				return false
-			}
-		}
-		return true
-	case types.SigBLS:
-		apub := make([][]byte, len(sig.Signer))
-		for i, id := range sig.Signer {
-			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
-				return false
-			}
-			pubByte := rm.GetPubKey(id)
-			if len(pubByte) == 0 {
-				return false
-			}
-			apub[i] = pubByte
-		}
-
-		apk, err := bls.AggregatePublicKey(apub...)
-		if err != nil {
-			return false
-		}
-		ok, err := signature.Verify(apk, msg, sig.Data)
-		if err != nil {
-			return false
-		}
-
-		return ok
-
-	default:
-		return false
-	}
 }

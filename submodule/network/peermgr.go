@@ -126,7 +126,7 @@ func (pmgr *PeerMgr) Stop(ctx context.Context) error {
 }
 
 func (pmgr *PeerMgr) Run(ctx context.Context) {
-	tick := time.NewTicker(time.Second * 5)
+	tick := time.NewTicker(time.Second * 60)
 	for {
 		select {
 		case <-tick.C:

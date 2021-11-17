@@ -32,12 +32,6 @@ type OrderMgr struct {
 	quo     *types.Quotation
 
 	orders map[uint64]*OrderFull // key: userID
-
-	segChan       chan *SegReceived
-	orderChan     chan *types.OrderBase
-	seqChan       chan *types.OrderSeq
-	seqFinishChan chan *types.OrderSeq
-	orderDoneChan chan *types.OrderBase
 }
 
 func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
@@ -80,7 +74,7 @@ func (m *OrderMgr) load() error {
 		m.orders[pid] = m.loadOrder(pid)
 	}
 
-	pros := m.IRole.RoleGetRelated(pb.RoleInfo_Provider)
+	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
 	for _, pid := range pros {
 		has := false
 		for pro := range m.orders {
@@ -138,7 +132,9 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		return ErrState
 	}
 
-	if or.orderState == Order_Init && or.seqState == OrderSeq_Init {
+	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
+
+	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
 		id := seg.SegmentID().Bytes()
 		data, _ := seg.Content()
 		tags, _ := seg.Tags()
@@ -147,9 +143,11 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 
 		or.seq.DataName = append(or.seq.DataName, id)
 		// update size and price
+
+		return nil
 	}
 
-	return nil
+	return ErrState
 }
 
 func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
@@ -189,13 +187,12 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, ErrService
 	}
 
-	logger.Debug("handle: ", or.nonce, or.seqNum)
-
-	logger.Debug("handle: ", ob)
-
+	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
 	if or.nonce == ob.Nonce {
-		if or.orderState == Order_Init && or.base != nil {
+		// handle previous
+		if or.base != nil && or.orderState == Order_Ack {
 			or.orderState = Order_Done
+			or.orderTime = time.Now().Unix()
 			ns := &NonceState{
 				Nonce: or.base.Nonce,
 				Time:  or.orderTime,
@@ -212,41 +209,60 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			or.base = nil
+			or.orderState = Order_Init
 		}
 
-		or.base = ob
-		or.orderState = Order_Init
-		or.orderTime = time.Now().Unix()
-		or.nonce++
+		if or.orderState == Order_Done {
+			or.orderState = Order_Init
+		}
 
-		// reset data verifier
-		or.dv.Reset()
+		if or.orderState == Order_Init {
+			or.base = ob
+			or.orderState = Order_Ack
+			or.orderTime = time.Now().Unix()
+			or.nonce++
 
+			// reset data verifier
+			or.dv.Reset()
+
+			data, err := or.base.Serialize()
+			if err != nil {
+				return nil, err
+			}
+
+			key := store.NewKey(pb.MetaType_OrderBaseKey, m.localID, or.base.UserID, or.base.Nonce)
+			err = m.ds.Put(key, data)
+			if err != nil {
+				return nil, err
+			}
+
+			// save state
+			ns := &NonceState{
+				Nonce: or.base.Nonce,
+				Time:  or.orderTime,
+				State: or.orderState,
+			}
+
+			val, err := cbor.Marshal(ns)
+			if err != nil {
+				return nil, err
+			}
+
+			key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, or.base.UserID)
+			err = m.ds.Put(key, val)
+			if err != nil {
+				return nil, err
+			}
+
+			return data, nil
+		}
+	}
+
+	// been acked
+	if or.base != nil && or.base.Nonce == ob.Nonce && or.orderState == Order_Ack {
 		data, err := or.base.Serialize()
-		if err != nil {
-			return nil, err
-		}
-
-		key := store.NewKey(pb.MetaType_OrderBaseKey, m.localID, or.base.UserID, or.base.Nonce)
-		err = m.ds.Put(key, data)
-		if err != nil {
-			return nil, err
-		}
-
-		// save state
-		ns := &NonceState{
-			Nonce: or.base.Nonce,
-			Time:  or.orderTime,
-			State: or.orderState,
-		}
-
-		val, err := cbor.Marshal(ns)
-		if err != nil {
-			return nil, err
-		}
-
-		key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, or.base.UserID)
-		err = m.ds.Put(key, val)
 		if err != nil {
 			return nil, err
 		}
@@ -255,52 +271,6 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	}
 
 	return nil, ErrState
-}
-
-func (m *OrderMgr) handleDoneOrder(userID uint64) error {
-	m.RLock()
-	or, ok := m.orders[userID]
-	m.RUnlock()
-	if !ok {
-		or = m.loadOrder(userID)
-
-		m.Lock()
-		m.orders[userID] = or
-		m.Unlock()
-	}
-
-	if !or.ready {
-		go m.createOrder(or)
-		return ErrService
-	}
-
-	if or.base != nil && or.orderState == Order_Init {
-		or.orderState = Order_Done
-		or.orderTime = time.Now().Unix()
-
-		// save state
-		ns := &NonceState{
-			Nonce: or.base.Nonce,
-			Time:  or.orderTime,
-			State: or.orderState,
-		}
-
-		val, err := cbor.Marshal(ns)
-		if err != nil {
-			return err
-		}
-
-		key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, or.base.UserID)
-		err = m.ds.Put(key, val)
-		if err != nil {
-			return err
-		}
-
-		or.base = nil
-		return nil
-	}
-
-	return ErrState
 }
 
 func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
@@ -326,15 +296,16 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, ErrService
 	}
 
-	if or.base == nil || or.orderState != Order_Init {
+	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
+
+	if or.base == nil || or.orderState != Order_Ack {
 		return nil, ErrState
 	}
 
-	if or.seqNum == os.SeqNum && or.seqState == OrderSeq_Finish {
+	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
 		or.seq = os
-		or.seqState = OrderSeq_Init
+		or.seqState = OrderSeq_Ack
 		or.seqTime = time.Now().Unix()
-
 		or.seqNum++
 
 		data, err := or.seq.Serialize()
@@ -342,7 +313,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 			return nil, err
 		}
 
-		key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, or.base.UserID, or.base.Nonce, os.SeqNum)
+		key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, or.base.UserID, or.base.Nonce, or.seq.SeqNum)
 		err = m.ds.Put(key, data)
 		if err != nil {
 			return nil, err
@@ -364,6 +335,15 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 			return nil, err
 		}
 
+		return data, nil
+	}
+
+	// been acked
+	if or.seq != nil && or.seq.SeqNum == os.SeqNum && or.seqState == OrderSeq_Ack {
+		data, err := or.seq.Serialize()
+		if err != nil {
+			return nil, err
+		}
 		return data, nil
 	}
 
@@ -393,44 +373,54 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, ErrService
 	}
 
+	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
+
 	if or.seq != nil && or.seq.SeqNum == os.SeqNum {
-		ok := or.dv.Result()
-		if !ok {
-			return nil, ErrSign
+		if or.seqState == OrderSeq_Ack {
+			ok := or.dv.Result()
+			if !ok {
+				return nil, ErrSign
+			}
+
+			or.seqState = OrderSeq_Done
+			or.seqTime = time.Now().Unix()
+			data, err := or.seq.Serialize()
+			if err != nil {
+				return nil, err
+			}
+
+			key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, or.base.UserID, or.base.Nonce, os.SeqNum)
+			err = m.ds.Put(key, data)
+			if err != nil {
+				return nil, err
+			}
+
+			ss := SeqState{
+				Number: or.seq.SeqNum,
+				Time:   or.seqTime,
+				State:  or.seqState,
+			}
+			key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, or.base.Nonce)
+			val, err := cbor.Marshal(ss)
+			if err != nil {
+				return nil, err
+			}
+			err = m.ds.Put(key, val)
+			if err != nil {
+				return nil, err
+			}
+
+			return data, nil
 		}
 
-		or.seqState = OrderSeq_Finish
-		or.seqTime = time.Now().Unix()
+		if or.seqState == OrderSeq_Done {
+			data, err := or.seq.Serialize()
+			if err != nil {
+				return nil, err
+			}
 
-		data, err := or.seq.Serialize()
-		if err != nil {
-			return nil, err
+			return data, nil
 		}
-
-		key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, or.base.UserID, or.base.Nonce, os.SeqNum)
-		err = m.ds.Put(key, data)
-		if err != nil {
-			return nil, err
-		}
-
-		ss := SeqState{
-			Number: or.seq.SeqNum,
-			Time:   or.seqTime,
-			State:  or.seqState,
-		}
-		key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, or.base.Nonce)
-		val, err := cbor.Marshal(ss)
-		if err != nil {
-			return nil, err
-		}
-
-		err = m.ds.Put(key, val)
-		if err != nil {
-			return nil, err
-		}
-
-		or.seq = nil
-		return data, nil
 	}
 
 	return nil, ErrState
@@ -474,7 +464,7 @@ func (m *OrderMgr) getBlsPubkey(userID uint64) (pdpcommon.PublicKey, error) {
 	}
 
 	msg := blake3.Sum256(data)
-	ok := m.RoleVerify(userID, msg[:], *sig)
+	ok, _ := m.RoleVerify(m.ctx, userID, msg[:], *sig)
 	if ok {
 		return pk, nil
 	}

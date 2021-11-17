@@ -27,6 +27,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
+			Type:    mes.GetHeader().GetType(),
 			From:    n.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
@@ -40,7 +41,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 	}
 
 	msg := blake3.Sum256(val)
-	sig, err := n.RoleSign(msg[:], types.SigSecp256k1)
+	sig, err := n.RoleSign(n.ctx, msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -60,7 +61,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 func (n *BaseNode) OpenTest() error {
 	ticker := time.NewTicker(11 * time.Second)
 	defer ticker.Stop()
-	pi, _ := n.RoleMgr.RoleSelf()
+	pi, _ := n.RoleMgr.RoleSelf(n.ctx)
 	data, _ := proto.Marshal(&pi)
 	n.MsgHandle.Register(pb.NetMessage_PutPeer, n.TestHanderPutPeer)
 

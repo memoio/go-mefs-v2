@@ -53,7 +53,7 @@ func (pp *PushPool) AddMessage(mes *tx.Message) error {
 		return err
 	}
 
-	sig, err := pp.RoleSign(mid.Bytes(), types.SigSecp256k1)
+	sig, err := pp.RoleSign(pp.ctx, mid.Bytes(), types.SigSecp256k1)
 	if err != nil {
 		return err
 	}

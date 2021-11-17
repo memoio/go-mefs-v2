@@ -22,12 +22,17 @@ type FullNode interface {
 	IAuth
 	IConfig
 	IWallet
+	IRole
 }
 
 type UserNode interface {
 	FullNode
 
 	ILfsService
+}
+
+type ProviderNode interface {
+	FullNode
 }
 
 type IAuth interface {
@@ -74,13 +79,13 @@ type INetwork interface {
 }
 
 type IRole interface {
-	RoleSelf() (pb.RoleInfo, error)
-	RoleGet(uint64) (pb.RoleInfo, error)
-	RoleGetRelated(typ pb.RoleInfo_Type) []uint64
+	RoleSelf(context.Context) (pb.RoleInfo, error)
+	RoleGet(context.Context, uint64) (pb.RoleInfo, error)
+	RoleGetRelated(context.Context, pb.RoleInfo_Type) ([]uint64, error)
 
-	RoleSign(msg []byte, typ types.SigType) (types.Signature, error)
-	RoleVerify(id uint64, msg []byte, sig types.Signature) bool
-	RoleVerifyMulti(msg []byte, sig mSign.MultiSignature) bool
+	RoleSign(context.Context, []byte, types.SigType) (types.Signature, error)
+	RoleVerify(context.Context, uint64, []byte, types.Signature) (bool, error)
+	RoleVerifyMulti(context.Context, []byte, mSign.MultiSignature) (bool, error)
 }
 
 type INetService interface {

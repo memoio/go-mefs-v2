@@ -65,3 +65,11 @@ func NewUserNode(ctx context.Context, addr string, requestHeader http.Header) (a
 
 	return &res, closer, err
 }
+
+func NewProviderNode(ctx context.Context, addr string, requestHeader http.Header) (api.ProviderNode, jsonrpc.ClientCloser, error) {
+	var res api.ProviderNodeStruct
+	closer, err := jsonrpc.NewMergeClient(ctx, "ws://"+addr+"/rpc/v0", "Memoriae",
+		api.GetInternalStructs(&res), requestHeader)
+
+	return &res, closer, err
+}

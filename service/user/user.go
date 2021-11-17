@@ -26,8 +26,6 @@ type UserNode struct {
 
 	*lfs.LfsService
 
-	segStore segment.SegmentStore
-
 	ctx context.Context
 }
 
@@ -60,7 +58,6 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		BaseNode:   bn,
 		LfsService: ls,
 		ctx:        ctx,
-		segStore:   segStore,
 	}
 
 	return un, nil

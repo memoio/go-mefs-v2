@@ -19,6 +19,7 @@ var logger = logging.Logger("mefs-user")
 
 var (
 	ErrData = errors.New("err data")
+	ErrSend = errors.New("send fails")
 )
 
 type dataService struct {
@@ -67,9 +68,13 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 	if err != nil {
 		return err
 	}
-	_, err = d.SendMetaRequest(ctx, to, pb.NetMessage_PutSegment, data, nil)
+	resp, err := d.SendMetaRequest(ctx, to, pb.NetMessage_PutSegment, data, nil)
 	if err != nil {
 		return err
+	}
+
+	if resp.GetHeader().GetType() == pb.NetMessage_Err {
+		return ErrSend
 	}
 
 	// save meta
@@ -123,8 +128,11 @@ func (d *dataService) GetSegmentFrom(ctx context.Context, sid segment.SegmentID,
 		return nil, err
 	}
 
-	bs := new(segment.BaseSegment)
+	if resp.Header.Type == pb.NetMessage_Err {
+		return nil, ErrData
+	}
 
+	bs := new(segment.BaseSegment)
 	err = bs.Deserialize(resp.GetData().GetMsgInfo())
 	if err != nil {
 		return nil, err

@@ -104,11 +104,16 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 	bi := types.BucketInfo{
 		BucketOption: *opt,
 		BucketInfo: pb.BucketInfo{
-			BucketID: bucketID,
-			CTime:    time.Now().Unix(),
-			MTime:    time.Now().Unix(),
-			Name:     bucketName,
-			Root:     beignHash[:],
+			BucketID:     bucketID,
+			CTime:        time.Now().Unix(),
+			MTime:        time.Now().Unix(),
+			Name:         bucketName,
+			Deletion:     false,
+			Length:       0,
+			UsedBytes:    0,
+			NextObjectID: 0,
+			NextOpID:     0,
+			Root:         beignHash[:],
 		},
 	}
 
@@ -128,7 +133,7 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 		return nil, err
 	}
 
-	l.om.RegisterBucket(bu.BucketID, &bu.BucketOption)
+	go l.om.RegisterBucket(bu.BucketID, &bu.BucketOption)
 
 	return bu, nil
 }
@@ -427,7 +432,7 @@ func (l *LfsService) Load() error {
 		}
 		bu.Unlock()
 
-		l.om.RegisterBucket(bu.BucketID, &bu.BucketOption)
+		go l.om.RegisterBucket(bu.BucketID, &bu.BucketOption)
 	}
 
 	l.sb.ready = true

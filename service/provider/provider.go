@@ -16,16 +16,16 @@ import (
 
 var logger = logging.Logger("provider")
 
-var _ api.FullNode = (*ProviderNode)(nil)
+var _ api.ProviderNode = (*ProviderNode)(nil)
 
 type ProviderNode struct {
 	sync.RWMutex
 
-	api.IDataService
-
 	*node.BaseNode
 
-	*porder.OrderMgr
+	api.IDataService
+
+	pom *porder.OrderMgr
 
 	ctx context.Context
 }
@@ -45,14 +45,14 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	por := porder.NewOrderMgr(ctx, bn.RoleID(), bn.MetaStore(), bn.RoleMgr, bn.NetServiceImpl, ids)
 
-	kn := &ProviderNode{
+	pn := &ProviderNode{
 		BaseNode:     bn,
 		IDataService: ids,
 		ctx:          ctx,
-		OrderMgr:     por,
+		pom:          por,
 	}
 
-	return kn, nil
+	return pn, nil
 }
 
 // start service related
@@ -68,11 +68,13 @@ func (p *ProviderNode) Start() error {
 	p.GenericService.Register(pb.NetMessage_CreateOrder, p.handleCreateOrder)
 	p.GenericService.Register(pb.NetMessage_CreateSeq, p.handleCreateSeq)
 	p.GenericService.Register(pb.NetMessage_FinishSeq, p.handleFinishSeq)
-	p.GenericService.Register(pb.NetMessage_OrderSegment, p.handleSegData)
+
+	p.GenericService.Register(pb.NetMessage_PutSegment, p.handleSegData)
+	p.GenericService.Register(pb.NetMessage_GetSegment, p.handleGetSeg)
 
 	p.TxMsgHandle.Register(tx.DataTxErr, p.DefaultPubsubHandler)
 
-	p.RPCServer.Register("Memoriae", api.PermissionedFullAPI(p))
+	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
 
 	logger.Info("start provider for: ", p.RoleID())
 	return nil

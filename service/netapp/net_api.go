@@ -19,7 +19,6 @@ func (c *NetServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb.
 
 func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value, sig []byte) (*pb.NetMessage, error) {
 	ctx, cancle := context.WithTimeout(ctx, 30*time.Second)
-
 	defer cancle()
 
 	for {

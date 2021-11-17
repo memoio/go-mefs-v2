@@ -9,13 +9,16 @@ import (
 
 var FaultID uint64 = 1<<64 - 1
 
-type Segs struct {
+// aggreated segs
+type AggSegs struct {
 	BucketID uint64
 	Start    uint64
 	Length   uint64
 }
 
+// sorted by bucketID and jobID
 type SegJob struct {
+	End      bool
 	JobID    uint64
 	BucketID uint64
 	Start    uint64

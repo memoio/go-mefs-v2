@@ -24,7 +24,6 @@ func (l *LfsService) getObjectInfo(bu *bucket, objectName string) (*object, erro
 	objectElement := bu.objects.Find(MetaName(objectName))
 	if objectElement != nil {
 		obj := objectElement.(*object)
-		logger.Debug("has object: ", obj.Name, obj.ops)
 		return obj, nil
 	}
 
@@ -49,14 +48,14 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	}
 
 	dist, donet, tt := 0, 0, 0
-	for _, opID := range object.ops {
+	for _, opID := range object.ops[1:] {
 		dis, done, total := l.om.GetSegJogState(object.BucketID, opID)
 		dist += dis
 		donet += done
 		tt += total
 	}
 
-	object.State = fmt.Sprintf("state: %d, %d, %d", dist, donet, tt)
+	object.State = fmt.Sprintf("state: total %d, dispatch %d, done %d", tt, dist, donet)
 
 	return &object.ObjectInfo, nil
 }

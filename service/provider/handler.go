@@ -10,17 +10,52 @@ import (
 	"github.com/zeebo/blake3"
 )
 
-func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle quotation from:", mes.GetHeader().From)
+func (p *ProviderNode) handleGetSeg(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	logger.Debug("handle get from:", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
+			Type:    mes.GetHeader().GetType(),
 			From:    p.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
 	}
 
-	res, err := p.HandleQuotation(mes.Header.From)
+	segID, err := segment.FromBytes(mes.GetData().GetMsgInfo())
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		return resp, nil
+	}
+
+	seg, err := p.GetSegmentFromLocal(ctx, segID)
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		return resp, nil
+	}
+
+	data, err := seg.Serialize()
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		return resp, nil
+	}
+
+	resp.Data.MsgInfo = data
+
+	return resp, nil
+}
+
+func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	logger.Debug("handle quotation from:", mes.GetHeader().From)
+	resp := &pb.NetMessage{
+		Header: &pb.NetMessage_MsgHeader{
+			Version: 1,
+			Type:    mes.GetHeader().GetType(),
+			From:    p.RoleID(),
+		},
+		Data: &pb.NetMessage_MsgData{},
+	}
+
+	res, err := p.pom.HandleQuotation(mes.Header.From)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -30,7 +65,7 @@ func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb
 
 	msg := blake3.Sum256(res)
 
-	sigTo, err := p.RoleMgr.RoleSign(msg[:], types.SigSecp256k1)
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -52,30 +87,33 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
+			Type:    mes.GetHeader().GetType(),
 			From:    p.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
 	}
 
 	// verify sig
-	sigFrom := new(types.Signature)
-	err := sigFrom.Deserialize(mes.GetData().GetSign())
-	if err != nil {
-		resp.Header.Type = pb.NetMessage_Err
-		return resp, nil
-	}
+	/*
+		sigFrom := new(types.Signature)
+		err := sigFrom.Deserialize(mes.GetData().GetSign())
+		if err != nil {
+			resp.Header.Type = pb.NetMessage_Err
+			return resp, nil
+		}
 
-	dataFrom := mes.GetData().GetMsgInfo()
-	msgFrom := blake3.Sum256(dataFrom)
+		dataFrom := mes.GetData().GetMsgInfo()
+		msgFrom := blake3.Sum256(dataFrom)
 
-	ok := p.RoleMgr.RoleVerify(mes.Header.From, msgFrom[:], *sigFrom)
-	if !ok {
-		resp.Header.Type = pb.NetMessage_Err
-		return resp, nil
-	}
+		ok, _ := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
+		if !ok {
+			resp.Header.Type = pb.NetMessage_Err
+			return resp, nil
+		}
+	*/
 
 	seg := new(segment.BaseSegment)
-	err = seg.Deserialize(dataFrom)
+	err := seg.Deserialize(mes.GetData().GetMsgInfo())
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -87,7 +125,7 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 		return resp, nil
 	}
 
-	err = p.HandleData(mes.Header.From, seg)
+	err = p.pom.HandleData(mes.Header.From, seg)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -101,6 +139,7 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
+			Type:    mes.GetHeader().GetType(),
 			From:    p.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
@@ -118,14 +157,14 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 	dataFrom := mes.GetData().GetMsgInfo()
 	msgFrom := blake3.Sum256(dataFrom)
 
-	ok := p.RoleMgr.RoleVerify(mes.Header.From, msgFrom[:], *sigFrom)
+	ok, _ := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
 	if !ok {
 		logger.Debug("fail handle create order duo to verify from:", mes.GetHeader().From)
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
 	}
 
-	res, err := p.HandleCreateOrder(dataFrom)
+	res, err := p.pom.HandleCreateOrder(dataFrom)
 	if err != nil {
 		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
@@ -136,14 +175,16 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 
 	msg := blake3.Sum256(res)
 
-	sigTo, err := p.RoleMgr.RoleSign(msg[:], types.SigSecp256k1)
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
+		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
 		return resp, nil
 	}
 
 	sigByte, err := sigTo.Serialize()
 	if err != nil {
+		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
 	}
@@ -158,6 +199,7 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
+			Type:    mes.GetHeader().GetType(),
 			From:    p.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
@@ -174,13 +216,13 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 	dataFrom := mes.GetData().GetMsgInfo()
 	msgFrom := blake3.Sum256(dataFrom)
 
-	ok := p.RoleMgr.RoleVerify(mes.Header.From, msgFrom[:], *sigFrom)
+	ok, _ := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
 	if !ok {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
 	}
 
-	res, err := p.HandleCreateSeq(mes.Header.From, dataFrom)
+	res, err := p.pom.HandleCreateSeq(mes.Header.From, dataFrom)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -190,7 +232,7 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	msg := blake3.Sum256(res)
 
-	sigTo, err := p.RoleMgr.RoleSign(msg[:], types.SigSecp256k1)
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -212,6 +254,7 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
+			Type:    mes.GetHeader().GetType(),
 			From:    p.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
@@ -222,21 +265,24 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 	err := sigFrom.Deserialize(mes.GetData().GetSign())
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
+		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
 		return resp, nil
 	}
 
 	dataFrom := mes.GetData().GetMsgInfo()
 	msgFrom := blake3.Sum256(dataFrom)
 
-	ok := p.RoleMgr.RoleVerify(mes.Header.From, msgFrom[:], *sigFrom)
+	ok, _ := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
 	if !ok {
 		resp.Header.Type = pb.NetMessage_Err
+		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
 		return resp, nil
 	}
 
-	res, err := p.HandleFinishSeq(mes.Header.From, dataFrom)
+	res, err := p.pom.HandleFinishSeq(mes.Header.From, dataFrom)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
+		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
 		return resp, nil
 	}
 
@@ -244,15 +290,17 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	msg := blake3.Sum256(res)
 
-	sigTo, err := p.RoleMgr.RoleSign(msg[:], types.SigSecp256k1)
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
+		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
 		return resp, nil
 	}
 
 	sigByte, err := sigTo.Serialize()
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
+		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
 		return resp, nil
 	}
 

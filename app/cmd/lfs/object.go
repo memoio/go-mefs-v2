@@ -2,6 +2,7 @@ package lfscmd
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"os"
 
@@ -142,7 +143,7 @@ var headObjectCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("head object: ", oi.ObjectID, oi.Name, oi)
+		fmt.Println("head object: ", oi.Name, oi.State)
 
 		return nil
 	},
@@ -202,7 +203,9 @@ var getObjectCmd = &cli.Command{
 
 		f.Write(data)
 
-		fmt.Println("get object: ", objectName, md5.Sum(data))
+		etag := md5.Sum(data)
+
+		fmt.Println("get object: ", objectName, hex.EncodeToString(etag[:]))
 
 		return nil
 	},

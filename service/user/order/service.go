@@ -103,21 +103,12 @@ func (m *OrderMgr) load() error {
 
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		m.orders[pid] = m.loadProOrder(pid)
+		go m.newProOrder(pid)
 	}
 
-	pros := m.IRole.RoleGetRelated(pb.RoleInfo_Provider)
+	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
 	for _, pid := range pros {
-		has := false
-		for pro := range m.orders {
-			if pid == pro {
-				has = true
-			}
-		}
-
-		if !has {
-			m.orders[pid] = m.loadProOrder(pid)
-		}
+		go m.newProOrder(pid)
 	}
 
 	return nil
@@ -136,7 +127,7 @@ func (m *OrderMgr) save() error {
 }
 
 func (m *OrderMgr) addPros() {
-	pros := m.IRole.RoleGetRelated(pb.RoleInfo_Provider)
+	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
 	for _, pro := range pros {
 		has := false
 		for pid := range m.orders {

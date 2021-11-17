@@ -13,6 +13,7 @@ type OrderState uint8
 
 const (
 	Order_Init OrderState = iota //
+	Order_Ack                    // order is acked
 	Order_Done                   // order is done
 )
 
@@ -25,8 +26,9 @@ type NonceState struct {
 type OrderSeqState uint8
 
 const (
-	OrderSeq_Init   OrderSeqState = iota // can receiving data
-	OrderSeq_Finish                      // finished
+	OrderSeq_Init OrderSeqState = iota // can receiving data
+	OrderSeq_Ack                       // seq is acked
+	OrderSeq_Done                      // finished
 )
 
 type SeqState struct {
@@ -91,11 +93,8 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		return op
 	}
 
-	op.orderState = ns.State
-	op.nonce = ns.Nonce
-
 	ob := new(types.OrderBase)
-	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, userID, op.nonce)
+	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, userID, ns.Nonce)
 	val, err = m.ds.Get(key)
 	if err != nil {
 		return op
@@ -106,10 +105,12 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 	}
 
 	op.base = ob
+	op.orderState = ns.State
 	op.orderTime = ns.Time
+	op.nonce = ns.Nonce + 1
 
 	ss := new(SeqState)
-	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, op.nonce)
+	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, ns.Nonce)
 	val, err = m.ds.Get(key)
 	if err != nil {
 		return op
@@ -119,11 +120,8 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		return op
 	}
 
-	op.seqState = ss.State
-	op.seqNum = ss.Number
-
 	os := new(types.OrderSeq)
-	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, op.nonce, ss.Number)
+	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, ns.Nonce, ss.Number)
 	val, err = m.ds.Get(key)
 	if err != nil {
 		return op
@@ -135,8 +133,7 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 
 	op.seq = os
 	op.seqTime = ss.Time
-
-	op.nonce = ns.Nonce + 1
+	op.seqState = ss.State
 	op.seqNum = ss.Number + 1
 
 	return op

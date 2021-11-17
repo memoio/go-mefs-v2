@@ -2,6 +2,7 @@ package order
 
 import (
 	"encoding/binary"
+	"sync"
 	"time"
 
 	"github.com/bits-and-blooms/bitset"
@@ -23,8 +24,25 @@ func (m *OrderMgr) RegisterBucket(bucketID uint64, bopt *pb.BucketOption) {
 	logger.Info("register order for bucket: ", bucketID)
 	storedPros := m.loadLastProsPerBucket(bucketID)
 
-	pros := make([]uint64, int(bopt.DataCount+bopt.ParityCount))
-	copy(pros, storedPros)
+	pros := make([]uint64, 0, int(bopt.DataCount+bopt.ParityCount))
+
+	var wg sync.WaitGroup
+	for _, pid := range storedPros {
+		wg.Add(1)
+		go func(pid uint64) {
+			defer wg.Done()
+			err := m.connect(pid)
+			if err == nil {
+				pros = append(pros, pid)
+			}
+		}(pid)
+	}
+
+	wg.Wait()
+
+	if len(pros) > int(bopt.DataCount+bopt.ParityCount) {
+		pros = pros[:int(bopt.DataCount+bopt.ParityCount)]
+	}
 
 	lp := &lastProsPerBucket{
 		bucketID: bucketID,
@@ -83,8 +101,10 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	lp.pros = removeDup(lp.pros)
 
 	pros := make([]uint64, 0, len(m.orders))
-	for pid := range m.orders {
-		pros = append(pros, pid)
+	for pid, por := range m.orders {
+		if por.ready && !por.inStop {
+			pros = append(pros, pid)
+		}
 	}
 
 	utils.DisorderUint(pros)
@@ -119,7 +139,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 			j++
 			or, ok := m.orders[pid]
 			if ok {
-				if !or.inStop {
+				if !or.inStop && m.ready {
 					change = true
 					if i < len(lp.pros) {
 						lp.pros[i] = pid
@@ -170,9 +190,9 @@ func (m *OrderMgr) AddSegJob(sj *types.SegJob) {
 
 // disptach, done, total
 func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int) {
-	donecnt := 0
-	discnt := 0
-	totalcnt := 0
+	donecnt := 1
+	discnt := 1
+	totalcnt := 1
 
 	jk := jobKey{
 		bucketID: bucketID,
@@ -187,9 +207,17 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int) {
 		discnt = int(seg.dispatch.Count())
 		totalcnt = int(seg.Length) * int(seg.ChunkID)
 	} else {
-		donecnt = 1
-		discnt = 1
-		totalcnt = 1
+		key := store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, bucketID, opID)
+		seg := new(segJob)
+		data, err := m.ds.Get(key)
+		if err == nil && len(data) > 0 {
+			err := seg.Deserialize(data)
+			if err == nil {
+				donecnt = int(seg.done.Count())
+				discnt = int(seg.dispatch.Count())
+				totalcnt = int(seg.Length) * int(seg.ChunkID)
+			}
+		}
 	}
 
 	return donecnt, discnt, totalcnt
@@ -259,6 +287,11 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	key := store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, seg.BucketID, seg.JobID)
 
 	m.ds.Put(key, data)
+
+	if seg.done.Count() == uint(seg.Length)*uint(seg.ChunkID) {
+		// done all; remove from it
+		delete(m.segs, jk)
+	}
 }
 
 func (m *OrderMgr) redoSegJob(sj *types.SegJob) {
@@ -301,6 +334,10 @@ func (m *OrderMgr) dispatch() {
 			continue
 		}
 		m.updateProsForBucket(lp)
+
+		if len(lp.pros) == 0 {
+			continue
+		}
 
 		for i, pid := range lp.pros {
 			or, ok := m.orders[pid]
@@ -384,6 +421,9 @@ func (o *OrderFull) sendData() {
 				o.Unlock()
 				continue
 			}
+
+			logger.Debug("send segment:", sid.String())
+
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
 			if err != nil {
 				o.Lock()

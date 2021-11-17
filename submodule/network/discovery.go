@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p/p2p/discovery"
 )
@@ -17,9 +18,14 @@ type discoveryHandler struct {
 }
 
 func (dh *discoveryHandler) HandlePeerFound(p peer.AddrInfo) {
+	if dh.host.Network().Connectedness(p.ID) == network.Connected {
+		return
+	}
+
 	logger.Info("connecting to discovered peer: ", p)
 	ctx, cancel := context.WithTimeout(dh.ctx, discoveryConnTimeout)
 	defer cancel()
+
 	if err := dh.host.Connect(ctx, p); err != nil {
 		logger.Warnf("failed to connect to peer %s found by discovery: %s", p.ID, err)
 	}

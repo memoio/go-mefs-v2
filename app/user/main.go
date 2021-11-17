@@ -19,6 +19,7 @@ func main() {
 		cmd.InitCmd,
 		cmd.AuthCmd,
 		cmd.WalletCmd,
+		cmd.RoleCmd,
 		lfscmd.LfsCmd,
 	}
 

@@ -7,11 +7,13 @@ import (
 	"github.com/zeebo/blake3"
 )
 
-func (m *OrderMgr) connect(proID uint64) {
+func (m *OrderMgr) connect(proID uint64) error {
 	_, err := m.SendMetaRequest(m.ctx, proID, pb.NetMessage_SayHello, nil, nil)
 	if err != nil {
-		return
+		return err
 	}
+
+	return nil
 }
 
 func (m *OrderMgr) getQuotation(proID uint64) error {
@@ -42,7 +44,7 @@ func (m *OrderMgr) getQuotation(proID uint64) error {
 
 	// verify
 	msg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok := m.RoleVerify(proID, msg[:], *sig)
+	ok, _ := m.RoleVerify(m.ctx, proID, msg[:], *sig)
 	if ok {
 		m.quoChan <- quo
 	}
@@ -53,7 +55,7 @@ func (m *OrderMgr) getQuotation(proID uint64) error {
 func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 	logger.Debug("get new order ack from: ", proID)
 	msg := blake3.Sum256(data)
-	sig, err := m.RoleSign(msg[:], types.SigSecp256k1)
+	sig, err := m.RoleSign(m.ctx, msg[:], types.SigSecp256k1)
 	if err != nil {
 		return err
 	}
@@ -88,7 +90,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 	}
 
 	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok := m.RoleVerify(proID, pmsg[:], *psig)
+	ok, _ := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
 	if ok {
 		m.orderChan <- ob
 	}
@@ -99,7 +101,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 	logger.Debug("get new seq ack from: ", proID)
 	msg := blake3.Sum256(data)
-	sig, err := m.RoleSign(msg[:], types.SigSecp256k1)
+	sig, err := m.RoleSign(m.ctx, msg[:], types.SigSecp256k1)
 	if err != nil {
 		return err
 	}
@@ -134,7 +136,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 	}
 
 	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok := m.RoleVerify(proID, pmsg[:], *psig)
+	ok, _ := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
 	if ok {
 		osp := &orderSeqPro{
 			proID: proID,
@@ -149,7 +151,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 	logger.Debug("get finish seq ack from: ", proID)
 	msg := blake3.Sum256(data)
-	sig, err := m.RoleSign(msg[:], types.SigSecp256k1)
+	sig, err := m.RoleSign(m.ctx, msg[:], types.SigSecp256k1)
 	if err != nil {
 		return err
 	}
@@ -184,7 +186,7 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 	}
 
 	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok := m.RoleVerify(proID, pmsg[:], *psig)
+	ok, _ := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
 	if ok {
 		osp := &orderSeqPro{
 			proID: proID,
