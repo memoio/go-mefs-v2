@@ -223,6 +223,8 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			or.orderState = Order_Ack
 			or.orderTime = time.Now().Unix()
 			or.nonce++
+			or.seqNum = 0
+			or.seqState = OrderSeq_Init
 
 			// reset data verifier
 			or.dv.Reset()
