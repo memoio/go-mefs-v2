@@ -1,0 +1,32 @@
+package minit
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/howeyc/gopass"
+)
+
+func GetPassWord() (string, error) {
+	var password string
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	go func() {
+		fmt.Printf("Please input your password (at least 8): ")
+		pd, err := gopass.GetPasswdMasked()
+		if err != nil {
+			return
+		}
+		password = string(pd)
+	}()
+
+	select {
+	case <-ctx.Done():
+	}
+
+	if len(password) < 8 {
+		return password, fmt.Errorf("Password length should be at least 8")
+	}
+	return password, nil
+}
