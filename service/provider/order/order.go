@@ -139,6 +139,9 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 	op.seqState = ss.State
 	op.seqNum = ss.Number + 1
 
+	op.accPrice.Set(os.Price)
+	op.accSize = os.Size
+
 	return op
 
 }

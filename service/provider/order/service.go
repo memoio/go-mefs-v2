@@ -152,6 +152,9 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 
 		or.seq.Segments.Push(as)
 		// update size and price
+		or.seq.Price.Add(or.seq.Price, big.NewInt(100))
+		or.seq.Size += 1
+
 		or.accPrice.Add(or.accPrice, big.NewInt(100))
 		or.accSize += 1
 
@@ -322,9 +325,10 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 
 	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
 		// verify accPrice and accSize
-
-		logger.Debug("handle receive:", os.Price, os.Size)
-		logger.Debug("handle local:", or.accPrice, or.accSize)
+		if os.Price.Cmp(or.accPrice) != 0 || os.Size != or.accSize {
+			logger.Debug("handle receive:", os.Price, os.Size)
+			logger.Debug("handle local:", or.accPrice, or.accSize)
+		}
 
 		or.seq = os
 		or.seqState = OrderSeq_Ack
@@ -402,6 +406,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		if or.seqState == OrderSeq_Ack {
 			ok := or.dv.Result()
 			if !ok {
+				// todo, load missing
 				logger.Warn("data verify is wrong")
 				//return nil, ErrSign
 			}
