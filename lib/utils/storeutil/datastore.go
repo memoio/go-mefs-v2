@@ -2,9 +2,11 @@ package storeutil
 
 import (
 	"errors"
+	"path"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
+	"github.com/jbenet/goprocess"
 
 	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -66,46 +68,45 @@ func (d *Datastore) Delete(key ds.Key) error {
 func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
 	logger.Debug("query: ", q.Prefix)
 	qrb := dsq.NewResultBuilder(q)
-	/*
-		if q.KeysOnly {
-			fn := func(key []byte) error {
-				e := dsq.Entry{
-					Key: string(key),
-				}
 
-				result := dsq.Result{Entry: e}
-
-				if !filter(q.Filters, e) {
-					qrb.Output <- result
-				}
-
-				return nil
+	if q.KeysOnly {
+		fn := func(key []byte) error {
+			e := dsq.Entry{
+				Key: path.Clean("/" + string(key)),
 			}
 
-			qrb.Process.Go(func(worker goprocess.Process) {
-				d.DB.IterKeys([]byte(q.Prefix), fn)
-			})
-		} else {
-			fn := func(key, value []byte) error {
-				e := dsq.Entry{
-					Key:   string(key),
-					Value: value,
-				}
+			result := dsq.Result{Entry: e}
 
-				result := dsq.Result{Entry: e}
-
-				if !filter(q.Filters, e) {
-					qrb.Output <- result
-				}
-
-				return nil
+			if !filter(q.Filters, e) {
+				qrb.Output <- result
 			}
 
-			qrb.Process.Go(func(worker goprocess.Process) {
-				d.DB.Iter([]byte(q.Prefix), fn)
-			})
+			return nil
 		}
-	*/
+
+		qrb.Process.Go(func(worker goprocess.Process) {
+			d.DB.IterKeys([]byte(q.Prefix), fn)
+		})
+	} else {
+		fn := func(key, value []byte) error {
+			e := dsq.Entry{
+				Key:   path.Clean("/" + string(key)),
+				Value: value,
+			}
+
+			result := dsq.Result{Entry: e}
+
+			if !filter(q.Filters, e) {
+				qrb.Output <- result
+			}
+
+			return nil
+		}
+
+		qrb.Process.Go(func(worker goprocess.Process) {
+			d.DB.Iter([]byte(q.Prefix), fn)
+		})
+	}
 
 	go qrb.Process.CloseAfterChildren()
 

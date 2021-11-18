@@ -45,6 +45,7 @@ func (w *kv) Iter(prefix []byte, fn func(k, v []byte) error) int64 {
 	return w.db.Iter(prefix, fn)
 }
 func (w *kv) IterKeys(prefix []byte, fn func(k []byte) error) int64 {
+	prefix = w.convertKey(prefix)
 	return w.db.IterKeys(prefix, fn)
 }
 
