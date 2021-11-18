@@ -89,12 +89,12 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	stripeCount := 0
 	sendCount := 0
 	rawLen := 0
-	opID := bucket.NextObjectID
+	opID := bucket.NextOpID
 	dp.dv.Reset()
 
 	buf := make([]byte, dp.stripeSize)
 	rdata := make([]byte, dp.stripeSize)
-	curStripe := 1 + (bucket.Length-1)/uint64(dp.stripeSize)
+	curStripe := bucket.Length / uint64(dp.stripeSize)
 
 	h := md5.New()
 
@@ -182,7 +182,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			stripeCount++
 			sendCount++
 			// send some to order
-			if sendCount > 16 || breakFlag {
+			if sendCount >= 16 || breakFlag {
 				ok := dp.dv.Result()
 				if !ok {
 					return ErrEncode
@@ -197,9 +197,9 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 					ChunkID:  bucket.DataCount + bucket.ParityCount,
 				}
 
-				logger.Debug("send job: ", opID, sj.Start, sj.Length)
+				logger.Debug("send job to order: ", opID, sj.Start, sj.Length)
 				l.om.AddSegJob(sj)
-				logger.Debug("send job finish: ", opID, sj.Start, sj.Length)
+				logger.Debug("send job to order finish: ", opID, sj.Start, sj.Length)
 
 				sendCount = 0
 
@@ -208,7 +208,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			}
 
 			// more, change opID
-			if stripeCount > 32 || breakFlag {
+			if stripeCount >= 64 || breakFlag {
 				opi := &pb.ObjectPartInfo{
 					ObjectID:  object.GetObjectID(),
 					Time:      time.Now().Unix(),

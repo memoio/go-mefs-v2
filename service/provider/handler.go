@@ -11,7 +11,7 @@ import (
 )
 
 func (p *ProviderNode) handleGetSeg(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle get from:", mes.GetHeader().From)
+	logger.Debug("handle get segment from:", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -275,7 +275,7 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 	ok, _ := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
 	if !ok {
 		resp.Header.Type = pb.NetMessage_Err
-		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle finish seq from:", mes.GetHeader().From)
 		return resp, nil
 	}
 

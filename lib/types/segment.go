@@ -1,6 +1,8 @@
 package types
 
 import (
+	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/bits-and-blooms/bitset"
@@ -16,9 +18,77 @@ type AggSegs struct {
 	Length   uint64
 }
 
+type AggSegsQueue []*AggSegs
+
+func (asq AggSegsQueue) Len() int {
+	return len(asq)
+}
+
+func (asq AggSegsQueue) Less(i, j int) bool {
+	if asq[i].BucketID != asq[j].BucketID {
+		return asq[i].BucketID < asq[j].BucketID
+	}
+
+	return asq[i].Start < asq[j].Start
+}
+
+func (asq AggSegsQueue) Swap(i, j int) {
+	asq[i], asq[j] = asq[j], asq[i]
+}
+
+func (asq *AggSegsQueue) Push(s *AggSegs) {
+	if asq.Len() == 0 {
+		*asq = append(*asq, s)
+		return
+	}
+
+	asqval := *asq
+	last := asqval[asq.Len()-1]
+	if last.BucketID == s.BucketID && last.Start+last.Length == s.Start {
+
+		last.Length += s.Length
+		*asq = asqval
+		fmt.Println(last.Length, s.Length)
+	} else {
+		*asq = append(*asq, s)
+	}
+
+}
+
+func (asq *AggSegsQueue) Merge() {
+	sort.Sort(asq)
+	aLen := asq.Len()
+	asqval := *asq
+	for i := 0; i < aLen-1; {
+		j := i + 1
+		for ; j < aLen; j++ {
+			if asqval[i].BucketID == asqval[j].BucketID && asqval[i].Start+asqval[i].Length == asqval[j].Start {
+				asqval[i].Length += asqval[j].Length
+				asqval[j].Length = 0
+			} else {
+				break
+			}
+		}
+		i = j
+	}
+
+	j := 0
+	for i := 0; i < aLen; i++ {
+		if asqval[i].Length == 0 {
+			continue
+		}
+
+		asqval[j] = asqval[i]
+		j++
+	}
+
+	asqval = asqval[:j]
+
+	*asq = asqval
+}
+
 // sorted by bucketID and jobID
 type SegJob struct {
-	End      bool
 	JobID    uint64
 	BucketID uint64
 	Start    uint64

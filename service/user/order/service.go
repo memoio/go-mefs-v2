@@ -35,6 +35,8 @@ type OrderMgr struct {
 	proChan    chan *OrderFull
 	bucketChan chan *lastProsPerBucket
 
+	updateChan chan uint64
+
 	quoChan       chan *types.Quotation // to init
 	orderChan     chan *types.OrderBase // confirm new order
 	seqNewChan    chan *orderSeqPro     // confirm new seq
@@ -71,14 +73,16 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		proChan:    make(chan *OrderFull, 8),
 		bucketChan: make(chan *lastProsPerBucket),
 
+		updateChan: make(chan uint64, 16),
+
 		quoChan:       make(chan *types.Quotation, 16),
 		orderChan:     make(chan *types.OrderBase, 16),
 		seqNewChan:    make(chan *orderSeqPro, 16),
 		seqFinishChan: make(chan *orderSeqPro, 16),
 
-		segAddChan:  make(chan *types.SegJob, 16),
-		segRedoChan: make(chan *types.SegJob, 16),
-		segDoneChan: make(chan *types.SegJob, 16),
+		segAddChan:  make(chan *types.SegJob, 128),
+		segRedoChan: make(chan *types.SegJob, 128),
+		segDoneChan: make(chan *types.SegJob, 128),
 	}
 
 	om.load()
@@ -200,10 +204,19 @@ func (m *OrderMgr) runSched() {
 			}
 		case of := <-m.proChan:
 			m.orders[of.pro] = of
+			go m.update(of.pro)
 		case lp := <-m.bucketChan:
 			_, ok := m.proMap[lp.bucketID]
 			if !ok {
 				m.proMap[lp.bucketID] = lp
+			}
+
+		case pid := <-m.updateChan:
+			of, ok := m.orders[pid]
+			if ok {
+				of.availTime = time.Now().Unix()
+			} else {
+				go m.newProOrder(pid)
 			}
 		case <-st.C:
 			for _, of := range m.orders {

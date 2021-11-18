@@ -143,7 +143,11 @@ var headObjectCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("head object: ", oi.Name, oi.State)
+		fmt.Println("head object: ", oi, oi.Length, oi.Mtime, oi.State, hex.EncodeToString(oi.Etag))
+
+		for i, part := range oi.Parts {
+			fmt.Println("part: ", i, part)
+		}
 
 		return nil
 	},

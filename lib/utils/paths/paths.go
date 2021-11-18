@@ -7,11 +7,11 @@ import (
 )
 
 // node repo path defaults
-const MemoPathVar = "MEMO_PATH"
+const MemoPathVar = "MEFS_PATH"
 const defaultRepoDir = "~/.memo"
 
-// GetRepoPath returns the path of the venus repo from a potential override
-// string, the MEMO_PATH environment variable and a default of ~/.memo/repo.
+// GetRepoPath returns the path of the repo from a potential override
+// string, the MEFS_PATH environment variable and a default of ~/.memo/repo.
 func GetRepoPath(override string) (string, error) {
 	// override is first precedence
 	if override != "" {

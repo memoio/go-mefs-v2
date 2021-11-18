@@ -37,8 +37,8 @@ type jobKey struct {
 
 type segJob struct {
 	types.SegJob
-	dispatch *bitset.BitSet
-	done     *bitset.BitSet
+	dispatchBits *bitset.BitSet
+	doneBits     *bitset.BitSet
 }
 
 type segJobState struct {

@@ -133,8 +133,9 @@ type OrderSeq struct {
 	SeqNum      uint32    // strict incremental from 0
 	Size        uint64    // accumulated
 	Price       *big.Int  //
-	DataName    [][]byte  // dataType/name/size; 多个dataName;
-	UserDataSig []byte    // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
+	Segments    AggSegsQueue
+	DataName    [][]byte // dataType/name/size; 多个dataName;
+	UserDataSig []byte   // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
 	ProDataSig  []byte
 	UserSig     []byte // for settlement chain; hash(fsID+proID+nonce+start+end+size+price)
 	ProSig      []byte

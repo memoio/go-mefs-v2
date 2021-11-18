@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/filecoin-project/go-jsonrpc"
@@ -211,15 +210,12 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.RPCServer = jsonrpc.NewServer(readerServerOpt)
 
-	mux := mux.NewRouter()
+	muxRouter := mux.NewRouter()
 
-	mux.Handle("/rpc/v0", nd.RPCServer)
-	mux.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
+	muxRouter.Handle("/rpc/v0", nd.RPCServer)
+	muxRouter.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
 
-	mux.Handle("/", http.DefaultServeMux)
-	mux.Handle("/debug/metrics", exporter())
-
-	nd.Handler = mux
+	nd.httpHandle = muxRouter
 
 	return nd, nil
 }

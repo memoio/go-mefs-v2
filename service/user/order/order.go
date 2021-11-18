@@ -2,6 +2,8 @@ package order
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"math/big"
 	"sync"
 	"time"
@@ -179,14 +181,13 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 func (m *OrderMgr) check(o *OrderFull) {
 	nt := time.Now().Unix()
 
-	if !o.ready {
-		if nt-o.availTime < 30 {
-			o.ready = true
-		}
+	if nt-o.availTime < 30 {
+		o.ready = true
+		o.inStop = false
 	}
 
 	if nt-o.availTime > 1800 {
-		go m.connect(o.pro)
+		go m.update(o.pro)
 	}
 
 	if nt-o.availTime > 3600 {
@@ -250,9 +251,8 @@ func (m *OrderMgr) check(o *OrderFull) {
 			if nt-o.seqTime > DefaultAckWaiting {
 				m.commitSeq(o)
 			}
-		case OrderSeq_Init, OrderSeq_Prepare:
-			o.seqState = OrderSeq_Finish
-		case OrderSeq_Finish:
+		case OrderSeq_Init, OrderSeq_Prepare, OrderSeq_Finish:
+			o.seqState = OrderSeq_Init
 			m.doneOrder(o)
 		}
 	case Order_Done:
@@ -299,6 +299,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		o.orderState = Order_Wait
 		o.orderTime = time.Now().Unix()
 
+		// reset seq
 		o.seqNum = 0
 		o.seqState = OrderSeq_Init
 		o.accPrice = big.NewInt(0)
@@ -441,6 +442,10 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	o.base = nil
 	o.orderState = Order_Init
 
+	o.seq = nil
+	o.seqNum = 0
+	o.seqState = OrderSeq_Init
+
 	// trigger a new order
 	if len(o.segs) > 0 && !o.inStop {
 		go m.getQuotation(o.pro)
@@ -489,6 +494,7 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 	}
 
 	if o.seq != nil && o.seqState == OrderSeq_Prepare {
+		o.seq.Segments.Merge()
 		data, err := o.seq.Serialize()
 		if err != nil {
 			return err
@@ -606,6 +612,8 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 			return err
 		}
 
+		lmd := md5.Sum(data)
+		logger.Debug("handle seq md5:", hex.EncodeToString(lmd[:]))
 		// send to pro
 		go m.getSeqFinishAck(o.pro, data)
 

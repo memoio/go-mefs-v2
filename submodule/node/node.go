@@ -10,6 +10,7 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p-core/host"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -45,7 +46,7 @@ type BaseNode struct {
 
 	*jsonrpc.RPCServer
 
-	http.Handler
+	httpHandle *mux.Router
 
 	repo.Repo
 
@@ -94,12 +95,15 @@ func (n *BaseNode) RunDaemon(ready chan interface{}) error {
 		return err
 	}
 
+	n.httpHandle.Handle("/debug/metrics", exporter())
+	n.httpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
+
 	netListener := manet.NetListener(apiListener) //nolint
 
 	// add auth
 	ah := &auth.Handler{
 		Verify: n.AuthVerify,
-		Next:   n.Handler.ServeHTTP,
+		Next:   n.httpHandle.ServeHTTP,
 	}
 
 	apiserv := &http.Server{

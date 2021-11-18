@@ -1,6 +1,8 @@
 package order
 
 import (
+	"math/big"
+
 	"github.com/fxamacker/cbor/v2"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
@@ -38,8 +40,6 @@ type SeqState struct {
 }
 
 type OrderFull struct {
-	ds store.KVStore
-
 	userID uint64
 	fsID   []byte
 
@@ -53,6 +53,9 @@ type OrderFull struct {
 
 	nonce  uint64 // next nonce
 	seqNum uint32 // next seq
+
+	accPrice *big.Int
+	accSize  uint64
 
 	pk pdpcommon.PublicKey
 	dv pdpcommon.DataVerifier
@@ -78,8 +81,8 @@ func (m *OrderMgr) createOrder(op *OrderFull) *OrderFull {
 
 func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 	op := &OrderFull{
-		userID:     userID,
-		orderState: Order_Done,
+		userID:   userID,
+		accPrice: big.NewInt(0),
 	}
 
 	ns := new(NonceState)

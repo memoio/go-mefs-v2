@@ -28,7 +28,7 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    cmd.FlagNodeRepo,
-				EnvVars: []string{"MEMO_PATH"},
+				EnvVars: []string{"MEFS_PATH"},
 				Value:   "~/.memo-keeper",
 				Usage:   "Specify memoriae path.",
 			},

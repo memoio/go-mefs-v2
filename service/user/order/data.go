@@ -2,6 +2,7 @@ package order
 
 import (
 	"encoding/binary"
+	"math/big"
 	"sync"
 	"time"
 
@@ -162,8 +163,8 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 func (sj *segJob) Serialize() ([]byte, error) {
 	sjs := &segJobState{
 		Sj:       sj.SegJob,
-		Dispatch: sj.dispatch.Bytes(),
-		Done:     sj.done.Bytes(),
+		Dispatch: sj.dispatchBits.Bytes(),
+		Done:     sj.doneBits.Bytes(),
 	}
 
 	return cbor.Marshal(sjs)
@@ -178,14 +179,10 @@ func (sj *segJob) Deserialize(b []byte) error {
 	}
 
 	sj.SegJob = sjs.Sj
-	sj.dispatch = bitset.From(sjs.Dispatch)
-	sj.done = bitset.From(sjs.Done)
+	sj.dispatchBits = bitset.From(sjs.Dispatch)
+	sj.doneBits = bitset.From(sjs.Done)
 
 	return nil
-}
-
-func (m *OrderMgr) AddSegJob(sj *types.SegJob) {
-	m.segAddChan <- sj
 }
 
 // disptach, done, total
@@ -203,8 +200,8 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int) {
 	seg, ok := m.segs[jk]
 	m.segLock.RUnlock()
 	if ok {
-		donecnt = int(seg.done.Count())
-		discnt = int(seg.dispatch.Count())
+		discnt = int(seg.dispatchBits.Count())
+		donecnt = int(seg.doneBits.Count())
 		totalcnt = int(seg.Length) * int(seg.ChunkID)
 	} else {
 		key := store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, bucketID, opID)
@@ -213,14 +210,19 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int) {
 		if err == nil && len(data) > 0 {
 			err := seg.Deserialize(data)
 			if err == nil {
-				donecnt = int(seg.done.Count())
-				discnt = int(seg.dispatch.Count())
+				discnt = int(seg.dispatchBits.Count())
+				donecnt = int(seg.doneBits.Count())
 				totalcnt = int(seg.Length) * int(seg.ChunkID)
 			}
 		}
 	}
+	logger.Debug("seg state: ", bucketID, opID, totalcnt, discnt, donecnt)
 
-	return donecnt, discnt, totalcnt
+	return totalcnt, discnt, donecnt
+}
+
+func (m *OrderMgr) AddSegJob(sj *types.SegJob) {
+	m.segAddChan <- sj
 }
 
 func (m *OrderMgr) addSegJob(sj *types.SegJob) {
@@ -241,11 +243,17 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 		if err == nil && len(data) > 0 {
 			seg.Deserialize(data)
 		}
-		if seg.dispatch == nil {
+		if seg.dispatchBits == nil {
 			seg = &segJob{
-				SegJob:   *sj,
-				dispatch: bitset.New(uint(sj.Length) * uint(sj.ChunkID)),
-				done:     bitset.New(uint(sj.Length) * uint(sj.ChunkID)),
+				SegJob: types.SegJob{
+					JobID:    sj.JobID,
+					BucketID: sj.BucketID,
+					Start:    sj.Start,
+					Length:   0,
+					ChunkID:  sj.ChunkID,
+				},
+				dispatchBits: bitset.New(uint(sj.Length) * uint(sj.ChunkID)),
+				doneBits:     bitset.New(uint(sj.Length) * uint(sj.ChunkID)),
 			}
 		}
 		m.segLock.Lock()
@@ -255,6 +263,8 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 
 	if seg.Start+seg.Length == sj.Start {
 		seg.Length += sj.Length
+	} else {
+		logger.Warn("fail to add seg")
 	}
 
 	data, err := seg.Serialize()
@@ -276,7 +286,10 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	m.segLock.RUnlock()
 	if ok {
 		id := uint(sj.Start-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
-		seg.done.Set(id)
+		if !seg.dispatchBits.Test(id) {
+			logger.Warn("seg is not dispatch")
+		}
+		seg.doneBits.Set(id)
 	}
 
 	data, err := seg.Serialize()
@@ -288,9 +301,11 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 
 	m.ds.Put(key, data)
 
-	if seg.done.Count() == uint(seg.Length)*uint(seg.ChunkID) {
+	if seg.doneBits.Count() == uint(seg.Length)*uint(seg.ChunkID) {
 		// done all; remove from it
+		m.segLock.Lock()
 		delete(m.segs, jk)
+		m.segLock.Unlock()
 	}
 }
 
@@ -304,7 +319,7 @@ func (m *OrderMgr) redoSegJob(sj *types.SegJob) {
 	m.segLock.RUnlock()
 	if ok {
 		id := uint(sj.Start-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
-		seg.dispatch.Clear(id)
+		seg.dispatchBits.Clear(id)
 	}
 
 	data, err := seg.Serialize()
@@ -323,7 +338,7 @@ func (m *OrderMgr) dispatch() {
 
 	for _, seg := range m.segs {
 		cnt := uint(seg.Length) * uint(seg.ChunkID)
-		if seg.dispatch.Count() == cnt {
+		if seg.dispatchBits.Count() == cnt {
 			//logger.Debug("seg is done for bucket:", seg.BucketID, seg.JobID)
 			continue
 		}
@@ -336,6 +351,7 @@ func (m *OrderMgr) dispatch() {
 		m.updateProsForBucket(lp)
 
 		if len(lp.pros) == 0 {
+			logger.Debug("fail get providers dispatch for bucket:", seg.BucketID, len(lp.pros))
 			continue
 		}
 
@@ -348,7 +364,7 @@ func (m *OrderMgr) dispatch() {
 
 			for s := uint64(0); s < seg.Length; s++ {
 				id := uint(s)*uint(seg.ChunkID) + uint(i)
-				if seg.dispatch.Test(id) {
+				if seg.dispatchBits.Test(id) {
 					continue
 				}
 
@@ -362,7 +378,7 @@ func (m *OrderMgr) dispatch() {
 
 				err := or.addSeg(sj)
 				if err == nil {
-					seg.dispatch.Set(id)
+					seg.dispatchBits.Set(id)
 				}
 			}
 
@@ -422,7 +438,7 @@ func (o *OrderFull) sendData() {
 				continue
 			}
 
-			logger.Debug("send segment:", sid.String())
+			//logger.Debug("send segment:", sid.String())
 
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
 			if err != nil {
@@ -434,8 +450,23 @@ func (o *OrderFull) sendData() {
 
 			o.availTime = time.Now().Unix()
 
+			as := &types.AggSegs{
+				BucketID: sid.GetBucketID(),
+				Start:    sid.GetStripeID(),
+				Length:   1,
+			}
+
 			o.Lock()
-			o.seq.DataName = append(o.seq.DataName, sid.Bytes())
+
+			//o.seq.DataName = append(o.seq.DataName, sid.Bytes())
+
+			o.seq.Segments.Push(as)
+			o.seq.Price.Add(o.seq.Price, big.NewInt(100))
+			o.seq.Size += 1
+
+			o.accPrice.Add(o.accPrice, big.NewInt(100))
+			o.accSize += 1
+
 			// update price and size
 			o.segs = o.segs[1:]
 			o.inflight = false

@@ -13,11 +13,11 @@ type BucketInfo struct {
 
 type ObjectInfo struct {
 	pb.ObjectInfo
-	Parts  []*pb.ObjectPartInfo
-	Length uint64
-	Mtime  int64
-	State  string
-	Etag   []byte
+	Parts  []*pb.ObjectPartInfo `json:"Parts"`
+	Length uint64               `json:"Length"`
+	Mtime  int64                `json:"Mtime"`
+	State  string               `json:"State"`
+	Etag   []byte               `json:"MD5"`
 }
 
 // CompleteFunc is a function type that is called when the download completed.

@@ -30,6 +30,8 @@ func startProfiling() (func(), error) {
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("start cpu profile")
 	err = pprof.StartCPUProfile(ofi)
 	if err != nil {
 		fmt.Println("pprof.StartCPUProfile(ofi) falied: ", err)

@@ -282,6 +282,7 @@ func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 			}
 
 			ob.ObjectInfo.ObjectInfo = *oi
+			ob.ObjectInfo.Mtime = oi.Time
 
 		case pb.OpRecord_AddData:
 			pi := new(pb.ObjectPartInfo)
@@ -337,6 +338,9 @@ func (ob *object) addPartInfo(opi *pb.ObjectPartInfo) error {
 	}
 
 	ob.Length += opi.GetRawLength()
+	if ob.Mtime < opi.GetTime() {
+		ob.Mtime = opi.GetTime()
+	}
 
 	return nil
 }

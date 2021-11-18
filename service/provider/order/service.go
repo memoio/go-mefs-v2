@@ -2,7 +2,9 @@ package order
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"math/big"
 	"sync"
 	"time"
@@ -139,10 +141,19 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		data, _ := seg.Content()
 		tags, _ := seg.Tags()
 
-		or.dv.Input(seg.SegmentID().Bytes(), data, tags[0])
+		or.dv.Input(id, data, tags[0])
 
-		or.seq.DataName = append(or.seq.DataName, id)
+		//or.seq.DataName = append(or.seq.DataName, id)
+		as := &types.AggSegs{
+			BucketID: seg.SegmentID().GetBucketID(),
+			Start:    seg.SegmentID().GetStripeID(),
+			Length:   1,
+		}
+
+		or.seq.Segments.Push(as)
 		// update size and price
+		or.accPrice.Add(or.accPrice, big.NewInt(100))
+		or.accSize += 1
 
 		return nil
 	}
@@ -223,6 +234,11 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			or.orderState = Order_Ack
 			or.orderTime = time.Now().Unix()
 			or.nonce++
+
+			or.accPrice = big.NewInt(0)
+			or.accSize = 0
+
+			// reset seq
 			or.seqNum = 0
 			or.seqState = OrderSeq_Init
 
@@ -305,6 +321,11 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 	}
 
 	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
+		// verify accPrice and accSize
+
+		logger.Debug("handle receive:", os.Price, os.Size)
+		logger.Debug("handle local:", or.accPrice, or.accSize)
+
 		or.seq = os
 		or.seqState = OrderSeq_Ack
 		or.seqTime = time.Now().Unix()
@@ -354,7 +375,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 
 func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 	os := new(types.OrderSeq)
-	err := cbor.Unmarshal(b, os)
+	err := os.Deserialize(b)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +402,8 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		if or.seqState == OrderSeq_Ack {
 			ok := or.dv.Result()
 			if !ok {
-				return nil, ErrSign
+				logger.Warn("data verify is wrong")
+				//return nil, ErrSign
 			}
 
 			or.seqState = OrderSeq_Done
@@ -390,6 +412,19 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			rdata, err := os.Serialize()
+			if err != nil {
+				return nil, err
+			}
+
+			rmd := md5.Sum(rdata)
+			lmd := md5.Sum(data)
+			logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq.Segments[0], or.seq)
+
+			logger.Debug("handle seq remote:", os.Segments.Len(), os.Segments[0], os)
+
+			logger.Debug("handle seq md5:", hex.EncodeToString(lmd[:]), " and ", hex.EncodeToString(rmd[:]))
 
 			key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, or.base.UserID, or.base.Nonce, os.SeqNum)
 			err = m.ds.Put(key, data)
@@ -467,9 +502,11 @@ func (m *OrderMgr) getBlsPubkey(userID uint64) (pdpcommon.PublicKey, error) {
 
 	msg := blake3.Sum256(data)
 	ok, _ := m.RoleVerify(m.ctx, userID, msg[:], *sig)
-	if ok {
-		return pk, nil
+	if !ok {
+		return pk, ErrSign
+
 	}
 
-	return pk, ErrSign
+	m.ds.Put(key, data)
+	return pk, nil
 }

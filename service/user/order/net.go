@@ -16,6 +16,15 @@ func (m *OrderMgr) connect(proID uint64) error {
 	return nil
 }
 
+func (m *OrderMgr) update(proID uint64) {
+	err := m.connect(proID)
+	if err != nil {
+		return
+	}
+
+	m.updateChan <- proID
+}
+
 func (m *OrderMgr) getQuotation(proID uint64) error {
 	logger.Debug("get new quotation from: ", proID)
 	resp, err := m.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
