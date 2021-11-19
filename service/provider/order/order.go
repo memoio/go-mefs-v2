@@ -47,7 +47,7 @@ type OrderFull struct {
 	orderTime  int64
 	orderState OrderState
 
-	seq      *types.OrderSeq // 当前处理
+	seq      *types.SignedOrderSeq // 当前处理
 	seqTime  int64
 	seqState OrderSeqState
 
@@ -85,9 +85,25 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		accPrice: big.NewInt(0),
 	}
 
-	ns := new(NonceState)
-	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
+	pk := new(pdpv2.PublicKey)
+	key := store.NewKey(userID, pb.MetaType_PDPProveKey)
 	val, err := m.ds.Get(key)
+	if err == nil {
+		err = pk.Deserialize(val)
+		if err == nil {
+			logger.Debug("get pdp publickey local for: ", userID)
+			op.pk = pk
+			op.dv = pdpv2.NewDataVerifier(pk, nil)
+
+			op.fsID = pk.VerifyKey().Hash()
+
+			op.ready = true
+		}
+	}
+
+	ns := new(NonceState)
+	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
+	val, err = m.ds.Get(key)
 	if err != nil {
 		return op
 	}
@@ -123,7 +139,7 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		return op
 	}
 
-	os := new(types.OrderSeq)
+	os := new(types.SignedOrderSeq)
 	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, ns.Nonce, ss.Number)
 	val, err = m.ds.Get(key)
 	if err != nil {

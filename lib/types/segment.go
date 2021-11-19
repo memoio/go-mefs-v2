@@ -36,6 +36,39 @@ func (asq AggSegsQueue) Swap(i, j int) {
 	asq[i], asq[j] = asq[j], asq[i]
 }
 
+//  after sort
+func (asq AggSegsQueue) Has(bucketID, stripeID uint64) bool {
+	for _, as := range asq {
+		if as.BucketID > bucketID {
+			break
+		} else if as.BucketID == bucketID {
+			if as.Start > stripeID {
+				break
+			} else {
+				if as.Start <= stripeID && as.Start+as.Length > stripeID {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (asq AggSegsQueue) Equal(old AggSegsQueue) bool {
+	if asq.Len() != old.Len() {
+		return false
+	}
+
+	for i := 0; i < asq.Len(); i++ {
+		if asq[i].BucketID != old[i].BucketID || asq[i].Start != old[i].Start || asq[i].Length != old[i].Length {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (asq *AggSegsQueue) Push(s *AggSegs) {
 	if asq.Len() == 0 {
 		*asq = append(*asq, s)

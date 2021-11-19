@@ -1,11 +1,12 @@
 package types
 
 import (
-	"encoding/binary"
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/zeebo/blake3"
+	"golang.org/x/crypto/sha3"
 )
 
 type OrderHash [32]byte
@@ -63,95 +64,69 @@ func (b *OrderBase) Deserialize(buf []byte) error {
 	return cbor.Unmarshal(buf, b)
 }
 
-type SignedOrderBase struct {
+type SignedOrder struct {
 	OrderBase
+	Size  uint64
+	Price *big.Int
 	Usign Signature
 	Psign Signature
 }
 
-func (sob *SignedOrderBase) Serialize() ([]byte, error) {
-	ob, err := cbor.Marshal(sob.OrderBase)
-	if err != nil {
-		return nil, err
-	}
-
-	ubyte, err := sob.Usign.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	pbyte, err := sob.Psign.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	buf := make([]byte, len(ob)+len(ubyte)+len(pbyte)+4)
-	binary.BigEndian.PutUint16(buf[:2], uint16(len(ubyte)))
-	copy(buf[2:2+len(ubyte)], ubyte)
-	binary.BigEndian.PutUint16(buf[2+len(ubyte):4+len(ubyte)], uint16(len(pbyte)))
-	copy(buf[4+len(ubyte):4+len(ubyte)+len(pbyte)], pbyte)
-	copy(buf[4+len(ubyte)+len(pbyte):], ob)
-
-	return buf, nil
+// for sign on chain
+func (so *SignedOrder) Hash() []byte {
+	d := sha3.NewLegacyKeccak256()
+	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.UserID)).Bytes(), 32))
+	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.ProID)).Bytes(), 32))
+	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.Nonce)).Bytes(), 32))
+	d.Write(utils.LeftPadBytes(big.NewInt(so.Start).Bytes(), 32))
+	d.Write(utils.LeftPadBytes(big.NewInt(so.End).Bytes(), 32))
+	d.Write(utils.LeftPadBytes(so.SegPrice.Bytes(), 32))
+	d.Write(utils.LeftPadBytes(so.PiecePrice.Bytes(), 32))
+	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.Size)).Bytes(), 32))
+	d.Write(utils.LeftPadBytes(so.Price.Bytes(), 32))
+	return d.Sum(nil)
 }
 
-func (sob *SignedOrderBase) Deserialize(b []byte) error {
-	if len(b) < 4 {
-		return ErrLength
-	}
-
-	usign := new(Signature)
-	ulen := binary.BigEndian.Uint16(b[:2])
-	err := usign.Deserialize(b[2 : 2+ulen])
-	if err != nil {
-		return err
-	}
-
-	psign := new(Signature)
-	plen := binary.BigEndian.Uint16(b[2+ulen : 4+ulen])
-	err = psign.Deserialize(b[4+ulen : 4+ulen+plen])
-	if err != nil {
-		return err
-	}
-
-	ob := new(OrderBase)
-	err = ob.Deserialize(b[4+ulen+plen:])
-	if err != nil {
-		return err
-	}
-
-	sob.OrderBase = *ob
-	sob.Usign = *usign
-	sob.Psign = *psign
-
-	return nil
+func (so *SignedOrder) Serialize() ([]byte, error) {
+	return cbor.Marshal(so)
 }
 
-// key: 'OrderSeq'/user/pro/nonce/seqnum; value: OrderSeq
+func (so *SignedOrder) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, so)
+}
+
 type OrderSeq struct {
-	ID          OrderHash // fast lookup
-	SeqNum      uint32    // strict incremental from 0
-	Size        uint64    // accumulated
-	Price       *big.Int  //
-	Segments    AggSegsQueue
-	DataName    [][]byte // dataType/name/size; 多个dataName;
-	UserDataSig []byte   // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
-	ProDataSig  []byte
-	UserSig     []byte // for settlement chain; hash(fsID+proID+nonce+start+end+size+price)
-	ProSig      []byte
+	ID       OrderHash // fast lookup
+	SeqNum   uint32    // strict incremental from 0
+	Size     uint64    // accumulated
+	Price    *big.Int  //
+	Segments AggSegsQueue
+	//DataName    [][]byte // dataType/name/size; 多个dataName;
 }
 
-func (os *OrderSeq) Serialize() ([]byte, error) {
+// key: 'SignedOrderSeq'/user/pro/nonce/seqnum; value: SignedOrderSeq
+type SignedOrderSeq struct {
+	OrderSeq
+	UserDataSig Signature // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
+	ProDataSig  Signature
+	UserSig     Signature // for settlement chain; hash(fsID+proID+nonce+start+end+size+price)
+	ProSig      Signature
+}
+
+func (os *SignedOrderSeq) Hash() ([]byte, error) {
+	data, err := cbor.Marshal(os.OrderSeq)
+	if err != nil {
+		return nil, err
+	}
+
+	h := blake3.Sum256(data)
+	return h[:], nil
+}
+
+func (os *SignedOrderSeq) Serialize() ([]byte, error) {
 	return cbor.Marshal(os)
 }
 
-func (os *OrderSeq) Deserialize(b []byte) error {
+func (os *SignedOrderSeq) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, os)
-}
-
-type OrderData struct {
-	ID       OrderHash
-	DataName []byte // dataType + name
-	Start    uint64 // 获取指定位置
-	Length   uint64 // 获取指定长度
 }

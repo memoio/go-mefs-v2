@@ -133,7 +133,7 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 		return nil, err
 	}
 
-	go l.om.RegisterBucket(bu.BucketID, &bu.BucketOption)
+	go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 
 	return bu, nil
 }
@@ -264,13 +264,12 @@ func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 	}
 
 	for _, opID := range of.GetOpRecord() {
-		logger.Debug("load object ops:", objectID, opID)
 		or, err := loadOpRecord(userID, bucketID, opID, ds)
 		if err != nil {
 			return err
 		}
 
-		logger.Debug("load object ops:", objectID, opID, or.GetType())
+		logger.Debug("load object ops: ", bucketID, objectID, opID, or.GetType())
 
 		switch or.GetType() {
 		case pb.OpRecord_CreateObject:
@@ -298,7 +297,6 @@ func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 			}
 
 			ob.addPartInfo(pi)
-
 		case pb.OpRecord_DeleteObject:
 			di := new(pb.ObjectDeleteInfo)
 			err = proto.Unmarshal(or.GetPayload(), di)
@@ -403,7 +401,6 @@ func (l *LfsService) Load() error {
 
 	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
-		logger.Debug("load bucket: ", i)
 		bu := new(bucket)
 
 		bu.Lock()
@@ -415,6 +412,8 @@ func (l *LfsService) Load() error {
 		}
 
 		l.sb.buckets[i] = bu
+
+		logger.Debug("load bucket: ", i, bu.BucketInfo)
 
 		if !bu.BucketInfo.Deletion {
 			l.sb.bucketNameToID[bu.Name] = i
@@ -436,7 +435,7 @@ func (l *LfsService) Load() error {
 		}
 		bu.Unlock()
 
-		go l.om.RegisterBucket(bu.BucketID, &bu.BucketOption)
+		go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 	}
 
 	l.sb.ready = true

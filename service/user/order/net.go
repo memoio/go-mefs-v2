@@ -130,7 +130,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 		return ErrNotFound
 	}
 
-	os := new(types.OrderSeq)
+	os := new(types.SignedOrderSeq)
 	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), os)
 	if err != nil {
 		logger.Debug("fail get new seq ack from: ", proID, err)
@@ -180,7 +180,7 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 		return ErrNotFound
 	}
 
-	os := new(types.OrderSeq)
+	os := new(types.SignedOrderSeq)
 	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), os)
 	if err != nil {
 		logger.Debug("fail get finish seq ack from: ", proID, err)

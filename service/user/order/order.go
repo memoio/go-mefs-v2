@@ -2,8 +2,6 @@ package order
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"math/big"
 	"sync"
 	"time"
@@ -13,6 +11,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"golang.org/x/xerrors"
 )
 
 type OrderState uint8
@@ -69,16 +68,17 @@ type OrderFull struct {
 	orderTime  int64
 	orderState OrderState
 
-	seq      *types.OrderSeq
+	seq      *types.SignedOrderSeq
 	seqTime  int64
 	seqState OrderSeqState
 
 	accPrice *big.Int
 	accSize  uint64
 
-	inflight bool            // data is sending
-	inStop   bool            // stop receiving data; duo to high price or long unavil
-	segs     []*types.SegJob // buf and persist?
+	inflight bool // data is sending
+	inStop   bool // stop receiving data; duo to high price or long unavil
+	buckets  []uint64
+	jobs     map[uint64]*bucketJob // buf and persist?
 
 	segDoneChan chan *types.SegJob
 
@@ -106,7 +106,8 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 		accPrice: new(big.Int),
 
-		segs: make([]*types.SegJob, 0, 16),
+		buckets: make([]uint64, 0, 8),
+		jobs:    make(map[uint64]*bucketJob),
 
 		segDoneChan: m.segDoneChan,
 	}
@@ -156,7 +157,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		return op
 	}
 
-	os := new(types.OrderSeq)
+	os := new(types.SignedOrderSeq)
 	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, id, ns.Nonce, ss.Number)
 	val, err = m.ds.Get(key)
 	if err != nil {
@@ -195,13 +196,13 @@ func (m *OrderMgr) check(o *OrderFull) {
 	}
 
 	if o.ready {
-		logger.Debug("check state for: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, len(o.segs), o.ready, o.inStop)
+		logger.Debug("check state for: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
 	}
 
 	switch o.orderState {
 	case Order_Init:
 		o.RLock()
-		if len(o.segs) > 0 && !o.inStop {
+		if o.hasSeg() && !o.inStop {
 			go m.getQuotation(o.pro)
 			o.RUnlock()
 			return
@@ -218,7 +219,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		switch o.seqState {
 		case OrderSeq_Init:
 			o.RLock()
-			if len(o.segs) > 0 && !o.inStop {
+			if o.hasSeg() && !o.inStop {
 				m.createSeq(o)
 				o.RUnlock()
 				return
@@ -257,7 +258,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		}
 	case Order_Done:
 		o.RLock()
-		if len(o.segs) > 0 && !o.inStop {
+		if o.hasSeg() && !o.inStop {
 			o.orderState = Order_Init
 			go m.getQuotation(o.pro)
 			o.RUnlock()
@@ -447,7 +448,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	o.seqState = OrderSeq_Init
 
 	// trigger a new order
-	if len(o.segs) > 0 && !o.inStop {
+	if o.hasSeg() && !o.inStop {
 		go m.getQuotation(o.pro)
 	}
 
@@ -458,10 +459,15 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 	logger.Debug("handle stop order")
 	o.Lock()
 	o.inStop = true
-	for i := 0; i < len(o.segs); i++ {
-		m.redoSegJob(o.segs[i])
+	for _, bid := range o.buckets {
+		bjob, ok := o.jobs[bid]
+		if ok {
+			for _, seg := range bjob.jobs {
+				m.redoSegJob(seg)
+			}
+		}
+		bjob.jobs = bjob.jobs[:0]
 	}
-	o.segs = o.segs[:0]
 	o.Unlock()
 
 	m.closeOrder(o)
@@ -471,20 +477,22 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 func (m *OrderMgr) createSeq(o *OrderFull) error {
 	logger.Debug("handle create seq")
 	if o.base == nil || o.orderState != Order_Running {
-		return ErrState
+		return xerrors.Errorf("state: %d %d %w", o.orderState, o.seqState, ErrState)
 	}
 
 	if o.seqState == OrderSeq_Init {
-		if len(o.segs) == 0 {
+		if !o.hasSeg() {
 			return ErrEmpty
 		}
 		id := o.base.Hash()
 
-		s := &types.OrderSeq{
-			ID:     id,
-			SeqNum: o.seqNum,
-			Price:  new(big.Int).Set(o.accPrice),
-			Size:   o.accSize,
+		s := &types.SignedOrderSeq{
+			OrderSeq: types.OrderSeq{
+				ID:     id,
+				SeqNum: o.seqNum,
+				Price:  new(big.Int).Set(o.accPrice),
+				Size:   o.accSize,
+			},
 		}
 
 		o.seq = s
@@ -531,7 +539,7 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 	return ErrState
 }
 
-func (m *OrderMgr) sendSeq(o *OrderFull, s *types.OrderSeq) error {
+func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	logger.Debug("handle send seq")
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
@@ -601,6 +609,33 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 			return err
 		}
 
+		o.seq.Segments.Merge()
+
+		shash, err := o.seq.Hash()
+		if err != nil {
+			return err
+		}
+
+		ssig, err := m.RoleSign(m.ctx, shash, types.SigSecp256k1)
+		if err != nil {
+			return err
+		}
+
+		o.seq.UserDataSig = ssig
+
+		so := &types.SignedOrder{
+			OrderBase: *o.base,
+			Size:      o.seq.Size,
+			Price:     o.seq.Price,
+		}
+
+		osig, err := m.RoleSign(m.ctx, so.Hash(), types.SigSecp256k1)
+		if err != nil {
+			return err
+		}
+
+		o.seq.UserSig = osig
+
 		data, err := o.seq.Serialize()
 		if err != nil {
 			return err
@@ -612,8 +647,6 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 			return err
 		}
 
-		lmd := md5.Sum(data)
-		logger.Debug("handle seq md5:", hex.EncodeToString(lmd[:]))
 		// send to pro
 		go m.getSeqFinishAck(o.pro, data)
 
@@ -624,7 +657,7 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 }
 
 // when recieve pro seq done ack; confirm -> done
-func (m *OrderMgr) finishSeq(o *OrderFull, s *types.OrderSeq) error {
+func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	if o.base == nil {
 		return ErrState
 	}
@@ -632,6 +665,32 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.OrderSeq) error {
 	if o.seq == nil || o.seqState != OrderSeq_Commit {
 		return ErrState
 	}
+
+	oHash, err := o.seq.Hash()
+	if err != nil {
+		return err
+	}
+
+	ok, _ := m.RoleVerify(m.ctx, o.pro, oHash, s.ProDataSig)
+	if !ok {
+		return ErrDataSign
+	}
+
+	so := &types.SignedOrder{
+		OrderBase: *o.base,
+		Size:      o.seq.Size,
+		Price:     o.seq.Price,
+	}
+
+	sHash := so.Hash()
+
+	ok, _ = m.RoleVerify(m.ctx, o.pro, sHash, s.ProSig)
+	if !ok {
+		return ErrDataSign
+	}
+
+	o.seq.ProDataSig = s.ProDataSig
+	o.seq.ProSig = s.ProSig
 
 	o.seqState = OrderSeq_Finish
 	o.seqTime = time.Now().Unix()

@@ -60,5 +60,6 @@ func (ss segStore) Delete(segID SegmentID) error {
 }
 
 func convertKey(segID SegmentID) []byte {
-	return []byte(base58.Encode(segID.GetFsID()) + "/" + strconv.FormatUint(segID.GetBucketID(), 10) + "_" + strconv.FormatUint(segID.GetStripeID(), 10) + "_" + strconv.FormatUint(uint64(segID.GetChunkID()), 10))
+	sid := segID.GetStripeID() % 1024
+	return []byte(base58.Encode(segID.GetFsID()) + "/" + strconv.FormatUint(sid, 10) + "/" + strconv.FormatUint(segID.GetBucketID(), 10) + "_" + strconv.FormatUint(segID.GetStripeID(), 10) + "_" + strconv.FormatUint(uint64(segID.GetChunkID()), 10))
 }

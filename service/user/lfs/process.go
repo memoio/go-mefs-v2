@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 type dataProcess struct {
@@ -186,6 +188,22 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				ok := dp.dv.Result()
 				if !ok {
 					return ErrEncode
+				}
+
+				// put to local first
+				sjl := &types.SegJob{
+					JobID:    opID,
+					BucketID: object.BucketID,
+					Start:    curStripe,
+					Length:   uint64(stripeCount),
+					ChunkID:  bucket.DataCount + bucket.ParityCount,
+				}
+
+				data, _ := cbor.Marshal(sjl)
+				key := store.NewKey(pb.MetaType_LFS_OpJobsKey, l.userID, object.BucketID, opID)
+				err := l.ds.Put(key, data)
+				if err != nil {
+					continue
 				}
 
 				// send out

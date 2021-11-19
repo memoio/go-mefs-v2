@@ -21,8 +21,11 @@ type lastProsPerBucket struct {
 	pros     []uint64 // pre pros; update and save to local
 }
 
-func (m *OrderMgr) RegisterBucket(bucketID uint64, bopt *pb.BucketOption) {
-	logger.Info("register order for bucket: ", bucketID)
+func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
+	logger.Info("register order for bucket: ", bucketID, nextOpID)
+
+	go m.loadUnfinishedSegJobs(bucketID, nextOpID)
+
 	storedPros := m.loadLastProsPerBucket(bucketID)
 
 	pros := make([]uint64, 0, int(bopt.DataCount+bopt.ParityCount))
@@ -160,31 +163,6 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	logger.Info("order bucket: ", lp.bucketID, lp.pros)
 }
 
-func (sj *segJob) Serialize() ([]byte, error) {
-	sjs := &segJobState{
-		Sj:       sj.SegJob,
-		Dispatch: sj.dispatchBits.Bytes(),
-		Done:     sj.doneBits.Bytes(),
-	}
-
-	return cbor.Marshal(sjs)
-}
-
-func (sj *segJob) Deserialize(b []byte) error {
-	sjs := new(segJobState)
-
-	err := cbor.Unmarshal(b, sjs)
-	if err != nil {
-		return err
-	}
-
-	sj.SegJob = sjs.Sj
-	sj.dispatchBits = bitset.From(sjs.Dispatch)
-	sj.doneBits = bitset.From(sjs.Done)
-
-	return nil
-}
-
 // disptach, done, total
 func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int) {
 	donecnt := 1
@@ -204,17 +182,33 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int) {
 		donecnt = int(seg.doneBits.Count())
 		totalcnt = int(seg.Length) * int(seg.ChunkID)
 	} else {
-		key := store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, bucketID, opID)
-		seg := new(segJob)
+		sj := new(types.SegJob)
+		key := store.NewKey(pb.MetaType_LFS_OpJobsKey, m.localID, bucketID, opID)
 		data, err := m.ds.Get(key)
-		if err == nil && len(data) > 0 {
-			err := seg.Deserialize(data)
-			if err == nil {
-				discnt = int(seg.dispatchBits.Count())
-				donecnt = int(seg.doneBits.Count())
-				totalcnt = int(seg.Length) * int(seg.ChunkID)
-			}
+		if err != nil {
+			return totalcnt, discnt, donecnt
 		}
+
+		err = cbor.Unmarshal(data, sj)
+		if err != nil {
+			return totalcnt, discnt, donecnt
+		}
+
+		seg := new(segJobState)
+		key = store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, bucketID, opID)
+
+		data, err = m.ds.Get(key)
+		if err != nil {
+			return totalcnt, discnt, donecnt
+		}
+		err = seg.Deserialize(data)
+		if err != nil {
+			return totalcnt, discnt, donecnt
+		}
+		discnt = int(seg.dispatchBits.Count())
+		donecnt = int(seg.doneBits.Count())
+		totalcnt = int(sj.Length) * int(sj.ChunkID)
+
 	}
 	logger.Debug("seg state: ", bucketID, opID, totalcnt, discnt, donecnt)
 
@@ -223,6 +217,68 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int) {
 
 func (m *OrderMgr) AddSegJob(sj *types.SegJob) {
 	m.segAddChan <- sj
+}
+
+func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
+	for !m.ready {
+		time.Sleep(time.Second)
+	}
+
+	time.Sleep(30 * time.Second)
+
+	opckey := store.NewKey(pb.MetaType_LFS_OpCountKey, m.localID, bucketID)
+	opDoneCount := uint64(0)
+	val, err := m.ds.Get(opckey)
+	if err == nil && len(val) >= 8 {
+		opDoneCount = binary.BigEndian.Uint64(val)
+	}
+
+	logger.Debug("load unfinished job from: ", bucketID, opDoneCount, opID)
+
+	for i := opDoneCount + 1; i < opID; i++ {
+		key := store.NewKey(pb.MetaType_LFS_OpJobsKey, m.localID, bucketID, i)
+		data, err := m.ds.Get(key)
+		if err != nil {
+			continue
+		}
+		sj := new(types.SegJob)
+		err = cbor.Unmarshal(data, sj)
+		if err != nil {
+			continue
+		}
+
+		segState := new(segJobState)
+		key = store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, bucketID, i)
+		data, err = m.ds.Get(key)
+		if err != nil {
+			continue
+		}
+
+		err = segState.Deserialize(data)
+		if err != nil {
+			continue
+		}
+		if segState.doneBits.Count() == uint(sj.Length)*uint(sj.ChunkID) {
+			buf := make([]byte, 8)
+			binary.BigEndian.PutUint64(buf, sj.JobID)
+			m.ds.Put(opckey, buf)
+		} else {
+			logger.Debug("load unfinished job:", bucketID, i, segState.doneBits.Count(), segState.dispatchBits.Count())
+
+			segState.dispatchBits = bitset.From(segState.doneBits.Bytes())
+
+			jk := jobKey{
+				bucketID: bucketID,
+				jobID:    i,
+			}
+			m.segLock.Lock()
+			m.segs[jk] = &segJob{
+				SegJob:      *sj,
+				segJobState: *segState,
+			}
+			m.segLock.Unlock()
+		}
+	}
 }
 
 func (m *OrderMgr) addSegJob(sj *types.SegJob) {
@@ -252,8 +308,10 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 					Length:   0,
 					ChunkID:  sj.ChunkID,
 				},
-				dispatchBits: bitset.New(uint(sj.Length) * uint(sj.ChunkID)),
-				doneBits:     bitset.New(uint(sj.Length) * uint(sj.ChunkID)),
+				segJobState: segJobState{
+					dispatchBits: bitset.New(uint(sj.Length) * uint(sj.ChunkID)),
+					doneBits:     bitset.New(uint(sj.Length) * uint(sj.ChunkID)),
+				},
 			}
 		}
 		m.segLock.Lock()
@@ -298,8 +356,12 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	}
 
 	key := store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, seg.BucketID, seg.JobID)
-
 	m.ds.Put(key, data)
+
+	key = store.NewKey(pb.MetaType_LFS_OpCountKey, m.localID, seg.BucketID)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, seg.JobID)
+	m.ds.Put(key, buf)
 
 	if seg.doneBits.Count() == uint(seg.Length)*uint(seg.ChunkID) {
 		// done all; remove from it
@@ -394,19 +456,61 @@ func (m *OrderMgr) dispatch() {
 	}
 }
 
-func (o *OrderFull) addSeg(sj *types.SegJob) error {
+func (o *OrderFull) hasSeg() bool {
+	has := false
 	o.RLock()
+	for _, bid := range o.buckets {
+		bjob, ok := o.jobs[bid]
+		if ok && len(bjob.jobs) > 0 {
+			has = true
+			break
+		}
+	}
+	o.RUnlock()
+
+	return has
+}
+
+func (o *OrderFull) segCount() int {
+	cnt := 0
+	o.RLock()
+	for _, bid := range o.buckets {
+		bjob, ok := o.jobs[bid]
+		if ok {
+			cnt += len(bjob.jobs)
+		}
+	}
+	o.RUnlock()
+
+	return cnt
+}
+
+func (o *OrderFull) addSeg(sj *types.SegJob) error {
+	o.Lock()
 	if o.inStop {
-		o.RUnlock()
+		o.Unlock()
 		return ErrState
 	}
-	o.segs = append(o.segs, sj)
-	o.RUnlock()
+
+	bjob, ok := o.jobs[sj.BucketID]
+	if ok {
+		bjob.jobs = append(bjob.jobs, sj)
+	} else {
+		bjob = &bucketJob{
+			jobs: make([]*types.SegJob, 0, 64),
+		}
+
+		bjob.jobs = append(bjob.jobs, sj)
+		o.jobs[sj.BucketID] = bjob
+		o.buckets = append(o.buckets, sj.BucketID)
+	}
+	o.Unlock()
 
 	return nil
 }
 
 func (o *OrderFull) sendData() {
+	i := 0
 	for {
 		select {
 		case <-o.ctx.Done():
@@ -420,33 +524,45 @@ func (o *OrderFull) sendData() {
 				continue
 			}
 
-			o.Lock()
-			if len(o.segs) == 0 {
-				o.Unlock()
-				time.Sleep(10 * time.Second)
+			if !o.hasSeg() {
 				continue
 			}
-			sj := o.segs[0]
+
+			o.Lock()
+			if i >= len(o.buckets) {
+				i = 0
+			}
+			bid := o.buckets[i]
+
+			bjob, ok := o.jobs[bid]
+			if !ok || len(bjob.jobs) == 0 {
+				i++
+				o.Unlock()
+				continue
+			}
+			sj := bjob.jobs[0]
 			o.inflight = true
 			o.Unlock()
 
 			sid, err := segment.NewSegmentID(o.fsID, sj.BucketID, sj.Start, sj.ChunkID)
 			if err != nil {
 				o.Lock()
+				i++
 				o.inflight = false
 				o.Unlock()
 				continue
 			}
-
-			//logger.Debug("send segment:", sid.String())
 
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
 			if err != nil {
 				o.Lock()
 				o.inflight = false
+				i++
 				o.Unlock()
 				continue
 			}
+
+			logger.Debug("send segment:", sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
 
 			o.availTime = time.Now().Unix()
 
@@ -458,8 +574,8 @@ func (o *OrderFull) sendData() {
 
 			o.Lock()
 
-			//o.seq.DataName = append(o.seq.DataName, sid.Bytes())
-
+			// o.seq.DataName = append(o.seq.DataName, sid.Bytes())
+			// update price and size
 			o.seq.Segments.Push(as)
 			o.seq.Price.Add(o.seq.Price, big.NewInt(100))
 			o.seq.Size += 1
@@ -467,12 +583,13 @@ func (o *OrderFull) sendData() {
 			o.accPrice.Add(o.accPrice, big.NewInt(100))
 			o.accSize += 1
 
-			// update price and size
-			o.segs = o.segs[1:]
+			bjob = o.jobs[bid]
+			bjob.jobs = bjob.jobs[1:]
 			o.inflight = false
 
 			data, err := o.seq.Serialize()
 			if err != nil {
+				o.Unlock()
 				continue
 			}
 			o.Unlock()

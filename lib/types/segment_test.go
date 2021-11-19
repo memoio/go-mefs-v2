@@ -46,20 +46,22 @@ func TestAggSegs(t *testing.T) {
 	id := blake3.Sum256([]byte("test"))
 
 	asq.Push(as1)
-	asq.Push(as2)
-	asq.Push(as3)
 	asq.Push(as4)
+	asq.Push(as2)
 	asq.Push(as5)
+	asq.Push(as3)
 
 	t.Log(asq.Len(), asq[3])
 
 	sort.Sort(asq)
 
+	t.Log("has:", asq.Has(0, 0), asq.Has(0, 8), asq.Has(0, 13), asq.Has(0, 25))
+
 	asq.Merge()
 
 	t.Log(asq.Len())
 
-	os := new(OrderSeq)
+	os := new(SignedOrderSeq)
 	os.Segments = asq
 	os.Size = 1
 	os.Price = big.NewInt(10)
@@ -72,7 +74,7 @@ func TestAggSegs(t *testing.T) {
 	md5val := md5.Sum(osbyte)
 	t.Log(hex.EncodeToString(md5val[:]))
 
-	nos := new(OrderSeq)
+	nos := new(SignedOrderSeq)
 	nos.Deserialize(osbyte)
 
 	nos.Price = big.NewInt(10)

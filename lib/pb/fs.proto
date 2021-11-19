@@ -22,7 +22,8 @@ enum MetaType {
 	
     LFS_BucketOptionKey = 13; // key: x/userID/bucketID; val: BucketOption 
     LFS_OpInfoKey = 14;       // key: x/userID/bucketID/opID; val: BucketRecord
-    LFS_OpStateKey = 16;		  // key: x/userID/bucketID/opID; val: opstate	 
+	LFS_OpJobsKey = 15;       // key: x/userID/bucketID/opID; val: stripes
+    LFS_OpStateKey = 16;	  // key: x/userID/bucketID/opID; val: opstate	 
     LFS_OpCountKey = 17;      // key: x/userID/bucketID; val: op number
 
 	// key in state tree
@@ -54,7 +55,7 @@ enum MetaType {
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
 	OrderBaseKey = 51;       // key: x/userID/proID/nonce; value: OrderBase
 	OrderSeqNumKey = 52;     // key: x/userID/proID/nonce; value: seqnum, OrderSeqState
-	OrderSeqKey = 53;        // key: x/userID/proID/nonce/seqnum; value: OrderSeq
+	OrderSeqKey = 53;        // key: x/userID/proID/nonce/seqnum; value: SignedOrderSeq
 	OrderProsKey = 54;       // key: x/userID; value: pros
 	OrderUsersKey = 55;       // key: x/proID; value: users
 		
