@@ -35,8 +35,12 @@ type Challenge struct {
 	indices [][]byte
 }
 
+func NewChallenge(r int64, indices [][]byte) pdpcommon.Challenge {
+	return &Challenge{r, indices}
+}
+
 func (chal *Challenge) Version() int {
-	return 1
+	return pdpcommon.PDPV2
 }
 
 func (chal *Challenge) Random() int64 {
@@ -61,8 +65,12 @@ type Proof struct {
 	Kappa []byte `json:"kappa"`
 }
 
+func NewProof(psi, kappa []byte) pdpcommon.Proof {
+	return &Proof{Psi: psi, Kappa: kappa}
+}
+
 func (pf *Proof) Version() int {
-	return 2
+	return pdpcommon.PDPV2
 }
 
 func (pf *Proof) Serialize() []byte {

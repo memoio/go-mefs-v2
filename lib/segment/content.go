@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 )
 
 const (
@@ -109,7 +109,7 @@ func (bs *BaseSegment) Tags() ([][]byte, error) {
 		return nil, ErrDataLength
 	}
 
-	tagLen := pdp.TagMap[int(pre.TagFlag)]
+	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
 	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
 
 	tag := make([][]byte, tagCount)

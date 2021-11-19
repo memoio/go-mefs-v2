@@ -32,7 +32,7 @@ type SecretKey struct {
 }
 
 func (sk *SecretKey) Version() int {
-	return 2
+	return pdpcommon.PDPV2
 }
 
 func (sk *SecretKey) Serialize() []byte {
@@ -84,7 +84,7 @@ type PublicKey struct {
 }
 
 func (pk *PublicKey) Version() int {
-	return 2
+	return pdpcommon.PDPV2
 }
 
 func (pk *PublicKey) GetCount() int64 {
@@ -108,6 +108,7 @@ func (pk *PublicKey) Serialize() []byte {
 	copy(buf[8:8+G2Size], bls.G2Serialize(&pk.BlsPk))
 	copy(buf[8+G2Size:8+2*G2Size], bls.G2Serialize(&pk.Zeta))
 	copy(buf[8+2*G2Size:8+2*G2Size+G1Size], bls.G1Serialize(&pk.Phi))
+
 	for i := 0; i < int(pk.Count); i++ {
 		copy(buf[8+2*G2Size+G1Size+i*G1Size:8+2*G2Size+G1Size+(i+1)*G1Size], bls.G1Serialize(&pk.ElemAlphas[i]))
 	}
@@ -202,7 +203,7 @@ type VerifyKey struct {
 }
 
 func (vk *VerifyKey) Version() int {
-	return 2
+	return pdpcommon.PDPV2
 }
 
 func (vk *VerifyKey) Hash() []byte {
@@ -343,5 +344,5 @@ func (k *KeySet) SecreteKey() pdpcommon.SecretKey {
 }
 
 func (k *KeySet) Version() int {
-	return 2
+	return pdpcommon.PDPV2
 }

@@ -321,7 +321,7 @@ func (k *KeySet) VerifyData(indices [][]byte, segments, tags [][]byte) (bool, er
 	// rhs = e(Prod(H(Wi)) * mu, pk)
 	// check
 	if !bls.PairingsVerify(&delta, &GenG2, &ProdHWimu, &k.Pk.BlsPk) {
-		return false, pdpcommon.ErrVerifyStepOne
+		return false, pdpcommon.ErrVerifyFailed
 	}
 
 	return true, nil
@@ -334,9 +334,11 @@ type ProofAggregator struct {
 	sums   []Fr
 	delta  G1
 	tempG1 G1
+	tempFr Fr
+	HWi    Fr
 }
 
-func NewProofAggregator(pki pdpcommon.PublicKey, r int64, typ int) pdpcommon.ProofAggregator {
+func NewProofAggregator(pki pdpcommon.PublicKey, r int64) pdpcommon.ProofAggregator {
 	pk, ok := pki.(*PublicKey)
 	if !ok {
 		return nil
@@ -345,14 +347,16 @@ func NewProofAggregator(pki pdpcommon.PublicKey, r int64, typ int) pdpcommon.Pro
 	var delta G1
 	bls.G1Clear(&delta)
 	var tempG1 G1
-	return &ProofAggregator{pk, r, typ, sums, delta, tempG1}
+	var tempFr Fr
+	var HWi Fr
+	return &ProofAggregator{pk, r, DefaultType, sums, delta, tempG1, tempFr, HWi}
 }
 
 func (pa *ProofAggregator) Version() int {
-	return 2
+	return pdpcommon.PDPV2
 }
 
-func (pa *ProofAggregator) Input(segment []byte, tag []byte) error {
+func (pa *ProofAggregator) Input(index, segment, tag []byte) error {
 	atoms, err := splitSegmentToAtoms(segment, pa.typ)
 	if err != nil {
 		return err
@@ -367,10 +371,14 @@ func (pa *ProofAggregator) Input(segment []byte, tag []byte) error {
 		return err
 	}
 	bls.G1Add(&pa.delta, &pa.delta, &pa.tempG1)
+
+	h := blake3.Sum256(index)
+	bls.FrFromBytes(&pa.tempFr, h[:])
+	bls.FrAddMod(&pa.HWi, &pa.HWi, &pa.tempFr)
 	return nil
 }
 
-func (pa *ProofAggregator) InputMulti(segments [][]byte, tags [][]byte) error {
+func (pa *ProofAggregator) InputMulti(indices, segments, tags [][]byte) error {
 	if len(tags) != len(segments) || len(segments) < 0 {
 		return pdpcommon.ErrNumOutOfRange
 	}
@@ -379,6 +387,14 @@ func (pa *ProofAggregator) InputMulti(segments [][]byte, tags [][]byte) error {
 		if len(segment) != le {
 			return pdpcommon.ErrNumOutOfRange
 		}
+
+		//tag aggregation
+		err := bls.G1Deserialize(&pa.tempG1, tags[i])
+		if err != nil {
+			return err
+		}
+		bls.G1Add(&pa.delta, &pa.delta, &pa.tempG1)
+
 		atoms, err := splitSegmentToAtoms(segment, pa.typ)
 		if err != nil {
 			return err
@@ -387,17 +403,16 @@ func (pa *ProofAggregator) InputMulti(segments [][]byte, tags [][]byte) error {
 		for j, atom := range atoms { // 扫描各segment
 			bls.FrAddMod(&pa.sums[j], &pa.sums[j], &atom)
 		}
-		//tag aggregation
-		err = bls.G1Deserialize(&pa.tempG1, tags[i])
-		if err != nil {
-			return err
-		}
-		bls.G1Add(&pa.delta, &pa.delta, &pa.tempG1)
+
+		h := blake3.Sum256(indices[i])
+		bls.FrFromBytes(&pa.tempFr, h[:])
+		bls.FrAddMod(&pa.HWi, &pa.HWi, &pa.tempFr)
 	}
 
 	return nil
 }
 
+// if proof
 func (pa *ProofAggregator) Result() (pdpcommon.Proof, error) {
 	var pk_r Fr //P_k(r)
 	var fr_r Fr
@@ -423,6 +438,29 @@ func (pa *ProofAggregator) Result() (pdpcommon.Proof, error) {
 	var kappa G1
 	bls.G1Mul(&kappa, &pa.pk.Phi, &pk_r)
 	bls.G1Sub(&kappa, &pa.delta, &kappa)
+
+	// 返回证明的时候验证一下
+	var ProdHWi G1
+	var G1temp1 G1
+	var G2temp1 G2
+
+	bls.G1Mul(&ProdHWi, &pa.pk.Phi, &pa.HWi)
+	bls.G1Sub(&G1temp1, &kappa, &ProdHWi)
+
+	bls.FrSetInt64(&pa.tempFr, pa.r)
+	bls.G2Mul(&G2temp1, &pa.pk.BlsPk, &pa.tempFr)
+	bls.G2Sub(&G2temp1, &pa.pk.Zeta, &G2temp1)
+
+	res := bls.PairingsVerify(
+		&G1temp1, &GenG2, &psi, &G2temp1,
+	)
+
+	if !res {
+		return &Proof{
+			Psi:   bls.G1Serialize(&psi),
+			Kappa: bls.G1Serialize(&kappa),
+		}, pdpcommon.ErrVerifyFailed
+	}
 
 	return &Proof{
 		Psi:   bls.G1Serialize(&psi),
@@ -463,7 +501,7 @@ func NewDataVerifier(pki pdpcommon.PublicKey, ski pdpcommon.SecretKey) pdpcommon
 }
 
 func (dv *DataVerifier) Version() int {
-	return 2
+	return pdpcommon.PDPV2
 }
 
 func (dv *DataVerifier) Input(index, segment, tag []byte) error {
@@ -510,12 +548,12 @@ func (dv *DataVerifier) InputMulti(indices, segments, tags [][]byte) error {
 			return err
 		}
 
+		bls.G1Add(&dv.delta, &dv.delta, &tempG1)
+
 		atoms, err := splitSegmentToAtoms(segment, dv.typ)
 		if err != nil {
 			return err
 		}
-
-		bls.G1Add(&dv.delta, &dv.delta, &tempG1)
 
 		for j, atom := range atoms { // 扫描各segment
 			bls.FrAddMod(&dv.sums[j], &dv.sums[j], &atom)
@@ -529,7 +567,7 @@ func (dv *DataVerifier) InputMulti(indices, segments, tags [][]byte) error {
 	return nil
 }
 
-func (dv *DataVerifier) Result() bool {
+func (dv *DataVerifier) Result() (bool, error) {
 	var muProd G1
 	bls.G1Clear(&muProd)
 	if dv.sk != nil {
@@ -541,7 +579,7 @@ func (dv *DataVerifier) Result() bool {
 	}
 
 	if bls.G1IsZero(&dv.delta) {
-		return false
+		return false, pdpcommon.ErrKeyIsNil
 	}
 
 	var ProdHWimu G1
@@ -553,7 +591,7 @@ func (dv *DataVerifier) Result() bool {
 	bls.G1Mul(&ProdHWimu, &GenG1, &dv.HWi)
 	bls.G1Add(&ProdHWimu, &ProdHWimu, &muProd)
 
-	return bls.PairingsVerify(&dv.delta, &GenG2, &ProdHWimu, &dv.pk.BlsPk)
+	return bls.PairingsVerify(&dv.delta, &GenG2, &ProdHWimu, &dv.pk.BlsPk), nil
 }
 
 func (dv *DataVerifier) Reset() {
@@ -585,7 +623,7 @@ func NewProofVerifier(vki pdpcommon.VerifyKey) pdpcommon.ProofVerifier {
 }
 
 func (pv *ProofVerifier) Version() int {
-	return 2
+	return pdpcommon.PDPV2
 }
 
 func (pv *ProofVerifier) Reset() {
@@ -609,29 +647,29 @@ func (pv *ProofVerifier) InputMulti(indices [][]byte) error {
 	return nil
 }
 
-func (pv *ProofVerifier) Result(random int64, proof pdpcommon.Proof) bool {
+func (pv *ProofVerifier) Result(random int64, proof pdpcommon.Proof) (bool, error) {
 	pf, ok := proof.(*Proof)
 	if !ok {
-		return false
+		return false, pdpcommon.ErrVersionUnmatch
 	}
 	var psi, kappa G1
 
 	err := bls.G1Deserialize(&psi, pf.Psi)
 	if err != nil {
-		return false
+		return false, pdpcommon.ErrDeserializeFailed
 	}
 
 	if bls.G1IsZero(&psi) {
-		return false
+		return false, pdpcommon.ErrKeyIsNil
 	}
 
 	err = bls.G1Deserialize(&kappa, pf.Kappa)
 	if err != nil {
-		return false
+		return false, pdpcommon.ErrDeserializeFailed
 	}
 
 	if bls.G1IsZero(&kappa) {
-		return false
+		return false, pdpcommon.ErrKeyIsNil
 	}
 
 	var ProdHWi G1
@@ -649,5 +687,5 @@ func (pv *ProofVerifier) Result(random int64, proof pdpcommon.Proof) bool {
 		&G1temp1, &GenG2, &psi, &G2temp1,
 	)
 
-	return res
+	return res, nil
 }

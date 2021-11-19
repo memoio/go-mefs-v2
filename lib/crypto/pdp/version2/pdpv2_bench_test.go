@@ -116,7 +116,7 @@ func BenchmarkMultiGenTag(b *testing.B) {
 
 func GenTestChallenge(r uint64, prefix string, bound, count uint64) []string {
 	buf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf, r)
+	binary.BigEndian.PutUint64(buf, r)
 	seed := blake3.Sum256(buf)
 	rng := frand.NewCustom(seed[:], 32, 20)
 
@@ -336,9 +336,9 @@ func BenchmarkProofVerifier(b *testing.B) {
 		for _, v := range chal.indices {
 			pv.Input(v)
 		}
-		result := pv.Result(chal.r, proof)
-		if !result {
-			b.Errorf("Verificaition failed!")
+		result, err := pv.Result(chal.r, proof)
+		if !result || err != nil {
+			b.Error("Verificaition failed!", err)
 		}
 	}
 }
@@ -395,9 +395,9 @@ func BenchmarkDataVerifier(b *testing.B) {
 			}
 		}
 
-		result := dataVerifier.Result()
-		if !result {
-			b.Errorf("Verificaition failed!")
+		result, err := dataVerifier.Result()
+		if !result || err != nil {
+			b.Error("Verificaition failed!", err)
 		}
 	}
 }
@@ -448,12 +448,12 @@ func BenchmarkProofAggregator(b *testing.B) {
 	b.SetBytes(int64(FileSize))
 	b.ResetTimer()
 	for j := 0; j < b.N; j++ {
-		proofAggregator := NewProofAggregator(keySet.Pk, chal.r, DefaultType)
+		proofAggregator := NewProofAggregator(keySet.Pk, chal.r)
 		if proofAggregator == nil {
 			panic("proofAggregator is nil")
 		}
 		for i := 0; i < len(segments); i++ {
-			err = proofAggregator.Input(segments[i], tags[i])
+			err = proofAggregator.Input(blocks[i], segments[i], tags[i])
 			if err != nil {
 				panic(err.Error())
 			}

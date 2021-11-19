@@ -19,6 +19,5 @@ var (
 	ErrOffsetIsNegative      = errors.New("offset is negative")
 	ErrProofVerifyInProvider = errors.New("proof is wrong")
 	ErrVersionUnmatch        = errors.New("version unmatch")
-	ErrVerifyStepOne         = errors.New("verification failed in Step1")
-	ErrVerifyStepTwo         = errors.New("verification failed in Step2")
+	ErrVerifyFailed          = errors.New("verification failed")
 )

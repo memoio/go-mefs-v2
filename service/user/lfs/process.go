@@ -183,8 +183,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			sendCount++
 			// send some to order
 			if sendCount >= 16 || breakFlag {
-				ok := dp.dv.Result()
-				if !ok {
+				ok, err := dp.dv.Result()
+				if !ok || err != nil {
 					return ErrEncode
 				}
 

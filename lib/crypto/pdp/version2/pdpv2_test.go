@@ -1,6 +1,7 @@
 package pdpv2
 
 import (
+	"bytes"
 	"encoding/base64"
 	"math/rand"
 	"strconv"
@@ -106,7 +107,7 @@ func TestProofAggregator(t *testing.T) {
 		panic(err)
 	}
 
-	pk := keySet.PublicKey()
+	// pk := keySet.PublicKey()
 	vk := keySet.VerifyKey()
 	segments := make([][]byte, SegNum)
 	blocks := make([][]byte, SegNum)
@@ -124,10 +125,10 @@ func TestProofAggregator(t *testing.T) {
 			panic("gentag Error")
 		}
 
-		ok, _ := pk.VerifyTag([]byte(blocks[i]), segment, tag, DefaultType)
-		if !ok {
-			panic("VerifyTag failed")
-		}
+		// ok, _ := pk.VerifyTag([]byte(blocks[i]), segment, tag, DefaultType)
+		// if !ok {
+		// 	panic("VerifyTag failed")
+		// }
 		tags[i] = tag
 	}
 
@@ -138,15 +139,15 @@ func TestProofAggregator(t *testing.T) {
 		indices: blocks,
 	}
 
-	proofAggregator := NewProofAggregator(keySet.Pk, chal.r, DefaultType)
+	proofAggregator := NewProofAggregator(keySet.Pk, chal.r)
 	if proofAggregator == nil {
 		panic("proofAggregator is nil")
 	}
-	err = proofAggregator.Input(segments[0], tags[0])
+	err = proofAggregator.Input(blocks[0], segments[0], tags[0])
 	if err != nil {
 		panic(err.Error())
 	}
-	err = proofAggregator.InputMulti(segments[1:], tags[1:])
+	err = proofAggregator.InputMulti(blocks[1:], segments[1:], tags[1:])
 	if err != nil {
 		panic(err.Error())
 	}
@@ -218,9 +219,9 @@ func TestDataVerifier(t *testing.T) {
 		panic(err.Error())
 	}
 
-	result := dataVerifier.Result()
-	if !result {
-		t.Errorf("Verificaition failed!")
+	result, err := dataVerifier.Result()
+	if !result || err != nil {
+		t.Error("Verificaition failed!", err)
 	}
 }
 
@@ -301,9 +302,9 @@ func TestProofVerifier(t *testing.T) {
 		pv.Input(v)
 	}
 
-	result := pv.Result(chal.r, proof)
-	if !result {
-		t.Errorf("Verificaition failed!")
+	result, err := pv.Result(chal.r, proof)
+	if !result || err != nil {
+		t.Error("Verificaition failed!", err)
 	}
 }
 
@@ -387,6 +388,11 @@ func TestKeyDeserialize(t *testing.T) {
 	err = pkDes.Deserialize(pkBytes)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	pkDesBytes := pkDes.Serialize()
+	if !bytes.Equal(pkDesBytes, pkBytes) {
+		t.Fatal("123")
 	}
 	if !bls.G2Equal(&pkDes.BlsPk, &pk.BlsPk) || !bls.G2Equal(&pkDes.Zeta, &pk.Zeta) {
 		t.Fatal("not equal")

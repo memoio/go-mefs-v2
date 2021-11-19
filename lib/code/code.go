@@ -2,7 +2,6 @@ package code
 
 import (
 	"github.com/klauspost/reedsolomon"
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	mpb "github.com/memoio/go-mefs-v2/lib/pb"
@@ -89,7 +88,7 @@ func (d *DataCoder) preCompute() error {
 	d.chunkCount = dc + pc
 	d.tagCount = 2 + (pc-1)/dc
 
-	s, ok := pdp.TagMap[int(d.TagFlag)]
+	s, ok := pdpcommon.TagMap[int(d.TagFlag)]
 	if !ok {
 		s = 48
 	}
@@ -263,9 +262,9 @@ func (d *DataCoder) VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool,
 	}
 
 	if name != nil {
-		ok := d.dv.Result()
+		ok, err := d.dv.Result()
 		// verify each chunk
-		if !ok {
+		if !ok || err != nil {
 			good = 0
 			for j := 0; j < len(stripe); j++ {
 				//if good >= int(d.DataCount) {
@@ -306,7 +305,7 @@ func (d *DataCoder) VerifyChunk(name segment.SegmentID, data []byte) (bool, erro
 		}
 	}
 
-	return d.dv.Result(), nil
+	return d.dv.Result()
 }
 
 func (d *DataCoder) Recover(name segment.SegmentID, stripe [][]byte) error {
@@ -396,8 +395,8 @@ func (d *DataCoder) recoverField(name segment.SegmentID, stripe [][]byte) error 
 			}
 		}
 
-		ok := d.dv.Result()
-		if !ok {
+		ok, err := d.dv.Result()
+		if !ok || err != nil {
 			return ErrRecoverData
 		}
 	} else {

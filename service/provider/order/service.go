@@ -404,8 +404,8 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 	if or.seq != nil && or.seq.SeqNum == os.SeqNum {
 		if or.seqState == OrderSeq_Ack {
-			ok := or.dv.Result()
-			if !ok {
+			ok, err := or.dv.Result()
+			if !ok || err != nil {
 				// todo, load missing
 				logger.Warn("data verify is wrong")
 				//return nil, ErrSign

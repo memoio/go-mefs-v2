@@ -4,19 +4,19 @@ import (
 	"encoding/binary"
 	"hash/crc32"
 
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 )
 
 //GenTagForSegment 根据指定段大小生成标签，index是生成BLS-tag的需要
 func (d *DataCoder) GenTag(index, data []byte) ([]byte, error) {
 	switch d.Prefix.TagFlag {
-	case pdp.CRC32:
+	case pdpcommon.CRC32:
 		return uint32ToBytes(crc32.ChecksumIEEE(data)), nil
-	case pdp.BLS:
+	case pdpcommon.BLS:
 		return nil, ErrWrongTagFlag
-	case pdp.PDPV0:
+	case pdpcommon.PDPV0:
 		return nil, ErrWrongTagFlag
-	case pdp.PDPV2:
+	case pdpcommon.PDPV2:
 		res, err := d.blsKey.GenTag(index, data, 0, true)
 		if err != nil {
 			return nil, err

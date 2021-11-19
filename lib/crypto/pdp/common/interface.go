@@ -47,11 +47,11 @@ type Proof interface {
 	Deserialize(buf []byte) error
 }
 
-//往里面塞segment, tag，最后返回一个证明。
+//往里面塞segment, tag，最后返回一个证明，返回前会验证证明的正确性。
 type ProofAggregator interface {
 	Version() int
-	Input(segment []byte, tag []byte) error
-	InputMulti(segments [][]byte, tags [][]byte) error
+	Input(index, segment, tag []byte) error
+	InputMulti(indices, segments [][]byte, tags [][]byte) error
 	Result() (Proof, error)
 }
 
@@ -60,7 +60,7 @@ type DataVerifier interface {
 	Version() int
 	Input(index, segment, tag []byte) error
 	InputMulti(indices, segments, tags [][]byte) error
-	Result() bool
+	Result() (bool, error)
 	Reset() // clear after result
 }
 
@@ -69,6 +69,6 @@ type ProofVerifier interface {
 	Version() int
 	Input(index []byte) error
 	InputMulti(indices [][]byte) error
-	Result(random int64, proof Proof) bool
+	Result(random int64, proof Proof) (bool, error)
 	Reset() // clear after result
 }
