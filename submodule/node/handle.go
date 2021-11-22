@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -13,9 +12,14 @@ import (
 	"github.com/zeebo/blake3"
 )
 
-func (n *BaseNode) DefaultPubsubHandler(ctx context.Context, mes *tx.SignedMessage) error {
-	log.Println("received pub msg:", mes.Method, mes.From)
-	return nil
+func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
+	logger.Debug("received pub msg:", mes.Method, mes.From)
+	return n.PPool.SyncPool.AddTxMsg(mes)
+}
+
+func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.Block) error {
+	logger.Debug("received pub block:", blk.Height, blk.MinerID)
+	return n.PPool.SyncPool.AddTxBlock(blk)
 }
 
 func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {

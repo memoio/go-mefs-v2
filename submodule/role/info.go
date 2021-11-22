@@ -2,7 +2,6 @@ package role
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"sync"
 	"time"
@@ -12,14 +11,9 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/address"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
-
-var logger = logging.Logger("roleinfo")
-
-var ErrNotFound = errors.New("not found")
 
 type RoleMgr struct {
 	sync.RWMutex

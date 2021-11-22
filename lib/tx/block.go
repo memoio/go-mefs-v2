@@ -8,18 +8,21 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
+type MessageDigest struct {
+	ID    types.MsgID
+	From  uint64
+	Nonce uint64
+}
+
 type BlockHeader struct {
+	Version uint32
 	Height  uint64
 	MinerID uint64
 	PrevID  types.MsgID // previous block id
 	Time    time.Time   // block time
 
-	Txs      []types.MsgID
+	Txs      []MessageDigest
 	Receipts []Receipt
-}
-
-func (bh *BlockHeader) Serialize() ([]byte, error) {
-	return cbor.Marshal(bh)
 }
 
 func (bh *BlockHeader) Hash() (types.MsgID, error) {
@@ -29,6 +32,10 @@ func (bh *BlockHeader) Hash() (types.MsgID, error) {
 	}
 
 	return types.NewMsgID(res), nil
+}
+
+func (bh *BlockHeader) Serialize() ([]byte, error) {
+	return cbor.Marshal(bh)
 }
 
 func (bh *BlockHeader) Deserialize(b []byte) (types.MsgID, error) {

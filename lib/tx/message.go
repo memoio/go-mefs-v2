@@ -51,8 +51,8 @@ const (
 type Message struct {
 	Version uint32
 
-	From  string
-	To    string
+	From  uint64
+	To    uint64
 	Nonce uint64
 	Value *big.Int
 
@@ -131,4 +131,17 @@ func (sm *SignedMessage) Deserialize(b []byte) error {
 
 	sm.id = id
 	return nil
+}
+
+type MessageState struct {
+	BlockID types.MsgID
+	Height  uint64
+}
+
+func (ms *MessageState) Serialize() ([]byte, error) {
+	return cbor.Marshal(ms)
+}
+
+func (ms *MessageState) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ms)
 }

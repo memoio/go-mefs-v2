@@ -16,6 +16,12 @@ type MultiSignature struct {
 	Data   []byte
 }
 
+func NewMultiSignature(typ types.SigType) MultiSignature {
+	return MultiSignature{
+		Type: typ,
+	}
+}
+
 func (ms *MultiSignature) Add(id uint64, sig types.Signature) error {
 	if sig.Type != ms.Type {
 		return errors.New("type not equal")

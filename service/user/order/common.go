@@ -24,7 +24,7 @@ const (
 	DefaultOrderDuration = 8640000 // 100 days
 	DefaultAckWaiting    = 30
 	DefaultOrderLast     = 600 // 1 day
-	DefaultOrderSeqLast  = 300 // 1 hour
+	DefaultOrderSeqLast  = 180 // 1 hour
 )
 
 type orderSeqPro struct {
@@ -51,8 +51,9 @@ type segJobState struct {
 	doneBits     *bitset.BitSet
 }
 
-func (sj *segJobState) Serialize() ([]byte, error) {
+func (sj *segJob) Serialize() ([]byte, error) {
 	sjs := &segJobStateStored{
+		SegJob:   sj.SegJob,
 		Dispatch: sj.dispatchBits.Bytes(),
 		Done:     sj.doneBits.Bytes(),
 	}
@@ -60,7 +61,7 @@ func (sj *segJobState) Serialize() ([]byte, error) {
 	return cbor.Marshal(sjs)
 }
 
-func (sj *segJobState) Deserialize(b []byte) error {
+func (sj *segJob) Deserialize(b []byte) error {
 	sjs := new(segJobStateStored)
 
 	err := cbor.Unmarshal(b, sjs)
@@ -68,6 +69,7 @@ func (sj *segJobState) Deserialize(b []byte) error {
 		return err
 	}
 
+	sj.SegJob = sjs.SegJob
 	sj.dispatchBits = bitset.From(sjs.Dispatch)
 	sj.doneBits = bitset.From(sjs.Done)
 
@@ -75,6 +77,7 @@ func (sj *segJobState) Deserialize(b []byte) error {
 }
 
 type segJobStateStored struct {
+	types.SegJob
 	Dispatch []uint64
 	Done     []uint64
 }

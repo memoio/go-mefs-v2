@@ -2,15 +2,21 @@ package role
 
 import (
 	"context"
+	"errors"
 
 	"github.com/memoio/go-mefs-v2/api"
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
+
+var logger = logging.Logger("roleinfo")
+
+var ErrNotFound = errors.New("not found")
 
 var _ api.IRole = &roleAPI{}
 

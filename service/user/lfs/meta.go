@@ -394,10 +394,7 @@ func (l *LfsService) Load() error {
 	l.sb.Lock()
 	defer l.sb.Unlock()
 	// 1. load super block
-	err := l.sb.Load(l.userID, l.ds)
-	if err != nil {
-		return err
-	}
+	l.sb.Load(l.userID, l.ds)
 
 	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {

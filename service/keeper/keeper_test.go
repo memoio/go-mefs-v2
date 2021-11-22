@@ -63,7 +63,7 @@ func TestKeeperNode(t *testing.T) {
 		}
 
 		sm := new(tx.SignedMessage)
-		sm.From = "keeperfrom"
+		sm.From = 10
 		bn2.PublishTxMsg(ctx, sm)
 
 		blk := new(tx.Block)

@@ -14,7 +14,7 @@ func TestMessage(t *testing.T) {
 
 	sm.GasPrice = big.NewInt(10)
 
-	sm.To = "hello"
+	sm.To = 10
 
 	id, err := sm.Hash()
 	if err != nil {

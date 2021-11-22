@@ -7,8 +7,8 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/submodule/node"
+	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 var logger = logging.Logger("keeper")
@@ -21,6 +21,8 @@ type KeeperNode struct {
 	*node.BaseNode
 
 	ctx context.Context
+
+	inp *txPool.InPool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
@@ -29,9 +31,12 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		return nil, err
 	}
 
+	inp := txPool.NewInPool(ctx, bn.PPool.SyncPool)
+
 	kn := &KeeperNode{
 		BaseNode: bn,
 		ctx:      ctx,
+		inp:      inp,
 	}
 
 	return kn, nil
@@ -46,7 +51,8 @@ func (k *KeeperNode) Start() error {
 
 	k.GenericService.Register(pb.NetMessage_Get, k.HandleGet)
 
-	k.TxMsgHandle.Register(tx.DataTxErr, k.DefaultPubsubHandler)
+	k.TxMsgHandle.Register(k.TxMsgHandler)
+	k.BlockHandle.Register(k.TxBlockHandler)
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
 

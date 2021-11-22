@@ -251,8 +251,8 @@ func (d *BadgerStore) Get(key []byte) (value []byte, err error) {
 	var val []byte
 	err = d.db.View(func(txn *badger.Txn) error {
 		switch item, err := txn.Get(key); err {
-		case badger.ErrKeyNotFound:
-			return nil
+		//case badger.ErrKeyNotFound:
+		//	return nil
 		case nil:
 			val, err = item.ValueCopy(nil)
 			return err

@@ -2,9 +2,11 @@ package netapp
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
@@ -50,6 +52,8 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 }
 
 func (c *NetServiceImpl) PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
+	logger.Debug("push tx message: ", msg.From, msg.Nonce, msg.Method)
+
 	data, err := msg.Serialize()
 	if err != nil {
 		return err
@@ -67,6 +71,17 @@ func (c *NetServiceImpl) PublishEvent(ctx context.Context, msg *pb.EventMessage)
 	return c.eventTopic.Publish(ctx, data)
 }
 
+func disorder(array []peer.AddrInfo) {
+	var temp peer.AddrInfo
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := len(array) - 1; i >= 0; i-- {
+		num := r.Intn(i + 1)
+		temp = array[i]
+		array[i] = array[num]
+		array[num] = temp
+	}
+}
+
 // fetch
 func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) {
 	// iter over connected peers
@@ -74,6 +89,8 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	disorder(pinfos)
 
 	for _, pi := range pinfos {
 		resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.RoleID(), pb.NetMessage_Get, key, nil)

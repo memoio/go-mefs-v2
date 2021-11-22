@@ -11,12 +11,15 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 type OrderMgr struct {
 	api.IRole
 	api.INetService
 	api.IDataService
+
+	pp *txPool.PushPool
 
 	ctx context.Context
 	ds  store.KVStore // save order info
@@ -50,7 +53,7 @@ type OrderMgr struct {
 	ready bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
 
 	om := &OrderMgr{
 		IRole:        ir,
@@ -59,6 +62,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 
 		ctx: ctx,
 		ds:  ds,
+		pp:  pp,
 
 		localID: roleID,
 		fsID:    fsID,
@@ -175,7 +179,6 @@ func (m *OrderMgr) runSched() {
 				}
 			}
 		case ob := <-m.orderChan:
-			logger.Debug("handle get new order")
 			of, ok := m.orders[ob.ProID]
 			if ok {
 				of.availTime = time.Now().Unix()
@@ -203,6 +206,7 @@ func (m *OrderMgr) runSched() {
 				}
 			}
 		case of := <-m.proChan:
+			logger.Debug("add order to pro:", of.pro)
 			m.orders[of.pro] = of
 			go m.update(of.pro)
 		case lp := <-m.bucketChan:

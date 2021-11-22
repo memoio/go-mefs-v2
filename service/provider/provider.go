@@ -12,6 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/service/data"
 	porder "github.com/memoio/go-mefs-v2/service/provider/order"
 	"github.com/memoio/go-mefs-v2/submodule/node"
+	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 var logger = logging.Logger("provider")
@@ -28,6 +29,8 @@ type ProviderNode struct {
 	pom *porder.OrderMgr
 
 	ctx context.Context
+
+	pp *txPool.PushPool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
@@ -36,20 +39,32 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 		return nil, err
 	}
 
+	ds := bn.MetaStore()
+
 	segStore, err := segment.NewSegStore(bn.Repo.FileStore())
 	if err != nil {
 		return nil, err
 	}
 
-	ids := data.New(bn.MetaStore(), segStore, bn.NetServiceImpl)
+	ids := data.New(ds, segStore, bn.NetServiceImpl)
 
-	por := porder.NewOrderMgr(ctx, bn.RoleID(), bn.MetaStore(), bn.RoleMgr, bn.NetServiceImpl, ids)
+	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids)
+
+	txs, err := tx.NewTxStore(ctx, ds)
+	if err != nil {
+		return nil, err
+	}
+
+	sp := txPool.NewSyncPool(ctx, bn.RoleID(), ds, txs, bn.RoleMgr, bn.NetServiceImpl)
+
+	pp := txPool.NewPushPool(ctx, sp)
 
 	pn := &ProviderNode{
 		BaseNode:     bn,
 		IDataService: ids,
 		ctx:          ctx,
 		pom:          por,
+		pp:           pp,
 	}
 
 	return pn, nil
@@ -72,7 +87,8 @@ func (p *ProviderNode) Start() error {
 	p.GenericService.Register(pb.NetMessage_PutSegment, p.handleSegData)
 	p.GenericService.Register(pb.NetMessage_GetSegment, p.handleGetSeg)
 
-	p.TxMsgHandle.Register(tx.DataTxErr, p.DefaultPubsubHandler)
+	p.TxMsgHandle.Register(p.TxMsgHandler)
+	p.BlockHandle.Register(p.TxBlockHandler)
 
 	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
 

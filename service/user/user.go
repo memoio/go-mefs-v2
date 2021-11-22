@@ -8,7 +8,6 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
-	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/service/data"
 	"github.com/memoio/go-mefs-v2/service/user/lfs"
 	uorder "github.com/memoio/go-mefs-v2/service/user/order"
@@ -35,6 +34,8 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
+	ds := bn.MetaStore()
+
 	segStore, err := segment.NewSegStore(bn.Repo.FileStore())
 	if err != nil {
 		return nil, err
@@ -45,11 +46,11 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
-	ids := data.New(bn.MetaStore(), segStore, bn.NetServiceImpl)
+	ids := data.New(ds, segStore, bn.NetServiceImpl)
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), bn.MetaStore(), bn.RoleMgr, bn.NetServiceImpl, ids)
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PPool, bn.RoleMgr, bn.NetServiceImpl, ids)
 
-	ls, err := lfs.New(ctx, bn.RoleID(), keyset, bn.MetaStore(), segStore, om)
+	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +73,8 @@ func (u *UserNode) Start() error {
 
 	u.GenericService.Register(pb.NetMessage_Get, u.HandleGet)
 
-	u.TxMsgHandle.Register(tx.DataTxErr, u.DefaultPubsubHandler)
+	u.TxMsgHandle.Register(u.TxMsgHandler)
+	u.BlockHandle.Register(u.TxBlockHandler)
 
 	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(u))
 

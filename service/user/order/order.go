@@ -9,6 +9,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"golang.org/x/xerrors"
@@ -713,6 +714,21 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	o.accPrice.Set(o.seq.Price)
 	o.accSize = o.seq.Size
+
+	data, err := so.Serialize()
+	if err != nil {
+		return err
+	}
+
+	msg := &tx.Message{
+		Version: 0,
+		From:    m.localID,
+		To:      m.localID,
+		Method:  tx.DataOrder,
+		Params:  data,
+	}
+
+	m.pp.PushMessage(msg)
 
 	o.seqState = OrderSeq_Init
 	o.seq = nil

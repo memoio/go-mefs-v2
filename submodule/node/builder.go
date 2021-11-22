@@ -13,12 +13,14 @@ import (
 	"github.com/memoio/go-mefs-v2/api/httpio"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	"github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
+	"github.com/memoio/go-mefs-v2/submodule/txPool"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
@@ -205,6 +207,15 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.ConfigModule = mconfig.NewConfigModule(b.repo)
 
 	nd.JwtAuth = jauth
+
+	txs, err := tx.NewTxStore(ctx, nd.MetaStore())
+	if err != nil {
+		return nil, err
+	}
+
+	sp := txPool.NewSyncPool(ctx, id, nd.MetaStore(), txs, rm, cs)
+
+	nd.PPool = txPool.NewPushPool(ctx, sp)
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
 

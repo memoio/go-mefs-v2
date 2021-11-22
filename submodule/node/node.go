@@ -24,6 +24,7 @@ import (
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
+	"github.com/memoio/go-mefs-v2/submodule/txPool"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
@@ -46,11 +47,13 @@ type BaseNode struct {
 
 	*jsonrpc.RPCServer
 
-	httpHandle *mux.Router
-
 	repo.Repo
 
 	ctx context.Context
+
+	httpHandle *mux.Router
+
+	PPool *txPool.PushPool
 
 	ShutdownChan chan struct{}
 
@@ -61,6 +64,9 @@ type BaseNode struct {
 func (n *BaseNode) Start() error {
 
 	go n.OpenTest()
+
+	n.TxMsgHandle.Register(n.TxMsgHandler)
+	n.BlockHandle.Register(n.TxBlockHandler)
 
 	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
 

@@ -2,10 +2,15 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
+)
+
+var (
+	ErrNoHandle = errors.New("no handle")
 )
 
 type HandlerBlockFunc func(context.Context, *tx.Block) error
@@ -42,10 +47,8 @@ func (i *BlockImpl) Handle(ctx context.Context, mes *tx.Block) error {
 	}
 
 	if i.handler == nil {
-		return nil
+		return ErrNoHandle
 	}
-
-	log.Println("handle block")
 	return i.handler(ctx, mes)
 }
 
