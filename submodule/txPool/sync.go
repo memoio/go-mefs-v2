@@ -13,7 +13,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-type SyncdBlock struct {
+type SyncedBlock struct {
 	tx.BlockHeader
 	msgCount int
 }
@@ -32,8 +32,8 @@ type SyncPool struct {
 	nextHeight   uint64
 	remoteHeight uint64
 
-	blks  map[uint64]*SyncdBlock // key: height
-	nonce map[uint64]uint64      // key: roleID
+	blks  map[uint64]*SyncedBlock // key: height
+	nonce map[uint64]uint64       // key: roleID
 
 	syncChan chan struct{}
 	msgDone  chan types.MsgID
@@ -55,7 +55,7 @@ func NewSyncPool(ctx context.Context, roleID uint64, ds store.KVStore, ts tx.Sto
 		remoteHeight: 0,
 
 		nonce: make(map[uint64]uint64),
-		blks:  make(map[uint64]*SyncdBlock),
+		blks:  make(map[uint64]*SyncedBlock),
 
 		syncChan: make(chan struct{}),
 		msgDone:  make(chan types.MsgID, 16),
@@ -112,7 +112,7 @@ func (sp *SyncPool) sync() {
 					continue
 				}
 
-				sb = &SyncdBlock{
+				sb = &SyncedBlock{
 					BlockHeader: blk.BlockHeader,
 					msgCount:    0,
 				}
@@ -155,7 +155,6 @@ func (sp *SyncPool) sync() {
 			}
 
 			sp.nextHeight++
-			logger.Debug("block is synced to:", sp.nextHeight)
 			sp.Unlock()
 			binary.BigEndian.PutUint64(buf, i+1)
 			sp.ds.Put(key, buf)
@@ -280,7 +279,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 	defer sp.Unlock()
 
 	if tb.Height >= sp.nextHeight {
-		sb := &SyncdBlock{
+		sb := &SyncedBlock{
 			tb.BlockHeader, 0,
 		}
 
@@ -289,6 +288,8 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 			sp.remoteHeight = tb.Height
 		}
 	}
+
+	sp.syncChan <- struct{}{}
 
 	return nil
 }

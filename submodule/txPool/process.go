@@ -11,10 +11,9 @@ import (
 )
 
 type msgSet struct {
-	next      uint64                       // next process or
-	inProcess uint64                       // for confirm and delete
-	pending   uint64                       // pending nonce in pool >= next
-	info      map[uint64]*tx.MessageDigest // key: nonce
+	min  uint64
+	max  uint64
+	info map[uint64]*tx.MessageDigest // key: nonce
 }
 
 type InPool struct {
@@ -75,7 +74,7 @@ func (mp *InPool) sync() {
 
 		case bh := <-mp.blkDone:
 			mp.Lock()
-			logger.Debug("process new block:", bh.Height)
+			logger.Debug("process new block:", bh.Height, mp.nextHeight)
 			bid, _ := bh.Hash()
 			mp.curBlockID = bid
 
@@ -83,21 +82,19 @@ func (mp *InPool) sync() {
 				ms, ok := mp.pending[md.From]
 				if !ok {
 					ms = &msgSet{
-						next:      md.Nonce + 1,
-						inProcess: md.Nonce + 1,
-						pending:   md.Nonce + 1,
-						info:      make(map[uint64]*tx.MessageDigest),
+						min:  md.Nonce + 1,
+						max:  md.Nonce + 1,
+						info: make(map[uint64]*tx.MessageDigest),
 					}
 
 					mp.pending[md.From] = ms
 				}
-				ms.next = md.Nonce + 1
-				if ms.inProcess < ms.next {
-					ms.inProcess = ms.next
+				if ms.min < md.Nonce+1 {
+					ms.min = md.Nonce + 1
 				}
 
-				if ms.pending < ms.next {
-					ms.pending = ms.next
+				if ms.max < ms.min {
+					ms.max = ms.min
 				}
 
 				delete(ms.info, md.Nonce)
@@ -134,17 +131,16 @@ func (mp *InPool) AddMsg(m *tx.SignedMessage) error {
 	ms, ok := mp.pending[m.From]
 	if !ok {
 		ms = &msgSet{
-			next:      nonce,
-			inProcess: nonce,
-			pending:   nonce,
-			info:      make(map[uint64]*tx.MessageDigest),
+			min:  nonce,
+			max:  nonce,
+			info: make(map[uint64]*tx.MessageDigest),
 		}
 
 		mp.pending[m.From] = ms
 	}
 
-	if m.Nonce >= ms.pending {
-		ms.pending = m.Nonce + 1
+	if m.Nonce >= ms.max {
+		ms.max = m.Nonce + 1
 	}
 
 	ms.info[m.Nonce] = md
@@ -168,12 +164,12 @@ func (mp *InPool) CreateBlock() tx.BlockHeader {
 	}
 
 	for _, ms := range mp.pending {
-		for i := ms.inProcess; i < ms.pending; i++ {
+		for i := ms.min; i < ms.max; i++ {
 			md, ok := ms.info[i]
 			if ok {
 				// validate message
 				nbh.Txs = append(nbh.Txs, *md)
-				ms.inProcess++
+				ms.min++
 			} else {
 				break
 			}
