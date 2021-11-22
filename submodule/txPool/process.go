@@ -23,9 +23,6 @@ type InPool struct {
 
 	ctx context.Context
 
-	nextHeight uint64
-	curBlockID types.MsgID
-
 	pending map[uint64]*msgSet // key: from; all currently processable tx
 
 	blkDone chan *tx.BlockHeader
@@ -74,9 +71,7 @@ func (mp *InPool) sync() {
 
 		case bh := <-mp.blkDone:
 			mp.Lock()
-			logger.Debug("process new block:", bh.Height, mp.nextHeight)
-			bid, _ := bh.Hash()
-			mp.curBlockID = bid
+			logger.Debug("process new block:", bh.Height)
 
 			for _, md := range bh.Txs {
 				ms, ok := mp.pending[md.From]
@@ -99,19 +94,18 @@ func (mp *InPool) sync() {
 
 				delete(ms.info, md.Nonce)
 			}
-			mp.nextHeight = bh.Height + 1
 			mp.Unlock()
 		}
 	}
 }
 
-func (mp *InPool) AddMsg(m *tx.SignedMessage) error {
-	nonce := mp.SyncPool.GetNextNonce(m.From)
+func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
+	nonce := mp.SyncPool.GetNonce(m.From)
 	if m.Nonce < nonce {
 		return ErrLowNonce
 	}
 
-	err := mp.SyncPool.AddTxMsg(m)
+	err := mp.SyncPool.AddTxMsg(mp.ctx, m)
 	if err != nil {
 		return err
 	}
@@ -154,11 +148,15 @@ func (mp *InPool) CreateBlock() tx.BlockHeader {
 	mp.Lock()
 	defer mp.Unlock()
 
+	// synced
+	_, rh := mp.GetSyncHeight()
+	bid, _ := mp.GetTxBlockByHeight(rh)
+
 	nbh := tx.BlockHeader{
 		Version: 1,
-		Height:  mp.nextHeight,
+		Height:  rh,
 		MinerID: mp.localID,
-		PrevID:  mp.curBlockID,
+		PrevID:  bid,
 		Time:    time.Now(),
 		Txs:     make([]tx.MessageDigest, 0, 16),
 	}

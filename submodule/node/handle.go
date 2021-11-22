@@ -14,7 +14,7 @@ import (
 
 func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
 	logger.Debug("received pub msg:", mes.Method, mes.From)
-	return n.PPool.SyncPool.AddTxMsg(mes)
+	return n.PPool.SyncPool.AddTxMsg(ctx, mes)
 }
 
 func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.Block) error {

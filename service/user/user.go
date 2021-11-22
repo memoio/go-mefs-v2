@@ -70,11 +70,10 @@ func (u *UserNode) Start() error {
 
 	// register net msg handle
 	u.GenericService.Register(pb.NetMessage_SayHello, u.DefaultHandler)
-
 	u.GenericService.Register(pb.NetMessage_Get, u.HandleGet)
 
-	u.TxMsgHandle.Register(u.TxMsgHandler)
-	u.BlockHandle.Register(u.TxBlockHandler)
+	u.TxMsgHandle.Register(u.BaseNode.TxMsgHandler)
+	u.BlockHandle.Register(u.BaseNode.TxBlockHandler)
 
 	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(u))
 

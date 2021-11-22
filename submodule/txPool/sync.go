@@ -15,6 +15,7 @@ import (
 
 type SyncedBlock struct {
 	tx.BlockHeader
+	msg      []*tx.Message
 	msgCount int
 }
 
@@ -95,7 +96,7 @@ func (sp *SyncPool) sync() {
 		case <-sp.syncChan:
 		}
 
-		logger.Debug("handle block in pool:", sp.nextHeight, sp.remoteHeight)
+		logger.Debug("regular handle block:", sp.nextHeight, sp.remoteHeight)
 
 		for i := sp.nextHeight; i <= sp.remoteHeight; i++ {
 			sb, ok := sp.blks[i]
@@ -114,6 +115,7 @@ func (sp *SyncPool) sync() {
 
 				sb = &SyncedBlock{
 					BlockHeader: blk.BlockHeader,
+					msg:         make([]*tx.Message, len(blk.Txs)),
 					msgCount:    0,
 				}
 
@@ -123,11 +125,12 @@ func (sp *SyncPool) sync() {
 			}
 
 			// sync all msg of one block
-			for _, tx := range sb.Txs {
-				has, err := sp.HasTxMsg(tx.ID)
-				if err != nil || !has {
+			for j, tx := range sb.Txs {
+				sm, err := sp.GetTxMsg(tx.ID)
+				if err != nil {
 					go sp.GetTxMsgRemote(tx.ID)
 				} else {
+					sb.msg[j] = &sm.Message
 					sb.msgCount++
 				}
 			}
@@ -142,7 +145,7 @@ func (sp *SyncPool) sync() {
 					sp.Unlock()
 					break
 				}
-				err := sp.processTxBlock(&blk.BlockHeader)
+				err := sp.processTxBlock(blk)
 				if err != nil {
 					sp.Unlock()
 					logger.Debug("blk is wrong, should not")
@@ -162,15 +165,15 @@ func (sp *SyncPool) sync() {
 	}
 }
 
-func (sp *SyncPool) processTxBlock(tb *tx.BlockHeader) error {
-	logger.Debug("process block:", tb.Height)
-	id, err := tb.Hash()
+func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
+	logger.Debug("process block:", sb.Height)
+	id, err := sb.Hash()
 	if err != nil {
 		return err
 	}
 	ms := &tx.MessageState{
 		BlockID: id,
-		Height:  tb.Height,
+		Height:  sb.Height,
 	}
 
 	msb, err := ms.Serialize()
@@ -180,7 +183,7 @@ func (sp *SyncPool) processTxBlock(tb *tx.BlockHeader) error {
 
 	buf := make([]byte, 8)
 
-	for _, tx := range tb.Txs {
+	for _, tx := range sb.Txs {
 		key := store.NewKey(pb.MetaType_Tx_NonceKey, tx.From)
 
 		nextNonce, ok := sp.nonce[tx.From]
@@ -210,7 +213,7 @@ func (sp *SyncPool) processTxBlock(tb *tx.BlockHeader) error {
 		}
 	}
 
-	sp.blkDone <- tb
+	sp.blkDone <- &sb.BlockHeader
 
 	return nil
 }
@@ -226,7 +229,7 @@ func (sp *SyncPool) GetSyncHeight() (uint64, uint64) {
 	return sp.nextHeight, sp.remoteHeight
 }
 
-func (sp *SyncPool) GetNextNonce(from uint64) uint64 {
+func (sp *SyncPool) GetNonce(from uint64) uint64 {
 	nextNonce, ok := sp.nonce[from]
 	if ok {
 		return nextNonce
@@ -242,6 +245,23 @@ func (sp *SyncPool) GetNextNonce(from uint64) uint64 {
 		}
 	}
 	return 0
+}
+
+func (sp *SyncPool) GetTxMsgStatus(mid types.MsgID) (*tx.MessageState, error) {
+	ms := new(tx.MessageState)
+	key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mid.Bytes())
+
+	val, err := sp.ds.Get(key)
+	if err != nil {
+		return ms, err
+	}
+
+	err = ms.Deserialize(val)
+	if err != nil {
+		return ms, err
+	}
+
+	return ms, nil
 }
 
 func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
@@ -280,7 +300,9 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 
 	if tb.Height >= sp.nextHeight {
 		sb := &SyncedBlock{
-			tb.BlockHeader, 0,
+			BlockHeader: tb.BlockHeader,
+			msg:         make([]*tx.Message, len(tb.Txs)),
+			msgCount:    0,
 		}
 
 		sp.blks[tb.Height] = sb
@@ -311,7 +333,7 @@ func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.Block, error) {
 	return tb, sp.AddTxBlock(tb)
 }
 
-func (sp *SyncPool) AddTxMsg(tb *tx.SignedMessage) error {
+func (sp *SyncPool) AddTxMsg(ctx context.Context, tb *tx.SignedMessage) error {
 	mid, err := tb.Hash()
 	if err != nil {
 		return err
@@ -322,7 +344,7 @@ func (sp *SyncPool) AddTxMsg(tb *tx.SignedMessage) error {
 		return nil
 	}
 
-	ok, err = sp.RoleVerify(sp.ctx, tb.From, mid.Bytes(), tb.Signature)
+	ok, err = sp.RoleVerify(ctx, tb.From, mid.Bytes(), tb.Signature)
 	if err != nil {
 		return err
 	}
@@ -346,7 +368,7 @@ func (sp *SyncPool) GetTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sm, sp.AddTxMsg(sm)
+	return sm, sp.AddTxMsg(sp.ctx, sm)
 }
 
 func (sp *SyncPool) applyMsg(mes *tx.Message) error {

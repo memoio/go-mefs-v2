@@ -127,3 +127,10 @@ type ILfsService interface {
 	ShowStorage(ctx context.Context) (uint64, error)
 	ShowBucketStorage(ctx context.Context, bucketName string) (uint64, error)
 }
+
+type IDataChain interface {
+	GetSyncHeight(context.Context) (uint64, uint64)
+	GetNonce(context.Context, uint64) uint64
+	GetPendingNonce(context.Context, uint64) uint64
+	GetTxMsgStatus(mid types.MsgID) (*tx.MessageState, error)
+}

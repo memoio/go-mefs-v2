@@ -30,7 +30,7 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 		SyncPool: sp,
 		ctx:      ctx,
 
-		pendingNonce: sp.GetNextNonce(sp.localID),
+		pendingNonce: sp.GetNonce(sp.localID),
 		pendingMsg:   make(map[types.MsgID]time.Time),
 
 		msgDone: sp.msgDone,
@@ -57,7 +57,7 @@ func (pp *PushPool) Sync() {
 			if pp.GetSyncStatus() && !pp.ready {
 				logger.Debug("push pool is ready")
 				pp.ready = true
-				pp.pendingNonce = pp.GetNextNonce(pp.localID)
+				pp.pendingNonce = pp.GetNonce(pp.localID)
 			}
 			pp.Unlock()
 

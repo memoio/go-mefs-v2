@@ -48,11 +48,10 @@ func (k *KeeperNode) Start() error {
 
 	// register net msg handle
 	k.GenericService.Register(pb.NetMessage_SayHello, k.DefaultHandler)
-
 	k.GenericService.Register(pb.NetMessage_Get, k.HandleGet)
 
-	k.TxMsgHandle.Register(k.TxMsgHandler)
-	k.BlockHandle.Register(k.TxBlockHandler)
+	k.TxMsgHandle.Register(k.txMsgHandler)
+	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
 

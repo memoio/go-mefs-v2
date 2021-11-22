@@ -76,7 +76,6 @@ func (p *ProviderNode) Start() error {
 
 	// register net msg handle
 	p.GenericService.Register(pb.NetMessage_SayHello, p.DefaultHandler)
-
 	p.GenericService.Register(pb.NetMessage_Get, p.HandleGet)
 
 	p.GenericService.Register(pb.NetMessage_AskPrice, p.handleQuotation)
@@ -87,8 +86,8 @@ func (p *ProviderNode) Start() error {
 	p.GenericService.Register(pb.NetMessage_PutSegment, p.handleSegData)
 	p.GenericService.Register(pb.NetMessage_GetSegment, p.handleGetSeg)
 
-	p.TxMsgHandle.Register(p.TxMsgHandler)
-	p.BlockHandle.Register(p.TxBlockHandler)
+	p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
+	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
 
 	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
 
