@@ -1,7 +1,6 @@
 package tx
 
 import (
-	"encoding/binary"
 	"errors"
 	"math/big"
 
@@ -112,57 +111,24 @@ func (m *Message) Deserialize(b []byte) (types.MsgID, error) {
 type SignedMessage struct {
 	Message
 	Signature types.Signature // signed by Tx.From;
-
-	ID types.MsgID
+	id        types.MsgID
 }
 
 func (sm *SignedMessage) Serialize() ([]byte, error) {
-	res, err := sm.Message.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	rLen := len(res)
-
-	sbyte, err := sm.Signature.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	buf := make([]byte, 2+rLen+len(sbyte))
-	binary.BigEndian.PutUint16(buf[:2], uint16(rLen))
-
-	copy(buf[2:2+rLen], res)
-	copy(buf[2+rLen:], sbyte)
-
-	return buf, nil
+	return cbor.Marshal(sm)
 }
 
 func (sm *SignedMessage) Deserialize(b []byte) error {
-	if len(b) < 2 {
-		return ErrMsgLenShort
-	}
-
-	rLen := binary.BigEndian.Uint16(b[:2])
-	if len(b) < 2+int(rLen) {
-		return ErrMsgLenShort
-	}
-
-	m := new(Message)
-	mid, err := m.Deserialize(b[2 : 2+rLen])
+	err := cbor.Unmarshal(b, sm)
 	if err != nil {
-		return err
+		return nil
 	}
 
-	sig := new(types.Signature)
-	err = sig.Deserialize(b[2+rLen:])
+	id, err := sm.Hash()
 	if err != nil {
-		return err
+		return nil
 	}
 
-	sm.Message = *m
-	sm.ID = mid
-	sm.Signature = *sig
-
+	sm.id = id
 	return nil
 }

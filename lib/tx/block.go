@@ -1,7 +1,6 @@
 package tx
 
 import (
-	"encoding/binary"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
@@ -45,56 +44,24 @@ type Block struct {
 	BlockHeader
 	msign.MultiSignature
 
-	ID types.MsgID
+	id types.MsgID
 }
 
 func (b *Block) Serialize() ([]byte, error) {
-	bh, err := b.BlockHeader.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	s, err := b.MultiSignature.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	rLen := len(bh)
-
-	buf := make([]byte, 2+rLen+len(s))
-	binary.BigEndian.PutUint16(buf[:2], uint16(rLen))
-
-	copy(buf[2:2+rLen], bh)
-	copy(buf[2+rLen:], s)
-
-	return buf, nil
+	return cbor.Marshal(b)
 }
 
 func (b *Block) Deserialize(d []byte) error {
-	if len(d) < 2 {
-		return ErrMsgLenShort
-	}
-
-	rLen := binary.BigEndian.Uint16(d[:2])
-	if len(d) < 2+int(rLen) {
-		return ErrMsgLenShort
-	}
-
-	bh := new(BlockHeader)
-	mid, err := bh.Deserialize(d[2 : 2+rLen])
+	err := cbor.Unmarshal(d, b)
 	if err != nil {
 		return err
 	}
 
-	s := new(msign.MultiSignature)
-	err = s.Deserialize(d[2+rLen:])
+	id, err := b.Hash()
 	if err != nil {
 		return err
 	}
 
-	b.BlockHeader = *bh
-	b.ID = mid
-	b.MultiSignature = *s
-
+	b.id = id
 	return nil
 }
