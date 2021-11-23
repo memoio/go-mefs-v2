@@ -223,6 +223,9 @@ func (m *OrderMgr) runSched() {
 				go m.newProOrder(pid)
 			}
 		case <-st.C:
+			// dispatch to each pro
+			m.dispatch()
+
 			for _, of := range m.orders {
 				m.check(of)
 			}
@@ -236,9 +239,6 @@ func (m *OrderMgr) runSched() {
 			}
 		case <-m.ctx.Done():
 			return
-		default:
-			// dispatch to each pro
-			m.dispatch()
 		}
 	}
 }

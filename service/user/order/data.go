@@ -541,6 +541,7 @@ func (o *OrderFull) sendData() {
 			}
 
 			if !o.hasSeg() {
+				time.Sleep(time.Second)
 				continue
 			}
 
