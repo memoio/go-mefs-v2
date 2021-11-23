@@ -92,6 +92,20 @@ func (a Address) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + a.String() + `"`), nil
 }
 
+// for cbor
+func (a *Address) UnmarshalBinary(data []byte) error {
+	id, err := newAddress(data)
+	if err != nil {
+		return err
+	}
+	*a = id
+	return nil
+}
+
+func (a Address) MarshalBinary() ([]byte, error) {
+	return a.Bytes(), nil
+}
+
 // ToEthAddress returns an address using the SECP256K1 protocol.
 // pubkey is 65 bytes
 func ToEthAddress(pubkey []byte) ([]byte, error) {

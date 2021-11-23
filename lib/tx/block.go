@@ -50,8 +50,6 @@ func (bh *BlockHeader) Deserialize(b []byte) (types.MsgID, error) {
 type Block struct {
 	BlockHeader
 	msign.MultiSignature
-
-	id types.MsgID
 }
 
 func (b *Block) Serialize() ([]byte, error) {
@@ -64,11 +62,5 @@ func (b *Block) Deserialize(d []byte) error {
 		return err
 	}
 
-	id, err := b.Hash()
-	if err != nil {
-		return err
-	}
-
-	b.id = id
 	return nil
 }

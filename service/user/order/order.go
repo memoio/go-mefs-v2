@@ -690,6 +690,14 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return ErrDataSign
 	}
 
+	usign, err := m.RoleSign(m.ctx, sHash, types.SigSecp256k1)
+	if err != nil {
+		return err
+	}
+
+	so.Psign = s.ProSig
+	so.Usign = usign
+
 	o.seq.ProDataSig = s.ProDataSig
 	o.seq.ProSig = s.ProSig
 
@@ -728,7 +736,31 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		Params:  data,
 	}
 
-	m.pp.PushMessage(msg)
+	// handle result and retry?
+	go func(msg *tx.Message) {
+		var mid types.MsgID
+		for {
+			id, err := m.pp.PushMessage(msg)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			mid = id
+			break
+		}
+
+		for {
+			st, err := m.pp.GetTxMsgStatus(mid)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			logger.Debug("tx message done: ", mid, st.BlockID, st.Height)
+			break
+		}
+
+	}(msg)
 
 	o.seqState = OrderSeq_Init
 	o.seq = nil

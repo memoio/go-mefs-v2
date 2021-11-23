@@ -20,6 +20,7 @@ type Store interface {
 	HasTxBlock(bid types.MsgID) (bool, error)
 
 	GetTxBlockByHeight(ht uint64) (types.MsgID, error)
+	PutTxBlockHeight(uint64, types.MsgID) error
 }
 
 var _ Store = (*TxStoreImpl)(nil)
@@ -164,8 +165,6 @@ func (ts *TxStoreImpl) PutTxBlock(tb *Block) error {
 	}
 
 	ts.blkCache.Add(bid, tb)
-	ts.htCache.Add(tb.Height, bid)
-
 	key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
 	sbyte, err := tb.Serialize()
 	if err != nil {
@@ -177,16 +176,19 @@ func (ts *TxStoreImpl) PutTxBlock(tb *Block) error {
 		return err
 	}
 
-	key = store.NewKey(pb.MetaType_Tx_BlockHeightKey, tb.Height)
+	err = ts.PutTxBlockHeight(tb.Height, bid)
+	if err != nil {
+		return err
+	}
 
-	err = ts.ds.Put(key, bid.Bytes())
+	err = ts.PutTxBlockHeight(tb.Height-1, tb.PrevID)
 	if err != nil {
 		return err
 	}
 
 	// store msg state; for what?
 	for i, mes := range tb.Txs {
-		ms := &TxMsgState{
+		ms := &MsgState{
 			BlockID: mes.ID,
 			Height:  tb.Height,
 			Status:  tb.Receipts[i].Err,
@@ -226,14 +228,32 @@ func (ts *TxStoreImpl) GetTxBlockByHeight(ht uint64) (types.MsgID, error) {
 	return bid, nil
 }
 
-func (ts *TxStoreImpl) GetTxMsgState(mid types.MsgID) (*TxMsgState, error) {
+func (ts *TxStoreImpl) PutTxBlockHeight(ht uint64, bid types.MsgID) error {
+	ok := ts.htCache.Contains(ht)
+	if ok {
+		return nil
+	}
+
+	key := store.NewKey(pb.MetaType_Tx_BlockHeightKey, ht)
+
+	err := ts.ds.Put(key, bid.Bytes())
+	if err != nil {
+		return err
+	}
+
+	ts.htCache.Add(ht, bid)
+
+	return nil
+}
+
+func (ts *TxStoreImpl) GetTxMsgState(mid types.MsgID) (*MsgState, error) {
 	key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mid.String())
 	val, err := ts.ds.Get(key)
 	if err != nil {
 		return nil, err
 	}
 
-	tms := new(TxMsgState)
+	tms := new(MsgState)
 	err = tms.Deserialize(val)
 	return tms, err
 }

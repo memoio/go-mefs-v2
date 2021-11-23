@@ -5,9 +5,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
+
+type msgTo struct {
+	mtime time.Time
+	msg   *tx.SignedMessage
+}
 
 type PushPool struct {
 	sync.RWMutex
@@ -16,9 +23,8 @@ type PushPool struct {
 
 	ctx context.Context
 
-	msg          []*tx.Message
-	pendingNonce uint64                    // pending
-	pendingMsg   map[types.MsgID]time.Time // to push
+	pendingNonce uint64                 // pending
+	pendingMsg   map[types.MsgID]*msgTo // to push
 
 	msgDone chan types.MsgID
 
@@ -31,18 +37,37 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 		ctx:      ctx,
 
 		pendingNonce: sp.GetNonce(sp.localID),
-		pendingMsg:   make(map[types.MsgID]time.Time),
+		pendingMsg:   make(map[types.MsgID]*msgTo),
 
 		msgDone: sp.msgDone,
 		ready:   false,
 	}
 
+	go pp.sync()
+
 	return pp
 }
 
-func (pp *PushPool) Sync() {
-	tc := time.NewTicker(30 * time.Second)
+func (pp *PushPool) sync() {
+	tc := time.NewTicker(5 * time.Second)
 	defer tc.Stop()
+
+	for {
+		ok := pp.GetSyncStatus()
+		if ok {
+			break
+		}
+
+		sh, rh := pp.GetSyncHeight()
+		logger.Debug("sync pool state: ", sh, rh, pp.SyncPool.ready)
+		time.Sleep(5 * time.Second)
+	}
+
+	pp.ready = true
+	pp.pendingNonce = pp.GetNonce(pp.localID)
+	logger.Debug("pool is ready")
+
+	pp.inPush = true
 
 	for {
 		select {
@@ -50,55 +75,29 @@ func (pp *PushPool) Sync() {
 			return
 		case mid := <-pp.msgDone:
 			pp.Lock()
+			logger.Debug("tx message done: ", mid.String())
 			delete(pp.pendingMsg, mid)
 			pp.Unlock()
 		case <-tc.C:
-			pp.Lock()
-			if pp.GetSyncStatus() && !pp.ready {
-				logger.Debug("push pool is ready")
-				pp.ready = true
-				pp.pendingNonce = pp.GetNonce(pp.localID)
-			}
-			pp.Unlock()
-
-			pp.Lock()
-			for mid, ctime := range pp.pendingMsg {
-				if time.Since(ctime) > 5*time.Minute {
-					sm, err := pp.GetTxMsg(mid)
-					if err != nil {
-						continue
-					}
-					pp.PushSignedMessage(sm)
+			pp.RLock()
+			for _, pmsg := range pp.pendingMsg {
+				if time.Since(pmsg.mtime) > 5*time.Minute {
+					pp.PushSignedMessage(pmsg.msg)
+					pmsg.mtime = time.Now()
 				}
 			}
-			pp.Unlock()
-		default:
-			pp.RLock()
-			if !pp.ready || len(pp.msg) == 0 {
-				pp.RUnlock()
-				continue
-			}
-			mes := pp.msg[0]
 			pp.RUnlock()
-			err := pp.PushMessage(mes)
-			if err != nil {
-				continue
-			}
-
-			pp.Lock()
-			pp.msg = pp.msg[1:]
-			pp.Unlock()
 		}
 	}
 }
 
-func (pp *PushPool) PushMessage(mes *tx.Message) error {
-	logger.Debug("add tx message pool to push pool")
+func (pp *PushPool) PushMessage(mes *tx.Message) (types.MsgID, error) {
+	logger.Debug("add tx message to push pool: ", pp.ready)
+
 	pp.Lock()
 	if !pp.ready {
-		pp.msg = append(pp.msg, mes)
 		pp.Unlock()
-		return nil
+		return types.MsgID{}, ErrNotReady
 	}
 
 	// get nonce
@@ -108,14 +107,14 @@ func (pp *PushPool) PushMessage(mes *tx.Message) error {
 	mid, err := mes.Hash()
 	if err != nil {
 		pp.Unlock()
-		return err
+		return mid, err
 	}
 
 	// sign
 	sig, err := pp.RoleSign(pp.ctx, mid.Bytes(), types.SigSecp256k1)
 	if err != nil {
 		pp.Unlock()
-		return err
+		return mid, err
 	}
 
 	sm := &tx.SignedMessage{
@@ -123,34 +122,49 @@ func (pp *PushPool) PushMessage(mes *tx.Message) error {
 		Signature: sig,
 	}
 
-	pp.pendingMsg[mid] = time.Now()
+	pp.pendingMsg[mid] = &msgTo{
+		mtime: time.Now(),
+		msg:   sm,
+	}
 	pp.Unlock()
 
 	return pp.PushSignedMessage(sm)
 }
 
-func (pp *PushPool) PushSignedMessage(sm *tx.SignedMessage) error {
+func (pp *PushPool) PushSignedMessage(sm *tx.SignedMessage) (types.MsgID, error) {
 	mid, err := sm.Hash()
 	if err != nil {
-		return err
+		return mid, err
 	}
 
 	err = pp.PutTxMsg(sm)
 	if err != nil {
-		return err
+		return mid, err
 	}
 
+	key := store.NewKey(pb.MetaType_TX_MessageKey, sm.From, sm.Nonce)
+	sbyte, err := sm.Serialize()
+	if err != nil {
+		return mid, err
+	}
+	pp.ds.Put(key, sbyte)
+
 	pp.Lock()
-	pp.pendingMsg[mid] = time.Now()
+	pp.pendingMsg[mid] = &msgTo{
+		mtime: time.Now(),
+		msg:   sm,
+	}
 	pp.Unlock()
+
+	logger.Debug("tx message: ", mid.String())
 
 	// push out immediately
 	err = pp.INetService.PublishTxMsg(pp.ctx, sm)
 	if err != nil {
-		return err
+		return mid, err
 	}
 
-	return nil
+	return mid, nil
 }
 
 func (pp *PushPool) ReplaceMsg(mes *tx.Message) error {

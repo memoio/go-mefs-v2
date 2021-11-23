@@ -10,10 +10,10 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
+// add: when >= nonce
 type msgSet struct {
-	min  uint64
-	max  uint64
-	info map[uint64]*tx.MessageDigest // key: nonce
+	nextDelete uint64
+	info       map[uint64]*tx.MessageDigest // key: nonce
 }
 
 type InPool struct {
@@ -38,6 +38,9 @@ func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
 
 	go pl.sync()
 
+	// enable inprocess callback
+	sp.inProcess = true
+
 	return pl
 }
 
@@ -48,9 +51,10 @@ func (mp *InPool) sync() {
 	for {
 		select {
 		case <-mp.ctx.Done():
+			logger.Debug("process block done")
 			return
 		case <-tc.C:
-			blk := mp.CreateBlock()
+			blk := mp.createBlock()
 
 			id, _ := blk.Hash()
 
@@ -63,34 +67,32 @@ func (mp *InPool) sync() {
 
 			tb.MultiSignature.Add(mp.localID, sig)
 
-			logger.Debug("create new block at height:", tb.Height)
+			logger.Debugf("create new block at height: %d, now: %s, prev: %s, has msg: %d", tb.Height, id.String(), blk.PrevID.String(), len(blk.Txs))
 
 			mp.INetService.PublishTxBlock(mp.ctx, tb)
 
 			mp.AddTxBlock(tb)
 
 		case bh := <-mp.blkDone:
-			mp.Lock()
 			logger.Debug("process new block:", bh.Height)
 
+			mp.Lock()
 			for _, md := range bh.Txs {
 				ms, ok := mp.pending[md.From]
 				if !ok {
 					ms = &msgSet{
-						min:  md.Nonce + 1,
-						max:  md.Nonce + 1,
-						info: make(map[uint64]*tx.MessageDigest),
+						nextDelete: md.Nonce,
+						info:       make(map[uint64]*tx.MessageDigest),
 					}
 
 					mp.pending[md.From] = ms
 				}
-				if ms.min < md.Nonce+1 {
-					ms.min = md.Nonce + 1
+
+				if ms.nextDelete != md.Nonce {
+					logger.Debug("block delete msg at: ", md.From, md.Nonce)
 				}
 
-				if ms.max < ms.min {
-					ms.max = ms.min
-				}
+				ms.nextDelete = md.Nonce + 1
 
 				delete(ms.info, md.Nonce)
 			}
@@ -125,16 +127,11 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	ms, ok := mp.pending[m.From]
 	if !ok {
 		ms = &msgSet{
-			min:  nonce,
-			max:  nonce,
-			info: make(map[uint64]*tx.MessageDigest),
+			nextDelete: nonce,
+			info:       make(map[uint64]*tx.MessageDigest),
 		}
 
 		mp.pending[m.From] = ms
-	}
-
-	if m.Nonce >= ms.max {
-		ms.max = m.Nonce + 1
 	}
 
 	ms.info[m.Nonce] = md
@@ -144,13 +141,14 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	return nil
 }
 
-func (mp *InPool) CreateBlock() tx.BlockHeader {
+func (mp *InPool) createBlock() tx.BlockHeader {
 	mp.Lock()
 	defer mp.Unlock()
 
 	// synced
 	_, rh := mp.GetSyncHeight()
-	bid, _ := mp.GetTxBlockByHeight(rh)
+
+	bid, _ := mp.GetTxBlockByHeight(rh - 1)
 
 	nbh := tx.BlockHeader{
 		Version: 1,
@@ -161,13 +159,17 @@ func (mp *InPool) CreateBlock() tx.BlockHeader {
 		Txs:     make([]tx.MessageDigest, 0, 16),
 	}
 
-	for _, ms := range mp.pending {
-		for i := ms.min; i < ms.max; i++ {
+	for from, ms := range mp.pending {
+		nc := mp.GetNonce(from)
+		for i := nc; ; i++ {
 			md, ok := ms.info[i]
 			if ok {
 				// validate message
+				tr := tx.Receipt{
+					Err: 0,
+				}
 				nbh.Txs = append(nbh.Txs, *md)
-				ms.min++
+				nbh.Receipts = append(nbh.Receipts, tr)
 			} else {
 				break
 			}

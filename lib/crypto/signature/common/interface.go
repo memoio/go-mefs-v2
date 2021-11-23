@@ -11,7 +11,6 @@ const (
 )
 
 var (
-	// ErrBadKeyType is returned when a key is not supported
 	ErrBadKeyType    = errors.New("invalid or unsupported key type")
 	ErrBadSign       = errors.New("invalid signature")
 	ErrBadMsg        = errors.New("invalid message")

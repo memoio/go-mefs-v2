@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"hash"
 
@@ -48,6 +49,39 @@ func (m MsgID) String() string {
 
 func (m MsgID) Hex() string {
 	return hex.EncodeToString(m.Bytes())
+}
+
+// json encode and decode
+func (m *MsgID) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + m.String() + `"`), nil
+}
+
+func (m *MsgID) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	id, err := FromString(s)
+	if err != nil {
+		return err
+	}
+	*m = id
+	return nil
+}
+
+// for cbor
+func (m *MsgID) UnmarshalBinary(data []byte) error {
+	id, err := FromBytes(data)
+	if err != nil {
+		return err
+	}
+	*m = id
+	return nil
+}
+
+func (m MsgID) MarshalBinary() ([]byte, error) {
+	return m.Bytes(), nil
 }
 
 func FromString(s string) (MsgID, error) {

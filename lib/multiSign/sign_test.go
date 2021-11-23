@@ -50,4 +50,12 @@ func TestMultiSign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	msb, _ := ms.Serialize()
+
+	nms := new(MultiSignature)
+
+	nms.Deserialize(msb)
+
+	t.Fatal(ms.Type, nms.Type)
 }

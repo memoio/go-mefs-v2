@@ -7,6 +7,6 @@ import (
 )
 
 func (k *KeeperNode) txMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
-	logger.Debug("received pub msg:", mes.Method, mes.From)
+	logger.Debug("received pub msg:", mes.From, mes.Nonce, mes.Method)
 	return k.inp.AddTxMsg(ctx, mes)
 }

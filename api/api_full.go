@@ -132,5 +132,5 @@ type IDataChain interface {
 	GetSyncHeight(context.Context) (uint64, uint64)
 	GetNonce(context.Context, uint64) uint64
 	GetPendingNonce(context.Context, uint64) uint64
-	GetTxMsgStatus(mid types.MsgID) (*tx.MessageState, error)
+	GetTxMsgStatus(mid types.MsgID) (*tx.MsgState, error)
 }

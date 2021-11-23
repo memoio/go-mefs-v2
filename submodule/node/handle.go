@@ -13,12 +13,12 @@ import (
 )
 
 func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
-	logger.Debug("received pub msg:", mes.Method, mes.From)
+	logger.Debug("received pub msg:", mes.From, mes.Nonce, mes.Method)
 	return n.PPool.SyncPool.AddTxMsg(ctx, mes)
 }
 
 func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.Block) error {
-	logger.Debug("received pub block:", blk.Height, blk.MinerID)
+	logger.Debug("received pub block:", blk.MinerID, blk.Height)
 	return n.PPool.SyncPool.AddTxBlock(blk)
 }
 

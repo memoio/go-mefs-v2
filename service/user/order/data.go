@@ -341,13 +341,16 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	m.segLock.RLock()
 	seg, ok := m.segs[jk]
 	m.segLock.RUnlock()
-	if ok {
-		id := uint(sj.Start-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
-		if !seg.dispatchBits.Test(id) {
-			logger.Warn("seg is not dispatch")
-		}
-		seg.doneBits.Set(id)
+	if !ok {
+		logger.Warn("fail finished seg: ", sj.JobID, sj.Start, sj.ChunkID)
+		return
 	}
+
+	id := uint(sj.Start-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
+	if !seg.dispatchBits.Test(id) {
+		logger.Warn("seg is not dispatch")
+	}
+	seg.doneBits.Set(id)
 
 	data, err := seg.Serialize()
 	if err != nil {
@@ -575,7 +578,7 @@ func (o *OrderFull) sendData() {
 				continue
 			}
 
-			logger.Debug("send segment:", sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
+			//logger.Debug("send segment:", sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
 
 			o.availTime = time.Now().Unix()
 

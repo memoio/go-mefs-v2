@@ -57,6 +57,7 @@ func TestMessage(t *testing.T) {
 func TestBlock(t *testing.T) {
 	b := new(Block)
 	b.BlockHeader.MinerID = 100
+	b.BlockHeader.PrevID = types.NewMsgID([]byte("test"))
 	b.MultiSignature.Type = types.SigBLS
 
 	id, err := b.Hash()
@@ -93,7 +94,9 @@ func TestBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := priv.GetPublic().Verify(nb.id.Bytes(), nb.MultiSignature.Data)
+	nid, _ := nb.Hash()
+
+	ok, err := priv.GetPublic().Verify(nid.Bytes(), nb.MultiSignature.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,5 +105,5 @@ func TestBlock(t *testing.T) {
 		t.Fatal("signature wrong")
 	}
 
-	t.Fatal(bid.String(), nb.id.String())
+	t.Fatal(bid.String(), nid.String(), b.PrevID.String(), nb.PrevID.String())
 }
