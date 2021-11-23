@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/libp2p/go-libp2p-core/protocol"
+
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 

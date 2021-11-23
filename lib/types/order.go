@@ -4,9 +4,10 @@ import (
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/sha3"
+
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 type OrderHash [32]byte

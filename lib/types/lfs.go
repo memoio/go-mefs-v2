@@ -20,9 +20,6 @@ type ObjectInfo struct {
 	Etag   []byte               `json:"MD5"`
 }
 
-// CompleteFunc is a function type that is called when the download completed.
-type CompleteFunc func(error) error
-
 type DownloadObjectOptions struct {
 	Start, Length int64
 }
@@ -45,10 +42,6 @@ func DefaultListOption() *ListObjectsOptions {
 		MaxKeys:   MaxListKeys,
 		Recursive: true,
 	}
-}
-
-type ListObjectsResult struct {
-	Objects []*pb.ObjectInfo
 }
 
 type PutObjectOptions struct {

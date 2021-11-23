@@ -137,19 +137,13 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				if len(buf)%aes.BlockSize != 0 {
 					buf = aes.PKCS5Padding(buf)
 				}
-				crypted := make([]byte, len(buf))
 
-				tmpkey := make([]byte, 48)
-				copy(tmpkey, dp.aesKey[:])
-				binary.BigEndian.PutUint64(tmpkey[32:], object.ObjectID)
-				binary.BigEndian.PutUint64(tmpkey[40:], curStripe+uint64(stripeCount))
-				hres := blake3.Sum256(tmpkey)
-
-				aesEnc, err := aes.ContructAesEnc(hres[:])
+				aesEnc, err := aes.ContructAesEnc(dp.aesKey[:], object.ObjectID, curStripe+uint64(stripeCount))
 				if err != nil {
 					return err
 				}
 
+				crypted := make([]byte, len(buf))
 				aesEnc.CryptBlocks(crypted, buf)
 				copy(buf, crypted)
 			}
@@ -320,13 +314,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 			}
 
 			if object.Encryption == "aes" {
-				tmpkey := make([]byte, 48)
-				copy(tmpkey, dp.aesKey[:])
-				binary.BigEndian.PutUint64(tmpkey[32:], object.ObjectID)
-				binary.BigEndian.PutUint64(tmpkey[40:], uint64(stripeID))
-				hres := blake3.Sum256(tmpkey)
-
-				aesDec, err := aes.ContructAesDec(hres[:])
+				aesDec, err := aes.ContructAesDec(dp.aesKey[:], object.ObjectID, uint64(stripeID))
 				if err != nil {
 					return err
 				}

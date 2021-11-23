@@ -9,7 +9,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
-	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -129,7 +128,7 @@ func (rm *RoleMgr) RoleVerify(ctx context.Context, id uint64, msg []byte, sig ty
 	return ok, nil
 }
 
-func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig mSign.MultiSignature) (bool, error) {
+func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.MultiSignature) (bool, error) {
 	switch sig.Type {
 	case types.SigSecp256k1:
 		for i, id := range sig.Signer {

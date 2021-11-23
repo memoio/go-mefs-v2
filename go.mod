@@ -4,9 +4,9 @@ go 1.15
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
+	github.com/OneOfOne/xxhash v1.2.5 // indirect
 	github.com/bits-and-blooms/bitset v1.2.1
 	github.com/btcsuite/btcd v0.22.0-beta
-	github.com/celestiaorg/smt v0.0.0-20210714161708-2c9076637cd9
 	github.com/chrislusf/seaweedfs v0.0.0-20211012155459-7700bf62f0ce
 	github.com/dgraph-io/badger/v2 v2.2007.4
 	github.com/ethereum/go-ethereum v1.10.9
@@ -21,7 +21,6 @@ require (
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/herumi/bls-eth-go-binary v0.0.0-20210917013441-d37c07cfda4e
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
-	github.com/iden3/go-iden3-core v0.0.8
 	github.com/ipfs/go-cid v0.1.0 // indirect
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-fs-lock v0.0.7
@@ -54,7 +53,6 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sakeven/RbTree v0.0.0-20190505104653-18ee3093df2f
 	github.com/stretchr/testify v1.7.0
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/zeebo/blake3 v0.2.1
 	go.uber.org/zap v1.19.1

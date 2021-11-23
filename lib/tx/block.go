@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
-	msign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -49,7 +48,7 @@ func (bh *BlockHeader) Deserialize(b []byte) (types.MsgID, error) {
 
 type Block struct {
 	BlockHeader
-	msign.MultiSignature
+	types.MultiSignature
 }
 
 func (b *Block) Serialize() ([]byte, error) {

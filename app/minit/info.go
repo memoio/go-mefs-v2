@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/libp2p/go-libp2p-core/host"
+
 	"github.com/memoio/go-mefs-v2/build"
 )
 

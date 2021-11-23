@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	msign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -62,7 +61,7 @@ func (mp *InPool) sync() {
 
 			tb := &tx.Block{
 				BlockHeader:    blk,
-				MultiSignature: msign.NewMultiSignature(types.SigSecp256k1),
+				MultiSignature: types.NewMultiSignature(types.SigSecp256k1),
 			}
 
 			tb.MultiSignature.Add(mp.localID, sig)

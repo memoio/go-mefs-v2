@@ -7,7 +7,6 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/address"
-	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -36,7 +35,7 @@ type CommonStruct struct {
 		RoleGetRelated  func(context.Context, pb.RoleInfo_Type) ([]uint64, error)             `perm:"read"`
 		RoleSign        func(context.Context, []byte, types.SigType) (types.Signature, error) `perm:"write"`
 		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)  `perm:"read"`
-		RoleVerifyMulti func(context.Context, []byte, mSign.MultiSignature) (bool, error)     `perm:"read"`
+		RoleVerifyMulti func(context.Context, []byte, types.MultiSignature) (bool, error)     `perm:"read"`
 	}
 }
 
@@ -108,7 +107,7 @@ func (s *CommonStruct) RoleVerify(ctx context.Context, id uint64, msg []byte, si
 	return s.Internal.RoleVerify(ctx, id, msg, sig)
 }
 
-func (s *CommonStruct) RoleVerifyMulti(ctx context.Context, msg []byte, sig mSign.MultiSignature) (bool, error) {
+func (s *CommonStruct) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.MultiSignature) (bool, error) {
 	return s.Internal.RoleVerifyMulti(ctx, msg, sig)
 }
 

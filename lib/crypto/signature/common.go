@@ -6,8 +6,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zeebo/blake3"
-	"golang.org/x/crypto/sha3"
 
+	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
@@ -83,10 +83,12 @@ func Verify(pubBytes []byte, data, sig []byte) (bool, error) {
 			return false, err
 		}
 
-		d := sha3.NewLegacyKeccak256()
-		d.Write(rePub[1:])
-		res := d.Sum(nil)
-		if bytes.Equal(pubBytes, res) {
+		eaddr, err := address.ToEthAddress(rePub)
+		if err != nil {
+			return false, err
+		}
+
+		if bytes.Equal(pubBytes, eaddr) {
 			return true, nil
 		}
 	default:

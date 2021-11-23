@@ -1,4 +1,4 @@
-package msign
+package test
 
 import (
 	"testing"
@@ -37,7 +37,7 @@ func TestMultiSign(t *testing.T) {
 		Data: sign2,
 	}
 
-	ms := new(MultiSignature)
+	ms := new(types.MultiSignature)
 	ms.Type = types.SigBLS
 
 	ms.Add(1, s1)
@@ -53,7 +53,7 @@ func TestMultiSign(t *testing.T) {
 
 	msb, _ := ms.Serialize()
 
-	nms := new(MultiSignature)
+	nms := new(types.MultiSignature)
 
 	nms.Deserialize(msb)
 

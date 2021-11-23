@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/bits-and-blooms/bitset"
-	mpb "github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 type PieceID [32]byte
@@ -58,7 +58,7 @@ func (pi *PieceMgr) AddPiece(pid PieceID, p *Piece) error {
 	return nil
 }
 
-func (pi *PieceMgr) AddSector(sid, proID uint64, swp *mpb.SectorPieces) error {
+func (pi *PieceMgr) AddSector(sid, proID uint64, swp *pb.SectorPieces) error {
 
 	// verify piece
 	for _, pie := range swp.PieceID {
@@ -79,10 +79,10 @@ func (pi *PieceMgr) AddSector(sid, proID uint64, swp *mpb.SectorPieces) error {
 }
 
 type SectorMgr struct {
-	sync.RWMutex                            // rw lock for sectors
-	sector       uint64                     // largest sector number; incremental from 0
-	sectorSet    *bitset.BitSet             // sectors per provider; for challenge
-	sectorMap    map[uint64]*mpb.SectorInfo // key: sectorID; value: *Sector
+	sync.RWMutex                           // rw lock for sectors
+	sector       uint64                    // largest sector number; incremental from 0
+	sectorSet    *bitset.BitSet            // sectors per provider; for challenge
+	sectorMap    map[uint64]*pb.SectorInfo // key: sectorID; value: *Sector
 }
 
 type PieceInfo struct {
@@ -93,7 +93,7 @@ type PieceInfo struct {
 
 // verify commd; verify proof
 type SectorCommit struct {
-	mpb.SectorInfo
+	pb.SectorInfo
 	sectorID uint64
 	pInfo    []PieceInfo
 	proof    []byte

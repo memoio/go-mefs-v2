@@ -20,7 +20,7 @@ const (
 var (
 	ErrKeyInfoNotFound = errors.New("key info not found")
 	ErrKeyExists       = errors.New("key already exists")
-	ErrKeyFromat       = errors.New("key format is wrong")
+	ErrKeyFormat       = errors.New("key format is wrong")
 )
 
 // KeyInfo is used for storing keys in KeyStore

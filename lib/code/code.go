@@ -2,10 +2,11 @@ package code
 
 import (
 	"github.com/klauspost/reedsolomon"
+
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
-	mpb "github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 )
 
@@ -55,7 +56,7 @@ func NewDataCoderWithDefault(keyset pdpcommon.KeySet, policy, dataCount, pairtyC
 }
 
 // NewDataCoderWithBopts contructs a new datacoder with bucketops
-func NewDataCoderWithBopts(keyset pdpcommon.KeySet, bo *mpb.BucketOption) (*DataCoder, error) {
+func NewDataCoderWithBopts(keyset pdpcommon.KeySet, bo *pb.BucketOption) (*DataCoder, error) {
 	return NewDataCoder(keyset, int(bo.Version), int(bo.Policy), int(bo.DataCount), int(bo.ParityCount), int(bo.TagFlag), int(bo.SegSize))
 }
 

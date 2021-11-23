@@ -11,7 +11,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
-	mSign "github.com/memoio/go-mefs-v2/lib/multiSign"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -85,7 +84,7 @@ type IRole interface {
 
 	RoleSign(context.Context, []byte, types.SigType) (types.Signature, error)
 	RoleVerify(context.Context, uint64, []byte, types.Signature) (bool, error)
-	RoleVerifyMulti(context.Context, []byte, mSign.MultiSignature) (bool, error)
+	RoleVerifyMulti(context.Context, []byte, types.MultiSignature) (bool, error)
 }
 
 type INetService interface {
