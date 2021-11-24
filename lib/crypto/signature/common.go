@@ -7,11 +7,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/zeebo/blake3"
 
-	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 func GenerateKey(typ types.KeyType) (common.PrivKey, error) {
@@ -83,7 +83,7 @@ func Verify(pubBytes []byte, data, sig []byte) (bool, error) {
 			return false, err
 		}
 
-		eaddr, err := address.ToEthAddress(rePub)
+		eaddr, err := utils.ToEthAddress(rePub)
 		if err != nil {
 			return false, err
 		}

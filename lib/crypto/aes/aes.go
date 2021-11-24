@@ -65,3 +65,41 @@ func PKCS5Padding(ciphertext []byte) []byte {
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(ciphertext, padtext...)
 }
+
+func AesEncrypt(origData, key []byte) ([]byte, error) {
+	if len(origData)%BlockSize != 0 {
+		return nil, ErrBlockSize
+	}
+	if len(key) != KeySize {
+		return nil, ErrKeySize
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	blockSize := block.BlockSize()
+	// 目前初始向量vi为key的前blocksize个字节
+	blockMode := cipher.NewCBCEncrypter(block, key[:blockSize])
+	crypted := make([]byte, len(origData))
+	blockMode.CryptBlocks(crypted, origData)
+	return crypted, nil
+}
+
+func AesDecrypt(crypted, key []byte) ([]byte, error) {
+	if len(crypted)%BlockSize != 0 {
+		return nil, ErrBlockSize
+	}
+	if len(key) != KeySize {
+		return nil, ErrKeySize
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	blockSize := block.BlockSize()
+	// 目前初始向量vi为key的前blocksize个字节
+	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
+	origData := make([]byte, len(crypted))
+	blockMode.CryptBlocks(origData, crypted)
+	return origData, nil
+}

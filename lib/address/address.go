@@ -7,7 +7,6 @@ import (
 
 	b58 "github.com/mr-tron/base58/base58"
 	"github.com/zeebo/blake3"
-	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -104,19 +103,6 @@ func (a *Address) UnmarshalBinary(data []byte) error {
 
 func (a Address) MarshalBinary() ([]byte, error) {
 	return a.Bytes(), nil
-}
-
-// ToEthAddress returns an address using the SECP256K1 protocol.
-// pubkey is 65 bytes
-func ToEthAddress(pubkey []byte) ([]byte, error) {
-	if len(pubkey) != 65 {
-		return nil, ErrInvalidLength
-	}
-
-	d := sha3.NewLegacyKeccak256()
-	d.Write(pubkey[1:])
-	payload := d.Sum(nil)
-	return payload[12:], nil
 }
 
 func NewAddress(payload []byte) (Address, error) {

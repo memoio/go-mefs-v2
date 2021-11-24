@@ -2,12 +2,14 @@ package utils
 
 import (
 	"encoding/binary"
+	"errors"
 	"math/rand"
 	"os"
 	"reflect"
 	"time"
 
 	"github.com/mitchellh/go-homedir"
+	"golang.org/x/crypto/sha3"
 )
 
 func GetMefsPath() (string, error) {
@@ -20,6 +22,19 @@ func GetMefsPath() (string, error) {
 		return "", err
 	}
 	return mefsPath, nil
+}
+
+// ToEthAddress returns an address using the SECP256K1 protocol.
+// pubkey is 65 bytes
+func ToEthAddress(pubkey []byte) ([]byte, error) {
+	if len(pubkey) != 65 {
+		return nil, errors.New("length should be 65")
+	}
+
+	d := sha3.NewLegacyKeccak256()
+	d.Write(pubkey[1:])
+	payload := d.Sum(nil)
+	return payload[12:], nil
 }
 
 func UintToBytes(v interface{}) []byte {
