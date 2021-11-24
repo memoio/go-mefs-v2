@@ -97,12 +97,14 @@ func (so *SignedOrder) Deserialize(b []byte) error {
 }
 
 type OrderSeq struct {
-	ID       OrderHash // fast lookup
-	SeqNum   uint32    // strict incremental from 0
-	Size     uint64    // accumulated
-	Price    *big.Int  //
+	UserID   uint64
+	ProID    uint64
+	Nonce    uint64
+	SeqNum   uint32   // strict incremental from 0
+	Size     uint64   // accumulated
+	Price    *big.Int //
 	Segments AggSegsQueue
-	//DataName    [][]byte // dataType/name/size; 多个dataName;
+	//Pieces    [][]byte // dataType/name/size; 多个dataName;
 }
 
 // key: 'SignedOrderSeq'/user/pro/nonce/seqnum; value: SignedOrderSeq

@@ -21,29 +21,21 @@ const (
 	DataTxErr MsgType = iota
 
 	// register
-	CreateRole     // 更新，在结算链上的信息改变的时候；by keeper/provider/user
-	UpdateGasMoney // by keeper/provider/user/fs
-	WithdrawFee    // 获取链上消息费; by keeper
+	CreateRole    // 更新，在结算链上的信息改变的时候；by keeper/provider/user
+	UpdateNetAddr // 更新网络地址; by provider; 或者user和provider私下协商
 
-	UpdateNetAddr // 更新网络地址; by provider; needed(?)； 或者user和provider私下协商
-
-	SetEpoch // 进入下一个周期；by keeper
-
-	// data tx; after user is added
+	// data ops
 	CreateBucket // by user
+	DataPreOrder // by user
+	DataOrder    // contain piece and segment; by user
 
-	// order
-	DataPreOrder    // by user
-	DataOrder       // contain piece and segment; by user
-	DataCommitOrder // by user or keeper; collect sign for order?
+	UpdateEpoch // 进入下一个周期；by keeper
 
-	CommitSector // confirm piece; by provider
-	SetChalEpoch // set chal epoch and seed
+	// chal and proof
 	SegmentProof // segment proof; by provider
-	SectorProof  // sector proof; by provider
 	SegmentFault // segment remove; by provider
-	SectorFault  // sector remove; by provider
-	PostIncome   // add post income for provider; by keeper
+
+	PostIncome // add post income for provider; by keeper
 )
 
 // MsgID(message) as key

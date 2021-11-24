@@ -587,6 +587,7 @@ func (o *OrderFull) sendData() {
 				BucketID: sid.GetBucketID(),
 				Start:    sid.GetStripeID(),
 				Length:   1,
+				ChunkID:  sid.GetChunkID(),
 			}
 
 			o.Lock()

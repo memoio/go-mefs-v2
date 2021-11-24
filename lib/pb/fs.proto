@@ -27,21 +27,20 @@ enum MetaType {
     LFS_OpCountKey = 17;      // key: x/userID/bucketID; val: op number
 
 	// key in state tree
-	ST_GasMoneyKey = 20;     // key: x/type/id; val: gasMoney  
-	ST_RoleInfoKey = 21;     // key: x/type/id; val: roleInfo
-	ST_BucketOptKey = 23;    // key: x/userID/bucketID; val: bucket option
-	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID
-	ST_SegExpireKey = 25;    // key: x/userID/bucketID/stripeID; value: length, expire
-	ST_PieceLocKey = 26;     // key: x/pieceID; value: userID, size, expire, proIDs, price, states	
-	ST_SectorInfoKey = 27;   // key: x/proID/sectorID; val: SectorInfo	
-	ST_DataOrderKey = 30;    // key: x/userID/proID/nonce; value: OrderBase, seqnum, psize, ssize, []dataName, psize(lost), ssize(lost), []dataName(lost);
+	ST_RoleInfoKey = 20;     // key: x/type/id; val: roleInfo
+	ST_BucketOptKey = 21;    // key: x/userID/bucketID; val: bucket option
+	ST_OrderBaseKey = 22;    // key: x/userID/proID/nonce; val: SignedOrderBase;
+	ST_OrderSeqKey = 23;     // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
+	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
+	St_SegAggKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap
 
 	ST_EpochKey = 31;        // key: x; val: l3, l2, last, current 
 	//ST_ChalSeedKey = 32;     // key: x/epoch; val: height, seed, time
 	ST_IncomeKey = 33;       // key: x/proID/epoch; value: expected(lifecycle), income, lost, []sign
 	ST_ChalSegResKey = 34;   // key: x/proID/userID/epoch; value: proof	  
 	ST_ChalSecResKey = 35;   // key: x/proID/epoch; value: proof	
-	
+
+
 	// data meta
     PieceInfoKey = 40;      // key: x/pieceID; val: PieceInfo; on provider    
     SectorPiecesKey = 41;   // key: x/sectorID, val: SectorPieces; on provider
@@ -51,7 +50,7 @@ enum MetaType {
 
 	SegLocationKey = 45;    // key: x/segID; val: proID
 
-	// order
+	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
 	OrderBaseKey = 51;       // key: x/userID/proID/nonce; value: OrderBase
 	OrderSeqNumKey = 52;     // key: x/userID/proID/nonce; value: seqnum, OrderSeqState

@@ -6,8 +6,6 @@ import (
 	"math/big"
 	"sort"
 	"testing"
-
-	"github.com/zeebo/blake3"
 )
 
 func TestAggSegs(t *testing.T) {
@@ -43,8 +41,6 @@ func TestAggSegs(t *testing.T) {
 		Length:   10,
 	}
 
-	id := blake3.Sum256([]byte("test"))
-
 	asq.Push(as1)
 	asq.Push(as4)
 	asq.Push(as2)
@@ -65,7 +61,6 @@ func TestAggSegs(t *testing.T) {
 	os.Segments = asq
 	os.Size = 1
 	os.Price = big.NewInt(10)
-	os.ID = id
 
 	os.Segments.Push(as1)
 
@@ -79,7 +74,6 @@ func TestAggSegs(t *testing.T) {
 
 	nos.Price = big.NewInt(10)
 	nos.Size = 1
-	nos.ID = id
 
 	nosbyte, _ := nos.Serialize()
 

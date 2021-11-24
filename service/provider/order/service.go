@@ -123,6 +123,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 			BucketID: seg.SegmentID().GetBucketID(),
 			Start:    seg.SegmentID().GetStripeID(),
 			Length:   1,
+			ChunkID:  seg.SegmentID().GetChunkID(),
 		}
 
 		or.seq.Segments.Push(as)

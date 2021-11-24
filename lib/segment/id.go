@@ -105,3 +105,14 @@ func FromBytes(b []byte) (SegmentID, error) {
 
 	return &BaseSegmentID{buf: b}, nil
 }
+
+func CreateSegmentID(fid []byte, bid, sid uint64, cid uint32) []byte {
+	segID := make([]byte, SEGMENTID_LEN)
+	copy(segID[:FSID_LEN], fid)
+
+	binary.BigEndian.PutUint64(segID[FSID_LEN:FSID_LEN+8], bid)
+	binary.BigEndian.PutUint64(segID[FSID_LEN+8:FSID_LEN+16], sid)
+	binary.BigEndian.PutUint32(segID[FSID_LEN+16:SEGMENTID_LEN], cid)
+
+	return segID
+}

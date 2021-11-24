@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/bits-and-blooms/bitset"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 

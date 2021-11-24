@@ -485,11 +485,12 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 		if !o.hasSeg() {
 			return ErrEmpty
 		}
-		id := o.base.Hash()
 
 		s := &types.SignedOrderSeq{
 			OrderSeq: types.OrderSeq{
-				ID:     id,
+				UserID: o.base.UserID,
+				ProID:  o.base.ProID,
+				Nonce:  o.base.Nonce,
 				SeqNum: o.seqNum,
 				Price:  new(big.Int).Set(o.accPrice),
 				Size:   o.accSize,
