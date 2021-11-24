@@ -24,6 +24,7 @@ import (
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
+	"github.com/memoio/go-mefs-v2/submodule/state"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
@@ -54,6 +55,8 @@ type BaseNode struct {
 	httpHandle *mux.Router
 
 	PPool *txPool.PushPool
+
+	StateDB *state.StateMgr
 
 	ShutdownChan chan struct{}
 

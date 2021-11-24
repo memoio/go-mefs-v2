@@ -9,10 +9,15 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
+type mesWithID struct {
+	mid types.MsgID
+	mes *tx.Message
+}
+
 // add: when >= nonce
 type msgSet struct {
 	nextDelete uint64
-	info       map[uint64]*tx.MessageDigest // key: nonce
+	info       map[uint64]*mesWithID // key: nonce
 }
 
 type InPool struct {
@@ -24,6 +29,10 @@ type InPool struct {
 
 	pending map[uint64]*msgSet // key: from; all currently processable tx
 
+	vf ValidateMessageFunc
+
+	msgChan chan *tx.Message
+
 	blkDone chan *tx.BlockHeader
 }
 
@@ -32,8 +41,11 @@ func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
 		ctx:      ctx,
 		SyncPool: sp,
 		pending:  make(map[uint64]*msgSet),
+		msgChan:  make(chan *tx.Message, 128),
 		blkDone:  sp.blkDone,
 	}
+
+	pl.vf = pl.ValidateMsg // todo
 
 	go pl.sync()
 
@@ -52,6 +64,29 @@ func (mp *InPool) sync() {
 		case <-mp.ctx.Done():
 			logger.Debug("process block done")
 			return
+		case m := <-mp.msgChan:
+			id, err := m.Hash()
+			if err != nil {
+				continue
+			}
+
+			md := &mesWithID{
+				mid: id,
+				mes: m,
+			}
+
+			mp.Lock()
+			ms, ok := mp.pending[m.From]
+			if !ok {
+				ms = &msgSet{
+					nextDelete: m.Nonce,
+					info:       make(map[uint64]*mesWithID),
+				}
+
+				mp.pending[m.From] = ms
+			}
+			ms.info[m.Nonce] = md
+			mp.Unlock()
 		case <-tc.C:
 			blk := mp.createBlock()
 
@@ -81,7 +116,7 @@ func (mp *InPool) sync() {
 				if !ok {
 					ms = &msgSet{
 						nextDelete: md.Nonce,
-						info:       make(map[uint64]*tx.MessageDigest),
+						info:       make(map[uint64]*mesWithID),
 					}
 
 					mp.pending[md.From] = ms
@@ -111,31 +146,7 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 		return err
 	}
 
-	id, err := m.Hash()
-	if err != nil {
-		return err
-	}
-
-	md := &tx.MessageDigest{
-		ID:    id,
-		From:  m.From,
-		Nonce: m.Nonce,
-	}
-
-	mp.Lock()
-	ms, ok := mp.pending[m.From]
-	if !ok {
-		ms = &msgSet{
-			nextDelete: nonce,
-			info:       make(map[uint64]*tx.MessageDigest),
-		}
-
-		mp.pending[m.From] = ms
-	}
-
-	ms.info[m.Nonce] = md
-
-	mp.Unlock()
+	mp.msgChan <- &m.Message
 
 	return nil
 }
@@ -158,16 +169,32 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 		Txs:     make([]tx.MessageDigest, 0, 16),
 	}
 
+	if mp.vf == nil {
+		return nbh
+	}
+
 	for from, ms := range mp.pending {
 		nc := mp.GetNonce(from)
 		for i := nc; ; i++ {
-			md, ok := ms.info[i]
+			m, ok := ms.info[i]
 			if ok {
 				// validate message
 				tr := tx.Receipt{
 					Err: 0,
 				}
-				nbh.Txs = append(nbh.Txs, *md)
+				err := mp.vf(m.mes)
+				if err != nil {
+					tr.Err = 1
+					tr.Extra = []byte(err.Error())
+				}
+
+				md := tx.MessageDigest{
+					ID:    m.mid,
+					From:  m.mes.From,
+					Nonce: m.mes.Nonce,
+				}
+
+				nbh.Txs = append(nbh.Txs, md)
 				nbh.Receipts = append(nbh.Receipts, tr)
 			} else {
 				break
@@ -178,7 +205,6 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 	return nbh
 }
 
-func (mp *InPool) PushBlock(m *tx.Message) bool {
-
-	return false
+func (mp *InPool) ValidateMsg(m *tx.Message) error {
+	return nil
 }

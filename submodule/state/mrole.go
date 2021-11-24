@@ -2,43 +2,15 @@ package state
 
 import (
 	"encoding/binary"
-	"sync"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
+
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-// lastest state for apply
-type stateMgr struct {
-	sync.RWMutex
-
-	ds store.KVStore
-
-	users []uint64
-	pros  []uint64
-	oInfo map[orderKey]*orderInfo
-	sInfo map[uint64]*segPerUser // key: userID
-}
-
-func NewStateDB(ds store.KVStore) *stateMgr {
-	s := &stateMgr{
-		users: make([]uint64, 0, 16),
-		pros:  make([]uint64, 0, 16),
-		sInfo: make(map[uint64]*segPerUser),
-	}
-
-	s.load()
-
-	return s
-}
-
-func (s *stateMgr) load() {
-	// load?
-}
-
-func (s *stateMgr) getUser(userID uint64) (*segPerUser, error) {
+func (s *StateMgr) getUser(userID uint64) (*segPerUser, error) {
 	spu, ok := s.sInfo[userID]
 	if ok {
 		return spu, nil
@@ -86,7 +58,7 @@ func (s *stateMgr) getUser(userID uint64) (*segPerUser, error) {
 	return spu, nil
 }
 
-func (s *stateMgr) AddRole(pri *pb.RoleInfo) error {
+func (s *StateMgr) AddRole(pri *pb.RoleInfo) error {
 	switch pri.Type {
 	case pb.RoleInfo_Provider:
 		s.Lock()

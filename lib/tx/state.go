@@ -8,7 +8,7 @@ import (
 type MsgState struct {
 	BlockID types.MsgID
 	Height  uint64
-	Status  ErrCode // return code
+	Status  Receipt
 }
 
 func (ms *MsgState) Serialize() ([]byte, error) {

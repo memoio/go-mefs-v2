@@ -20,22 +20,14 @@ var (
 const (
 	DataTxErr MsgType = iota
 
-	// register
-	CreateRole    // 更新，在结算链上的信息改变的时候；by keeper/provider/user
-	UpdateNetAddr // 更新网络地址; by provider; 或者user和provider私下协商
-
-	// data ops
+	UpdateEpoch  // next epoch, by keeper
+	CreateRole   // register, by keeper/provider/user
 	CreateBucket // by user
 	DataPreOrder // by user
 	DataOrder    // contain piece and segment; by user
-
-	UpdateEpoch // 进入下一个周期；by keeper
-
-	// chal and proof
 	SegmentProof // segment proof; by provider
 	SegmentFault // segment remove; by provider
-
-	PostIncome // add post income for provider; by keeper
+	PostIncome   // add post income for provider; by keeper
 )
 
 // MsgID(message) as key
@@ -102,8 +94,7 @@ func (m *Message) Deserialize(b []byte) (types.MsgID, error) {
 // 4. gas is enough
 type SignedMessage struct {
 	Message
-	Signature types.Signature // signed by Tx.From;
-	id        types.MsgID
+	Signature types.Signature // signed by Tx.From
 }
 
 func (sm *SignedMessage) Serialize() ([]byte, error) {
@@ -111,16 +102,5 @@ func (sm *SignedMessage) Serialize() ([]byte, error) {
 }
 
 func (sm *SignedMessage) Deserialize(b []byte) error {
-	err := cbor.Unmarshal(b, sm)
-	if err != nil {
-		return nil
-	}
-
-	id, err := sm.Hash()
-	if err != nil {
-		return nil
-	}
-
-	sm.id = id
-	return nil
+	return cbor.Unmarshal(b, sm)
 }

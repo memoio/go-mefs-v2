@@ -4,16 +4,17 @@ import (
 	"encoding/binary"
 
 	"github.com/bits-and-blooms/bitset"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
+	"github.com/zeebo/blake3"
+
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/zeebo/blake3"
 )
 
-func (s *stateMgr) getBucketManage(spu *segPerUser, userID, bucketID uint64) *bucketManage {
+func (s *StateMgr) getBucketManage(spu *segPerUser, userID, bucketID uint64) *bucketManage {
 	bm, ok := spu.buckets[bucketID]
 	if ok {
 		return bm
@@ -43,7 +44,7 @@ func (s *stateMgr) getBucketManage(spu *segPerUser, userID, bucketID uint64) *bu
 	return bm
 }
 
-func (s *stateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint64) *chalManage {
+func (s *StateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint64) *chalManage {
 	cm, ok := bm.accHw[proID]
 	if ok {
 		return cm
@@ -70,7 +71,7 @@ func (s *stateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint6
 	return cm
 }
 
-func (s *stateMgr) AddBucket(userID, bucketID uint64, pbo *pb.BucketOption) error {
+func (s *StateMgr) AddBucket(userID, bucketID uint64, pbo *pb.BucketOption) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -114,7 +115,7 @@ func (s *stateMgr) AddBucket(userID, bucketID uint64, pbo *pb.BucketOption) erro
 	return nil
 }
 
-func (s *stateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
+func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
 	uinfo, err := s.getUser(userID)
 	if err != nil {
 		return err

@@ -4,12 +4,13 @@ import (
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (s *stateMgr) getOrder(userID, proID uint64) *orderInfo {
+func (s *StateMgr) getOrder(userID, proID uint64) *orderInfo {
 	okey := orderKey{
 		userID: userID,
 		proID:  proID,
@@ -45,7 +46,7 @@ func (s *stateMgr) getOrder(userID, proID uint64) *orderInfo {
 	return oinfo
 }
 
-func (s *stateMgr) AddOrder(or *types.SignedOrder) error {
+func (s *StateMgr) AddOrder(or *types.SignedOrder) error {
 	// verify sign
 
 	s.Lock()
@@ -87,7 +88,7 @@ func (s *stateMgr) AddOrder(or *types.SignedOrder) error {
 	return nil
 }
 
-func (s *stateMgr) AddSeq(so *types.SignedOrderSeq) error {
+func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 	// verify sign
 
 	s.Lock()

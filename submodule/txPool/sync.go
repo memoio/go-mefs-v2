@@ -40,6 +40,8 @@ type SyncPool struct {
 
 	syncChan chan struct{}
 
+	mf HandlerMessageFunc
+
 	ready bool
 
 	msgDone chan types.MsgID
@@ -158,6 +160,11 @@ func (sp *SyncPool) sync() {
 			}
 		}
 
+		if sp.mf == nil {
+			logger.Debug("regular process block need msg handle")
+			continue
+		}
+
 		logger.Debug("regular process block:", sp.nextHeight, sp.remoteHeight)
 
 		// process syncd blk
@@ -198,25 +205,11 @@ func (sp *SyncPool) sync() {
 
 func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 	logger.Debug("process block:", sb.Height)
-	id, err := sb.Hash()
-	if err != nil {
-		return err
-	}
-	ms := &tx.MsgState{
-		BlockID: id,
-		Height:  sb.Height,
-	}
-
-	msb, err := ms.Serialize()
-	if err != nil {
-		return err
-	}
-
 	buf := make([]byte, 8)
 	for i := 0; i < sb.msgCount; i++ {
 		tx := sb.Txs[i]
-		key := store.NewKey(pb.MetaType_Tx_NonceKey, tx.From)
 
+		key := store.NewKey(pb.MetaType_Tx_NonceKey, tx.From)
 		nextNonce, ok := sp.nonce[tx.From]
 		if !ok {
 			val, err := sp.ds.Get(key)
@@ -232,13 +225,16 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		sp.nonce[tx.From] = tx.Nonce + 1
 
 		// apply message
-		sp.applyMsg(sb.msg[i])
+		if sb.Receipts[i].Err == 0 {
+			err := sp.mf(sb.msg[i])
+			if err != nil {
+				// should not; todo
+				logger.Error("fail to apply: ", err)
+			}
+		}
 
 		binary.BigEndian.PutUint64(buf, tx.Nonce+1)
 		sp.ds.Put(key, buf)
-
-		key = store.NewKey(pb.MetaType_Tx_MessageStateKey, tx.ID.Bytes())
-		sp.ds.Put(key, msb)
 
 		if tx.From == sp.localID {
 			if sp.inPush {
@@ -255,7 +251,7 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 }
 
 func (sp *SyncPool) GetSyncStatus() bool {
-	if sp.nextHeight <= sp.remoteHeight && sp.remoteHeight-sp.nextHeight < 3 && sp.ready {
+	if sp.nextHeight == sp.remoteHeight && sp.ready {
 		return true
 	}
 	return false
@@ -423,18 +419,8 @@ func (sp *SyncPool) GetTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
 	return sm, sp.AddTxMsg(sp.ctx, sm)
 }
 
-func (sp *SyncPool) applyMsg(mes *tx.Message) error {
-	logger.Debug("block apply message:", mes.From, mes.Nonce, mes.Method)
-	switch mes.Method {
-	case tx.DataOrder:
-		so := new(types.SignedOrder)
-		err := so.Deserialize(mes.Params)
-		if err != nil {
-			return err
-		}
-
-		logger.Debug("block apply message: ", so)
-	default:
-	}
-	return nil
+func (sp *SyncPool) RegisterMsgFunc(h HandlerMessageFunc) {
+	sp.Lock()
+	sp.mf = h
+	sp.Unlock()
 }

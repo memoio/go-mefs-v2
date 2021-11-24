@@ -191,7 +191,7 @@ func (ts *TxStoreImpl) PutTxBlock(tb *Block) error {
 		ms := &MsgState{
 			BlockID: mes.ID,
 			Height:  tb.Height,
-			Status:  tb.Receipts[i].Err,
+			Status:  tb.Receipts[i],
 		}
 
 		msb, err := ms.Serialize()

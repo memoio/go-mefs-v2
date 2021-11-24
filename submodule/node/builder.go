@@ -20,6 +20,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
+	"github.com/memoio/go-mefs-v2/submodule/state"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
@@ -216,6 +217,11 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	sp := txPool.NewSyncPool(ctx, id, nd.MetaStore(), txs, rm, cs)
 
 	nd.PPool = txPool.NewPushPool(ctx, sp)
+
+	nd.StateDB = state.NewStateDB(nd.MetaStore(), rm)
+
+	// register apply msg
+	nd.PPool.RegisterMsgFunc(nd.StateDB.AppleyMsg)
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
 

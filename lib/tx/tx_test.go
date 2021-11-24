@@ -42,7 +42,9 @@ func TestMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := priv.GetPublic().Verify(nsm.id.Bytes(), nsm.Signature.Data)
+	nid, _ := nsm.Hash()
+
+	ok, err := priv.GetPublic().Verify(nid.Bytes(), nsm.Signature.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +53,7 @@ func TestMessage(t *testing.T) {
 		t.Fatal("signature wrong")
 	}
 
-	t.Fatal(id.Hex(), nsm.id.Hex(), nsm.GasLimit, nsm.GasPrice, nsm.Message.To)
+	t.Fatal(id.Hex(), nid.Hex(), nsm.GasLimit, nsm.GasPrice, nsm.Message.To)
 }
 
 func TestBlock(t *testing.T) {
