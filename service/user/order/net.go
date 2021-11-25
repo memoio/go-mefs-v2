@@ -84,7 +84,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 		return ErrNotFound
 	}
 
-	ob := new(types.OrderBase)
+	ob := new(types.SignedOrder)
 	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), ob)
 	if err != nil {
 		logger.Debug("fail get new order ack from: ", proID, err)

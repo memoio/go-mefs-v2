@@ -42,19 +42,15 @@ type OrderBase struct {
 	PiecePrice *big.Int
 }
 
-func (b *OrderBase) Hash() OrderHash {
-	var oh OrderHash
-
+func (b *OrderBase) Hash() ([]byte, error) {
 	buf, err := cbor.Marshal(b)
 	if err != nil {
-		return oh
+		return nil, err
 	}
 
 	h := blake3.Sum256(buf)
 
-	copy(oh[:], h[:])
-
-	return oh
+	return h[:], nil
 }
 
 func (b *OrderBase) Serialize() ([]byte, error) {

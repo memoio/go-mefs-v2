@@ -86,7 +86,7 @@ func (s *StateMgr) AddBucket(userID, bucketID uint64, pbo *pb.BucketOption) erro
 	}
 
 	if uinfo.nextBucket != bucketID {
-		return ErrRes
+		return ErrBucket
 	}
 
 	bm := &bucketManage{
@@ -131,13 +131,13 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 		s.sInfo[userID] = uinfo
 	}
 	if uinfo.nextBucket <= bucketID {
-		return ErrRes
+		return ErrBucket
 	}
 
 	binfo := s.getBucketManage(uinfo, userID, bucketID)
 
 	if int(chunkID) >= len(binfo.chunks) {
-		return ErrRes
+		return ErrChunk
 	}
 
 	cm := s.getChalManage(binfo, userID, bucketID, proID)
@@ -145,7 +145,7 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	// check whether has it already
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
 		if cm.avail.Test(uint(i)) {
-			return ErrRes
+			return ErrDuplicate
 		}
 	}
 
@@ -201,7 +201,7 @@ func (s *StateMgr) CanAddBucket(userID, bucketID uint64, pbo *pb.BucketOption) e
 	}
 
 	if uinfo.nextBucket != bucketID {
-		return ErrRes
+		return ErrBucket
 	}
 
 	bm := &bucketManage{
@@ -227,13 +227,13 @@ func (s *StateMgr) CanAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 		s.validateSInfo[userID] = uinfo
 	}
 	if uinfo.nextBucket <= bucketID {
-		return ErrRes
+		return ErrBucket
 	}
 
 	binfo := s.getBucketManage(uinfo, userID, bucketID)
 
 	if int(chunkID) >= len(binfo.chunks) {
-		return ErrRes
+		return ErrChunk
 	}
 
 	cm := s.getChalManage(binfo, userID, bucketID, proID)
@@ -241,7 +241,7 @@ func (s *StateMgr) CanAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 	// check whether has it already
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
 		if cm.avail.Test(uint(i)) {
-			return ErrRes
+			return ErrDuplicate
 		}
 	}
 

@@ -2,7 +2,6 @@ package state
 
 import (
 	"errors"
-	"math/big"
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
@@ -20,7 +19,12 @@ const (
 )
 
 var (
-	ErrRes = errors.New("erros result")
+	ErrRes       = errors.New("erros result")
+	ErrNonce     = errors.New("nonce is wrong")
+	ErrSeq       = errors.New("seq is wrong")
+	ErrBucket    = errors.New("bucket is wrong")
+	ErrChunk     = errors.New("chunk is wrong")
+	ErrDuplicate = errors.New("chunk is duplicate")
 )
 
 type orderKey struct {
@@ -34,11 +38,8 @@ type orderInfo struct {
 	// for veirfy order
 	Nonce  uint64
 	SeqNum uint32
-	Size   uint64
-	Price  *big.Int
 
-	AccSize  uint64
-	AccPrice *big.Int
+	base *types.SignedOrder
 }
 
 type segPerUser struct {

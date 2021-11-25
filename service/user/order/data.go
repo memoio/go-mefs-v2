@@ -598,9 +598,6 @@ func (o *OrderFull) sendData() {
 			o.seq.Price.Add(o.seq.Price, big.NewInt(100))
 			o.seq.Size += 1
 
-			o.accPrice.Add(o.accPrice, big.NewInt(100))
-			o.accSize += 1
-
 			bjob = o.jobs[bid]
 			bjob.jobs = bjob.jobs[1:]
 			o.inflight = false

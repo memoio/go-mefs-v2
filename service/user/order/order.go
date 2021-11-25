@@ -65,16 +65,13 @@ type OrderFull struct {
 	nonce  uint64 // next nonce
 	seqNum uint32 // next seq
 
-	base       *types.OrderBase // quotation-> base
+	base       *types.SignedOrder // quotation-> base
 	orderTime  int64
 	orderState OrderState
 
 	seq      *types.SignedOrderSeq
 	seqTime  int64
 	seqState OrderSeqState
-
-	accPrice *big.Int
-	accSize  uint64
 
 	inflight bool // data is sending
 	inStop   bool // stop receiving data; duo to high price or long unavil
@@ -105,8 +102,6 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 		availTime: time.Now().Unix() - 300,
 
-		accPrice: new(big.Int),
-
 		buckets: make([]uint64, 0, 8),
 		jobs:    make(map[uint64]*bucketJob),
 
@@ -131,7 +126,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		return op
 	}
 
-	ob := new(types.OrderBase)
+	ob := new(types.SignedOrder)
 	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, id, ns.Nonce)
 	val, err = m.ds.Get(key)
 	if err != nil {
@@ -173,9 +168,6 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	op.seqState = ss.State
 	op.seqTime = ss.Time
 	op.seqNum = ss.Number + 1
-
-	op.accPrice.Set(op.seq.Price)
-	op.accSize = op.seq.Size
 
 	return op
 }
@@ -269,6 +261,52 @@ func (m *OrderMgr) check(o *OrderFull) {
 	}
 }
 
+func saveOrderBase(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderBaseKey, o.localID, o.pro, o.base.Nonce)
+	data, err := o.base.Serialize()
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, data)
+}
+
+func saveOrderState(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderNonceKey, o.localID, o.pro)
+	ns := &NonceState{
+		Nonce: o.base.Nonce,
+		Time:  o.orderTime,
+		State: o.orderState,
+	}
+	val, err := cbor.Marshal(ns)
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, val)
+}
+
+func saveOrderSeq(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderSeqKey, o.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
+	data, err := o.seq.Serialize()
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, data)
+}
+
+func saveSeqState(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderSeqNumKey, o.localID, o.pro, o.base.Nonce)
+	ss := SeqState{
+		Number: o.seq.SeqNum,
+		Time:   o.seqTime,
+		State:  o.seqState,
+	}
+	val, err := cbor.Marshal(ss)
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, val)
+}
+
 // create a new order
 func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 	logger.Debug("handle create order")
@@ -286,16 +324,26 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 			return ErrPrice
 		}
 
-		o.base = &types.OrderBase{
-			UserID:     o.localID,
-			ProID:      quo.ProID,
-			Nonce:      o.nonce,
-			TokenIndex: quo.TokenIndex,
-			SegPrice:   quo.SegPrice,
-			PiecePrice: quo.PiecePrice,
-			Start:      time.Now().Unix(),
-			End:        time.Now().Unix() + 8640000,
+		o.base = &types.SignedOrder{
+			OrderBase: types.OrderBase{
+				UserID:     o.localID,
+				ProID:      quo.ProID,
+				Nonce:      o.nonce,
+				TokenIndex: quo.TokenIndex,
+				SegPrice:   quo.SegPrice,
+				PiecePrice: quo.PiecePrice,
+				Start:      time.Now().Unix(),
+				End:        time.Now().Unix() + 8640000,
+			},
+			Size:  0,
+			Price: big.NewInt(0),
 		}
+
+		osig, err := m.RoleSign(m.ctx, m.localID, o.base.Hash(), types.SigSecp256k1)
+		if err != nil {
+			return err
+		}
+		o.base.Usign = osig
 
 		o.nonce++
 		o.orderState = Order_Wait
@@ -304,33 +352,15 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		// reset seq
 		o.seqNum = 0
 		o.seqState = OrderSeq_Init
-		o.accPrice = big.NewInt(0)
-		o.accSize = 0
 
-		data, err := o.base.Serialize()
+		// save signed order base; todo
+		err = saveOrderBase(o, m.ds)
 		if err != nil {
 			return err
 		}
 
-		key := store.NewKey(pb.MetaType_OrderBaseKey, o.localID, o.pro, o.base.Nonce)
-		err = m.ds.Put(key, data)
-		if err != nil {
-			return err
-		}
-
-		ns := &NonceState{
-			Nonce: o.base.Nonce,
-			Time:  o.orderTime,
-			State: o.orderState,
-		}
-
-		val, err := cbor.Marshal(ns)
-		if err != nil {
-			return err
-		}
-
-		key = store.NewKey(pb.MetaType_OrderNonceKey, o.localID, o.pro)
-		err = m.ds.Put(key, val)
+		// save nonce state
+		err = saveOrderState(o, m.ds)
 		if err != nil {
 			return err
 		}
@@ -349,33 +379,37 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 }
 
 // confirm base when receive pro ack; init -> running
-func (m *OrderMgr) runOrder(o *OrderFull, ob *types.OrderBase) error {
+func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 	logger.Debug("handle run order")
 	if o.base == nil || o.orderState != Order_Wait {
 		return ErrState
 	}
 
+	// validate
+	ok, err := m.RoleVerify(m.ctx, o.pro, o.base.Hash(), ob.Psign)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrDataSign
+	}
+
 	o.orderState = Order_Running
 	o.orderTime = time.Now().Unix()
 
-	ns := &NonceState{
-		Nonce: o.base.Nonce,
-		Time:  o.orderTime,
-		State: o.orderState,
-	}
-
-	val, err := cbor.Marshal(ns)
+	// save signed order base; todo
+	err = saveOrderBase(o, m.ds)
 	if err != nil {
 		return err
 	}
 
-	key := store.NewKey(pb.MetaType_OrderNonceKey, o.localID, o.pro)
-	err = m.ds.Put(key, val)
+	// save nonce state
+	err = saveOrderState(o, m.ds)
 	if err != nil {
 		return err
 	}
 
-	// push out
+	// push out; todo
 
 	return nil
 }
@@ -390,19 +424,8 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	o.orderState = Order_Closing
 	o.orderTime = time.Now().Unix()
 
-	ns := &NonceState{
-		Nonce: o.base.Nonce,
-		Time:  o.orderTime,
-		State: o.orderState,
-	}
-
-	val, err := cbor.Marshal(ns)
-	if err != nil {
-		return err
-	}
-
-	key := store.NewKey(pb.MetaType_OrderNonceKey, o.localID, o.pro)
-	err = m.ds.Put(key, val)
+	// save nonce state
+	err := saveOrderState(o, m.ds)
 	if err != nil {
 		return err
 	}
@@ -426,23 +449,13 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	o.orderState = Order_Done
 	o.orderTime = time.Now().Unix()
 
-	ns := &NonceState{
-		Nonce: o.base.Nonce,
-		Time:  o.orderTime,
-		State: o.orderState,
-	}
-
-	val, err := cbor.Marshal(ns)
+	// save nonce state
+	err := saveOrderState(o, m.ds)
 	if err != nil {
 		return err
 	}
 
-	key := store.NewKey(pb.MetaType_OrderNonceKey, o.localID, o.pro)
-	err = m.ds.Put(key, val)
-	if err != nil {
-		return err
-	}
-
+	// reset
 	o.base = nil
 	o.orderState = Order_Init
 
@@ -494,8 +507,8 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 				ProID:  o.base.ProID,
 				Nonce:  o.base.Nonce,
 				SeqNum: o.seqNum,
-				Price:  new(big.Int).Set(o.accPrice),
-				Size:   o.accSize,
+				Price:  new(big.Int).Set(o.base.Price),
+				Size:   o.base.Size,
 			},
 		}
 
@@ -507,29 +520,20 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 
 	if o.seq != nil && o.seqState == OrderSeq_Prepare {
 		o.seq.Segments.Merge()
+
+		// save order seq
+		err := saveOrderSeq(o, m.ds)
+		if err != nil {
+			return err
+		}
+
+		// save seq state
+		err = saveSeqState(o, m.ds)
+		if err != nil {
+			return err
+		}
+
 		data, err := o.seq.Serialize()
-		if err != nil {
-			return err
-		}
-
-		key := store.NewKey(pb.MetaType_OrderSeqKey, o.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
-		err = m.ds.Put(key, data)
-		if err != nil {
-			return err
-		}
-
-		ss := SeqState{
-			Number: o.seq.SeqNum,
-			Time:   o.seqTime,
-			State:  o.seqState,
-		}
-		key = store.NewKey(pb.MetaType_OrderSeqNumKey, o.localID, o.pro, o.base.Nonce)
-		val, err := cbor.Marshal(ss)
-		if err != nil {
-			return err
-		}
-
-		err = m.ds.Put(key, val)
 		if err != nil {
 			return err
 		}
@@ -553,18 +557,8 @@ func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		o.seqState = OrderSeq_Send
 		o.seqTime = time.Now().Unix()
 
-		ss := SeqState{
-			Number: o.seq.SeqNum,
-			Time:   o.seqTime,
-			State:  o.seqState,
-		}
-		key := store.NewKey(pb.MetaType_OrderSeqNumKey, o.localID, o.pro, o.base.Nonce)
-		val, err := cbor.Marshal(ss)
-		if err != nil {
-			return err
-		}
-
-		err = m.ds.Put(key, val)
+		// save seq state
+		err := saveSeqState(o, m.ds)
 		if err != nil {
 			return err
 		}
@@ -597,21 +591,6 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 		}
 
 		o.seqTime = time.Now().Unix()
-		ss := SeqState{
-			Number: o.seq.SeqNum,
-			Time:   o.seqTime,
-			State:  o.seqState,
-		}
-		key := store.NewKey(pb.MetaType_OrderSeqNumKey, o.localID, o.pro, o.base.Nonce)
-		val, err := cbor.Marshal(ss)
-		if err != nil {
-			return err
-		}
-
-		err = m.ds.Put(key, val)
-		if err != nil {
-			return err
-		}
 
 		o.seq.Segments.Merge()
 
@@ -619,34 +598,35 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 		if err != nil {
 			return err
 		}
-
 		ssig, err := m.RoleSign(m.ctx, m.localID, shash, types.SigSecp256k1)
 		if err != nil {
 			return err
 		}
 
-		o.seq.UserDataSig = ssig
-
-		so := &types.SignedOrder{
-			OrderBase: *o.base,
-			Size:      o.seq.Size,
-			Price:     o.seq.Price,
-		}
-
-		osig, err := m.RoleSign(m.ctx, m.localID, so.Hash(), types.SigSecp256k1)
+		o.base.Size = o.seq.Size
+		o.base.Price.Set(o.seq.Price)
+		osig, err := m.RoleSign(m.ctx, m.localID, o.base.Hash(), types.SigSecp256k1)
 		if err != nil {
 			return err
 		}
 
+		o.seq.UserDataSig = ssig
 		o.seq.UserSig = osig
 
-		data, err := o.seq.Serialize()
+		// save order seq
+		// save seq state
+		err = saveOrderSeq(o, m.ds)
 		if err != nil {
 			return err
 		}
 
-		key = store.NewKey(pb.MetaType_OrderSeqKey, o.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
-		err = m.ds.Put(key, data)
+		// save seq state
+		err = saveSeqState(o, m.ds)
+		if err != nil {
+			return err
+		}
+
+		data, err := o.seq.Serialize()
 		if err != nil {
 			return err
 		}
@@ -674,21 +654,12 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	if err != nil {
 		return err
 	}
-
 	ok, _ := m.RoleVerify(m.ctx, o.pro, oHash, s.ProDataSig)
 	if !ok {
 		return ErrDataSign
 	}
 
-	so := &types.SignedOrder{
-		OrderBase: *o.base,
-		Size:      o.seq.Size,
-		Price:     o.seq.Price,
-	}
-
-	sHash := so.Hash()
-
-	ok, _ = m.RoleVerify(m.ctx, o.pro, sHash, s.ProSig)
+	ok, _ = m.RoleVerify(m.ctx, o.pro, o.base.Hash(), s.ProSig)
 	if !ok {
 		return ErrDataSign
 	}
@@ -696,26 +667,32 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	o.seq.ProDataSig = s.ProDataSig
 	o.seq.ProSig = s.ProSig
 
+	// change state
 	o.seqState = OrderSeq_Finish
 	o.seqTime = time.Now().Unix()
 
-	ss := SeqState{
-		Number: o.seq.SeqNum,
-		Time:   o.seqTime,
-		State:  o.seqState,
-	}
-	key := store.NewKey(pb.MetaType_OrderSeqNumKey, o.localID, o.pro, o.base.Nonce)
-	val, err := cbor.Marshal(ss)
-	if err != nil {
-		return err
-	}
-	err = m.ds.Put(key, val)
+	o.base.Price.Set(o.seq.Price)
+	o.base.Size = o.seq.Size
+
+	// save order seq
+	err = saveOrderSeq(o, m.ds)
 	if err != nil {
 		return err
 	}
 
-	o.accPrice.Set(o.seq.Price)
-	o.accSize = o.seq.Size
+	// save seq state
+	err = saveSeqState(o, m.ds)
+	if err != nil {
+		return err
+	}
+
+	// save order base; todo
+	err = saveOrderBase(o, m.ds)
+	if err != nil {
+		return err
+	}
+
+	// push out
 
 	data, err := o.seq.Serialize()
 	if err != nil {
@@ -729,7 +706,6 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		Method:  tx.DataOrder,
 		Params:  data,
 	}
-
 	// handle result and retry?
 	go func(msg *tx.Message) {
 		ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -758,6 +734,7 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	}(msg)
 
+	// reset
 	o.seqState = OrderSeq_Init
 	o.seq = nil
 

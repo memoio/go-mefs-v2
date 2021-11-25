@@ -1,8 +1,6 @@
 package state
 
 import (
-	"math/big"
-
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -12,17 +10,13 @@ import (
 
 func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	oinfo := &orderInfo{
-		Nonce:    0,
-		SeqNum:   0,
-		Size:     0,
-		Price:    big.NewInt(0),
-		AccSize:  0,
-		AccPrice: big.NewInt(0),
+		Nonce:  0,
+		SeqNum: 0,
 	}
 
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID)
 	data, err := s.ds.Get(key)
-	if err == nil {
+	if err != nil {
 		return oinfo
 	}
 
@@ -30,6 +24,22 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	if err != nil {
 		return oinfo
 	}
+
+	if oinfo.Nonce == 0 {
+		return oinfo
+	}
+
+	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.Nonce-1)
+	data, err = s.ds.Get(key)
+	if err != nil {
+		return oinfo
+	}
+	so := new(types.SignedOrder)
+	err = so.Deserialize(data)
+	if err != nil {
+		return oinfo
+	}
+	oinfo.base = so
 
 	return oinfo
 }
@@ -52,14 +62,12 @@ func (s *StateMgr) AddOrder(or *types.SignedOrder) error {
 	}
 
 	if or.Nonce != oinfo.Nonce {
-		return ErrRes
+		return ErrNonce
 	}
 
 	oinfo.Nonce++
 	// reset
 	oinfo.SeqNum = 0
-	oinfo.Size = 0
-	oinfo.Price = big.NewInt(0)
 
 	// save
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID, or.Nonce)
@@ -103,11 +111,11 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 	}
 
 	if oinfo.Nonce != so.Nonce+1 {
-		return ErrRes
+		return ErrNonce
 	}
 
 	if oinfo.SeqNum != so.SeqNum {
-		return ErrRes
+		return ErrSeq
 	}
 
 	// verify size and price
@@ -120,14 +128,24 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 		}
 	}
 
-	// update size and price
-	oinfo.Size = so.Size
-	oinfo.Price = oinfo.Price.Set(so.Price)
+	// validate size and price
 	oinfo.SeqNum++
+	oinfo.base.Size = so.Size
+	oinfo.base.Price.Set(so.Price)
 
 	// save
-	key := store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce)
-	data, err := so.Serialize()
+	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, oinfo.base.Nonce)
+	data, err := oinfo.base.Serialize()
+	if err != nil {
+		return err
+	}
+	err = s.ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
+	data, err = so.Serialize()
 	if err != nil {
 		return err
 	}
@@ -167,14 +185,12 @@ func (s *StateMgr) CanAddOrder(or *types.SignedOrder) error {
 	}
 
 	if or.Nonce != oinfo.Nonce {
-		return ErrRes
+		return ErrNonce
 	}
 
 	oinfo.Nonce++
 	// reset
 	oinfo.SeqNum = 0
-	oinfo.Size = 0
-	oinfo.Price = big.NewInt(0)
 
 	return nil
 }
@@ -197,11 +213,11 @@ func (s *StateMgr) CanAddSeq(so *types.SignedOrderSeq) error {
 	}
 
 	if oinfo.Nonce != so.Nonce+1 {
-		return ErrRes
+		return ErrNonce
 	}
 
 	if oinfo.SeqNum != so.SeqNum {
-		return ErrRes
+		return ErrSeq
 	}
 
 	// verify size and price
@@ -215,8 +231,6 @@ func (s *StateMgr) CanAddSeq(so *types.SignedOrderSeq) error {
 	}
 
 	// update size and price
-	oinfo.Size = so.Size
-	oinfo.Price = oinfo.Price.Set(so.Price)
 	oinfo.SeqNum++
 
 	return nil

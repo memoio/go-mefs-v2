@@ -382,7 +382,7 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, tb *tx.SignedMessage) error {
 	}
 
 	ok, err := sp.HasTxMsg(mid)
-	if ok && err == nil {
+	if err == nil && ok {
 		return nil
 	}
 

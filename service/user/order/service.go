@@ -39,10 +39,10 @@ type OrderMgr struct {
 
 	updateChan chan uint64
 
-	quoChan       chan *types.Quotation // to init
-	orderChan     chan *types.OrderBase // confirm new order
-	seqNewChan    chan *orderSeqPro     // confirm new seq
-	seqFinishChan chan *orderSeqPro     // confirm current seq
+	quoChan       chan *types.Quotation   // to init
+	orderChan     chan *types.SignedOrder // confirm new order
+	seqNewChan    chan *orderSeqPro       // confirm new seq
+	seqFinishChan chan *orderSeqPro       // confirm current seq
 
 	// add data
 	segAddChan  chan *types.SegJob
@@ -79,7 +79,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		updateChan: make(chan uint64, 16),
 
 		quoChan:       make(chan *types.Quotation, 16),
-		orderChan:     make(chan *types.OrderBase, 16),
+		orderChan:     make(chan *types.SignedOrder, 16),
 		seqNewChan:    make(chan *orderSeqPro, 16),
 		seqFinishChan: make(chan *orderSeqPro, 16),
 

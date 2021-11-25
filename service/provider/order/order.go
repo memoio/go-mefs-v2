@@ -1,8 +1,6 @@
 package order
 
 import (
-	"math/big"
-
 	"github.com/fxamacker/cbor/v2"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
@@ -43,7 +41,7 @@ type OrderFull struct {
 	userID uint64
 	fsID   []byte
 
-	base       *types.OrderBase
+	base       *types.SignedOrder
 	orderTime  int64
 	orderState OrderState
 
@@ -54,10 +52,6 @@ type OrderFull struct {
 	nonce  uint64 // next nonce
 	seqNum uint32 // next seq
 
-	accPrice *big.Int
-	accSize  uint64
-
-	pk pdpcommon.PublicKey
 	dv pdpcommon.DataVerifier
 
 	ready bool
@@ -69,7 +63,6 @@ func (m *OrderMgr) createOrder(op *OrderFull) *OrderFull {
 		return op
 	}
 
-	op.pk = pk
 	op.dv = pdpv2.NewDataVerifier(pk, nil)
 
 	op.fsID = pk.VerifyKey().Hash()
@@ -81,8 +74,7 @@ func (m *OrderMgr) createOrder(op *OrderFull) *OrderFull {
 
 func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 	op := &OrderFull{
-		userID:   userID,
-		accPrice: big.NewInt(0),
+		userID: userID,
 	}
 
 	pk := new(pdpv2.PublicKey)
@@ -92,11 +84,8 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		err = pk.Deserialize(val)
 		if err == nil {
 			logger.Debug("get pdp publickey local for: ", userID)
-			op.pk = pk
 			op.dv = pdpv2.NewDataVerifier(pk, nil)
-
 			op.fsID = pk.VerifyKey().Hash()
-
 			op.ready = true
 		}
 	}
@@ -112,7 +101,7 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		return op
 	}
 
-	ob := new(types.OrderBase)
+	ob := new(types.SignedOrder)
 	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, userID, ns.Nonce)
 	val, err = m.ds.Get(key)
 	if err != nil {
@@ -154,9 +143,6 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 	op.seqTime = ss.Time
 	op.seqState = ss.State
 	op.seqNum = ss.Number + 1
-
-	op.accPrice.Set(os.Price)
-	op.accSize = os.Size
 
 	return op
 
