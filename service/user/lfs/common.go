@@ -18,7 +18,7 @@ var (
 	ErrEncode = errors.New("encode is wrong")
 
 	ErrPolicy              = errors.New("policy is error")
-	ErrLfsServiceNotReady  = errors.New("lfs service is not ready, please restart lfs")
+	ErrLfsServiceNotReady  = errors.New("lfs service is not ready, waiting for it")
 	ErrLfsReadOnly         = errors.New("lfs service is read only")
 	ErrLfsStarting         = errors.New("another lfs instance is starting")
 	ErrUpload              = errors.New("upload fails")
@@ -36,6 +36,7 @@ var (
 	ErrBucketNotEmpty     = errors.New("bucket is not empty")
 	ErrBucketNameInvalid  = errors.New("bucket name is invalid")
 	ErrBucketTooMany      = errors.New("bucket is too many")
+	ErrBucketIsConfirm    = errors.New("bucket is confirming")
 
 	ErrObjectNotExist       = errors.New("object not exist")
 	ErrObjectIsNil          = errors.New("object is nil")

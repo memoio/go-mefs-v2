@@ -65,7 +65,7 @@ func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb
 
 	msg := blake3.Sum256(res)
 
-	sigTo, err := p.RoleMgr.RoleSign(p.ctx, msg[:], types.SigSecp256k1)
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, p.RoleID(), msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -175,7 +175,7 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 
 	msg := blake3.Sum256(res)
 
-	sigTo, err := p.RoleMgr.RoleSign(p.ctx, msg[:], types.SigSecp256k1)
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, p.RoleID(), msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
@@ -232,7 +232,7 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	msg := blake3.Sum256(res)
 
-	sigTo, err := p.RoleMgr.RoleSign(p.ctx, msg[:], types.SigSecp256k1)
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, p.RoleID(), msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -290,7 +290,7 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	msg := blake3.Sum256(res)
 
-	sigTo, err := p.RoleMgr.RoleSign(p.ctx, msg[:], types.SigSecp256k1)
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, p.RoleID(), msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)

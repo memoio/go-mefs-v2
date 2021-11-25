@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -90,6 +91,17 @@ func (p *ProviderNode) Start() error {
 	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
 
 	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
+
+	// wait for sync
+
+	for {
+		if p.PPool.Ready() {
+			break
+		} else {
+			logger.Debug("wait for sync: ")
+			time.Sleep(5 * time.Second)
+		}
+	}
 
 	logger.Info("start provider for: ", p.RoleID())
 	return nil

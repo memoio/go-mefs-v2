@@ -1,53 +1,52 @@
 package state
 
 import (
-	"sync"
-
-	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
+	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/tx"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-type ValidateState struct {
-	sync.RWMutex
-
-	api.IRole
-
-	ds store.KVStore
-
-	height uint64
-
-	oInfo map[orderKey]*orderInfo
-	sInfo map[uint64]*segPerUser // key: userID
+func (s *StateMgr) reset() {
+	s.validateOInfo = make(map[orderKey]*orderInfo)
+	s.validateSInfo = make(map[uint64]*segPerUser)
 }
 
-func NewValidateState(ds store.KVStore, ir api.IRole) *ValidateState {
-	s := &ValidateState{
-		IRole: ir,
-		ds:    wrap.NewKVStore(StatePrefix, ds),
-		oInfo: make(map[orderKey]*orderInfo),
-		sInfo: make(map[uint64]*segPerUser),
+func (s *StateMgr) ValidateMsg(msg *tx.Message) error {
+	if msg == nil {
+		s.reset()
+		return nil
 	}
-
-	return s
-}
-
-func (v *ValidateState) Reset() {
-	v.oInfo = make(map[orderKey]*orderInfo)
-	v.sInfo = make(map[uint64]*segPerUser)
-}
-
-func (v *ValidateState) ValidateMsg(msg *tx.Message) error {
 	logger.Debug("validate message:", msg.From, msg.Nonce, msg.Method)
 	switch msg.Method {
-	case tx.CreateRole:
+	case tx.CreateFs:
+		pk := new(pdpv2.PublicKey)
+		err := pk.Deserialize(msg.Params)
+		if err != nil {
+			return err
+		}
+		return s.CanAddUser(msg.From, pk)
 	case tx.CreateBucket:
+		tbp := new(tx.BucketParams)
+		err := tbp.Deserialize(msg.Params)
+		if err != nil {
+			return err
+		}
+		return s.CanAddBucket(msg.From, tbp.BucketID, &tbp.BucketOption)
 	case tx.DataPreOrder:
+		so := new(types.SignedOrder)
+		err := so.Deserialize(msg.Params)
+		if err != nil {
+			return err
+		}
+		return s.CanAddOrder(so)
 	case tx.DataOrder:
+		so := new(types.SignedOrderSeq)
+		err := so.Deserialize(msg.Params)
+		if err != nil {
+			return err
+		}
+		return s.CanAddSeq(so)
 	default:
 		return ErrRes
 	}
-
-	return nil
 }

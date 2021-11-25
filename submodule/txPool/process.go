@@ -45,8 +45,6 @@ func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
 		blkDone:  sp.blkDone,
 	}
 
-	pl.vf = pl.ValidateMsg // todo
-
 	go pl.sync()
 
 	// enable inprocess callback
@@ -92,7 +90,7 @@ func (mp *InPool) sync() {
 
 			id, _ := blk.Hash()
 
-			sig, _ := mp.RoleSign(mp.ctx, id.Bytes(), types.SigSecp256k1)
+			sig, _ := mp.RoleSign(mp.ctx, mp.localID, id.Bytes(), types.SigSecp256k1)
 
 			tb := &tx.Block{
 				BlockHeader:    blk,
@@ -136,7 +134,7 @@ func (mp *InPool) sync() {
 }
 
 func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
-	nonce := mp.SyncPool.GetNonce(m.From)
+	nonce := mp.SyncPool.GetNonce(ctx, m.From)
 	if m.Nonce < nonce {
 		return ErrLowNonce
 	}
@@ -145,6 +143,8 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	if err != nil {
 		return err
 	}
+
+	// need valid its content with settle chain
 
 	mp.msgChan <- &m.Message
 
@@ -156,7 +156,7 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 	defer mp.Unlock()
 
 	// synced
-	_, rh := mp.GetSyncHeight()
+	_, rh := mp.GetSyncHeight(mp.ctx)
 
 	bid, _ := mp.GetTxBlockByHeight(rh - 1)
 
@@ -173,8 +173,11 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 		return nbh
 	}
 
+	// reset
+	mp.vf(nil)
+
 	for from, ms := range mp.pending {
-		nc := mp.GetNonce(from)
+		nc := mp.GetNonce(mp.ctx, from)
 		for i := nc; ; i++ {
 			m, ok := ms.info[i]
 			if ok {
@@ -184,6 +187,7 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 				}
 				err := mp.vf(m.mes)
 				if err != nil {
+					logger.Debug("block msg invalid:", err)
 					tr.Err = 1
 					tr.Extra = []byte(err.Error())
 				}
@@ -205,6 +209,8 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 	return nbh
 }
 
-func (mp *InPool) ValidateMsg(m *tx.Message) error {
-	return nil
+func (mp *InPool) RegisterValidateMsgFunc(h ValidateMessageFunc) {
+	mp.Lock()
+	mp.vf = h
+	mp.Unlock()
 }

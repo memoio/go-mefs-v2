@@ -77,7 +77,7 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 		} else {
 			ri.Type = pb.RoleInfo_Provider
 		}
-
+		sBytes = append(sBytes, byte(types.BLS))
 		blsByte := blake3.Sum256(sBytes)
 		blsKey := &types.KeyInfo{
 			SecretKey: blsByte[:],
@@ -113,17 +113,6 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 		ri.BlsVerifyKey = pdpKeySet.VerifyKey().Serialize()
 
 		// store pdp pubkey and verify key
-
-		err = r.MetaStore().Put(store.NewKey(pb.MetaType_PDPProveKey), pdpKeySet.PublicKey().Serialize())
-		if err != nil {
-			return err
-		}
-
-		err = r.MetaStore().Put(store.NewKey(pb.MetaType_PDPVerifyKey), pdpKeySet.VerifyKey().Serialize())
-		if err != nil {
-			return err
-		}
-
 		log.Println("generated user bls pdp key")
 	default:
 		ri.Type = pb.RoleInfo_Unknown

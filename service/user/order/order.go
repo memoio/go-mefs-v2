@@ -375,6 +375,8 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.OrderBase) error {
 		return err
 	}
 
+	// push out
+
 	return nil
 }
 
@@ -618,7 +620,7 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 			return err
 		}
 
-		ssig, err := m.RoleSign(m.ctx, shash, types.SigSecp256k1)
+		ssig, err := m.RoleSign(m.ctx, m.localID, shash, types.SigSecp256k1)
 		if err != nil {
 			return err
 		}
@@ -631,7 +633,7 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 			Price:     o.seq.Price,
 		}
 
-		osig, err := m.RoleSign(m.ctx, so.Hash(), types.SigSecp256k1)
+		osig, err := m.RoleSign(m.ctx, m.localID, so.Hash(), types.SigSecp256k1)
 		if err != nil {
 			return err
 		}
@@ -691,14 +693,6 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return ErrDataSign
 	}
 
-	usign, err := m.RoleSign(m.ctx, sHash, types.SigSecp256k1)
-	if err != nil {
-		return err
-	}
-
-	so.Psign = s.ProSig
-	so.Usign = usign
-
 	o.seq.ProDataSig = s.ProDataSig
 	o.seq.ProSig = s.ProSig
 
@@ -715,7 +709,6 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	if err != nil {
 		return err
 	}
-
 	err = m.ds.Put(key, val)
 	if err != nil {
 		return err
@@ -724,7 +717,7 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	o.accPrice.Set(o.seq.Price)
 	o.accSize = o.seq.Size
 
-	data, err := so.Serialize()
+	data, err := o.seq.Serialize()
 	if err != nil {
 		return err
 	}
@@ -739,9 +732,11 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	// handle result and retry?
 	go func(msg *tx.Message) {
+		ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancle()
 		var mid types.MsgID
 		for {
-			id, err := m.pp.PushMessage(msg)
+			id, err := m.PushMessage(ctx, msg)
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				continue
@@ -751,7 +746,7 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		}
 
 		for {
-			st, err := m.pp.GetTxMsgStatus(mid)
+			st, err := m.GetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				continue

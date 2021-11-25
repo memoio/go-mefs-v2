@@ -86,7 +86,7 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 	}
 
 	pk := new(pdpv2.PublicKey)
-	key := store.NewKey(userID, pb.MetaType_PDPProveKey)
+	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
 	val, err := m.ds.Get(key)
 	if err == nil {
 		err = pk.Deserialize(val)

@@ -10,18 +10,8 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (s *StateMgr) getOrder(userID, proID uint64) *orderInfo {
-	okey := orderKey{
-		userID: userID,
-		proID:  proID,
-	}
-
-	oinfo, ok := s.oInfo[okey]
-	if ok {
-		return oinfo
-	}
-
-	oinfo = &orderInfo{
+func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
+	oinfo := &orderInfo{
 		Nonce:    0,
 		SeqNum:   0,
 		Size:     0,
@@ -29,8 +19,6 @@ func (s *StateMgr) getOrder(userID, proID uint64) *orderInfo {
 		AccSize:  0,
 		AccPrice: big.NewInt(0),
 	}
-
-	s.oInfo[okey] = oinfo
 
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID)
 	data, err := s.ds.Get(key)
@@ -52,7 +40,16 @@ func (s *StateMgr) AddOrder(or *types.SignedOrder) error {
 	s.Lock()
 	defer s.Unlock()
 
-	oinfo := s.getOrder(or.UserID, or.ProID)
+	okey := orderKey{
+		userID: or.UserID,
+		proID:  or.ProID,
+	}
+
+	oinfo, ok := s.oInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(or.UserID, or.ProID)
+		s.oInfo[okey] = oinfo
+	}
 
 	if or.Nonce != oinfo.Nonce {
 		return ErrRes
@@ -94,7 +91,16 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 	s.Lock()
 	defer s.Unlock()
 
-	oinfo := s.getOrder(so.UserID, so.ProID)
+	okey := orderKey{
+		userID: so.UserID,
+		proID:  so.ProID,
+	}
+
+	oinfo, ok := s.oInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(so.UserID, so.ProID)
+		s.oInfo[okey] = oinfo
+	}
 
 	if oinfo.Nonce != so.Nonce+1 {
 		return ErrRes
@@ -139,6 +145,79 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (s *StateMgr) CanAddOrder(or *types.SignedOrder) error {
+	// verify sign
+
+	s.Lock()
+	defer s.Unlock()
+
+	okey := orderKey{
+		userID: or.UserID,
+		proID:  or.ProID,
+	}
+
+	oinfo, ok := s.validateOInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(or.UserID, or.ProID)
+		s.validateOInfo[okey] = oinfo
+	}
+
+	if or.Nonce != oinfo.Nonce {
+		return ErrRes
+	}
+
+	oinfo.Nonce++
+	// reset
+	oinfo.SeqNum = 0
+	oinfo.Size = 0
+	oinfo.Price = big.NewInt(0)
+
+	return nil
+}
+
+func (s *StateMgr) CanAddSeq(so *types.SignedOrderSeq) error {
+	// verify sign
+
+	s.Lock()
+	defer s.Unlock()
+
+	okey := orderKey{
+		userID: so.UserID,
+		proID:  so.ProID,
+	}
+
+	oinfo, ok := s.validateOInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(so.UserID, so.ProID)
+		s.validateOInfo[okey] = oinfo
+	}
+
+	if oinfo.Nonce != so.Nonce+1 {
+		return ErrRes
+	}
+
+	if oinfo.SeqNum != so.SeqNum {
+		return ErrRes
+	}
+
+	// verify size and price
+
+	// verify segment
+	for _, seg := range so.Segments {
+		err := s.CanAddChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// update size and price
+	oinfo.Size = so.Size
+	oinfo.Price = oinfo.Price.Set(so.Price)
+	oinfo.SeqNum++
 
 	return nil
 }

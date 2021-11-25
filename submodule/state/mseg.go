@@ -75,9 +75,14 @@ func (s *StateMgr) AddBucket(userID, bucketID uint64, pbo *pb.BucketOption) erro
 	s.Lock()
 	defer s.Unlock()
 
-	uinfo, err := s.getUser(userID)
-	if err != nil {
-		return err
+	var err error
+	uinfo, ok := s.sInfo[userID]
+	if !ok {
+		uinfo, err = s.loadUser(userID)
+		if err != nil {
+			return err
+		}
+		s.sInfo[userID] = uinfo
 	}
 
 	if uinfo.nextBucket != bucketID {
@@ -116,11 +121,15 @@ func (s *StateMgr) AddBucket(userID, bucketID uint64, pbo *pb.BucketOption) erro
 }
 
 func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
-	uinfo, err := s.getUser(userID)
-	if err != nil {
-		return err
+	var err error
+	uinfo, ok := s.sInfo[userID]
+	if !ok {
+		uinfo, err = s.loadUser(userID)
+		if err != nil {
+			return err
+		}
+		s.sInfo[userID] = uinfo
 	}
-
 	if uinfo.nextBucket <= bucketID {
 		return ErrRes
 	}
@@ -172,6 +181,91 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (s *StateMgr) CanAddBucket(userID, bucketID uint64, pbo *pb.BucketOption) error {
+	s.Lock()
+	defer s.Unlock()
+
+	var err error
+	uinfo, ok := s.validateSInfo[userID]
+	if !ok {
+		uinfo, err = s.loadUser(userID)
+		if err != nil {
+			return err
+		}
+		s.validateSInfo[userID] = uinfo
+	}
+
+	if uinfo.nextBucket != bucketID {
+		return ErrRes
+	}
+
+	bm := &bucketManage{
+		chunks:  make([]*chunkManage, pbo.DataCount+pbo.ParityCount),
+		accHw:   make(map[uint64]*chalManage),
+		unavail: bitset.New(1024),
+	}
+
+	uinfo.buckets[bucketID] = bm
+	uinfo.nextBucket++
+
+	return nil
+}
+
+func (s *StateMgr) CanAddChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
+	var err error
+	uinfo, ok := s.validateSInfo[userID]
+	if !ok {
+		uinfo, err = s.loadUser(userID)
+		if err != nil {
+			return err
+		}
+		s.validateSInfo[userID] = uinfo
+	}
+	if uinfo.nextBucket <= bucketID {
+		return ErrRes
+	}
+
+	binfo := s.getBucketManage(uinfo, userID, bucketID)
+
+	if int(chunkID) >= len(binfo.chunks) {
+		return ErrRes
+	}
+
+	cm := s.getChalManage(binfo, userID, bucketID, proID)
+
+	// check whether has it already
+	for i := stripeStart; i < stripeStart+stripeLength; i++ {
+		if cm.avail.Test(uint(i)) {
+			return ErrRes
+		}
+	}
+
+	cinfo := binfo.chunks[chunkID]
+	if cinfo.stripe != nil && cinfo.stripe.ProID == proID && cinfo.stripe.Nonce == nonce && cinfo.stripe.Start+cinfo.stripe.Length == stripeStart {
+		cinfo.stripe.Length += stripeLength
+	} else {
+		cinfo.stripe = &types.AggStripe{
+			Nonce:  nonce,
+			ProID:  proID,
+			Start:  stripeStart,
+			Length: stripeLength,
+		}
+	}
+
+	var HWi bls.Fr
+	for i := stripeStart; i < stripeStart+stripeLength; i++ {
+		cm.avail.Set(uint(i))
+
+		// calculate fr
+		sid := segment.CreateSegmentID(uinfo.fsID, bucketID, i, chunkID)
+		h := blake3.Sum256(sid)
+		bls.FrFromBytes(&HWi, h[:])
+		bls.FrAddMod(&cm.accFr, &cm.accFr, &HWi)
 	}
 
 	return nil

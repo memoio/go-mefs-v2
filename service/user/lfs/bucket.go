@@ -59,6 +59,10 @@ func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
 		return nil, ErrBucketNotExist
 	}
 
+	if bucketID > l.sb.bucketVerify {
+		return nil, ErrBucketIsConfirm
+	}
+
 	if len(l.sb.buckets) < int(bucketID) {
 		return nil, ErrBucketNotExist
 	}
@@ -83,7 +87,7 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 		return nil, ErrBucketNameInvalid
 	}
 
-	if len(l.sb.buckets) >= int(l.sb.bucketMax) {
+	if len(l.sb.buckets) >= int(MaxBucket) {
 		return nil, ErrBucketTooMany
 	}
 

@@ -18,8 +18,7 @@ type OrderMgr struct {
 	api.IRole
 	api.INetService
 	api.IDataService
-
-	pp *txPool.PushPool
+	api.IChain
 
 	ctx context.Context
 	ds  store.KVStore // save order info
@@ -59,10 +58,10 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		IRole:        ir,
 		IDataService: id,
 		INetService:  in,
+		IChain:       pp,
 
 		ctx: ctx,
 		ds:  ds,
-		pp:  pp,
 
 		localID: roleID,
 		fsID:    fsID,

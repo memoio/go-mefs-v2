@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -16,6 +17,17 @@ type msgTo struct {
 	msg   *tx.SignedMessage
 }
 
+type pendingMsg struct {
+	nonce uint64                 // pending
+	msg   map[types.MsgID]*msgTo // to push
+}
+
+var _ api.IChain = &pushAPI{}
+
+type pushAPI struct {
+	*PushPool
+}
+
 type PushPool struct {
 	sync.RWMutex
 
@@ -23,10 +35,9 @@ type PushPool struct {
 
 	ctx context.Context
 
-	pendingNonce uint64                 // pending
-	pendingMsg   map[types.MsgID]*msgTo // to push
+	pending map[uint64]*pendingMsg
 
-	msgDone chan types.MsgID
+	msgDone chan *tx.MessageDigest
 
 	ready bool
 }
@@ -36,16 +47,26 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 		SyncPool: sp,
 		ctx:      ctx,
 
-		pendingNonce: sp.GetNonce(sp.localID),
-		pendingMsg:   make(map[types.MsgID]*msgTo),
+		pending: make(map[uint64]*pendingMsg),
 
 		msgDone: sp.msgDone,
 		ready:   false,
 	}
 
+	pp.pending[sp.localID] = &pendingMsg{
+		nonce: sp.GetNonce(ctx, sp.localID),
+		msg:   make(map[types.MsgID]*msgTo),
+	}
+
+	// load unfinished
+
 	go pp.sync()
 
 	return pp
+}
+
+func (pp *PushPool) Ready() bool {
+	return pp.ready
 }
 
 func (pp *PushPool) sync() {
@@ -53,18 +74,19 @@ func (pp *PushPool) sync() {
 	defer tc.Stop()
 
 	for {
-		ok := pp.GetSyncStatus()
+		ok := pp.GetSyncStatus(pp.ctx)
 		if ok {
 			break
 		}
 
-		sh, rh := pp.GetSyncHeight()
-		logger.Debug("sync pool state: ", sh, rh, pp.SyncPool.ready)
+		sh, rh := pp.GetSyncHeight(pp.ctx)
+		logger.Debug("wait sync; pool state: ", sh, rh, pp.SyncPool.ready)
 		time.Sleep(5 * time.Second)
 	}
 
 	pp.ready = true
-	pp.pendingNonce = pp.GetNonce(pp.localID)
+	lpending := pp.pending[pp.localID]
+	lpending.nonce = pp.GetNonce(pp.ctx, pp.localID)
 	logger.Debug("pool is ready")
 
 	pp.inPush = true
@@ -73,26 +95,33 @@ func (pp *PushPool) sync() {
 		select {
 		case <-pp.ctx.Done():
 			return
-		case mid := <-pp.msgDone:
+		case md := <-pp.msgDone:
 			pp.Lock()
-			logger.Debug("tx message done: ", mid.String())
-			delete(pp.pendingMsg, mid)
+			logger.Debug("tx message done: ", md.ID)
+			lpending, ok := pp.pending[md.From]
+			if ok {
+				delete(lpending.msg, md.ID)
+			}
 			pp.Unlock()
 		case <-tc.C:
 			pp.RLock()
-			for _, pmsg := range pp.pendingMsg {
-				if time.Since(pmsg.mtime) > 5*time.Minute {
-					pp.PushSignedMessage(pmsg.msg)
-					pmsg.mtime = time.Now()
+			lpending, ok := pp.pending[pp.localID]
+			if ok {
+				for _, pmsg := range lpending.msg {
+					if time.Since(pmsg.mtime) > 5*time.Minute {
+						pp.PushSignedMessage(pp.ctx, pmsg.msg)
+						pmsg.mtime = time.Now()
+					}
 				}
 			}
+
 			pp.RUnlock()
 		}
 	}
 }
 
-func (pp *PushPool) PushMessage(mes *tx.Message) (types.MsgID, error) {
-	logger.Debug("add tx message to push pool: ", pp.ready)
+func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgID, error) {
+	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Method)
 
 	pp.Lock()
 	if !pp.ready {
@@ -100,20 +129,31 @@ func (pp *PushPool) PushMessage(mes *tx.Message) (types.MsgID, error) {
 		return types.MsgID{}, ErrNotReady
 	}
 
+	lp, ok := pp.pending[mes.From]
+	if !ok {
+		lp = &pendingMsg{
+			nonce: pp.GetNonce(ctx, mes.From),
+			msg:   make(map[types.MsgID]*msgTo),
+		}
+		pp.pending[mes.From] = lp
+	}
+
 	// get nonce
-	mes.Nonce = pp.pendingNonce
-	pp.pendingNonce++
+	mes.Nonce = lp.nonce
+	lp.nonce++
 
 	mid, err := mes.Hash()
 	if err != nil {
 		pp.Unlock()
+		logger.Warn("add tx message to push pool: ", err)
 		return mid, err
 	}
 
 	// sign
-	sig, err := pp.RoleSign(pp.ctx, mid.Bytes(), types.SigSecp256k1)
+	sig, err := pp.RoleSign(pp.ctx, pp.localID, mid.Bytes(), types.SigSecp256k1)
 	if err != nil {
 		pp.Unlock()
+		logger.Warn("add tx message to push pool: ", err)
 		return mid, err
 	}
 
@@ -121,36 +161,39 @@ func (pp *PushPool) PushMessage(mes *tx.Message) (types.MsgID, error) {
 		Message:   *mes,
 		Signature: sig,
 	}
-
-	pp.pendingMsg[mid] = &msgTo{
-		mtime: time.Now(),
-		msg:   sm,
-	}
 	pp.Unlock()
 
-	return pp.PushSignedMessage(sm)
+	return pp.PushSignedMessage(ctx, sm)
 }
 
-func (pp *PushPool) PushSignedMessage(sm *tx.SignedMessage) (types.MsgID, error) {
+func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage) (types.MsgID, error) {
+	logger.Debug("add tx signed message to push pool: ", pp.ready)
 	mid, err := sm.Hash()
 	if err != nil {
+		logger.Warn("add tx signed message to push pool: ", err)
 		return mid, err
 	}
 
 	err = pp.PutTxMsg(sm)
 	if err != nil {
+		logger.Warn("add tx signed message to push pool: ", err)
 		return mid, err
 	}
 
 	key := store.NewKey(pb.MetaType_TX_MessageKey, sm.From, sm.Nonce)
-	sbyte, err := sm.Serialize()
-	if err != nil {
-		return mid, err
-	}
-	pp.ds.Put(key, sbyte)
+	pp.ds.Put(key, mid.Bytes())
 
 	pp.Lock()
-	pp.pendingMsg[mid] = &msgTo{
+	lp, ok := pp.pending[sm.From]
+	if !ok {
+		lp = &pendingMsg{
+			nonce: pp.GetNonce(ctx, sm.From),
+			msg:   make(map[types.MsgID]*msgTo),
+		}
+		pp.pending[sm.From] = lp
+	}
+
+	lp.msg[mid] = &msgTo{
 		mtime: time.Now(),
 		msg:   sm,
 	}
@@ -161,6 +204,7 @@ func (pp *PushPool) PushSignedMessage(sm *tx.SignedMessage) (types.MsgID, error)
 	// push out immediately
 	err = pp.INetService.PublishTxMsg(pp.ctx, sm)
 	if err != nil {
+		logger.Warn("add tx signed message to push pool: ", err)
 		return mid, err
 	}
 
@@ -171,16 +215,27 @@ func (pp *PushPool) ReplaceMsg(mes *tx.Message) error {
 	return nil
 }
 
-func (pp *PushPool) GetPendingNonce() uint64 {
-	return pp.pendingNonce
+func (pp *PushPool) GetPendingNonce(ctx context.Context, id uint64) uint64 {
+	pp.RLock()
+	defer pp.RUnlock()
+	lp, ok := pp.pending[id]
+	if ok {
+		return lp.nonce
+	}
+	return 0
 }
 
-func (pp *PushPool) GetPendingMsg() []types.MsgID {
+func (pp *PushPool) GetPendingMsg(ctx context.Context, id uint64) []types.MsgID {
 	pp.RLock()
-	res := make([]types.MsgID, len(pp.pendingMsg))
-	for mid := range pp.pendingMsg {
-		res = append(res, mid)
+	defer pp.RUnlock()
+	lp, ok := pp.pending[id]
+	if ok {
+		res := make([]types.MsgID, len(lp.msg))
+		for mid := range lp.msg {
+			res = append(res, mid)
+		}
+		return res
 	}
-	pp.RUnlock()
-	return res
+
+	return nil
 }

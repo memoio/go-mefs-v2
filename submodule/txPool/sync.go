@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -44,7 +46,7 @@ type SyncPool struct {
 
 	ready bool
 
-	msgDone chan types.MsgID
+	msgDone chan *tx.MessageDigest
 	inPush  bool
 
 	blkDone   chan *tx.BlockHeader
@@ -69,7 +71,7 @@ func NewSyncPool(ctx context.Context, roleID uint64, ds store.KVStore, ts tx.Sto
 		blks:  make(map[uint64]*SyncedBlock),
 
 		syncChan: make(chan struct{}),
-		msgDone:  make(chan types.MsgID, 16),
+		msgDone:  make(chan *tx.MessageDigest, 16),
 		blkDone:  make(chan *tx.BlockHeader, 8),
 	}
 
@@ -150,8 +152,12 @@ func (sp *SyncPool) sync() {
 
 			// sync all msg of one block
 			for j, tx := range sb.Txs {
+				if sb.msg[j] != nil {
+					continue
+				}
 				sm, err := sp.GetTxMsg(tx.ID)
 				if err != nil {
+					go sp.getRoleInfoRemote(tx.From)
 					go sp.GetTxMsgRemote(tx.ID)
 				} else {
 					sb.msg[j] = &sm.Message
@@ -238,7 +244,7 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 
 		if tx.From == sp.localID {
 			if sp.inPush {
-				sp.msgDone <- tx.ID
+				sp.msgDone <- &tx
 			}
 		}
 	}
@@ -250,18 +256,18 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 	return nil
 }
 
-func (sp *SyncPool) GetSyncStatus() bool {
+func (sp *SyncPool) GetSyncStatus(ctx context.Context) bool {
 	if sp.nextHeight == sp.remoteHeight && sp.ready {
 		return true
 	}
 	return false
 }
 
-func (sp *SyncPool) GetSyncHeight() (uint64, uint64) {
+func (sp *SyncPool) GetSyncHeight(ctx context.Context) (uint64, uint64) {
 	return sp.nextHeight, sp.remoteHeight
 }
 
-func (sp *SyncPool) GetNonce(from uint64) uint64 {
+func (sp *SyncPool) GetNonce(ctx context.Context, from uint64) uint64 {
 	nextNonce, ok := sp.nonce[from]
 	if ok {
 		return nextNonce
@@ -279,21 +285,8 @@ func (sp *SyncPool) GetNonce(from uint64) uint64 {
 	return 0
 }
 
-func (sp *SyncPool) GetTxMsgStatus(mid types.MsgID) (*tx.MsgState, error) {
-	ms := new(tx.MsgState)
-	key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mid.Bytes())
-
-	val, err := sp.ds.Get(key)
-	if err != nil {
-		return ms, err
-	}
-
-	err = ms.Deserialize(val)
-	if err != nil {
-		return ms, err
-	}
-
-	return ms, nil
+func (sp *SyncPool) GetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.MsgState, error) {
+	return sp.Store.GetTxMsgState(mid)
 }
 
 func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
@@ -384,6 +377,7 @@ func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.Block, error) {
 func (sp *SyncPool) AddTxMsg(ctx context.Context, tb *tx.SignedMessage) error {
 	mid, err := tb.Hash()
 	if err != nil {
+		logger.Debug("add tx msg:", tb.From, err)
 		return err
 	}
 
@@ -394,10 +388,12 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, tb *tx.SignedMessage) error {
 
 	ok, err = sp.RoleVerify(ctx, tb.From, mid.Bytes(), tb.Signature)
 	if err != nil {
+		logger.Debug("add tx msg:", tb.From, mid, err)
 		return err
 	}
 
 	if !ok {
+		logger.Debug("add tx msg:", tb.From, mid, ErrInvalidSign)
 		return ErrInvalidSign
 	}
 
@@ -409,13 +405,17 @@ func (sp *SyncPool) GetTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
 	key := store.NewKey(pb.MetaType_TX_MessageKey, mid.String())
 	res, err := sp.INetService.Fetch(sp.ctx, key)
 	if err != nil {
+		logger.Debug("get tx msg from remote: ", mid, err)
 		return nil, err
 	}
 	sm := new(tx.SignedMessage)
 	err = sm.Deserialize(res)
 	if err != nil {
+		logger.Debug("get tx msg from remote: ", mid, err)
 		return nil, err
 	}
+
+	logger.Debug("get tx msg from remote: ", mid)
 	return sm, sp.AddTxMsg(sp.ctx, sm)
 }
 
@@ -423,4 +423,21 @@ func (sp *SyncPool) RegisterMsgFunc(h HandlerMessageFunc) {
 	sp.Lock()
 	sp.mf = h
 	sp.Unlock()
+}
+
+func (sp *SyncPool) getRoleInfoRemote(roleID uint64) {
+	key := store.NewKey(pb.MetaType_RoleInfoKey, roleID)
+	ok, err := sp.ds.Has(key)
+	if err == nil && ok {
+		return
+	}
+
+	mes, err := sp.INetService.Fetch(sp.ctx, key)
+	if err == nil && len(mes) > 0 {
+		ri := new(pb.RoleInfo)
+		err := proto.Unmarshal(mes, ri)
+		if err == nil {
+			sp.ds.Put(key, mes)
+		}
+	}
 }

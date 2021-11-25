@@ -17,7 +17,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/zeebo/blake3"
 )
 
 type OrderMgr struct {
@@ -429,7 +428,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				return nil, ErrDataSign
 			}
 
-			ssig, err := m.RoleSign(m.ctx, lHash, types.SigSecp256k1)
+			ssig, err := m.RoleSign(m.ctx, m.localID, lHash, types.SigSecp256k1)
 			if err != nil {
 				return nil, err
 			}
@@ -447,7 +446,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				return nil, ErrDataSign
 			}
 
-			osig, err := m.RoleSign(m.ctx, sHash, types.SigSecp256k1)
+			osig, err := m.RoleSign(m.ctx, m.localID, sHash, types.SigSecp256k1)
 			if err != nil {
 				return nil, err
 			}
@@ -507,46 +506,18 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 func (m *OrderMgr) getBlsPubkey(userID uint64) (pdpcommon.PublicKey, error) {
 	// get bls publickey from local
 	logger.Debug("get pdp publickey for: ", userID)
-	key := store.NewKey(userID, pb.MetaType_PDPProveKey)
+	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
 	pk := new(pdpv2.PublicKey)
 
 	val, err := m.ds.Get(key)
-	if err == nil {
-		err = pk.Deserialize(val)
-		if err == nil {
-			logger.Debug("get pdp publickey local for: ", userID)
-			return pk, nil
-		}
-	}
-
-	// get from remote
-	resp, err := m.SendMetaRequest(m.ctx, userID, pb.NetMessage_Get, key, nil)
 	if err != nil {
-		logger.Debug("fail get pdp publickey for: ", userID, err)
+		return pk, err
+	}
+	err = pk.Deserialize(val)
+	if err != nil {
 		return pk, err
 	}
 
-	sig := new(types.Signature)
-	err = sig.Deserialize(resp.GetData().GetSign())
-	if err != nil {
-		logger.Debug("fail get pdp publickey for: ", userID, err)
-		return pk, err
-	}
-
-	data := resp.GetData().GetMsgInfo()
-	err = pk.Deserialize(data)
-	if err != nil {
-		logger.Debug("fail get pdp publickey for: ", userID, err)
-		return pk, err
-	}
-
-	msg := blake3.Sum256(data)
-	ok, _ := m.RoleVerify(m.ctx, userID, msg[:], *sig)
-	if !ok {
-		return pk, ErrDataSign
-
-	}
-
-	m.ds.Put(key, data)
+	logger.Debug("get pdp publickey local for: ", userID)
 	return pk, nil
 }

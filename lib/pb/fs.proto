@@ -6,49 +6,31 @@ package pb;
 enum MetaType {
     Unknown = 0;
 
-	LocalNetKey = 1;          // key: x; val: local netid and its private key
-	LocalAddrKey = 2;         // key: x; val: chain address
-	RoleInfoKey = 3;          // key: x/id; val: RoleInfo
-	NetInfoKey = 4;           // key: x/netid; val: NetInfo
-
-    PDPProveKey = 5;          // key: x/userID; val: Bls Prove key set, sign; gen proof on provider
-	PDPVerifyKey = 6;         // key: x/userID; val: Bls Verify key set, verify proof
-	FsMemberKey = 7;          // key: x/userID: val: keepers/providers
+	RoleInfoKey = 1;          // key: x/roleID; val: RoleInfo
+	NetInfoKey = 2;           // key: x/roleID; val: NetInfo
 
    	// lfs meta
 	LFS_SuperBlockInfoKey = 10; // key: x/userID; val: SuperBlockInfo
 	LFS_BucketInfoKey = 11;     // key: x/userID/bucketID; val: BucketInfo
 	LFS_ObjectInfoKey = 12;     // key: x/userID/bucketID/objectID; val: OpIDs
-	
-    LFS_BucketOptionKey = 13; // key: x/userID/bucketID; val: BucketOption 
-    LFS_OpInfoKey = 14;       // key: x/userID/bucketID/opID; val: BucketRecord
-	LFS_OpJobsKey = 15;       // key: x/userID/bucketID/opID; val: stripes
-    LFS_OpStateKey = 16;	  // key: x/userID/bucketID/opID; val: opstate	 
-    LFS_OpCountKey = 17;      // key: x/userID/bucketID; val: op number
+
+    LFS_BucketOptionKey = 13;   // key: x/userID/bucketID; val: BucketOption 
+    LFS_OpInfoKey = 14;         // key: x/userID/bucketID/opID; val: BucketRecord
+	LFS_OpJobsKey = 15;         // key: x/userID/bucketID/opID; val: stripes
+    LFS_OpStateKey = 16;	    // key: x/userID/bucketID/opID; val: opstate	 
+    LFS_OpCountKey = 17;        // key: x/userID/bucketID; val: op number
 
 	// key in state tree
-	ST_RoleInfoKey = 20;     // key: x/type/id; val: roleInfo
+	ST_PDPPublicKey = 20;    // key: x/userID; val: Bls Prove key set
 	ST_BucketOptKey = 21;    // key: x/userID/bucketID; val: bucket option
 	ST_OrderBaseKey = 22;    // key: x/userID/proID/nonce; val: SignedOrderBase;
 	ST_OrderSeqKey = 23;     // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
 	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
-	St_SegAggKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap
-
-	ST_EpochKey = 31;        // key: x; val: l3, l2, last, current 
-	//ST_ChalSeedKey = 32;     // key: x/epoch; val: height, seed, time
-	ST_IncomeKey = 33;       // key: x/proID/epoch; value: expected(lifecycle), income, lost, []sign
-	ST_ChalSegResKey = 34;   // key: x/proID/userID/epoch; value: proof	  
-	ST_ChalSecResKey = 35;   // key: x/proID/epoch; value: proof	
+	St_SegAggKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap	
 
 
 	// data meta
-    PieceInfoKey = 40;      // key: x/pieceID; val: PieceInfo; on provider    
-    SectorPiecesKey = 41;   // key: x/sectorID, val: SectorPieces; on provider
-    SectorCountKey = 42;    // key: x/proID, val: sectorNumber; on keeper and provider
-    SectorSetKey = 43;      // key: x/proID, val: sectorSet; on keeper and provider
-	OrderTxKey = 44;        // key: x/userID/proID/nonce; val: []txHash;
-
-	SegLocationKey = 45;    // key: x/segID; val: proID
+	SegLocationKey = 40;    // key: x/segID; val: proID; on user
 
 	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
@@ -56,8 +38,9 @@ enum MetaType {
 	OrderSeqNumKey = 52;     // key: x/userID/proID/nonce; value: seqnum, OrderSeqState
 	OrderSeqKey = 53;        // key: x/userID/proID/nonce/seqnum; value: SignedOrderSeq
 	OrderProsKey = 54;       // key: x/userID; value: pros
-	OrderUsersKey = 55;       // key: x/proID; value: users
+	OrderUsersKey = 55;      // key: x/proID; value: users
 
+	// tx message and block
 	Tx_BlockSyncedKey = 60;   // key: x; value: blk height	
 	TX_BlockKey = 61;         // key: x/blockHash; value: blk content, 
 	Tx_BlockHeightKey = 62;	  // key: x/blockHeight; value: blk hash

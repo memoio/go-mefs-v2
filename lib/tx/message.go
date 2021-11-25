@@ -10,7 +10,8 @@ import (
 
 type MsgType = uint32
 
-const MsgMaxLen = 1<<16 - 1
+// 1MB ok ?
+const MsgMaxLen = 1 << 20
 
 var (
 	ErrMsgLen      = errors.New("message length too longth")
@@ -21,7 +22,7 @@ const (
 	DataTxErr MsgType = iota
 
 	UpdateEpoch  // next epoch, by keeper
-	CreateRole   // register, by keeper/provider/user
+	CreateFs     // register, by user
 	CreateBucket // by user
 	DataPreOrder // by user
 	DataOrder    // contain piece and segment; by user

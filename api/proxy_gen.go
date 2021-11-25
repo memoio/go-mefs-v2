@@ -30,12 +30,12 @@ type CommonStruct struct {
 
 		NetAddrInfo func(context.Context) (peer.AddrInfo, error) `perm:"write"`
 
-		RoleSelf        func(context.Context) (pb.RoleInfo, error)                            `perm:"read"`
-		RoleGet         func(context.Context, uint64) (pb.RoleInfo, error)                    `perm:"read"`
-		RoleGetRelated  func(context.Context, pb.RoleInfo_Type) ([]uint64, error)             `perm:"read"`
-		RoleSign        func(context.Context, []byte, types.SigType) (types.Signature, error) `perm:"write"`
-		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)  `perm:"read"`
-		RoleVerifyMulti func(context.Context, []byte, types.MultiSignature) (bool, error)     `perm:"read"`
+		RoleSelf        func(context.Context) (*pb.RoleInfo, error)                                   `perm:"read"`
+		RoleGet         func(context.Context, uint64) (*pb.RoleInfo, error)                           `perm:"read"`
+		RoleGetRelated  func(context.Context, pb.RoleInfo_Type) ([]uint64, error)                     `perm:"read"`
+		RoleSign        func(context.Context, uint64, []byte, types.SigType) (types.Signature, error) `perm:"write"`
+		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)          `perm:"read"`
+		RoleVerifyMulti func(context.Context, []byte, types.MultiSignature) (bool, error)             `perm:"read"`
 	}
 }
 
@@ -87,11 +87,11 @@ func (s *CommonStruct) NetAddrInfo(ctx context.Context) (peer.AddrInfo, error) {
 	return s.Internal.NetAddrInfo(ctx)
 }
 
-func (s *CommonStruct) RoleSelf(ctx context.Context) (pb.RoleInfo, error) {
+func (s *CommonStruct) RoleSelf(ctx context.Context) (*pb.RoleInfo, error) {
 	return s.Internal.RoleSelf(ctx)
 }
 
-func (s *CommonStruct) RoleGet(ctx context.Context, id uint64) (pb.RoleInfo, error) {
+func (s *CommonStruct) RoleGet(ctx context.Context, id uint64) (*pb.RoleInfo, error) {
 	return s.Internal.RoleGet(ctx, id)
 }
 
@@ -99,8 +99,8 @@ func (s *CommonStruct) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type)
 	return s.Internal.RoleGetRelated(ctx, typ)
 }
 
-func (s *CommonStruct) RoleSign(ctx context.Context, msg []byte, typ types.SigType) (types.Signature, error) {
-	return s.Internal.RoleSign(ctx, msg, typ)
+func (s *CommonStruct) RoleSign(ctx context.Context, id uint64, msg []byte, typ types.SigType) (types.Signature, error) {
+	return s.Internal.RoleSign(ctx, id, msg, typ)
 }
 
 func (s *CommonStruct) RoleVerify(ctx context.Context, id uint64, msg []byte, sig types.Signature) (bool, error) {

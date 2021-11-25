@@ -14,6 +14,7 @@ type Store interface {
 	GetTxMsg(mid types.MsgID) (*SignedMessage, error)
 	PutTxMsg(sm *SignedMessage) error
 	HasTxMsg(mid types.MsgID) (bool, error)
+	GetTxMsgState(mid types.MsgID) (*MsgState, error)
 
 	GetTxBlock(bid types.MsgID) (*Block, error)
 	PutTxBlock(tb *Block) error
@@ -189,16 +190,17 @@ func (ts *TxStoreImpl) PutTxBlock(tb *Block) error {
 	// store msg state; for what?
 	for i, mes := range tb.Txs {
 		ms := &MsgState{
-			BlockID: mes.ID,
+			BlockID: bid,
 			Height:  tb.Height,
 			Status:  tb.Receipts[i],
 		}
 
 		msb, err := ms.Serialize()
-		if err == nil {
-			key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mes.ID.String())
-			ts.ds.Put(key, msb)
+		if err != nil {
+			return err
 		}
+		key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mes.ID.String())
+		ts.ds.Put(key, msb)
 	}
 
 	return nil

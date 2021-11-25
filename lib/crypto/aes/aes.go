@@ -16,8 +16,8 @@ const (
 )
 
 var (
-	ErrKeySize   = errors.New("Keysize must be 32")
-	ErrBlockSize = errors.New("Blocksize must be an integer which can be divisible by 128")
+	ErrKeySize   = errors.New("keysize must be 32")
+	ErrBlockSize = errors.New("blocksize must be an integer which can be divisible by 128")
 )
 
 // ContructAesEnc contructs a new aes encrypt

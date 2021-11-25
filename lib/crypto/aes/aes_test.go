@@ -102,7 +102,7 @@ func TestNewAes(t *testing.T) {
 	bmd.CryptBlocks(data[3*BlockSize:], crypted[3*BlockSize:])
 
 	dhash2 := blake2b.Sum256(data)
-	if bytes.Compare(dhash[:], dhash2[:]) != 0 {
+	if !bytes.Equal(dhash[:], dhash2[:]) {
 		fmt.Println(data)
 		t.Fatal("decrypto error")
 	}

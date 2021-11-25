@@ -16,8 +16,6 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
-var baseDir = "/home/fjt/testmemo"
-
 func TestKeeperNode(t *testing.T) {
 	repoDir1 := "/home/fjt/testmemo0"
 	ctx := context.Background()

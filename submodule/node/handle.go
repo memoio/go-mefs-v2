@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -45,7 +46,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 	}
 
 	msg := blake3.Sum256(val)
-	sig, err := n.RoleSign(n.ctx, msg[:], types.SigSecp256k1)
+	sig, err := n.RoleSign(n.ctx, n.RoleID(), msg[:], types.SigSecp256k1)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		return resp, nil
@@ -66,7 +67,7 @@ func (n *BaseNode) OpenTest() error {
 	ticker := time.NewTicker(11 * time.Second)
 	defer ticker.Stop()
 	pi, _ := n.RoleMgr.RoleSelf(n.ctx)
-	data, _ := proto.Marshal(&pi)
+	data, _ := proto.Marshal(pi)
 	n.MsgHandle.Register(pb.NetMessage_PutPeer, n.TestHanderPutPeer)
 
 	for {
@@ -78,6 +79,7 @@ func (n *BaseNode) OpenTest() error {
 					n.GenericService.SendNetRequest(n.ctx, pi.ID, n.RoleID(), pb.NetMessage_PutPeer, data, nil)
 				}
 			}
+
 		case <-n.ctx.Done():
 			return nil
 		}
@@ -92,7 +94,7 @@ func (n *BaseNode) TestHanderPutPeer(ctx context.Context, p peer.ID, mes *pb.Net
 		return nil, err
 	}
 
-	go n.RoleMgr.AddRoleInfo(*ri)
+	go n.RoleMgr.AddRoleInfo(ri)
 	go n.NetServiceImpl.AddNode(ri.ID, p)
 
 	resp := new(pb.NetMessage)

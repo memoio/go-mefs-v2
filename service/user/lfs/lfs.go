@@ -2,13 +2,17 @@ package lfs
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/semaphore"
 
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/memoio/go-mefs-v2/lib/tx"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	uorder "github.com/memoio/go-mefs-v2/service/user/order"
 )
@@ -31,6 +35,10 @@ type LfsService struct {
 	dps map[uint64]*dataProcess
 
 	sw *semaphore.Weighted // manage resource
+
+	bucketChan chan uint64
+	readyChan  chan struct{}
+	ready      bool
 }
 
 func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, om *uorder.OrderMgr) (*LfsService, error) {
@@ -47,12 +55,11 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 		sb:  newSuperBlock(),
 		dps: make(map[uint64]*dataProcess),
 		sw:  semaphore.NewWeighted(defaultWeighted),
+
+		readyChan: make(chan struct{}, 1),
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()
-
-	ds.Put(store.NewKey(userID, pb.MetaType_PDPProveKey), keyset.PublicKey().Serialize())
-	ds.Put(store.NewKey(userID, pb.MetaType_PDPVerifyKey), keyset.VerifyKey().Serialize())
 
 	// load lfs info first
 	err := ls.Load()
@@ -66,10 +73,127 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 }
 
 func (l *LfsService) Start() error {
+	has := false
+	ok, err := l.ds.Has(store.NewKey(pb.MetaType_ST_PDPPublicKey, l.userID))
+	if err != nil || !ok {
+
+		_, err := l.ds.Get(store.NewKey(pb.MetaType_ST_PDPPublicKey, l.userID))
+		if err != nil {
+			logger.Debug("get fs fail:", err)
+		}
+		logger.Debug("push create fs message for: ", l.userID)
+
+		msg := &tx.Message{
+			Version: 0,
+			From:    l.userID,
+			To:      l.userID,
+			Method:  tx.CreateFs,
+			Params:  l.keyset.PublicKey().Serialize(),
+		}
+
+		ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancle()
+		var mid types.MsgID
+		for {
+			id, err := l.om.PushMessage(ctx, msg)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			mid = id
+			break
+		}
+
+		go func(mid types.MsgID, rc chan struct{}) {
+			for {
+				st, err := l.om.GetTxMsgStatus(ctx, mid)
+				if err != nil {
+					time.Sleep(5 * time.Second)
+					continue
+				}
+
+				logger.Debug("tx message done: ", mid, st.BlockID, st.Height)
+				break
+			}
+			rc <- struct{}{}
+		}(mid, l.readyChan)
+	} else {
+		has = true
+	}
+
+	// load bucket
+	data, err := l.ds.Get(store.NewKey(pb.MetaType_ST_BucketOptKey, l.userID))
+	if err == nil && len(data) >= 8 {
+		l.sb.bucketVerify = binary.BigEndian.Uint64(data)
+	}
+	if l.sb.bucketVerify < l.sb.NextBucketID {
+		logger.Debug("need send tx message again")
+		for bid := l.sb.bucketVerify; bid < l.sb.NextBucketID; bid++ {
+			logger.Debug("push create bucket message: ", bid)
+			bu := l.sb.buckets[bid]
+			tbp := tx.BucketParams{
+				BucketOption: bu.BucketOption,
+				BucketID:     bid,
+			}
+
+			data, err := tbp.Serialize()
+			if err != nil {
+				return err
+			}
+
+			msg := &tx.Message{
+				Version: 0,
+				From:    l.userID,
+				To:      l.userID,
+				Method:  tx.CreateBucket,
+				Params:  data,
+			}
+
+			// handle result and retry?
+
+			var mid types.MsgID
+			retry := 0
+			for retry < 60 {
+				retry++
+				id, err := l.om.PushMessage(l.ctx, msg)
+				if err != nil {
+					time.Sleep(10 * time.Second)
+					continue
+				}
+				mid = id
+				break
+			}
+
+			go func(bucketID uint64, mid types.MsgID) {
+				ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancle()
+				logger.Debug("waiting tx message done: ", mid)
+
+				for {
+					st, err := l.om.GetTxMsgStatus(ctx, mid)
+					if err != nil {
+						time.Sleep(5 * time.Second)
+						continue
+					}
+
+					logger.Debug("tx message done: ", mid, st.BlockID, st.Height)
+					break
+				}
+
+				l.bucketChan <- bucketID
+			}(bid, mid)
+		}
+	}
+
+	if has {
+		l.ready = true
+	}
+
 	return nil
 }
 
 func (l *LfsService) Stop() error {
+	l.ready = false
 	return nil
 }
 
@@ -77,7 +201,7 @@ func (l *LfsService) Ready() bool {
 	if l.sb == nil || l.sb.bucketNameToID == nil {
 		return false
 	}
-	return l.sb.ready
+	return l.ready
 }
 
 func (l *LfsService) Writeable() bool {

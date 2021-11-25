@@ -3,6 +3,7 @@ package keeper
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -33,6 +34,9 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 
 	inp := txPool.NewInPool(ctx, bn.PPool.SyncPool)
 
+	// register for can apply msg
+	inp.RegisterValidateMsgFunc(bn.StateDB.ValidateMsg)
+
 	kn := &KeeperNode{
 		BaseNode: bn,
 		ctx:      ctx,
@@ -54,6 +58,17 @@ func (k *KeeperNode) Start() error {
 	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
+
+	// wait for sync
+
+	for {
+		if k.PPool.Ready() {
+			break
+		} else {
+			logger.Debug("wait for sync: ")
+			time.Sleep(5 * time.Second)
+		}
+	}
 
 	logger.Info("start keeper for: ", k.RoleID())
 	return nil

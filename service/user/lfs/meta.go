@@ -1,6 +1,7 @@
 package lfs
 
 import (
+	"context"
 	"encoding/binary"
 	"sync"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/zeebo/blake3"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
@@ -19,10 +21,10 @@ type superBlock struct {
 	pb.SuperBlockInfo
 	dirty          bool
 	write          bool              // set true when finish unfinished jobs
-	ready          bool              // set true after loaded from local store
-	bucketMax      uint64            // Get from chain; in case create too mant buckets
+	bucketVerify   uint64            // Get from chain; in case create too mant buckets
 	bucketNameToID map[string]uint64 // bucketName -> bucketID
 	buckets        []*bucket         // 所有的bucket信息
+	waiting        bool
 }
 
 type bucket struct {
@@ -51,7 +53,7 @@ func newSuperBlock() *superBlock {
 			NextBucketID: 0,
 		},
 		dirty:          true,
-		bucketMax:      MaxBucket, // todo
+		bucketVerify:   0, // todo
 		bucketNameToID: make(map[string]uint64),
 	}
 }
@@ -124,7 +126,60 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 		objects:    rbtree.NewTree(),
 	}
 
-	err := bu.SaveOptions(l.userID, l.ds)
+	logger.Debug("push create bucket message")
+	tbp := tx.BucketParams{
+		BucketOption: *opt,
+		BucketID:     bucketID,
+	}
+
+	data, err := tbp.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	msg := &tx.Message{
+		Version: 0,
+		From:    l.userID,
+		To:      l.userID,
+		Method:  tx.CreateBucket,
+		Params:  data,
+	}
+
+	// handle result and retry?
+
+	var mid types.MsgID
+	retry := 0
+	for retry < 60 {
+		retry++
+		id, err := l.om.PushMessage(l.ctx, msg)
+		if err != nil {
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		mid = id
+		break
+	}
+
+	go func(bucketID uint64, mid types.MsgID) {
+		ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancle()
+		logger.Debug("waiting tx message done: ", mid)
+
+		for {
+			st, err := l.om.GetTxMsgStatus(ctx, mid)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			logger.Debug("tx message done: ", mid, st.BlockID, st.Height)
+			break
+		}
+
+		l.bucketChan <- bucketID
+	}(bucketID, mid)
+
+	err = bu.SaveOptions(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}
@@ -436,7 +491,6 @@ func (l *LfsService) Load() error {
 		go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 	}
 
-	l.sb.ready = true
 	l.sb.write = true
 	return nil
 }
@@ -472,7 +526,17 @@ func (l *LfsService) persistMeta() {
 	tick := time.NewTicker(60 * time.Second)
 	defer tick.Stop()
 	for {
+		logger.Debug("handle lfs")
 		select {
+		case <-l.readyChan:
+			l.ready = true
+			logger.Debug("lfs is ready")
+		case bid := <-l.bucketChan:
+			l.sb.Lock()
+			if l.sb.bucketVerify == bid {
+				l.sb.bucketVerify++
+			}
+			l.sb.Unlock()
 		case <-tick.C:
 			if l.Ready() {
 				err := l.Save()

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -74,6 +75,17 @@ func (n *BaseNode) Start() error {
 	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
 
 	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
+
+	// wait for sync
+
+	for {
+		if n.PPool.Ready() {
+			break
+		} else {
+			logger.Debug("wait for sync: ")
+			time.Sleep(5 * time.Second)
+		}
+	}
 
 	return nil
 }

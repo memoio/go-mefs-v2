@@ -23,7 +23,7 @@ type roleAPI struct {
 	*RoleMgr
 }
 
-func (rm *RoleMgr) RoleSelf(ctx context.Context) (pb.RoleInfo, error) {
+func (rm *RoleMgr) RoleSelf(ctx context.Context) (*pb.RoleInfo, error) {
 	rm.RLock()
 	defer rm.RUnlock()
 
@@ -31,17 +31,17 @@ func (rm *RoleMgr) RoleSelf(ctx context.Context) (pb.RoleInfo, error) {
 	if ok {
 		return ri, nil
 	}
-	return pb.RoleInfo{}, ErrNotFound
+	return nil, ErrNotFound
 }
 
-func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64) (pb.RoleInfo, error) {
+func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64) (*pb.RoleInfo, error) {
 	rm.RLock()
 	defer rm.RUnlock()
 	ri, ok := rm.infos[id]
 	if ok {
 		return ri, nil
 	}
-	return pb.RoleInfo{}, ErrNotFound
+	return nil, ErrNotFound
 }
 
 func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {
@@ -75,20 +75,29 @@ func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]
 	}
 }
 
-func (rm *RoleMgr) RoleSign(ctx context.Context, msg []byte, typ types.SigType) (types.Signature, error) {
+func (rm *RoleMgr) RoleSign(ctx context.Context, id uint64, msg []byte, typ types.SigType) (types.Signature, error) {
 	ts := types.Signature{
 		Type: typ,
 	}
 
 	switch typ {
 	case types.SigSecp256k1:
-		sig, err := rm.WalletSign(rm.ctx, rm.localAddr, msg)
+		addr, err := rm.GetPubKey(id, types.Secp256k1)
+		if err != nil {
+			return ts, err
+		}
+		sig, err := rm.WalletSign(rm.ctx, addr, msg)
 		if err != nil {
 			return ts, err
 		}
 		ts.Data = sig
 	case types.SigBLS:
-		sig, err := rm.WalletSign(rm.ctx, rm.blsAddr, msg)
+		addr, err := rm.GetPubKey(id, types.BLS)
+		if err != nil {
+			return ts, err
+		}
+
+		sig, err := rm.WalletSign(rm.ctx, addr, msg)
 		if err != nil {
 			return ts, err
 		}
@@ -106,9 +115,17 @@ func (rm *RoleMgr) RoleVerify(ctx context.Context, id uint64, msg []byte, sig ty
 	var pubByte []byte
 	switch sig.Type {
 	case types.SigSecp256k1:
-		pubByte = rm.GetPubKey(id)
+		addr, err := rm.GetPubKey(id, types.Secp256k1)
+		if err != nil {
+			return false, err
+		}
+		pubByte = addr.Bytes()
 	case types.SigBLS:
-		pubByte = rm.GetBlsPubKey(id)
+		addr, err := rm.GetPubKey(id, types.BLS)
+		if err != nil {
+			return false, err
+		}
+		pubByte = addr.Bytes()
 	default:
 		return false, ErrNotFound
 	}
@@ -135,9 +152,12 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
 				return false, ErrNotFound
 			}
-			pubByte := rm.GetPubKey(id)
+			addr, err := rm.GetPubKey(id, types.Secp256k1)
+			if err != nil {
+				return false, err
+			}
 			sign := sig.Data[i*secp256k1.SignatureSize : (i+1)*secp256k1.SignatureSize]
-			ok, err := signature.Verify(pubByte, msg, sign)
+			ok, err := signature.Verify(addr.Bytes(), msg, sign)
 			if err != nil {
 				return false, err
 			}
@@ -153,11 +173,11 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
 				return false, ErrNotFound
 			}
-			pubByte := rm.GetPubKey(id)
-			if len(pubByte) == 0 {
-				return false, ErrNotFound
+			addr, err := rm.GetPubKey(id, types.BLS)
+			if err != nil {
+				return false, err
 			}
-			apub[i] = pubByte
+			apub[i] = addr.Bytes()
 		}
 
 		apk, err := bls.AggregatePublicKey(apub...)

@@ -78,11 +78,11 @@ type INetwork interface {
 }
 
 type IRole interface {
-	RoleSelf(context.Context) (pb.RoleInfo, error)
-	RoleGet(context.Context, uint64) (pb.RoleInfo, error)
+	RoleSelf(context.Context) (*pb.RoleInfo, error)
+	RoleGet(context.Context, uint64) (*pb.RoleInfo, error)
 	RoleGetRelated(context.Context, pb.RoleInfo_Type) ([]uint64, error)
 
-	RoleSign(context.Context, []byte, types.SigType) (types.Signature, error)
+	RoleSign(context.Context, uint64, []byte, types.SigType) (types.Signature, error)
 	RoleVerify(context.Context, uint64, []byte, types.Signature) (bool, error)
 	RoleVerifyMulti(context.Context, []byte, types.MultiSignature) (bool, error)
 }
@@ -127,9 +127,12 @@ type ILfsService interface {
 	ShowBucketStorage(ctx context.Context, bucketName string) (uint64, error)
 }
 
-type IDataChain interface {
+type IChain interface {
 	GetSyncHeight(context.Context) (uint64, uint64)
 	GetNonce(context.Context, uint64) uint64
 	GetPendingNonce(context.Context, uint64) uint64
-	GetTxMsgStatus(mid types.MsgID) (*tx.MsgState, error)
+	GetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
+
+	PushMessage(context.Context, *tx.Message) (types.MsgID, error)
+	PushSignedMessage(context.Context, *tx.SignedMessage) (types.MsgID, error)
 }

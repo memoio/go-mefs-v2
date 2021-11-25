@@ -218,7 +218,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.PPool = txPool.NewPushPool(ctx, sp)
 
-	nd.StateDB = state.NewStateDB(nd.MetaStore(), rm)
+	nd.StateDB = state.NewStateMgr(nd.MetaStore(), rm)
 
 	// register apply msg
 	nd.PPool.RegisterMsgFunc(nd.StateDB.AppleyMsg)

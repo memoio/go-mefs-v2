@@ -2,7 +2,6 @@ package role
 
 import (
 	"context"
-	"strconv"
 	"sync"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
@@ -23,10 +23,7 @@ type RoleMgr struct {
 	roleID  uint64
 	groupID uint64
 
-	localAddr address.Address
-	blsAddr   address.Address
-
-	infos map[uint64]pb.RoleInfo // get from chain
+	infos map[uint64]*pb.RoleInfo // get from chain
 
 	users     []uint64 // related role
 	keepers   []uint64
@@ -37,7 +34,7 @@ type RoleMgr struct {
 
 func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet) (*RoleMgr, error) {
 
-	data, err := ds.Get([]byte(strconv.Itoa(int(pb.MetaType_RoleInfoKey))))
+	data, err := ds.Get(store.NewKey(pb.MetaType_RoleInfoKey))
 	if err != nil {
 		return nil, err
 	}
@@ -52,21 +49,16 @@ func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.I
 		logger.Debug("roleID not equal")
 	}
 
-	localAddr, _ := address.NewAddress(ri.ChainVerifyKey)
-	blsAddr, _ := address.NewAddress(ri.BlsVerifyKey)
-
 	rm := &RoleMgr{
-		IWallet:   iw,
-		ctx:       ctx,
-		roleID:    roleID,
-		groupID:   groupID,
-		infos:     make(map[uint64]pb.RoleInfo),
-		ds:        ds,
-		localAddr: localAddr,
-		blsAddr:   blsAddr,
+		IWallet: iw,
+		ctx:     ctx,
+		roleID:  roleID,
+		groupID: groupID,
+		infos:   make(map[uint64]*pb.RoleInfo),
+		ds:      ds,
 	}
 
-	rm.infos[roleID] = *ri
+	rm.infos[roleID] = ri
 
 	return rm, nil
 }
@@ -103,13 +95,18 @@ func (rm *RoleMgr) SyncFromChain(ctx context.Context) {
 
 }
 
-func (rm *RoleMgr) AddRoleInfo(ri pb.RoleInfo) {
+func (rm *RoleMgr) AddRoleInfo(ri *pb.RoleInfo) {
 	rm.Lock()
 	defer rm.Unlock()
-	logger.Debug("add role info for: ", ri.ID)
+	rm.addRoleInfo(ri)
+}
+
+func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo) {
 	_, ok := rm.infos[ri.ID]
 	if !ok {
+		logger.Debug("add role info for: ", ri.ID)
 		rm.infos[ri.ID] = ri
+
 		switch ri.Type {
 		case pb.RoleInfo_Keeper:
 			rm.keepers = append(rm.keepers, ri.ID)
@@ -120,37 +117,64 @@ func (rm *RoleMgr) AddRoleInfo(ri pb.RoleInfo) {
 		default:
 			return
 		}
+
+		key := store.NewKey(pb.MetaType_RoleInfoKey, ri.ID)
+
+		pbyte, err := proto.Marshal(ri)
+		if err != nil {
+			return
+		}
+		rm.ds.Put(key, pbyte)
 	}
 }
 
-func (rm *RoleMgr) GetPubKey(roleID uint64) []byte {
+func (rm *RoleMgr) GetPubKey(roleID uint64, typ types.KeyType) (address.Address, error) {
 	rm.RLock()
 	defer rm.RUnlock()
 	ri, ok := rm.infos[roleID]
-	if ok {
-		return ri.ChainVerifyKey
+	if !ok {
+		key := store.NewKey(pb.MetaType_RoleInfoKey, roleID)
+		val, err := rm.ds.Get(key)
+		if err != nil {
+			return address.Undef, nil
+		}
+		ri = new(pb.RoleInfo)
+		err = proto.Unmarshal(val, ri)
+		if err != nil {
+			return address.Undef, err
+		}
+		rm.RUnlock()
+		rm.Lock()
+		rm.addRoleInfo(ri)
+		rm.Unlock()
+		rm.RLock()
 	}
-	return nil
+
+	switch typ {
+	case types.Secp256k1:
+		return address.NewAddress(ri.ChainVerifyKey)
+	case types.BLS:
+		return address.NewAddress(ri.BlsVerifyKey)
+
+	default:
+		return address.Undef, ErrNotFound
+	}
 }
 
-func (rm *RoleMgr) GetBlsPubKey(roleID uint64) []byte {
-	rm.RLock()
-	defer rm.RUnlock()
-
-	ri, ok := rm.infos[roleID]
-	if ok {
-		return ri.BlsVerifyKey
+func (rm *RoleMgr) RoleGetKeyset(roleID uint64) (pdpcommon.KeySet, error) {
+	addr, err := rm.GetPubKey(roleID, types.Secp256k1)
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
 
-func (rm *RoleMgr) RoleGetKeyset() (pdpcommon.KeySet, error) {
-	ki, err := rm.WalletExport(rm.ctx, rm.localAddr)
+	ki, err := rm.WalletExport(rm.ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 
 	privBytes := ki.SecretKey
+
+	privBytes = append(privBytes, byte(types.PDP))
 
 	keyset, err := pdpv2.GenKeySetWithSeed(privBytes, pdpv2.SCount)
 	if err != nil {

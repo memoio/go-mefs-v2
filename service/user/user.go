@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -41,7 +42,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
-	keyset, err := bn.RoleMgr.RoleGetKeyset()
+	keyset, err := bn.RoleMgr.RoleGetKeyset(bn.RoleID())
 	if err != nil {
 		return nil, err
 	}
@@ -76,6 +77,20 @@ func (u *UserNode) Start() error {
 	u.BlockHandle.Register(u.BaseNode.TxBlockHandler)
 
 	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(u))
+
+	// wait for sync
+
+	for {
+		if u.PPool.Ready() {
+			break
+		} else {
+			logger.Debug("wait for sync: ")
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	// start lfs service
+	u.LfsService.Start()
 
 	logger.Info("start user for: ", u.RoleID())
 	return nil

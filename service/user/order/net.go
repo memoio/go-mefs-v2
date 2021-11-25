@@ -64,7 +64,7 @@ func (m *OrderMgr) getQuotation(proID uint64) error {
 func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 	logger.Debug("get new order ack from: ", proID)
 	msg := blake3.Sum256(data)
-	sig, err := m.RoleSign(m.ctx, msg[:], types.SigSecp256k1)
+	sig, err := m.RoleSign(m.ctx, m.localID, msg[:], types.SigSecp256k1)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 	logger.Debug("get new seq ack from: ", proID)
 	msg := blake3.Sum256(data)
-	sig, err := m.RoleSign(m.ctx, msg[:], types.SigSecp256k1)
+	sig, err := m.RoleSign(m.ctx, m.localID, msg[:], types.SigSecp256k1)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 	logger.Debug("get finish seq ack from: ", proID)
 	msg := blake3.Sum256(data)
-	sig, err := m.RoleSign(m.ctx, msg[:], types.SigSecp256k1)
+	sig, err := m.RoleSign(m.ctx, m.localID, msg[:], types.SigSecp256k1)
 	if err != nil {
 		return err
 	}
