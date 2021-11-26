@@ -84,7 +84,7 @@ func (u *UserNode) Start() error {
 		if u.PPool.Ready() {
 			break
 		} else {
-			logger.Debug("wait for sync: ")
+			logger.Debug("wait for sync")
 			time.Sleep(5 * time.Second)
 		}
 	}

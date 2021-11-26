@@ -86,6 +86,8 @@ type OrderFull struct {
 func (m *OrderMgr) newProOrder(id uint64) {
 	logger.Debug("create order for provider: ", id)
 	of := m.loadProOrder(id)
+	m.loadUnfinished(of)
+	// resend tx msg
 	m.proChan <- of
 }
 
@@ -397,6 +399,8 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 	o.orderState = Order_Running
 	o.orderTime = time.Now().Unix()
 
+	o.base.Psign = ob.Psign
+
 	// save signed order base; todo
 	err = saveOrderBase(o, m.ds)
 	if err != nil {
@@ -410,6 +414,20 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 	}
 
 	// push out; todo
+	data, err := o.base.Serialize()
+	if err != nil {
+		return err
+	}
+
+	msg := &tx.Message{
+		Version: 0,
+		From:    o.base.UserID,
+		To:      o.base.ProID,
+		Method:  tx.DataPreOrder,
+		Params:  data,
+	}
+
+	m.msgChan <- msg
 
 	return nil
 }
@@ -686,12 +704,6 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return err
 	}
 
-	// save order base; todo
-	err = saveOrderBase(o, m.ds)
-	if err != nil {
-		return err
-	}
-
 	// push out
 
 	data, err := o.seq.Serialize()
@@ -706,33 +718,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		Method:  tx.DataOrder,
 		Params:  data,
 	}
-	// handle result and retry?
-	go func(msg *tx.Message) {
-		ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancle()
-		var mid types.MsgID
-		for {
-			id, err := m.PushMessage(ctx, msg)
-			if err != nil {
-				time.Sleep(5 * time.Second)
-				continue
-			}
-			mid = id
-			break
-		}
 
-		for {
-			st, err := m.GetTxMsgStatus(ctx, mid)
-			if err != nil {
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			logger.Debug("tx message done: ", mid, st.BlockID, st.Height)
-			break
-		}
-
-	}(msg)
+	m.msgChan <- msg
 
 	// reset
 	o.seqState = OrderSeq_Init

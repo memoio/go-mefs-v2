@@ -35,10 +35,7 @@ type orderKey struct {
 // key: x/userID/proID; val:
 //
 type orderInfo struct {
-	// for veirfy order
-	Nonce  uint64
-	SeqNum uint32
-
+	ns   *types.NonceSeq
 	base *types.SignedOrder
 }
 
@@ -105,6 +102,5 @@ func (cm *chalManage) Deserialize(b []byte) error {
 // key: ST_SegLocKey/userID/bucketID/chunkID/stripeID; val: stripe
 // key: ST_SegLocKey/userID/bucketID/chunkID; val: lastest stripe
 type chunkManage struct {
-	nextExpire *types.AggStripe
-	stripe     *types.AggStripe
+	stripe *types.AggStripe
 }

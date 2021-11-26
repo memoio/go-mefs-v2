@@ -2,6 +2,7 @@ package state
 
 import (
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -10,8 +11,10 @@ import (
 
 func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	oinfo := &orderInfo{
-		Nonce:  0,
-		SeqNum: 0,
+		ns: &types.NonceSeq{
+			Nonce:  0,
+			SeqNum: 0,
+		},
 	}
 
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID)
@@ -20,16 +23,16 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 		return oinfo
 	}
 
-	err = cbor.Unmarshal(data, oinfo)
+	err = cbor.Unmarshal(data, oinfo.ns)
 	if err != nil {
 		return oinfo
 	}
 
-	if oinfo.Nonce == 0 {
+	if oinfo.ns.Nonce == 0 {
 		return oinfo
 	}
 
-	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.Nonce-1)
+	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.ns.Nonce-1)
 	data, err = s.ds.Get(key)
 	if err != nil {
 		return oinfo
@@ -61,13 +64,14 @@ func (s *StateMgr) AddOrder(or *types.SignedOrder) error {
 		s.oInfo[okey] = oinfo
 	}
 
-	if or.Nonce != oinfo.Nonce {
-		return ErrNonce
+	if or.Nonce != oinfo.ns.Nonce {
+		return xerrors.Errorf("add order got %d, expected %d, err: %w", or.Nonce, oinfo.ns.Nonce, ErrNonce)
 	}
 
-	oinfo.Nonce++
+	oinfo.ns.Nonce++
+	oinfo.base = or
 	// reset
-	oinfo.SeqNum = 0
+	oinfo.ns.SeqNum = 0
 
 	// save
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID, or.Nonce)
@@ -81,7 +85,7 @@ func (s *StateMgr) AddOrder(or *types.SignedOrder) error {
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID)
-	data, err = cbor.Marshal(oinfo)
+	data, err = cbor.Marshal(oinfo.ns)
 	if err != nil {
 		return err
 	}
@@ -110,12 +114,12 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 		s.oInfo[okey] = oinfo
 	}
 
-	if oinfo.Nonce != so.Nonce+1 {
-		return ErrNonce
+	if oinfo.ns.Nonce != so.Nonce+1 {
+		return xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Nonce, oinfo.ns.Nonce, ErrNonce)
 	}
 
-	if oinfo.SeqNum != so.SeqNum {
-		return ErrSeq
+	if oinfo.ns.SeqNum != so.SeqNum {
+		return xerrors.Errorf("add seq got %d, expected %d, err: %w", so.SeqNum, oinfo.ns.SeqNum, ErrSeq)
 	}
 
 	// verify size and price
@@ -129,7 +133,7 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 	}
 
 	// validate size and price
-	oinfo.SeqNum++
+	oinfo.ns.SeqNum++
 	oinfo.base.Size = so.Size
 	oinfo.base.Price.Set(so.Price)
 
@@ -155,7 +159,7 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID)
-	data, err = cbor.Marshal(oinfo)
+	data, err = cbor.Marshal(oinfo.ns)
 	if err != nil {
 		return err
 	}
@@ -184,13 +188,13 @@ func (s *StateMgr) CanAddOrder(or *types.SignedOrder) error {
 		s.validateOInfo[okey] = oinfo
 	}
 
-	if or.Nonce != oinfo.Nonce {
-		return ErrNonce
+	if or.Nonce != oinfo.ns.Nonce {
+		return xerrors.Errorf("add order got %d, expected %d, err: %w", or.Nonce, oinfo.ns.Nonce, ErrNonce)
 	}
 
-	oinfo.Nonce++
+	oinfo.ns.Nonce++
 	// reset
-	oinfo.SeqNum = 0
+	oinfo.ns.SeqNum = 0
 
 	return nil
 }
@@ -212,14 +216,13 @@ func (s *StateMgr) CanAddSeq(so *types.SignedOrderSeq) error {
 		s.validateOInfo[okey] = oinfo
 	}
 
-	if oinfo.Nonce != so.Nonce+1 {
-		return ErrNonce
+	if oinfo.ns.Nonce != so.Nonce+1 {
+		return xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Nonce, oinfo.ns.Nonce, ErrNonce)
 	}
 
-	if oinfo.SeqNum != so.SeqNum {
-		return ErrSeq
+	if oinfo.ns.SeqNum != so.SeqNum {
+		return xerrors.Errorf("add seq got %d, expected %d, err: %w", so.SeqNum, oinfo.ns.SeqNum, ErrSeq)
 	}
-
 	// verify size and price
 
 	// verify segment
@@ -231,7 +234,7 @@ func (s *StateMgr) CanAddSeq(so *types.SignedOrderSeq) error {
 	}
 
 	// update size and price
-	oinfo.SeqNum++
+	oinfo.ns.SeqNum++
 
 	return nil
 }

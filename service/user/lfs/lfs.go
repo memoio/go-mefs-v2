@@ -73,14 +73,13 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 }
 
 func (l *LfsService) Start() error {
+	// start order manager
+	l.om.Start()
+
 	has := false
 	ok, err := l.ds.Has(store.NewKey(pb.MetaType_ST_PDPPublicKey, l.userID))
 	if err != nil || !ok {
-
-		_, err := l.ds.Get(store.NewKey(pb.MetaType_ST_PDPPublicKey, l.userID))
-		if err != nil {
-			logger.Debug("get fs fail:", err)
-		}
+		time.Sleep(15 * time.Second)
 		logger.Debug("push create fs message for: ", l.userID)
 
 		msg := &tx.Message{
@@ -91,11 +90,9 @@ func (l *LfsService) Start() error {
 			Params:  l.keyset.PublicKey().Serialize(),
 		}
 
-		ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancle()
 		var mid types.MsgID
 		for {
-			id, err := l.om.PushMessage(ctx, msg)
+			id, err := l.om.PushMessage(l.ctx, msg)
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				continue
@@ -105,6 +102,8 @@ func (l *LfsService) Start() error {
 		}
 
 		go func(mid types.MsgID, rc chan struct{}) {
+			ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancle()
 			for {
 				st, err := l.om.GetTxMsgStatus(ctx, mid)
 				if err != nil {
@@ -112,7 +111,7 @@ func (l *LfsService) Start() error {
 					continue
 				}
 
-				logger.Debug("tx message done: ", mid, st.BlockID, st.Height)
+				logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
 				break
 			}
 			rc <- struct{}{}
@@ -165,7 +164,7 @@ func (l *LfsService) Start() error {
 			}
 
 			go func(bucketID uint64, mid types.MsgID) {
-				ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
+				ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
 				defer cancle()
 				logger.Debug("waiting tx message done: ", mid)
 
@@ -176,7 +175,7 @@ func (l *LfsService) Start() error {
 						continue
 					}
 
-					logger.Debug("tx message done: ", mid, st.BlockID, st.Height)
+					logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
 					break
 				}
 
@@ -185,9 +184,17 @@ func (l *LfsService) Start() error {
 		}
 	}
 
+	for i := 0; i < int(l.sb.NextBucketID); i++ {
+		bu := l.sb.buckets[i]
+		if !bu.Deletion {
+			go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+		}
+	}
+
 	if has {
 		l.ready = true
 	}
+	logger.Debug("start lfs for: ", l.userID)
 
 	return nil
 }

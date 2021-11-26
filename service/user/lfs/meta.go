@@ -161,7 +161,7 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 	}
 
 	go func(bucketID uint64, mid types.MsgID) {
-		ctx, cancle := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancle()
 		logger.Debug("waiting tx message done: ", mid)
 
@@ -172,7 +172,7 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 				continue
 			}
 
-			logger.Debug("tx message done: ", mid, st.BlockID, st.Height)
+			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
 			break
 		}
 
@@ -455,6 +455,9 @@ func (l *LfsService) Load() error {
 	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
 		bu := new(bucket)
+		bu.Deletion = true
+
+		l.sb.buckets[i] = bu
 
 		bu.Lock()
 		err := bu.Load(l.userID, i, l.ds)
@@ -463,8 +466,6 @@ func (l *LfsService) Load() error {
 			bu.Unlock()
 			continue
 		}
-
-		l.sb.buckets[i] = bu
 
 		logger.Debug("load bucket: ", i, bu.BucketInfo)
 
@@ -487,8 +488,6 @@ func (l *LfsService) Load() error {
 
 		}
 		bu.Unlock()
-
-		go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 	}
 
 	l.sb.write = true
@@ -526,7 +525,6 @@ func (l *LfsService) persistMeta() {
 	tick := time.NewTicker(60 * time.Second)
 	defer tick.Stop()
 	for {
-		logger.Debug("handle lfs")
 		select {
 		case <-l.readyChan:
 			l.ready = true

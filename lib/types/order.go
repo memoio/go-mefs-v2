@@ -28,6 +28,11 @@ func (q *Quotation) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, q)
 }
 
+type NonceSeq struct {
+	Nonce  uint64
+	SeqNum uint32
+}
+
 // key: 'OrderNonce'/user/pro; value: nonce
 // key: 'OrderNonceDone'/user/pro; value: nonce
 // key: 'OrderBase'/user/pro/nonce; value: content

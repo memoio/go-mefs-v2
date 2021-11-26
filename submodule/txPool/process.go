@@ -63,10 +63,13 @@ func (mp *InPool) sync() {
 			logger.Debug("process block done")
 			return
 		case m := <-mp.msgChan:
+
 			id, err := m.Hash()
 			if err != nil {
 				continue
 			}
+
+			logger.Debug("add tx message: ", id, m.From, m.Nonce, m.Method)
 
 			md := &mesWithID{
 				mid: id,
@@ -99,7 +102,7 @@ func (mp *InPool) sync() {
 
 			tb.MultiSignature.Add(mp.localID, sig)
 
-			logger.Debugf("create new block at height: %d, now: %s, prev: %s, has msg: %d", tb.Height, id.String(), blk.PrevID.String(), len(blk.Txs))
+			logger.Debugf("create new block at height: %d, now: %s, prev: %s, has message: %d", tb.Height, id.String(), blk.PrevID.String(), len(blk.Txs))
 
 			mp.INetService.PublishTxBlock(mp.ctx, tb)
 
@@ -121,7 +124,7 @@ func (mp *InPool) sync() {
 				}
 
 				if ms.nextDelete != md.Nonce {
-					logger.Debug("block delete msg at: ", md.From, md.Nonce)
+					logger.Debug("block delete message at: ", md.From, md.Nonce)
 				}
 
 				ms.nextDelete = md.Nonce + 1
@@ -136,11 +139,13 @@ func (mp *InPool) sync() {
 func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	nonce := mp.SyncPool.GetNonce(ctx, m.From)
 	if m.Nonce < nonce {
+		logger.Debug("add tx msg fails: ", ErrLowNonce)
 		return ErrLowNonce
 	}
 
 	err := mp.SyncPool.AddTxMsg(mp.ctx, m)
 	if err != nil {
+		logger.Debug("add tx msg fails: ", ErrLowNonce)
 		return err
 	}
 
@@ -187,7 +192,7 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 				}
 				err := mp.vf(m.mes)
 				if err != nil {
-					logger.Debug("block msg invalid:", err)
+					logger.Debug("block message invalid:", m.mes.From, m.mes.Nonce, err)
 					tr.Err = 1
 					tr.Extra = []byte(err.Error())
 				}

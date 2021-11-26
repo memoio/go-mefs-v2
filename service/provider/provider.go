@@ -98,7 +98,7 @@ func (p *ProviderNode) Start() error {
 		if p.PPool.Ready() {
 			break
 		} else {
-			logger.Debug("wait for sync: ")
+			logger.Debug("wait for sync")
 			time.Sleep(5 * time.Second)
 		}
 	}

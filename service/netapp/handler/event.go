@@ -70,6 +70,6 @@ func (i *EventImpl) Close() {
 }
 
 func defaultEventHandler(ctx context.Context, msg *pb.EventMessage) error {
-	log.Println("received event unknown msg")
+	log.Println("received event unknown message")
 	return nil
 }

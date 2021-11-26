@@ -6,6 +6,7 @@ import (
 	"github.com/bits-and-blooms/bitset"
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
 
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -42,6 +43,37 @@ func (s *StateMgr) getBucketManage(spu *segPerUser, userID, bucketID uint64) *bu
 	bm.chunks = make([]*chunkManage, pbo.DataCount+pbo.ParityCount)
 
 	return bm
+}
+
+func (s *StateMgr) getChunkManage(bm *bucketManage, userID, bucketID uint64, chunkID uint32) *chunkManage {
+	cm := bm.chunks[chunkID]
+
+	if cm == nil {
+		cm = &chunkManage{}
+		bm.chunks[chunkID] = cm
+	}
+
+	key := store.NewKey(pb.MetaType_St_SegAggKey, userID, bucketID, chunkID)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return cm
+	}
+
+	if len(data) >= 8 {
+		stripeID := binary.BigEndian.Uint64(data)
+		key := store.NewKey(pb.MetaType_St_SegAggKey, userID, bucketID, chunkID, stripeID)
+		data, err := s.ds.Get(key)
+		if err != nil {
+			return cm
+		}
+		as := new(types.AggStripe)
+		err = as.Deserialize(data)
+		if err == nil {
+			cm.stripe = as
+		}
+	}
+
+	return cm
 }
 
 func (s *StateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint64) *chalManage {
@@ -86,7 +118,7 @@ func (s *StateMgr) AddBucket(userID, bucketID uint64, pbo *pb.BucketOption) erro
 	}
 
 	if uinfo.nextBucket != bucketID {
-		return ErrBucket
+		return xerrors.Errorf("add bucket %d err: %w", bucketID, ErrBucket)
 	}
 
 	bm := &bucketManage{
@@ -131,13 +163,13 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 		s.sInfo[userID] = uinfo
 	}
 	if uinfo.nextBucket <= bucketID {
-		return ErrBucket
+		return xerrors.Errorf("add chunk %d err: %w", bucketID, ErrBucket)
 	}
 
 	binfo := s.getBucketManage(uinfo, userID, bucketID)
 
 	if int(chunkID) >= len(binfo.chunks) {
-		return ErrChunk
+		return xerrors.Errorf("add chunk %d err: %w", chunkID, ErrChunk)
 	}
 
 	cm := s.getChalManage(binfo, userID, bucketID, proID)
@@ -145,11 +177,11 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	// check whether has it already
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
 		if cm.avail.Test(uint(i)) {
-			return ErrDuplicate
+			return xerrors.Errorf("add chunk %d_%d_%d err:%w, ", bucketID, i, chunkID, ErrDuplicate)
 		}
 	}
 
-	cinfo := binfo.chunks[chunkID]
+	cinfo := s.getChunkManage(binfo, userID, bucketID, chunkID)
 	if cinfo.stripe != nil && cinfo.stripe.ProID == proID && cinfo.stripe.Nonce == nonce && cinfo.stripe.Start+cinfo.stripe.Length == stripeStart {
 		cinfo.stripe.Length += stripeLength
 	} else {
@@ -183,6 +215,24 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 		return err
 	}
 
+	key = store.NewKey(pb.MetaType_ST_SegLocKey, userID, bucketID, chunkID, stripeStart)
+	data, err = cinfo.stripe.Serialize()
+	if err != nil {
+		return err
+	}
+	err = s.ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	key = store.NewKey(pb.MetaType_ST_SegLocKey, userID, bucketID, chunkID)
+	val := make([]byte, 8)
+	binary.BigEndian.PutUint64(val, stripeStart)
+	err = s.ds.Put(key, val)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -201,7 +251,7 @@ func (s *StateMgr) CanAddBucket(userID, bucketID uint64, pbo *pb.BucketOption) e
 	}
 
 	if uinfo.nextBucket != bucketID {
-		return ErrBucket
+		return xerrors.Errorf("add bucket %d err:%w, ", bucketID, ErrBucket)
 	}
 
 	bm := &bucketManage{
@@ -227,13 +277,13 @@ func (s *StateMgr) CanAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 		s.validateSInfo[userID] = uinfo
 	}
 	if uinfo.nextBucket <= bucketID {
-		return ErrBucket
+		return xerrors.Errorf("add chunk %d %w", bucketID, ErrBucket)
 	}
 
 	binfo := s.getBucketManage(uinfo, userID, bucketID)
 
 	if int(chunkID) >= len(binfo.chunks) {
-		return ErrChunk
+		return xerrors.Errorf("add chunk %d %w", chunkID, ErrChunk)
 	}
 
 	cm := s.getChalManage(binfo, userID, bucketID, proID)
@@ -241,11 +291,11 @@ func (s *StateMgr) CanAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 	// check whether has it already
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
 		if cm.avail.Test(uint(i)) {
-			return ErrDuplicate
+			return xerrors.Errorf("add chunk %d_%d_%d %w", bucketID, i, chunkID, ErrDuplicate)
 		}
 	}
 
-	cinfo := binfo.chunks[chunkID]
+	cinfo := s.getChunkManage(binfo, userID, bucketID, chunkID)
 	if cinfo.stripe != nil && cinfo.stripe.ProID == proID && cinfo.stripe.Nonce == nonce && cinfo.stripe.Start+cinfo.stripe.Length == stripeStart {
 		cinfo.stripe.Length += stripeLength
 	} else {

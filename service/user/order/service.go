@@ -9,6 +9,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
@@ -49,6 +50,9 @@ type OrderMgr struct {
 	segRedoChan chan *types.SegJob
 	segDoneChan chan *types.SegJob
 
+	// message send out
+	msgChan chan *tx.Message
+
 	ready bool
 }
 
@@ -86,19 +90,25 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		segAddChan:  make(chan *types.SegJob, 128),
 		segRedoChan: make(chan *types.SegJob, 128),
 		segDoneChan: make(chan *types.SegJob, 128),
+
+		msgChan: make(chan *tx.Message, 128),
 	}
-
-	om.load()
-
-	om.ready = true
-
-	go om.runSched()
-
-	go om.dispatch()
 
 	logger.Info("create order manager")
 
 	return om
+}
+
+func (m *OrderMgr) Start() {
+	m.load()
+
+	m.ready = true
+
+	go m.runSched()
+
+	go m.dispatch()
+
+	go m.runPush()
 }
 
 func (m *OrderMgr) load() error {
@@ -108,14 +118,25 @@ func (m *OrderMgr) load() error {
 		return err
 	}
 
+	res := make([]uint64, len(val)/8)
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+		res[i] = pid
 		go m.newProOrder(pid)
 	}
 
 	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
 	for _, pid := range pros {
-		go m.newProOrder(pid)
+		has := false
+		for _, pro := range res {
+			if pro == pid {
+				has = true
+				break
+			}
+		}
+		if !has {
+			go m.newProOrder(pid)
+		}
 	}
 
 	return nil
@@ -154,7 +175,7 @@ func (m *OrderMgr) runSched() {
 	st := time.NewTicker(10 * time.Second)
 	defer st.Stop()
 
-	lt := time.NewTicker(1 * time.Minute)
+	lt := time.NewTicker(5 * time.Minute)
 	defer lt.Stop()
 
 	for {

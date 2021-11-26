@@ -2,6 +2,7 @@ package txPool
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -59,7 +60,7 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 	}
 
 	// load unfinished
-
+	pp.load()
 	go pp.sync()
 
 	return pp
@@ -67,6 +68,9 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 
 func (pp *PushPool) Ready() bool {
 	return pp.ready
+}
+
+func (pp *PushPool) load() {
 }
 
 func (pp *PushPool) sync() {
@@ -97,25 +101,25 @@ func (pp *PushPool) sync() {
 			return
 		case md := <-pp.msgDone:
 			pp.Lock()
-			logger.Debug("tx message done: ", md.ID)
+			logger.Debug("tx message done: ", md.ID, md.From, md.Nonce)
 			lpending, ok := pp.pending[md.From]
 			if ok {
 				delete(lpending.msg, md.ID)
 			}
 			pp.Unlock()
 		case <-tc.C:
-			pp.RLock()
+			pp.Lock()
 			lpending, ok := pp.pending[pp.localID]
 			if ok {
 				for _, pmsg := range lpending.msg {
-					if time.Since(pmsg.mtime) > 5*time.Minute {
-						pp.PushSignedMessage(pp.ctx, pmsg.msg)
+					if time.Since(pmsg.mtime) > 3*time.Minute {
+						// publish again
+						pp.INetService.PublishTxMsg(pp.ctx, pmsg.msg)
 						pmsg.mtime = time.Now()
 					}
 				}
 			}
-
-			pp.RUnlock()
+			pp.Unlock()
 		}
 	}
 }
@@ -141,6 +145,8 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 	// get nonce
 	mes.Nonce = lp.nonce
 	lp.nonce++
+
+	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Nonce, mes.Method)
 
 	mid, err := mes.Hash()
 	if err != nil {
@@ -174,15 +180,6 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 		return mid, err
 	}
 
-	err = pp.PutTxMsg(sm)
-	if err != nil {
-		logger.Warn("add tx signed message to push pool: ", err)
-		return mid, err
-	}
-
-	key := store.NewKey(pb.MetaType_TX_MessageKey, sm.From, sm.Nonce)
-	pp.ds.Put(key, mid.Bytes())
-
 	pp.Lock()
 	lp, ok := pp.pending[sm.From]
 	if !ok {
@@ -192,14 +189,31 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 		}
 		pp.pending[sm.From] = lp
 	}
-
-	lp.msg[mid] = &msgTo{
-		mtime: time.Now(),
-		msg:   sm,
+	_, ok = lp.msg[mid]
+	if !ok {
+		lp.msg[mid] = &msgTo{
+			mtime: time.Now(),
+			msg:   sm,
+		}
 	}
 	pp.Unlock()
 
-	logger.Debug("tx message: ", mid.String())
+	// store
+	if !ok {
+		err = pp.PutTxMsg(sm)
+		if err != nil {
+			logger.Warn("add tx signed message to push pool: ", err)
+			return mid, err
+		}
+
+		key := store.NewKey(pb.MetaType_TX_MessageKey, sm.From, sm.Nonce)
+		pp.ds.Put(key, mid.Bytes())
+
+		key = store.NewKey(pb.MetaType_TX_MessageKey, sm.From)
+		buf := make([]byte, 8)
+		binary.BigEndian.PutUint64(buf, sm.Nonce+1)
+		pp.ds.Put(key, buf)
+	}
 
 	// push out immediately
 	err = pp.INetService.PublishTxMsg(pp.ctx, sm)

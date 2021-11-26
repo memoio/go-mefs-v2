@@ -94,7 +94,7 @@ func (sp *SyncPool) load() {
 		sp.PutTxBlockHeight(math.MaxUint64, build.GenesisBlockID("test"))
 	}
 
-	logger.Debug("block sync to: ", sp.nextHeight)
+	logger.Debug("block synced to: ", sp.nextHeight)
 }
 
 func (sp *SyncPool) sync() {
@@ -382,22 +382,21 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, tb *tx.SignedMessage) error {
 	}
 
 	ok, err := sp.HasTxMsg(mid)
-	if err == nil && ok {
-		return nil
-	}
+	if err != nil || !ok {
+		ok, err = sp.RoleVerify(ctx, tb.From, mid.Bytes(), tb.Signature)
+		if err != nil {
+			logger.Debug("add tx msg:", tb.From, mid, err)
+			return err
+		}
 
-	ok, err = sp.RoleVerify(ctx, tb.From, mid.Bytes(), tb.Signature)
-	if err != nil {
-		logger.Debug("add tx msg:", tb.From, mid, err)
-		return err
-	}
+		if !ok {
+			logger.Debug("add tx msg:", tb.From, mid, ErrInvalidSign)
+			return ErrInvalidSign
+		}
 
-	if !ok {
-		logger.Debug("add tx msg:", tb.From, mid, ErrInvalidSign)
-		return ErrInvalidSign
+		return sp.PutTxMsg(tb)
 	}
-
-	return sp.PutTxMsg(tb)
+	return nil
 }
 
 // fetch msg over network

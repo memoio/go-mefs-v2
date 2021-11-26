@@ -2,6 +2,8 @@ package types
 
 import (
 	"sort"
+
+	"github.com/fxamacker/cbor/v2"
 )
 
 // sorted by bucketID and jobID
@@ -133,6 +135,14 @@ type AggStripe struct {
 	ProID  uint64
 	Start  uint64
 	Length uint64
+}
+
+func (as *AggStripe) Serialize() ([]byte, error) {
+	return cbor.Marshal(as)
+}
+
+func (as *AggStripe) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, as)
 }
 
 type AggStripeQueue []*AggStripe

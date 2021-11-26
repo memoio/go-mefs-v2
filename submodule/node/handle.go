@@ -14,7 +14,7 @@ import (
 )
 
 func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
-	logger.Debug("received pub msg:", mes.From, mes.Nonce, mes.Method)
+	logger.Debug("received pub message:", mes.From, mes.Nonce, mes.Method)
 	return n.PPool.SyncPool.AddTxMsg(ctx, mes)
 }
 
@@ -28,7 +28,7 @@ func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetM
 }
 
 func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle get msg from: ", pid.Pretty())
+	logger.Debug("handle get net message from: ", pid.Pretty())
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,

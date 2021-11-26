@@ -65,7 +65,7 @@ func (k *KeeperNode) Start() error {
 		if k.PPool.Ready() {
 			break
 		} else {
-			logger.Debug("wait for sync: ")
+			logger.Debug("wait for sync")
 			time.Sleep(5 * time.Second)
 		}
 	}
