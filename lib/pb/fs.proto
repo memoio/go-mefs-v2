@@ -27,8 +27,10 @@ enum MetaType {
 	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
 	St_SegMapKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap
 
-	ST_RootKey = 29;         // key: x; val: root of state	
-
+   	
+	ST_RootKey = 30;         // key: x; val: root of state	
+	ST_BlockHeightKey = 31;  // key: x; val: height
+	ST_EpochKey = 32;        // key: x; val: epoch; key: x/epoch; val: content
 
 	// data meta
 	SegLocationKey = 40;     // key: x/segID; val: proID; on user

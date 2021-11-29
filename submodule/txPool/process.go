@@ -29,7 +29,8 @@ type InPool struct {
 
 	pending map[uint64]*msgSet // key: from; all currently processable tx
 
-	vf ValidateMessageFunc
+	vmf ValidateMessageFunc
+	vbf ValidateBlockFunc
 
 	msgChan chan *tx.Message
 
@@ -89,20 +90,15 @@ func (mp *InPool) sync() {
 			ms.info[m.Nonce] = md
 			mp.Unlock()
 		case <-tc.C:
-			blk := mp.createBlock()
+			tb := mp.createBlock()
 
-			id, _ := blk.Hash()
+			id, _ := tb.Hash()
 
 			sig, _ := mp.RoleSign(mp.ctx, mp.localID, id.Bytes(), types.SigSecp256k1)
 
-			tb := &tx.Block{
-				BlockHeader:    blk,
-				MultiSignature: types.NewMultiSignature(types.SigSecp256k1),
-			}
-
 			tb.MultiSignature.Add(mp.localID, sig)
 
-			logger.Debugf("create new block at height: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, id.String(), blk.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(blk.Txs))
+			logger.Debugf("create new block at height: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, id.String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Txs))
 
 			mp.INetService.PublishTxBlock(mp.ctx, tb)
 
@@ -156,7 +152,7 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	return nil
 }
 
-func (mp *InPool) createBlock() tx.BlockHeader {
+func (mp *InPool) createBlock() *tx.Block {
 	mp.Lock()
 	defer mp.Unlock()
 
@@ -165,27 +161,38 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 
 	bid, _ := mp.GetTxBlockByHeight(rh - 1)
 
-	nbh := tx.BlockHeader{
-		Version: 1,
-		Height:  rh,
-		MinerID: mp.localID,
-		PrevID:  bid,
-		Time:    time.Now(),
-		Txs:     make([]tx.MessageDigest, 0, 16),
+	nbh := &tx.Block{
+		BlockHeader: tx.BlockHeader{
+			RawHeader: tx.RawHeader{
+				Version: 1,
+				Height:  rh,
+				MinerID: mp.localID,
+				PrevID:  bid,
+				Time:    time.Now(),
+			},
+
+			Txs: make([]tx.MessageDigest, 0, 16),
+		},
+		MultiSignature: types.NewMultiSignature(types.SigSecp256k1),
 	}
 
-	if mp.vf == nil {
+	if mp.vbf == nil || mp.vmf == nil {
+		return nbh
+	}
+
+	oldRoot, err := mp.vmf(nil)
+	if err != nil {
 		return nbh
 	}
 
 	// reset
-	oldRoot, err := mp.vf(nil)
+	newRoot, err := mp.vbf(nbh)
 	if err != nil {
 		return nbh
 	}
 
 	nbh.ParentRoot = oldRoot
-	nbh.Root = oldRoot
+	nbh.Root = newRoot
 	for from, ms := range mp.pending {
 		nc := mp.GetNonce(mp.ctx, from)
 		for i := nc; ; i++ {
@@ -195,7 +202,7 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 				tr := tx.Receipt{
 					Err: 0,
 				}
-				nroot, err := mp.vf(m.mes)
+				nroot, err := mp.vmf(m.mes)
 				if err != nil {
 					logger.Debug("block message invalid:", m.mes.From, m.mes.Nonce, err)
 					tr.Err = 1
@@ -221,8 +228,14 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 	return nbh
 }
 
+func (mp *InPool) RegisterValidateBlockFunc(h ValidateBlockFunc) {
+	mp.Lock()
+	mp.vbf = h
+	mp.Unlock()
+}
+
 func (mp *InPool) RegisterValidateMsgFunc(h ValidateMessageFunc) {
 	mp.Lock()
-	mp.vf = h
+	mp.vmf = h
 	mp.Unlock()
 }

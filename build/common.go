@@ -3,7 +3,8 @@ package build
 import "math/big"
 
 const (
-	DefaultSegSize = 248 * 1024
+	DefaultSegSize      = 248 * 1024
+	DefaultChalDuration = 100
 )
 
 var (

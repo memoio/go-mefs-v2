@@ -36,6 +36,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 
 	// register for can apply msg
 	inp.RegisterValidateMsgFunc(bn.StateDB.ValidateMsg)
+	inp.RegisterValidateBlockFunc(bn.StateDB.ValidateBlock)
 
 	kn := &KeeperNode{
 		BaseNode: bn,

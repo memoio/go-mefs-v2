@@ -222,6 +222,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	// register apply msg
 	nd.PPool.RegisterMsgFunc(nd.StateDB.AppleyMsg)
+	nd.PPool.RegisterBlockFunc(nd.StateDB.ApplyBlock)
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
 

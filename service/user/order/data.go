@@ -533,10 +533,12 @@ func (o *OrderFull) sendData() {
 			return
 		default:
 			if o.base == nil || o.orderState != Order_Running {
+				time.Sleep(time.Second)
 				continue
 			}
 
 			if o.seq == nil || o.seqState != OrderSeq_Send {
+				time.Sleep(time.Second)
 				continue
 			}
 

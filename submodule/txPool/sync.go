@@ -19,7 +19,7 @@ import (
 )
 
 type SyncedBlock struct {
-	tx.BlockHeader
+	blk      *tx.Block
 	msg      []*tx.Message
 	msgCount int
 }
@@ -43,7 +43,8 @@ type SyncPool struct {
 
 	syncChan chan struct{}
 
-	mf HandlerMessageFunc
+	hmf HandlerMessageFunc
+	hbf HandlerBlockFunc
 
 	ready bool
 
@@ -139,9 +140,9 @@ func (sp *SyncPool) syncBlock() {
 				}
 
 				sb = &SyncedBlock{
-					BlockHeader: blk.BlockHeader,
-					msg:         make([]*tx.Message, len(blk.Txs)),
-					msgCount:    0,
+					blk:      blk,
+					msg:      make([]*tx.Message, len(blk.Txs)),
+					msgCount: 0,
 				}
 
 				sp.Lock()
@@ -152,7 +153,7 @@ func (sp *SyncPool) syncBlock() {
 			}
 
 			// sync all msg of one block
-			for j, tx := range sb.Txs {
+			for j, tx := range sb.blk.Txs {
 				if sb.msg[j] != nil {
 					continue
 				}
@@ -167,7 +168,7 @@ func (sp *SyncPool) syncBlock() {
 			}
 		}
 
-		if sp.mf == nil {
+		if sp.hmf == nil || sp.hbf == nil {
 			logger.Debug("regular process block need msg handle")
 			continue
 		}
@@ -179,8 +180,8 @@ func (sp *SyncPool) syncBlock() {
 			sp.Lock()
 			blk, ok := sp.blks[i]
 			if ok {
-				if len(blk.Txs) > blk.msgCount {
-					logger.Debug("before process block: ", len(blk.Txs), blk.msgCount)
+				if len(blk.blk.Txs) > blk.msgCount {
+					logger.Debug("before process block: ", len(blk.blk.Txs), blk.msgCount)
 					sp.Unlock()
 					break
 				}
@@ -211,21 +212,24 @@ func (sp *SyncPool) syncBlock() {
 }
 
 func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
-	logger.Debug("process block:", sb.Height)
-	oRoot, err := sp.mf(nil)
+	logger.Debug("process block:", sb.blk.Height)
+	oRoot, err := sp.hmf(nil)
 	if err != nil {
 		return err
 	}
 
-	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+	if !bytes.Equal(oRoot.Bytes(), sb.blk.ParentRoot.Bytes()) {
+		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.blk.ParentRoot)
 	}
 
-	newRoot := oRoot
+	newRoot, err := sp.hbf(sb.blk)
+	if err != nil {
+		return err
+	}
 
 	buf := make([]byte, 8)
 	for i := 0; i < sb.msgCount; i++ {
-		tx := sb.Txs[i]
+		tx := sb.blk.Txs[i]
 
 		key := store.NewKey(pb.MetaType_Tx_NonceKey, tx.From)
 		nextNonce, ok := sp.nonce[tx.From]
@@ -243,8 +247,8 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		sp.nonce[tx.From] = tx.Nonce + 1
 
 		// apply message
-		if sb.Receipts[i].Err == 0 {
-			nroot, err := sp.mf(sb.msg[i])
+		if sb.blk.Receipts[i].Err == 0 {
+			nroot, err := sp.hmf(sb.msg[i])
 			if err != nil {
 				// should not; todo
 				logger.Error("fail to apply: ", err, nroot)
@@ -262,12 +266,12 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		}
 	}
 
-	if !bytes.Equal(newRoot.Bytes(), sb.Root.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.Root)
+	if !bytes.Equal(newRoot.Bytes(), sb.blk.Root.Bytes()) {
+		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.blk.Root)
 	}
 
 	if sp.inProcess {
-		sp.blkDone <- &sb.BlockHeader
+		sp.blkDone <- &sb.blk.BlockHeader
 	}
 
 	return nil
@@ -356,9 +360,9 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 	sp.Lock()
 	if tb.Height >= sp.nextHeight {
 		sb := &SyncedBlock{
-			BlockHeader: tb.BlockHeader,
-			msg:         make([]*tx.Message, len(tb.Txs)),
-			msgCount:    0,
+			blk:      tb,
+			msg:      make([]*tx.Message, len(tb.Txs)),
+			msgCount: 0,
 		}
 
 		sp.blks[tb.Height] = sb
@@ -435,9 +439,15 @@ func (sp *SyncPool) GetTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
 	return sm, sp.AddTxMsg(sp.ctx, sm)
 }
 
+func (sp *SyncPool) RegisterBlockFunc(h HandlerBlockFunc) {
+	sp.Lock()
+	sp.hbf = h
+	sp.Unlock()
+}
+
 func (sp *SyncPool) RegisterMsgFunc(h HandlerMessageFunc) {
 	sp.Lock()
-	sp.mf = h
+	sp.hmf = h
 	sp.Unlock()
 }
 

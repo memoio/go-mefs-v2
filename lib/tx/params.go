@@ -20,6 +20,38 @@ func (bp *BucketParams) Deserialize(b []byte) error {
 }
 
 type EpochParams struct {
-	Seed []byte // hash pre
-	Sig  types.MultiSignature
+	Epoch uint64
+	Prev  types.MsgID // hash pre
+}
+
+func (ep *EpochParams) Serialize() ([]byte, error) {
+	return cbor.Marshal(ep)
+}
+
+func (ep *EpochParams) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ep)
+}
+
+// verify sign
+// verify time
+type SignedEpochParams struct {
+	EpochParams
+	Sig types.MultiSignature
+}
+
+func (sep *SignedEpochParams) Hash() (types.MsgID, error) {
+	res, err := sep.EpochParams.Serialize()
+	if err != nil {
+		return types.MsgID{}, err
+	}
+
+	return types.NewMsgID(res), nil
+}
+
+func (sep *SignedEpochParams) Serialize() ([]byte, error) {
+	return cbor.Marshal(sep)
+}
+
+func (sep *SignedEpochParams) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, sep)
 }

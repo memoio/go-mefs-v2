@@ -8,6 +8,7 @@ import (
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -18,15 +19,44 @@ var (
 )
 
 var (
-	ErrRes       = xerrors.New("erros result")
-	ErrNonce     = xerrors.New("nonce is wrong")
-	ErrSeq       = xerrors.New("seq is wrong")
-	ErrBucket    = xerrors.New("bucket is wrong")
-	ErrChunk     = xerrors.New("chunk is wrong")
-	ErrDuplicate = xerrors.New("chunk is duplicate")
-	ErrSize      = xerrors.New("size is wrong")
-	ErrPrice     = xerrors.New("price is wrong")
+	ErrRes         = xerrors.New("erros result")
+	ErrBlockHeight = xerrors.New("block height is wrong")
+	ErrEpoch       = xerrors.New("epoch is wrong")
+	ErrNonce       = xerrors.New("nonce is wrong")
+	ErrSeq         = xerrors.New("seq is wrong")
+	ErrBucket      = xerrors.New("bucket is wrong")
+	ErrChunk       = xerrors.New("chunk is wrong")
+	ErrDuplicate   = xerrors.New("chunk is duplicate")
+	ErrSize        = xerrors.New("size is wrong")
+	ErrPrice       = xerrors.New("price is wrong")
 )
+
+type ChalEpoch struct {
+	Epoch  uint64
+	Height uint64
+	Seed   types.MsgID
+}
+
+func newChalEpoch() *ChalEpoch {
+	return &ChalEpoch{
+		Epoch:  0,
+		Height: 0,
+		Seed:   types.NewMsgID([]byte("chalepoch")),
+	}
+}
+
+type chalEpochStored struct {
+	tx.SignedEpochParams
+	Height uint64
+}
+
+func (ces *chalEpochStored) Serialize() ([]byte, error) {
+	return cbor.Marshal(ces)
+}
+
+func (ces *chalEpochStored) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ces)
+}
 
 type orderKey struct {
 	userID uint64

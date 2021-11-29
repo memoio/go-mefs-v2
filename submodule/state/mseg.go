@@ -22,6 +22,10 @@ import (
 // key: pb.MetaType_ST_SegLocKey/userID/bucketID/chunkID; val: stripeID of largest stripe
 // key: pb.MetaType_ST_SegLocKey/userID/bucketID/chunkID/stripeID; val: stripe
 // key: pb.MetaType_St_SegMapKey/userID/bucketID/proID; val: bitmap, accFr
+
+// for chal
+// key: pb.MetaType_St_SegMapKey/userID/bucketID/proID/epoch; val: bitmap, accFr
+
 func (s *StateMgr) getBucketManage(spu *segPerUser, userID, bucketID uint64) *bucketManage {
 	bm, ok := spu.buckets[bucketID]
 	if ok {

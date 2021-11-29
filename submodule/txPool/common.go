@@ -18,4 +18,7 @@ var (
 )
 
 type HandlerMessageFunc func(*tx.Message) (types.MsgID, error)
+type HandlerBlockFunc func(*tx.Block) (types.MsgID, error)
+
 type ValidateMessageFunc func(*tx.Message) (types.MsgID, error)
+type ValidateBlockFunc func(*tx.Block) (types.MsgID, error)

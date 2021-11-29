@@ -13,16 +13,39 @@ type MessageDigest struct {
 	Nonce uint64
 }
 
-type BlockHeader struct {
+type RawHeader struct {
 	Version uint32
 	Height  uint64
 	MinerID uint64
 	PrevID  types.MsgID // previous block id
 	Time    time.Time   // block time
+}
 
+func (rh *RawHeader) Hash() (types.MsgID, error) {
+	res, err := rh.Serialize()
+	if err != nil {
+		return types.Undef, err
+	}
+
+	return types.NewMsgID(res), nil
+}
+
+func (rh *RawHeader) Serialize() ([]byte, error) {
+	return cbor.Marshal(rh)
+}
+
+func (rh *RawHeader) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, rh)
+}
+
+type BlockHeader struct {
+	RawHeader
+
+	// tx
 	Txs      []MessageDigest
 	Receipts []Receipt
 
+	// state root
 	ParentRoot types.MsgID
 	Root       types.MsgID
 }
@@ -40,17 +63,13 @@ func (bh *BlockHeader) Serialize() ([]byte, error) {
 	return cbor.Marshal(bh)
 }
 
-func (bh *BlockHeader) Deserialize(b []byte) (types.MsgID, error) {
-	err := cbor.Unmarshal(b, bh)
-	if err != nil {
-		return types.Undef, err
-	}
-
-	return types.NewMsgID(b), nil
+func (bh *BlockHeader) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, bh)
 }
 
 type Block struct {
 	BlockHeader
+	// sign
 	types.MultiSignature
 }
 
