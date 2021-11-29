@@ -1,52 +1,44 @@
 package state
 
 import (
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
+	"github.com/zeebo/blake3"
+
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 func (s *StateMgr) reset() {
+	s.validateRoot = s.root
+
 	s.validateOInfo = make(map[orderKey]*orderInfo)
 	s.validateSInfo = make(map[uint64]*segPerUser)
 }
 
-func (s *StateMgr) ValidateMsg(msg *tx.Message) error {
+func (s *StateMgr) newValidateRoot(b []byte) {
+	h := blake3.New()
+	h.Write(s.validateRoot.Bytes())
+	h.Write(b)
+	res := h.Sum(nil)
+	s.validateRoot = types.NewMsgID(res)
+}
+
+func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 	if msg == nil {
 		s.reset()
-		return nil
+		return s.validateRoot, nil
 	}
-	logger.Debug("validate message:", msg.From, msg.Nonce, msg.Method)
+
+	logger.Debug("validate message:", msg.From, msg.Nonce, msg.Method, s.validateRoot)
 	switch msg.Method {
 	case tx.CreateFs:
-		pk := new(pdpv2.PublicKey)
-		err := pk.Deserialize(msg.Params)
-		if err != nil {
-			return err
-		}
-		return s.CanAddUser(msg.From, pk)
+		return s.CanAddUser(msg)
 	case tx.CreateBucket:
-		tbp := new(tx.BucketParams)
-		err := tbp.Deserialize(msg.Params)
-		if err != nil {
-			return err
-		}
-		return s.CanAddBucket(msg.From, tbp.BucketID, &tbp.BucketOption)
+		return s.CanAddBucket(msg)
 	case tx.DataPreOrder:
-		so := new(types.SignedOrder)
-		err := so.Deserialize(msg.Params)
-		if err != nil {
-			return err
-		}
-		return s.CanAddOrder(so)
+		return s.CanAddOrder(msg)
 	case tx.DataOrder:
-		so := new(types.SignedOrderSeq)
-		err := so.Deserialize(msg.Params)
-		if err != nil {
-			return err
-		}
-		return s.CanAddSeq(so)
+		return s.CanAddSeq(msg)
 	default:
-		return ErrRes
+		return s.validateRoot, ErrRes
 	}
 }

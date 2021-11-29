@@ -102,7 +102,7 @@ func (mp *InPool) sync() {
 
 			tb.MultiSignature.Add(mp.localID, sig)
 
-			logger.Debugf("create new block at height: %d, now: %s, prev: %s, has message: %d", tb.Height, id.String(), blk.PrevID.String(), len(blk.Txs))
+			logger.Debugf("create new block at height: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, id.String(), blk.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(blk.Txs))
 
 			mp.INetService.PublishTxBlock(mp.ctx, tb)
 
@@ -179,8 +179,13 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 	}
 
 	// reset
-	mp.vf(nil)
+	oldRoot, err := mp.vf(nil)
+	if err != nil {
+		return nbh
+	}
 
+	nbh.ParentRoot = oldRoot
+	nbh.Root = oldRoot
 	for from, ms := range mp.pending {
 		nc := mp.GetNonce(mp.ctx, from)
 		for i := nc; ; i++ {
@@ -190,12 +195,14 @@ func (mp *InPool) createBlock() tx.BlockHeader {
 				tr := tx.Receipt{
 					Err: 0,
 				}
-				err := mp.vf(m.mes)
+				nroot, err := mp.vf(m.mes)
 				if err != nil {
 					logger.Debug("block message invalid:", m.mes.From, m.mes.Nonce, err)
 					tr.Err = 1
 					tr.Extra = []byte(err.Error())
 				}
+
+				nbh.Root = nroot
 
 				md := tx.MessageDigest{
 					ID:    m.mid,

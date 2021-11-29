@@ -173,10 +173,12 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 			}
 
 			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+
+			if st.Status.Err == 0 {
+				l.bucketChan <- bucketID
+			}
 			break
 		}
-
-		l.bucketChan <- bucketID
 	}(bucketID, mid)
 
 	err = bu.SaveOptions(l.userID, l.ds)
@@ -188,8 +190,6 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 	if err != nil {
 		return nil, err
 	}
-
-	go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 
 	return bu, nil
 }
@@ -530,9 +530,16 @@ func (l *LfsService) persistMeta() {
 			l.ready = true
 			logger.Debug("lfs is ready")
 		case bid := <-l.bucketChan:
+			logger.Debug("lfs bucket is verify: ", bid)
 			l.sb.Lock()
-			if l.sb.bucketVerify == bid {
-				l.sb.bucketVerify++
+			if bid < l.sb.NextBucketID {
+				if l.sb.bucketVerify == bid {
+					l.sb.bucketVerify++
+					bu := l.sb.buckets[bid]
+					bu.Confirmed = true
+					// register in order
+					go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+				}
 			}
 			l.sb.Unlock()
 		case <-tick.C:

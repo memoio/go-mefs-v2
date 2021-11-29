@@ -2,12 +2,12 @@ package order
 
 import (
 	"encoding/binary"
-	"math/big"
 	"sync"
 	"time"
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -595,8 +595,8 @@ func (o *OrderFull) sendData() {
 			// o.seq.DataName = append(o.seq.DataName, sid.Bytes())
 			// update price and size
 			o.seq.Segments.Push(as)
-			o.seq.Price.Add(o.seq.Price, big.NewInt(100))
-			o.seq.Size += 1
+			o.seq.Price.Add(o.seq.Price, o.segPrice)
+			o.seq.Size += build.DefaultSegSize
 
 			bjob = o.jobs[bid]
 			bjob.jobs = bjob.jobs[1:]

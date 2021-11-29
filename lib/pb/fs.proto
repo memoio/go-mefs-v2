@@ -13,24 +13,25 @@ enum MetaType {
 	LFS_SuperBlockInfoKey = 10; // key: x/userID; val: SuperBlockInfo
 	LFS_BucketInfoKey = 11;     // key: x/userID/bucketID; val: BucketInfo
 	LFS_ObjectInfoKey = 12;     // key: x/userID/bucketID/objectID; val: OpIDs
-
     LFS_BucketOptionKey = 13;   // key: x/userID/bucketID; val: BucketOption 
     LFS_OpInfoKey = 14;         // key: x/userID/bucketID/opID; val: BucketRecord
 	LFS_OpJobsKey = 15;         // key: x/userID/bucketID/opID; val: stripes
     LFS_OpStateKey = 16;	    // key: x/userID/bucketID/opID; val: opstate	 
     LFS_OpCountKey = 17;        // key: x/userID/bucketID; val: op number
 
-	// key in state tree
+	// key in state
 	ST_PDPPublicKey = 20;    // key: x/userID; val: Bls Prove key set
 	ST_BucketOptKey = 21;    // key: x/userID/bucketID; val: bucket option
 	ST_OrderBaseKey = 22;    // key: x/userID/proID/nonce; val: SignedOrderBase;
 	ST_OrderSeqKey = 23;     // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
 	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
-	St_SegAggKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap	
+	St_SegMapKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap
+
+	ST_RootKey = 29;         // key: x; val: root of state	
 
 
 	// data meta
-	SegLocationKey = 40;    // key: x/segID; val: proID; on user
+	SegLocationKey = 40;     // key: x/segID; val: proID; on user
 
 	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
@@ -46,8 +47,7 @@ enum MetaType {
 	Tx_BlockHeightKey = 62;	  // key: x/blockHeight; value: blk hash
 	Tx_NonceKey = 63;	      // key: x/roleID; value: nonce
 	TX_MessageKey = 64;       // key: x/messageHash; value: SignedMessage
-	Tx_MessageStateKey = 65;  // key: x/messageHash; value: blkID, height
-			
+	Tx_MessageStateKey = 65;  // key: x/messageHash; value: blkID, height	
 }
 
 //    =============  lfs information  ================
@@ -132,53 +132,8 @@ message OpRecord {
 	bytes Payload = 4;    
 }
 
-enum DataType {
-    DataErr = 0;
-    Segment = 1;
-    Piece = 2;
-    Sector = 3;
-}
-
-// key: 'SegLocKey'/fsID_bucketID_chunkID_stripeID
-message SegLocation {
-	uint64 Expire = 1;
-	uint64 Length = 2;
-	uint64 ProID = 3;
-}
-
 // key: 'SegExpireKey'/fsID_bucketID_stripeID
 message SegExpire {
 	uint64 Length = 1;
 	uint64 Expire = 2; // expire time
-}
-
-// key: 'PieceLocKey'/pieceID; on keeper and user
-message PieceLocation {
-	uint32 Size = 1;
-	uint64 Expire = 2;
-	repeated uint64 ProID = 3; // 存在哪些provider上
-}
-
-// fsID need?
-// key: 'PieceInfoKey'/pieceID; on provider
-message PieceInfo {
-	uint32 Offset = 1;   // offset in sector; 是否需要？ 
-	uint32 Size = 2;
-	uint64 Expire = 3;
-	uint64 SectorID = 4;  // belong to which sector
-}
-
-// 'SectorCountKey'/proID; on keeper and provider
-// 'SectorSetKey'/proID; on keeper and provider
-// key: 'SectorInfoKey'/pieceID; on keeper, 70 bytes
-message SectorInfo {
-	uint64 Expire = 1;
-	bytes CommD = 2; // 32bytes
-	bytes CommR = 3; // 32bytes
-}
-
-// key: 'SectorPiecesKey'/sectorID; on provider
-message SectorPieces {
-	SectorInfo Sector = 1;
-	repeated bytes PieceID = 2;
 }

@@ -9,11 +9,9 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
-	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/service/data"
 	porder "github.com/memoio/go-mefs-v2/service/provider/order"
 	"github.com/memoio/go-mefs-v2/submodule/node"
-	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 var logger = logging.Logger("provider")
@@ -30,8 +28,6 @@ type ProviderNode struct {
 	pom *porder.OrderMgr
 
 	ctx context.Context
-
-	pp *txPool.PushPool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
@@ -51,21 +47,11 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids)
 
-	txs, err := tx.NewTxStore(ctx, ds)
-	if err != nil {
-		return nil, err
-	}
-
-	sp := txPool.NewSyncPool(ctx, bn.RoleID(), ds, txs, bn.RoleMgr, bn.NetServiceImpl)
-
-	pp := txPool.NewPushPool(ctx, sp)
-
 	pn := &ProviderNode{
 		BaseNode:     bn,
 		IDataService: ids,
 		ctx:          ctx,
 		pom:          por,
-		pp:           pp,
 	}
 
 	return pn, nil

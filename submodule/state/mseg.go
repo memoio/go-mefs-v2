@@ -8,13 +8,20 @@ import (
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/build"
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
+// key: pb.MetaType_ST_BucketOptKey/userID; val: next bucketID
+// key: pb.MetaType_ST_BucketOptKey/userID/bucketID; val: bucket ops
+// key: pb.MetaType_ST_SegLocKey/userID/bucketID/chunkID; val: stripeID of largest stripe
+// key: pb.MetaType_ST_SegLocKey/userID/bucketID/chunkID/stripeID; val: stripe
+// key: pb.MetaType_St_SegMapKey/userID/bucketID/proID; val: bitmap, accFr
 func (s *StateMgr) getBucketManage(spu *segPerUser, userID, bucketID uint64) *bucketManage {
 	bm, ok := spu.buckets[bucketID]
 	if ok {
@@ -53,7 +60,7 @@ func (s *StateMgr) getChunkManage(bm *bucketManage, userID, bucketID uint64, chu
 		bm.chunks[chunkID] = cm
 	}
 
-	key := store.NewKey(pb.MetaType_St_SegAggKey, userID, bucketID, chunkID)
+	key := store.NewKey(pb.MetaType_ST_SegLocKey, userID, bucketID, chunkID)
 	data, err := s.ds.Get(key)
 	if err != nil {
 		return cm
@@ -61,7 +68,7 @@ func (s *StateMgr) getChunkManage(bm *bucketManage, userID, bucketID uint64, chu
 
 	if len(data) >= 8 {
 		stripeID := binary.BigEndian.Uint64(data)
-		key := store.NewKey(pb.MetaType_St_SegAggKey, userID, bucketID, chunkID, stripeID)
+		key := store.NewKey(pb.MetaType_ST_SegLocKey, userID, bucketID, chunkID, stripeID)
 		data, err := s.ds.Get(key)
 		if err != nil {
 			return cm
@@ -90,7 +97,7 @@ func (s *StateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint6
 
 	bm.accHw[proID] = cm
 
-	key := store.NewKey(pb.MetaType_St_SegAggKey, userID, bucketID, proID)
+	key := store.NewKey(pb.MetaType_St_SegMapKey, userID, bucketID, proID)
 	data, err := s.ds.Get(key)
 	if err != nil {
 		return cm
@@ -103,53 +110,60 @@ func (s *StateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint6
 	return cm
 }
 
-func (s *StateMgr) AddBucket(userID, bucketID uint64, pbo *pb.BucketOption) error {
+func (s *StateMgr) AddBucket(msg *tx.Message) (types.MsgID, error) {
+	tbp := new(tx.BucketParams)
+	err := tbp.Deserialize(msg.Params)
+	if err != nil {
+		return s.root, err
+	}
+
 	s.Lock()
 	defer s.Unlock()
 
-	var err error
-	uinfo, ok := s.sInfo[userID]
+	uinfo, ok := s.sInfo[msg.From]
 	if !ok {
-		uinfo, err = s.loadUser(userID)
+		uinfo, err = s.loadUser(msg.From)
 		if err != nil {
-			return err
+			return s.root, err
 		}
-		s.sInfo[userID] = uinfo
+		s.sInfo[msg.From] = uinfo
 	}
 
-	if uinfo.nextBucket != bucketID {
-		return xerrors.Errorf("add bucket %d err: %w", bucketID, ErrBucket)
+	if uinfo.nextBucket != tbp.BucketID {
+		return s.root, xerrors.Errorf("add bucket %d err: %w", tbp.BucketID, ErrBucket)
 	}
 
 	bm := &bucketManage{
-		chunks:  make([]*chunkManage, pbo.DataCount+pbo.ParityCount),
+		chunks:  make([]*chunkManage, tbp.DataCount+tbp.ParityCount),
 		accHw:   make(map[uint64]*chalManage),
 		unavail: bitset.New(1024),
 	}
 
-	uinfo.buckets[bucketID] = bm
+	uinfo.buckets[tbp.BucketID] = bm
 	uinfo.nextBucket++
 
 	// save
-	key := store.NewKey(pb.MetaType_ST_BucketOptKey, userID, bucketID)
-	data, err := proto.Marshal(pbo)
+	key := store.NewKey(pb.MetaType_ST_BucketOptKey, msg.From, tbp.BucketID)
+	data, err := proto.Marshal(&tbp.BucketOption)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 
-	key = store.NewKey(pb.MetaType_ST_BucketOptKey, userID)
+	key = store.NewKey(pb.MetaType_ST_BucketOptKey, msg.From)
 	val := make([]byte, 8)
 	binary.BigEndian.PutUint64(val, uinfo.nextBucket)
 	err = s.ds.Put(key, val)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 
-	return nil
+	s.newRoot(msg.Params)
+
+	return s.root, nil
 }
 
 func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
@@ -195,6 +209,8 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 
 	var HWi bls.Fr
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
+		cm.size += build.DefaultSegSize
+
 		cm.avail.Set(uint(i))
 
 		// calculate fr
@@ -205,7 +221,7 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	}
 
 	// save
-	key := store.NewKey(pb.MetaType_St_SegAggKey, userID, bucketID, proID)
+	key := store.NewKey(pb.MetaType_St_SegMapKey, userID, bucketID, proID)
 	data, err := cm.Serialize()
 	if err != nil {
 		return err
@@ -236,34 +252,41 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	return nil
 }
 
-func (s *StateMgr) CanAddBucket(userID, bucketID uint64, pbo *pb.BucketOption) error {
+func (s *StateMgr) CanAddBucket(msg *tx.Message) (types.MsgID, error) {
+	tbp := new(tx.BucketParams)
+	err := tbp.Deserialize(msg.Params)
+	if err != nil {
+		return s.validateRoot, err
+	}
+
 	s.Lock()
 	defer s.Unlock()
 
-	var err error
-	uinfo, ok := s.validateSInfo[userID]
+	uinfo, ok := s.validateSInfo[msg.From]
 	if !ok {
-		uinfo, err = s.loadUser(userID)
+		uinfo, err = s.loadUser(msg.From)
 		if err != nil {
-			return err
+			return s.validateRoot, err
 		}
-		s.validateSInfo[userID] = uinfo
+		s.validateSInfo[msg.From] = uinfo
 	}
 
-	if uinfo.nextBucket != bucketID {
-		return xerrors.Errorf("add bucket %d err:%w, ", bucketID, ErrBucket)
+	if uinfo.nextBucket != tbp.BucketID {
+		return s.validateRoot, xerrors.Errorf("add bucket %d err:%w, ", tbp.BucketID, ErrBucket)
 	}
 
 	bm := &bucketManage{
-		chunks:  make([]*chunkManage, pbo.DataCount+pbo.ParityCount),
+		chunks:  make([]*chunkManage, tbp.DataCount+tbp.ParityCount),
 		accHw:   make(map[uint64]*chalManage),
 		unavail: bitset.New(1024),
 	}
 
-	uinfo.buckets[bucketID] = bm
+	uinfo.buckets[tbp.BucketID] = bm
 	uinfo.nextBucket++
 
-	return nil
+	s.newValidateRoot(msg.Params)
+
+	return s.validateRoot, nil
 }
 
 func (s *StateMgr) CanAddChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
@@ -309,6 +332,7 @@ func (s *StateMgr) CanAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 
 	var HWi bls.Fr
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
+		cm.size += build.DefaultSegSize
 		cm.avail.Set(uint(i))
 
 		// calculate fr

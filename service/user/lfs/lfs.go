@@ -56,7 +56,8 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 		dps: make(map[uint64]*dataProcess),
 		sw:  semaphore.NewWeighted(defaultWeighted),
 
-		readyChan: make(chan struct{}, 1),
+		readyChan:  make(chan struct{}, 1),
+		bucketChan: make(chan uint64),
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()
@@ -125,6 +126,12 @@ func (l *LfsService) Start() error {
 	if err == nil && len(data) >= 8 {
 		l.sb.bucketVerify = binary.BigEndian.Uint64(data)
 	}
+
+	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
+		bu := l.sb.buckets[bid]
+		bu.Confirmed = true
+	}
+
 	if l.sb.bucketVerify < l.sb.NextBucketID {
 		logger.Debug("need send tx message again")
 		for bid := l.sb.bucketVerify; bid < l.sb.NextBucketID; bid++ {
@@ -176,10 +183,12 @@ func (l *LfsService) Start() error {
 					}
 
 					logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+					if st.Status.Err == 0 {
+						l.bucketChan <- bucketID
+					}
 					break
 				}
 
-				l.bucketChan <- bucketID
 			}(bid, mid)
 		}
 	}

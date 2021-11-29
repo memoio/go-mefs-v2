@@ -2,10 +2,11 @@ package wallet
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"strings"
 	"sync"
+
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
@@ -15,7 +16,7 @@ import (
 
 type LocalWallet struct {
 	sync.Mutex
-	password string // used for decrypt
+	password string // used for decrypt; todo plaintext is not good
 	accounts map[address.Address]sig_common.PrivKey
 	keystore types.KeyStore // store
 }
@@ -192,7 +193,7 @@ func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (addr
 		w.Unlock()
 		return addr, nil
 	default:
-		return address.Undef, errors.New("unsupported key type")
+		return address.Undef, xerrors.New("unsupported key type")
 	}
 
 }

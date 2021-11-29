@@ -1,7 +1,7 @@
 package order
 
 import (
-	"errors"
+	"golang.org/x/xerrors"
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
@@ -12,12 +12,12 @@ import (
 var logger = logging.Logger("uorder")
 
 var (
-	ErrDataAdded = errors.New("add data fails")
-	ErrState     = errors.New("state is wrong")
-	ErrDataSign  = errors.New("sign is wrong")
-	ErrEmpty     = errors.New("data is empty")
-	ErrNotFound  = errors.New("not found")
-	ErrPrice     = errors.New("price is not right")
+	ErrDataAdded = xerrors.New("add data fails")
+	ErrState     = xerrors.New("state is wrong")
+	ErrDataSign  = xerrors.New("sign is wrong")
+	ErrEmpty     = xerrors.New("data is empty")
+	ErrNotFound  = xerrors.New("not found")
+	ErrPrice     = xerrors.New("price is not right")
 )
 
 const (

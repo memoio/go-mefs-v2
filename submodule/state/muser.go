@@ -3,12 +3,14 @@ package state
 import (
 	"encoding/binary"
 
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
+// key: pb.MetaType_ST_PDPPublicKey/userID
 func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
 	data, err := s.ds.Get(key)
@@ -42,12 +44,18 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 	return spu, nil
 }
 
-func (s *StateMgr) AddUser(userID uint64, pk pdpcommon.PublicKey) error {
+func (s *StateMgr) AddUser(msg *tx.Message) (types.MsgID, error) {
+	pk := new(pdpv2.PublicKey)
+	err := pk.Deserialize(msg.Params)
+	if err != nil {
+		return s.root, err
+	}
+
 	s.Lock()
-	_, ok := s.sInfo[userID]
+	_, ok := s.sInfo[msg.From]
 	if ok {
 		s.Unlock()
-		return nil
+		return s.root, nil
 	}
 
 	// verify vk
@@ -56,27 +64,34 @@ func (s *StateMgr) AddUser(userID uint64, pk pdpcommon.PublicKey) error {
 		verifyKey: pk.VerifyKey(),
 		buckets:   make(map[uint64]*bucketManage),
 	}
-	s.sInfo[userID] = spu
+	s.sInfo[msg.From] = spu
 	s.Unlock()
 
 	// save users
-	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
+	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, msg.From)
 	data := pk.Serialize()
-
-	err := s.ds.Put(key, data)
+	err = s.ds.Put(key, data)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 
-	return nil
+	s.newRoot(msg.Params)
+
+	return s.root, nil
 }
 
-func (s *StateMgr) CanAddUser(userID uint64, pk pdpcommon.PublicKey) error {
+func (s *StateMgr) CanAddUser(msg *tx.Message) (types.MsgID, error) {
+	pk := new(pdpv2.PublicKey)
+	err := pk.Deserialize(msg.Params)
+	if err != nil {
+		return s.validateRoot, err
+	}
+
 	s.Lock()
-	_, ok := s.validateSInfo[userID]
+	_, ok := s.validateSInfo[msg.From]
 	if ok {
 		s.Unlock()
-		return nil
+		return s.validateRoot, nil
 	}
 
 	// verify vk
@@ -86,8 +101,10 @@ func (s *StateMgr) CanAddUser(userID uint64, pk pdpcommon.PublicKey) error {
 		verifyKey: pk.VerifyKey(),
 		buckets:   make(map[uint64]*bucketManage),
 	}
-	s.validateSInfo[userID] = spu
+	s.validateSInfo[msg.From] = spu
 	s.Unlock()
 
-	return nil
+	s.newValidateRoot(msg.Params)
+
+	return s.validateRoot, nil
 }

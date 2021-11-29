@@ -1,14 +1,21 @@
 package state
 
 import (
+	"math/big"
+
 	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
+// key: pb.MetaType_ST_OrderBaseKey/userID/proID; val: NonceSeq
+// key: pb.MetaType_ST_OrderBaseKey/userID/proID/nonce; val: SignedOrder
+// key: pb.MetaType_ST_OrderSeqKey/userID/proID/nonce/seqNum; val: SignedOrderSeq
 func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	oinfo := &orderInfo{
 		ns: &types.NonceSeq{
@@ -47,8 +54,14 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	return oinfo
 }
 
-func (s *StateMgr) AddOrder(or *types.SignedOrder) error {
-	// verify sign
+func (s *StateMgr) AddOrder(msg *tx.Message) (types.MsgID, error) {
+	or := new(types.SignedOrder)
+	err := or.Deserialize(msg.Params)
+	if err != nil {
+		return s.root, err
+	}
+
+	// todo verify sign
 
 	s.Lock()
 	defer s.Unlock()
@@ -65,7 +78,7 @@ func (s *StateMgr) AddOrder(or *types.SignedOrder) error {
 	}
 
 	if or.Nonce != oinfo.ns.Nonce {
-		return xerrors.Errorf("add order got %d, expected %d, err: %w", or.Nonce, oinfo.ns.Nonce, ErrNonce)
+		return s.root, xerrors.Errorf("add order got %d, expected %d, err: %w", or.Nonce, oinfo.ns.Nonce, ErrNonce)
 	}
 
 	oinfo.ns.Nonce++
@@ -77,28 +90,36 @@ func (s *StateMgr) AddOrder(or *types.SignedOrder) error {
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID, or.Nonce)
 	data, err := or.Serialize()
 	if err != nil {
-		return err
+		return s.root, err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID)
 	data, err = cbor.Marshal(oinfo.ns)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 
-	return nil
+	s.newRoot(msg.Params)
+
+	return s.root, nil
 }
 
-func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
+func (s *StateMgr) AddSeq(msg *tx.Message) (types.MsgID, error) {
 	// verify sign
+
+	so := new(types.SignedOrderSeq)
+	err := so.Deserialize(msg.Params)
+	if err != nil {
+		return s.root, err
+	}
 
 	s.Lock()
 	defer s.Unlock()
@@ -115,20 +136,34 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 	}
 
 	if oinfo.ns.Nonce != so.Nonce+1 {
-		return xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Nonce, oinfo.ns.Nonce, ErrNonce)
+		return s.root, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Nonce, oinfo.ns.Nonce, ErrNonce)
 	}
 
 	if oinfo.ns.SeqNum != so.SeqNum {
-		return xerrors.Errorf("add seq got %d, expected %d, err: %w", so.SeqNum, oinfo.ns.SeqNum, ErrSeq)
+		return s.root, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.SeqNum, oinfo.ns.SeqNum, ErrSeq)
 	}
 
 	// verify size and price
+	size := uint64(0)
+	for _, seg := range so.Segments {
+		size += (seg.Length * build.DefaultSegSize)
+	}
+	if oinfo.base.Size+size != so.Size {
+		return s.root, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Size, oinfo.base.Size+size, ErrSize)
+	}
+
+	price := new(big.Int).Mul(oinfo.base.SegPrice, big.NewInt(int64(size)))
+
+	price.Add(price, oinfo.base.Price)
+	if price.Cmp(so.Price) != 0 {
+		return s.root, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Price, price, ErrPrice)
+	}
 
 	// verify segment
 	for _, seg := range so.Segments {
 		err := s.AddChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
 		if err != nil {
-			return err
+			return s.root, err
 		}
 	}
 
@@ -141,38 +176,45 @@ func (s *StateMgr) AddSeq(so *types.SignedOrderSeq) error {
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, oinfo.base.Nonce)
 	data, err := oinfo.base.Serialize()
 	if err != nil {
-		return err
+		return s.root, err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 	data, err = so.Serialize()
 	if err != nil {
-		return err
+		return s.root, err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID)
 	data, err = cbor.Marshal(oinfo.ns)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return err
+		return s.root, err
 	}
 
-	return nil
+	s.newRoot(msg.Params)
+
+	return s.root, nil
 }
 
-func (s *StateMgr) CanAddOrder(or *types.SignedOrder) error {
+func (s *StateMgr) CanAddOrder(msg *tx.Message) (types.MsgID, error) {
 	// verify sign
+	or := new(types.SignedOrder)
+	err := or.Deserialize(msg.Params)
+	if err != nil {
+		return s.validateRoot, err
+	}
 
 	s.Lock()
 	defer s.Unlock()
@@ -189,18 +231,26 @@ func (s *StateMgr) CanAddOrder(or *types.SignedOrder) error {
 	}
 
 	if or.Nonce != oinfo.ns.Nonce {
-		return xerrors.Errorf("add order got %d, expected %d, err: %w", or.Nonce, oinfo.ns.Nonce, ErrNonce)
+		return s.validateRoot, xerrors.Errorf("add order got %d, expected %d, err: %w", or.Nonce, oinfo.ns.Nonce, ErrNonce)
 	}
 
 	oinfo.ns.Nonce++
 	// reset
 	oinfo.ns.SeqNum = 0
 
-	return nil
+	s.newValidateRoot(msg.Params)
+
+	return s.validateRoot, nil
 }
 
-func (s *StateMgr) CanAddSeq(so *types.SignedOrderSeq) error {
+func (s *StateMgr) CanAddSeq(msg *tx.Message) (types.MsgID, error) {
 	// verify sign
+
+	so := new(types.SignedOrderSeq)
+	err := so.Deserialize(msg.Params)
+	if err != nil {
+		return s.validateRoot, err
+	}
 
 	s.Lock()
 	defer s.Unlock()
@@ -217,11 +267,11 @@ func (s *StateMgr) CanAddSeq(so *types.SignedOrderSeq) error {
 	}
 
 	if oinfo.ns.Nonce != so.Nonce+1 {
-		return xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Nonce, oinfo.ns.Nonce, ErrNonce)
+		return s.validateRoot, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Nonce, oinfo.ns.Nonce, ErrNonce)
 	}
 
 	if oinfo.ns.SeqNum != so.SeqNum {
-		return xerrors.Errorf("add seq got %d, expected %d, err: %w", so.SeqNum, oinfo.ns.SeqNum, ErrSeq)
+		return s.validateRoot, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.SeqNum, oinfo.ns.SeqNum, ErrSeq)
 	}
 	// verify size and price
 
@@ -229,12 +279,14 @@ func (s *StateMgr) CanAddSeq(so *types.SignedOrderSeq) error {
 	for _, seg := range so.Segments {
 		err := s.CanAddChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
 		if err != nil {
-			return err
+			return s.validateRoot, err
 		}
 	}
 
 	// update size and price
 	oinfo.ns.SeqNum++
 
-	return nil
+	s.newValidateRoot(msg.Params)
+
+	return s.validateRoot, nil
 }

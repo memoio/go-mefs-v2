@@ -61,7 +61,7 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 
 	// load unfinished
 	pp.load()
-	go pp.sync()
+	go pp.syncPush()
 
 	return pp
 }
@@ -73,7 +73,7 @@ func (pp *PushPool) Ready() bool {
 func (pp *PushPool) load() {
 }
 
-func (pp *PushPool) sync() {
+func (pp *PushPool) syncPush() {
 	tc := time.NewTicker(5 * time.Second)
 	defer tc.Stop()
 

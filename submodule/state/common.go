@@ -1,10 +1,9 @@
 package state
 
 import (
-	"errors"
-
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
 
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
@@ -12,19 +11,21 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("txPool")
+var logger = logging.Logger("state")
 
-const (
-	StatePrefix = "state"
+var (
+	beginRoot = types.NewMsgID([]byte("state"))
 )
 
 var (
-	ErrRes       = errors.New("erros result")
-	ErrNonce     = errors.New("nonce is wrong")
-	ErrSeq       = errors.New("seq is wrong")
-	ErrBucket    = errors.New("bucket is wrong")
-	ErrChunk     = errors.New("chunk is wrong")
-	ErrDuplicate = errors.New("chunk is duplicate")
+	ErrRes       = xerrors.New("erros result")
+	ErrNonce     = xerrors.New("nonce is wrong")
+	ErrSeq       = xerrors.New("seq is wrong")
+	ErrBucket    = xerrors.New("bucket is wrong")
+	ErrChunk     = xerrors.New("chunk is wrong")
+	ErrDuplicate = xerrors.New("chunk is duplicate")
+	ErrSize      = xerrors.New("size is wrong")
+	ErrPrice     = xerrors.New("price is wrong")
 )
 
 type orderKey struct {

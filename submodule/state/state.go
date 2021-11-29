@@ -4,25 +4,29 @@ import (
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/api"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/zeebo/blake3"
 )
 
-// latest state for apply
+// key: pb.MetaType_ST_RootKey; val: root []byte
 type StateMgr struct {
 	sync.RWMutex
 
 	api.IRole
 
+	// todo: txn store
 	ds store.KVStore
 
 	activeRoles []uint64
 
+	root  types.MsgID // for verify
 	oInfo map[orderKey]*orderInfo
 	sInfo map[uint64]*segPerUser // key: userID
 
+	validateRoot  types.MsgID
 	validateOInfo map[orderKey]*orderInfo
 	validateSInfo map[uint64]*segPerUser
 }
@@ -42,42 +46,50 @@ func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 }
 
 func (s *StateMgr) load() {
-	// load?
+	key := store.NewKey(pb.MetaType_ST_RootKey)
+	val, err := s.ds.Get(key)
+	if err == nil {
+		rt, err := types.FromBytes(val)
+		if err == nil {
+			s.root = rt
+			return
+		}
+	}
+	s.root = beginRoot
 }
 
-func (s *StateMgr) AppleyMsg(msg *tx.Message) error {
-	logger.Debug("block apply message:", msg.From, msg.Nonce, msg.Method)
+func (s *StateMgr) newRoot(b []byte) {
+	h := blake3.New()
+	h.Write(s.root.Bytes())
+	h.Write(b)
+	res := h.Sum(nil)
+	s.root = types.NewMsgID(res)
+
+	// store
+	key := store.NewKey(pb.MetaType_ST_RootKey)
+	s.ds.Put(key, s.root.Bytes())
+}
+
+func (s *StateMgr) GetRoot() types.MsgID {
+	return s.root
+}
+
+func (s *StateMgr) AppleyMsg(msg *tx.Message) (types.MsgID, error) {
+	if msg == nil {
+		return s.root, nil
+	}
+
+	logger.Debug("block apply message:", msg.From, msg.Nonce, msg.Method, s.root)
 	switch msg.Method {
 	case tx.CreateFs:
-		pk := new(pdpv2.PublicKey)
-		err := pk.Deserialize(msg.Params)
-		if err != nil {
-			return err
-		}
-
-		return s.AddUser(msg.From, pk)
+		return s.AddUser(msg)
 	case tx.CreateBucket:
-		tbp := new(tx.BucketParams)
-		err := tbp.Deserialize(msg.Params)
-		if err != nil {
-			return err
-		}
-		return s.AddBucket(msg.From, tbp.BucketID, &tbp.BucketOption)
+		return s.AddBucket(msg)
 	case tx.DataPreOrder:
-		so := new(types.SignedOrder)
-		err := so.Deserialize(msg.Params)
-		if err != nil {
-			return err
-		}
-		return s.AddOrder(so)
+		return s.AddOrder(msg)
 	case tx.DataOrder:
-		so := new(types.SignedOrderSeq)
-		err := so.Deserialize(msg.Params)
-		if err != nil {
-			return err
-		}
-		return s.AddSeq(so)
+		return s.AddSeq(msg)
 	default:
-		return ErrRes
+		return s.root, ErrRes
 	}
 }

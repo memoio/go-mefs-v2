@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -70,7 +71,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		localID: roleID,
 		fsID:    fsID,
 
-		segPrice: big.NewInt(100000),
+		segPrice: new(big.Int).Set(build.DefaultSegPrice),
 
 		orders: make(map[uint64]*OrderFull),
 		proMap: make(map[uint64]*lastProsPerBucket),

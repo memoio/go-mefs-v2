@@ -2,7 +2,8 @@ package role
 
 import (
 	"context"
-	"errors"
+
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
@@ -15,7 +16,7 @@ import (
 
 var logger = logging.Logger("roleinfo")
 
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = xerrors.New("not found")
 
 var _ api.IRole = &roleAPI{}
 

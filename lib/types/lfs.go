@@ -9,6 +9,7 @@ const (
 type BucketInfo struct {
 	pb.BucketOption
 	pb.BucketInfo
+	Confirmed bool `json:"Confirmed"`
 }
 
 type ObjectInfo struct {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -68,6 +69,7 @@ type OrderFull struct {
 	base       *types.SignedOrder // quotation-> base
 	orderTime  int64
 	orderState OrderState
+	segPrice   *big.Int
 
 	seq      *types.SignedOrderSeq
 	seqTime  int64
@@ -143,6 +145,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	op.orderTime = ns.Time
 	op.orderState = ns.State
 	op.nonce = ns.Nonce + 1
+	op.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 
 	ss := new(SeqState)
 	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, id, ns.Nonce)
@@ -340,6 +343,8 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 			Size:  0,
 			Price: big.NewInt(0),
 		}
+
+		o.segPrice = new(big.Int).Mul(o.base.SegPrice, big.NewInt(build.DefaultSegSize))
 
 		osig, err := m.RoleSign(m.ctx, m.localID, o.base.Hash(), types.SigSecp256k1)
 		if err != nil {

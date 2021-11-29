@@ -1,6 +1,7 @@
 package txPool
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"math"
@@ -77,7 +78,7 @@ func NewSyncPool(ctx context.Context, roleID uint64, ds store.KVStore, ts tx.Sto
 
 	sp.load()
 
-	go sp.sync()
+	go sp.syncBlock()
 
 	return sp
 }
@@ -97,7 +98,7 @@ func (sp *SyncPool) load() {
 	logger.Debug("block synced to: ", sp.nextHeight)
 }
 
-func (sp *SyncPool) sync() {
+func (sp *SyncPool) syncBlock() {
 	tc := time.NewTicker(10 * time.Second)
 	defer tc.Stop()
 
@@ -211,6 +212,17 @@ func (sp *SyncPool) sync() {
 
 func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 	logger.Debug("process block:", sb.Height)
+	oRoot, err := sp.mf(nil)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
+		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+	}
+
+	newRoot := oRoot
+
 	buf := make([]byte, 8)
 	for i := 0; i < sb.msgCount; i++ {
 		tx := sb.Txs[i]
@@ -232,11 +244,12 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 
 		// apply message
 		if sb.Receipts[i].Err == 0 {
-			err := sp.mf(sb.msg[i])
+			nroot, err := sp.mf(sb.msg[i])
 			if err != nil {
 				// should not; todo
-				logger.Error("fail to apply: ", err)
+				logger.Error("fail to apply: ", err, nroot)
 			}
+			newRoot = nroot
 		}
 
 		binary.BigEndian.PutUint64(buf, tx.Nonce+1)
@@ -247,6 +260,10 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 				sp.msgDone <- &tx
 			}
 		}
+	}
+
+	if !bytes.Equal(newRoot.Bytes(), sb.Root.Bytes()) {
+		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.Root)
 	}
 
 	if sp.inProcess {

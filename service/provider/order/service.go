@@ -11,6 +11,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -39,8 +40,8 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 	quo := &types.Quotation{
 		ProID:      roleID,
 		TokenIndex: 1,
-		SegPrice:   big.NewInt(1234),
-		PiecePrice: big.NewInt(5678),
+		SegPrice:   new(big.Int).Set(build.DefaultSegPrice),
+		PiecePrice: new(big.Int).Set(build.DefaultPiecePrice),
 	}
 
 	om := &OrderMgr{
@@ -127,8 +128,8 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 
 		or.seq.Segments.Push(as)
 		// update size and price
-		or.seq.Price.Add(or.seq.Price, big.NewInt(100))
-		or.seq.Size += 1
+		or.seq.Price.Add(or.seq.Price, or.segPrice)
+		or.seq.Size += build.DefaultSegSize
 
 		or.seq.Segments.Merge()
 
@@ -221,6 +222,8 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			or.orderState = Order_Ack
 			or.orderTime = time.Now().Unix()
 			or.nonce++
+
+			or.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 
 			// reset seq
 			or.seqNum = 0

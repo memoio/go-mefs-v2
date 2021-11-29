@@ -22,6 +22,9 @@ type BlockHeader struct {
 
 	Txs      []MessageDigest
 	Receipts []Receipt
+
+	ParentRoot types.MsgID
+	Root       types.MsgID
 }
 
 func (bh *BlockHeader) Hash() (types.MsgID, error) {

@@ -171,6 +171,10 @@ func (l *LfsService) HeadBucket(ctx context.Context, bucketName string) (*types.
 		return nil, err
 	}
 
+	if bucket.BucketID < l.sb.bucketVerify {
+		bucket.Confirmed = true
+	}
+
 	return &bucket.BucketInfo, nil
 }
 
