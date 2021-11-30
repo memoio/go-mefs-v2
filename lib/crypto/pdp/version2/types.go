@@ -1,8 +1,11 @@
 package pdpv2
 
 import (
+	"encoding/binary"
+
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	"github.com/zeebo/blake3"
 )
 
 // 自/data-format/common.go，目前segment的default size为124KB
@@ -31,79 +34,128 @@ var ZeroG2 = bls.ZeroG2
 
 // Challenge gives
 type Challenge struct {
-	r       int64
-	indices [][]byte
+	r        int64
+	pubInput bls.Fr
 }
 
-func (chal *Challenge) Version() int {
-	return 1
+func NewChallenge(r int64) pdpcommon.Challenge {
+	var temp Fr
+	return &Challenge{r, temp}
+}
+
+func (chal *Challenge) Version() uint16 {
+	return pdpcommon.PDPV2
 }
 
 func (chal *Challenge) Random() int64 {
 	return chal.r
 }
 
-func (chal *Challenge) Indices() [][]byte {
-	return chal.indices
+func (chal *Challenge) PublicInput() []byte {
+	return bls.FrToBytes(&chal.pubInput)
 }
 
-func (chal *Challenge) Deserialize(data []byte) error {
+func (chal *Challenge) Add(b []byte) error {
+	var temp Fr
+	if len(b) != 32 {
+		tmp := blake3.Sum256(b)
+		b = tmp[:]
+	}
+	err := bls.FrFromBytes(&temp, b)
+	if err != nil {
+		return err
+	}
+
+	bls.FrAddMod(&chal.pubInput, &chal.pubInput, &temp)
+	return nil
+}
+
+func (chal *Challenge) Delete(b []byte) error {
+	var temp Fr
+	if len(b) != 32 {
+		tmp := blake3.Sum256(b)
+		b = tmp[:]
+	}
+	err := bls.FrFromBytes(&temp, b)
+	if err != nil {
+		return err
+	}
+
+	bls.FrSubMod(&chal.pubInput, &chal.pubInput, &temp)
+	return nil
+}
+
+func (chal *Challenge) Deserialize(buf []byte) error {
+	if len(buf) != 10+FrSize {
+		return pdpcommon.ErrDeserializeFailed
+	}
+
+	ver := binary.BigEndian.Uint16(buf[:2])
+	if ver != pdpcommon.PDPV2 {
+		return pdpcommon.ErrVersionUnmatch
+	}
+
+	chal.r = int64(binary.BigEndian.Uint64(buf[2:10]))
+
+	var temp Fr
+	err := bls.FrFromBytes(&temp, buf[10:10+FrSize])
+	if err != nil {
+		return err
+	}
+	chal.pubInput = temp
+
 	return nil
 }
 
 func (chal *Challenge) Serialize() []byte {
-	return nil
+	buf := make([]byte, 10+FrSize)
+	binary.BigEndian.PutUint16(buf[:2], chal.Version())
+	binary.BigEndian.PutUint64(buf[2:10], uint64(chal.r))
+	copy(buf[10:10+FrSize], bls.FrToBytes(&chal.pubInput))
+	return buf
 }
 
 // Proof is result
 type Proof struct {
-	Psi   []byte `json:"psi"`
-	Kappa []byte `json:"kappa"`
+	Psi   G1 `json:"psi"`
+	Kappa G1 `json:"kappa"`
 }
 
-func (pf *Proof) Version() int {
-	return 2
+func NewProof(psi, kappa G1) pdpcommon.Proof {
+	return &Proof{Psi: psi, Kappa: kappa}
+}
+
+func (pf *Proof) Version() uint16 {
+	return pdpcommon.PDPV2
 }
 
 func (pf *Proof) Serialize() []byte {
-	buf := make([]byte, 0, len(pf.Psi)+len(pf.Kappa))
-	buf = append(buf, pf.Psi...)
-	buf = append(buf, pf.Kappa...)
+	buf := make([]byte, 2+2*G1Size)
+
+	binary.BigEndian.PutUint16(buf[:2], pf.Version())
+	copy(buf[2:2+G1Size], bls.G1Serialize(&pf.Psi))
+	copy(buf[2+G1Size:2+2*G1Size], bls.G1Serialize(&pf.Kappa))
 
 	return buf
 }
 func (pf *Proof) Deserialize(buf []byte) error {
-	if len(buf) != 2*G1Size {
+	if len(buf) != 2+2*G1Size {
 		return pdpcommon.ErrNumOutOfRange
 	}
-	pf.Psi = make([]byte, G1Size)
-	pf.Kappa = make([]byte, G1Size)
-	copy(pf.Psi, buf[0:G1Size])
-	copy(pf.Kappa, buf[G1Size:2*G1Size])
-	return nil
-}
 
-type FaultBlocks struct {
-	ID       string
-	BucketID uint64
-	CID      map[uint64][]uint64 //stripe指向一个[]uint64，这是一个位图，第几位标记上了，就代表stripe内的该块损坏
-	//当然，其实这里只记录stripe号，因为按理说，一个节点只能存储该stripe内的一个块，不可能冲突
-}
+	ver := binary.BigEndian.Uint16(buf[:2])
+	if ver != pdpcommon.PDPV2 {
+		return pdpcommon.ErrVersionUnmatch
+	}
 
-type ChallengeSeed struct {
-	UserID      []byte
-	BucketID    int64
-	Seed        int64
-	StripeStart int64
-	StripeEnd   int64
-	SegEnd      int64
-}
+	err := bls.G1Deserialize(&pf.Psi, buf[2:2+G1Size])
+	if err != nil {
+		return err
+	}
 
-//TODO:
-func (chal *ChallengeSeed) Serialize() ([]byte, error) {
-	return nil, nil
-}
-
-func (chal *ChallengeSeed) Deserialize(data []byte) error {
+	err = bls.G1Deserialize(&pf.Kappa, buf[2+G1Size:2+2*G1Size])
+	if err != nil {
+		return err
+	}
 	return nil
 }

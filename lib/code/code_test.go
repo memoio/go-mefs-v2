@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/zeebo/blake3"
 )
@@ -23,10 +24,10 @@ var Mullen = 1 * 1024 * 1024
 
 var userID = "QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G"
 
-var FileSize = 56 * pdpv2.DefaultSegSize
+var FileSize = 56 * DefaultSegSize
 
 func BenchmarkEncode(b *testing.B) {
-	keyset, err := pdpv2.GenKeySet()
+	keyset, err := pdp.GenerateKey(pdpcommon.PDPV2)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -76,7 +77,7 @@ func BenchmarkEncode(b *testing.B) {
 }
 
 func BenchmarkDecodeFast(b *testing.B) {
-	keyset, err := pdpv2.GenKeySet()
+	keyset, err := pdp.GenerateKey(pdpcommon.PDPV2)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -135,7 +136,7 @@ func BenchmarkDecodeFast(b *testing.B) {
 }
 
 func BenchmarkDecode(b *testing.B) {
-	keyset, err := pdpv2.GenKeySet()
+	keyset, err := pdp.GenerateKey(pdpcommon.PDPV2)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func BenchmarkDecode(b *testing.B) {
 }
 
 func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
-	keyset, err := pdpv2.GenKeySet()
+	keyset, err := pdp.GenerateKey(pdpcommon.PDPV2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,13 +331,13 @@ func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 }
 
 func TestCode(t *testing.T) {
-	t.Log("test size: ", 29*pdpv2.DefaultSegSize)
-	CodeAndRepair(RsPolicy, 29, 51, 29*pdpv2.DefaultSegSize, t)
-	CodeAndRepair(MulPolicy, 3, 2, pdpv2.DefaultSegSize, t)
+	t.Log("test size: ", 29*DefaultSegSize)
+	CodeAndRepair(RsPolicy, 29, 51, 29*DefaultSegSize, t)
+	CodeAndRepair(MulPolicy, 3, 2, DefaultSegSize, t)
 }
 
 func TestStripe(t *testing.T) {
-	keyset, err := pdpv2.GenKeySet()
+	keyset, err := pdp.GenerateKey(pdpcommon.PDPV2)
 	if err != nil {
 		t.Fatal(err)
 	}

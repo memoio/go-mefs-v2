@@ -5,8 +5,8 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -67,7 +67,10 @@ func (m *OrderMgr) createOrder(op *OrderFull) *OrderFull {
 		return op
 	}
 
-	op.dv = pdpv2.NewDataVerifier(pk, nil)
+	op.dv, err = pdp.NewDataVerifier(pk, nil)
+	if err != nil {
+		return op
+	}
 
 	op.fsID = pk.VerifyKey().Hash()
 
@@ -81,14 +84,13 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		userID: userID,
 	}
 
-	pk := new(pdpv2.PublicKey)
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
 	val, err := m.ds.Get(key)
 	if err == nil {
-		err = pk.Deserialize(val)
+		pk, err := pdp.DeserializePublicKey(val)
 		if err == nil {
 			logger.Debug("get pdp publickey local for: ", userID)
-			op.dv = pdpv2.NewDataVerifier(pk, nil)
+			op.dv, err = pdp.NewDataVerifier(pk, nil)
 			op.fsID = pk.VerifyKey().Hash()
 			op.ready = true
 		}

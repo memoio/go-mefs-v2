@@ -5,7 +5,6 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 )
@@ -62,9 +61,9 @@ func NewDataCoderWithBopts(keyset pdpcommon.KeySet, bo *pb.BucketOption) (*DataC
 
 // NewDataCoderWithPrefix creates a new datacoder with prefix
 func NewDataCoderWithPrefix(keyset pdpcommon.KeySet, p *segment.Prefix) (*DataCoder, error) {
-	vkey := pdpv2.NewDataVerifier(keyset.PublicKey(), keyset.SecreteKey())
-	if vkey == nil {
-		return nil, ErrWrongCoder
+	vkey, err := pdp.NewDataVerifier(keyset.PublicKey(), keyset.SecreteKey())
+	if err != nil {
+		return nil, err
 	}
 
 	d := &DataCoder{
@@ -72,7 +71,7 @@ func NewDataCoderWithPrefix(keyset pdpcommon.KeySet, p *segment.Prefix) (*DataCo
 		blsKey: keyset,
 		dv:     vkey,
 	}
-	err := d.preCompute()
+	err = d.preCompute()
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +89,7 @@ func (d *DataCoder) preCompute() error {
 	d.chunkCount = dc + pc
 	d.tagCount = 2 + (pc-1)/dc
 
-	s, ok := pdp.TagMap[int(d.TagFlag)]
+	s, ok := pdpcommon.TagMap[int(d.TagFlag)]
 	if !ok {
 		s = 48
 	}
@@ -235,14 +234,14 @@ func (d *DataCoder) VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool,
 			if name != nil {
 				name.SetChunkID(uint32(j))
 				seg := stripe[j][d.prefixSize : d.prefixSize+int(d.SegSize)]
-				err := d.dv.Input(name.Bytes(), seg, tag)
+				err := d.dv.Add(name.Bytes(), seg, tag)
 				if err != nil {
 					// tag is wrong
 					stripe[j] = nil
 					good--
 				}
 			} else {
-				err := pdpv2.CheckTag(tag)
+				err := pdp.CheckTag(pdpcommon.PDPV2, tag)
 				if err != nil {
 					// tag is wrong
 					stripe[j] = nil
@@ -264,9 +263,9 @@ func (d *DataCoder) VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool,
 	}
 
 	if name != nil {
-		ok := d.dv.Result()
+		ok, err := d.dv.Result()
 		// verify each chunk
-		if !ok {
+		if !ok || err != nil {
 			good = 0
 			for j := 0; j < len(stripe); j++ {
 				//if good >= int(d.DataCount) {
@@ -301,13 +300,13 @@ func (d *DataCoder) VerifyChunk(name segment.SegmentID, data []byte) (bool, erro
 	if name != nil {
 		seg := data[d.prefixSize : d.prefixSize+int(d.SegSize)]
 		tag := data[d.prefixSize+int(d.SegSize) : d.prefixSize+int(d.SegSize)+d.tagSize]
-		err := d.dv.Input(name.Bytes(), seg, tag)
+		err := d.dv.Add(name.Bytes(), seg, tag)
 		if err != nil {
 			return false, err
 		}
 	}
 
-	return d.dv.Result(), nil
+	return d.dv.Result()
 }
 
 func (d *DataCoder) Recover(name segment.SegmentID, stripe [][]byte) error {
@@ -391,19 +390,19 @@ func (d *DataCoder) recoverField(name segment.SegmentID, stripe [][]byte) error 
 
 			name.SetChunkID(uint32(i))
 
-			err := d.dv.Input(name.Bytes(), dataGroup[i], tagGroup[i])
+			err := d.dv.Add(name.Bytes(), dataGroup[i], tagGroup[i])
 			if err != nil {
 				return err
 			}
 		}
 
-		ok := d.dv.Result()
-		if !ok {
+		ok, err := d.dv.Result()
+		if !ok || err != nil {
 			return ErrRecoverData
 		}
 	} else {
 		for i := range fault {
-			err := pdpv2.CheckTag(tagGroup[i])
+			err := pdp.CheckTag(pdpcommon.PDPV2, tagGroup[i])
 			if err != nil {
 				return err
 			}

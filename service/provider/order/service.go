@@ -12,8 +12,8 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -116,7 +116,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		data, _ := seg.Content()
 		tags, _ := seg.Tags()
 
-		or.dv.Input(id, data, tags[0])
+		or.dv.Add(id, data, tags[0])
 
 		//or.seq.DataName = append(or.seq.DataName, id)
 		as := &types.AggSegs{
@@ -418,7 +418,10 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				}
 			}
 
-			ok := or.dv.Result()
+			ok, err := or.dv.Result()
+			if err != nil {
+				logger.Warn("data verify is wrong:", err)
+			}
 			if !ok {
 				logger.Warn("data verify is wrong")
 				//return nil, ErrDataSign
@@ -512,13 +515,12 @@ func (m *OrderMgr) getBlsPubkey(userID uint64) (pdpcommon.PublicKey, error) {
 	// get bls publickey from local
 	logger.Debug("get pdp publickey for: ", userID)
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
-	pk := new(pdpv2.PublicKey)
 
 	val, err := m.ds.Get(key)
 	if err != nil {
-		return pk, err
+		return nil, err
 	}
-	err = pk.Deserialize(val)
+	pk, err := pdp.DeserializePublicKey(val)
 	if err != nil {
 		return pk, err
 	}

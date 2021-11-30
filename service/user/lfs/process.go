@@ -14,8 +14,8 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -55,6 +55,11 @@ func (l *LfsService) newDataProcess(bucketID uint64, bopt *pb.BucketOption) (*da
 		return nil, err
 	}
 
+	dv, err := pdp.NewDataVerifier(l.keyset.PublicKey(), l.keyset.SecreteKey())
+	if err != nil {
+		return nil, err
+	}
+
 	dp := &dataProcess{
 		bucketID:    bucketID,
 		dataCount:   int(bopt.DataCount),
@@ -65,7 +70,7 @@ func (l *LfsService) newDataProcess(bucketID uint64, bopt *pb.BucketOption) (*da
 		coder:  coder,
 		segID:  segID,
 
-		dv: pdpv2.NewDataVerifier(l.keyset.PublicKey(), l.keyset.SecreteKey()),
+		dv: dv,
 	}
 
 	l.Lock()
@@ -164,7 +169,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				segData, _ := seg.Content()
 				segTag, _ := seg.Tags()
 
-				err := dp.dv.Input(dp.segID.Bytes(), segData, segTag[0])
+				err := dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
 				if err != nil {
 					logger.Warn("Process data error:", dp.segID.String(), err)
 				}
@@ -179,8 +184,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			sendCount++
 			// send some to order
 			if sendCount >= 16 || breakFlag {
-				ok := dp.dv.Result()
-				if !ok {
+				ok, err := dp.dv.Result()
+				if !ok || err != nil {
 					return ErrEncode
 				}
 
@@ -195,7 +200,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 				data, _ := cbor.Marshal(sjl)
 				key := store.NewKey(pb.MetaType_LFS_OpJobsKey, l.userID, object.BucketID, opID)
-				err := l.ds.Put(key, data)
+				err = l.ds.Put(key, data)
 				if err != nil {
 					continue
 				}

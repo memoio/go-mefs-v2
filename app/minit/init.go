@@ -7,7 +7,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
 
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
@@ -94,7 +95,7 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 		log.Println("genenrated bls: ", blsAddr.String())
 	case "user":
 		ri.Type = pb.RoleInfo_User
-		pdpKeySet, err := pdpv2.GenKeySetWithSeed(sBytes, pdpv2.SCount)
+		pdpKeySet, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, sBytes)
 		if err != nil {
 			return err
 		}

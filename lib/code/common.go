@@ -3,7 +3,6 @@ package code
 import (
 	"errors"
 
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -16,7 +15,7 @@ const (
 	CurrentVersion   = 1
 	DefaultCrypt     = 1
 	DefaultPrefixLen = 24
-	DefaultTagFlag   = pdp.PDPV2
+	DefaultTagFlag   = pdpcommon.PDPV2
 	DefaultSegSize   = pdpv2.DefaultSegSize
 )
 
@@ -86,7 +85,7 @@ func VerifyChunkLength(data []byte) error {
 		return ErrWrongPolicy
 	}
 
-	tagLen, ok := pdp.TagMap[int(pre.TagFlag)]
+	tagLen, ok := pdpcommon.TagMap[int(pre.TagFlag)]
 	if !ok {
 		tagLen = 48
 	}

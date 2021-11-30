@@ -1,8 +1,6 @@
 package pdpv2
 
 import (
-	"math/rand"
-
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 )
@@ -29,16 +27,6 @@ func splitSegmentToAtoms(data []byte, typ int) ([]Fr, error) {
 	bls.FrFromBytes(&atom[num-1], data[typ*(num-1):])
 
 	return atom, nil
-}
-
-func fillRandom(p []byte) {
-	for i := 0; i < len(p); i += 7 {
-		val := rand.Int63()
-		for j := 0; i+j < len(p) && j < 7; j++ {
-			p[i+j] = byte(val)
-			val >>= 8
-		}
-	}
 }
 
 func Polydiv(poly []Fr, fr_r Fr) []Fr {

@@ -3,7 +3,7 @@ package state
 import (
 	"encoding/binary"
 
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -18,8 +18,7 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 		return nil, err
 	}
 
-	pk := new(pdpv2.PublicKey)
-	err = pk.Deserialize(data)
+	pk, err := pdp.DeserializePublicKey(data)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +44,7 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 }
 
 func (s *StateMgr) AddUser(msg *tx.Message) (types.MsgID, error) {
-	pk := new(pdpv2.PublicKey)
-	err := pk.Deserialize(msg.Params)
+	pk, err := pdp.DeserializePublicKey(msg.Params)
 	if err != nil {
 		return s.root, err
 	}
@@ -81,8 +79,7 @@ func (s *StateMgr) AddUser(msg *tx.Message) (types.MsgID, error) {
 }
 
 func (s *StateMgr) CanAddUser(msg *tx.Message) (types.MsgID, error) {
-	pk := new(pdpv2.PublicKey)
-	err := pk.Deserialize(msg.Params)
+	pk, err := pdp.DeserializePublicKey(msg.Params)
 	if err != nil {
 		return s.validateRoot, err
 	}

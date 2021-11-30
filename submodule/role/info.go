@@ -8,8 +8,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -176,7 +176,7 @@ func (rm *RoleMgr) RoleGetKeyset(roleID uint64) (pdpcommon.KeySet, error) {
 
 	privBytes = append(privBytes, byte(types.PDP))
 
-	keyset, err := pdpv2.GenKeySetWithSeed(privBytes, pdpv2.SCount)
+	keyset, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, privBytes)
 	if err != nil {
 		return nil, err
 	}
