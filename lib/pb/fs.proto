@@ -34,6 +34,9 @@ enum MetaType {
 
 	// data meta
 	SegLocationKey = 40;     // key: x/segID; val: proID; on user
+	Chal_UsersKey = 41;      // key: x; val: users
+	Chal_ProofKey = 42;      // key: x/userID; val: proof
+	Chal_BucketInfoKey = 43; // key: x/userID/bucketID; val: BucketInfo
 
 	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState

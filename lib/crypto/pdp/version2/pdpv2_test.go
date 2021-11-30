@@ -322,6 +322,26 @@ func TestKeyDeserialize(t *testing.T) {
 
 }
 
+func TestCreate(t *testing.T) {
+	data := make([]byte, FileSize)
+	rand.Seed(time.Now().UnixNano())
+	fillRandom(data)
+
+	tmp := bls.ZERO
+
+	h := blake3.Sum256(data)
+	bls.FrFromBytes(&tmp, h[:])
+
+	t.Log(tmp.String())
+
+	tmp2 := bls.ZERO
+
+	h = blake3.Sum256(h[:])
+	bls.FrFromBytes(&tmp2, h[:])
+
+	t.Fatal(tmp.String(), tmp2.String())
+}
+
 func TestFsID(t *testing.T) {
 	data := make([]byte, FileSize)
 	rand.Seed(time.Now().UnixNano())

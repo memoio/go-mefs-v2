@@ -1,9 +1,14 @@
 package types
 
 import (
+	"errors"
 	"sort"
 
 	"github.com/fxamacker/cbor/v2"
+)
+
+var (
+	ErrNotFound = errors.New("not found")
 )
 
 // sorted by bucketID and jobID
@@ -15,7 +20,7 @@ type SegJob struct {
 	ChunkID  uint32
 }
 
-// aggreated segs
+// aggreated segs in order
 type AggSegs struct {
 	BucketID uint64
 	Start    uint64
@@ -124,12 +129,7 @@ func (asq *AggSegsQueue) Merge() {
 	*asq = asqval
 }
 
-type Stripe struct {
-	Start uint64 // stripe start
-	Val   uint64 // proID/expire; proID is Max.Uint64 when faulted
-}
-
-// Stripe
+// stripe in state
 type AggStripe struct {
 	Nonce  uint64
 	ProID  uint64
@@ -145,37 +145,122 @@ func (as *AggStripe) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, as)
 }
 
-type AggStripeQueue []*AggStripe
+// stripe in provider
+type Stripe struct {
+	ChunkID uint32
+	Start   uint64
+	Length  uint64
+}
 
-func (sq AggStripeQueue) Len() int {
+type StripeQueue []*Stripe
+
+func (sq StripeQueue) Len() int {
 	return len(sq)
 }
 
-func (sq *AggStripeQueue) Push(s *AggStripe) {
-	if sq.Len() == 0 {
-		*sq = append(*sq, s)
-	}
-
-	sqval := *sq
-	last := sqval[sq.Len()-1]
-	if last.ProID == s.ProID && last.Start+last.Length == s.Start {
-		last.Length += s.Length
-		*sq = sqval
-	} else {
-		*sq = append(*sq, s)
-	}
+func (sq StripeQueue) Less(i, j int) bool {
+	return sq[i].Start < sq[j].Start
 }
 
-func (sq AggStripeQueue) Has(stripeID uint64) bool {
+func (sq StripeQueue) Swap(i, j int) {
+	sq[i], sq[j] = sq[j], sq[i]
+}
+
+//  after sort
+func (sq StripeQueue) Has(stripeID uint64, chunkID uint32) bool {
 	for _, as := range sq {
 		if as.Start > stripeID {
 			break
 		} else {
-			if as.Start <= stripeID && as.Start+as.Length > stripeID {
+			if as.Start <= stripeID && as.Start+as.Length > stripeID && as.ChunkID == chunkID {
 				return true
 			}
 		}
 	}
 
 	return false
+}
+
+func (sq StripeQueue) GetChunkID(stripeID uint64) (uint32, error) {
+	for _, as := range sq {
+		if as.Start > stripeID {
+			break
+		} else {
+			if as.Start <= stripeID && as.Start+as.Length > stripeID {
+				return as.ChunkID, nil
+			}
+		}
+	}
+
+	return 0, ErrNotFound
+}
+
+func (sq StripeQueue) Equal(old StripeQueue) bool {
+	if sq.Len() != old.Len() {
+		return false
+	}
+
+	for i := 0; i < sq.Len(); i++ {
+		if sq[i].ChunkID != old[i].ChunkID || sq[i].Start != old[i].Start || sq[i].Length != old[i].Length {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (sq *StripeQueue) Push(s *Stripe) {
+	if sq.Len() == 0 {
+		*sq = append(*sq, s)
+		return
+	}
+
+	asqval := *sq
+	last := asqval[sq.Len()-1]
+	if last.ChunkID == s.ChunkID && last.Start+last.Length == s.Start {
+		last.Length += s.Length
+		*sq = asqval
+	} else {
+		*sq = append(*sq, s)
+	}
+}
+
+func (sq *StripeQueue) Merge() {
+	sort.Sort(sq)
+	aLen := sq.Len()
+	asqval := *sq
+	for i := 0; i < aLen-1; {
+		j := i + 1
+		for ; j < aLen; j++ {
+			if asqval[i].ChunkID == asqval[j].ChunkID && asqval[i].Start+asqval[i].Length == asqval[j].Start {
+				asqval[i].Length += asqval[j].Length
+				asqval[j].Length = 0
+			} else {
+				break
+			}
+		}
+		i = j
+	}
+
+	j := 0
+	for i := 0; i < aLen; i++ {
+		if asqval[i].Length == 0 {
+			continue
+		}
+
+		asqval[j] = asqval[i]
+		j++
+	}
+
+	asqval = asqval[:j]
+
+	*sq = asqval
+}
+
+func (sq *StripeQueue) Serialize() ([]byte, error) {
+	return cbor.Marshal(sq)
+}
+
+func (sq *StripeQueue) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, sq)
 }
