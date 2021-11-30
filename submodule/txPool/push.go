@@ -215,6 +215,10 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 		pp.ds.Put(key, buf)
 	}
 
+	if pp.inProcess {
+		pp.msgChan <- &sm.Message
+	}
+
 	// push out immediately
 	err = pp.INetService.PublishTxMsg(pp.ctx, sm)
 	if err != nil {

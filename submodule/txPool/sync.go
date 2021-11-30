@@ -51,6 +51,7 @@ type SyncPool struct {
 	msgDone chan *tx.MessageDigest
 	inPush  bool
 
+	msgChan   chan *tx.Message
 	blkDone   chan *tx.BlockHeader
 	inProcess bool
 }
@@ -73,6 +74,7 @@ func NewSyncPool(ctx context.Context, roleID uint64, ds store.KVStore, ts tx.Sto
 		blks:  make(map[uint64]*SyncedBlock),
 
 		syncChan: make(chan struct{}),
+		msgChan:  make(chan *tx.Message, 128),
 		msgDone:  make(chan *tx.MessageDigest, 16),
 		blkDone:  make(chan *tx.BlockHeader, 8),
 	}

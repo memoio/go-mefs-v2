@@ -2,10 +2,13 @@ package state
 
 import (
 	"bytes"
+	"encoding/binary"
 
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 func (s *StateMgr) UpdateEpoch(msg *tx.Message) (types.MsgID, error) {
@@ -27,10 +30,26 @@ func (s *StateMgr) UpdateEpoch(msg *tx.Message) (types.MsgID, error) {
 	}
 
 	if s.height-s.epochInfo.Height < build.DefaultChalDuration {
-		return s.validateRoot, ErrEpoch
+		return s.root, ErrEpoch
 	}
 
+	s.epoch++
 	s.epochInfo.Seed = types.NewMsgID(msg.Params)
+	s.epochInfo.Epoch = sep.Epoch
+	s.epochInfo.Height = s.height - 1
+
+	// store
+	key := store.NewKey(pb.MetaType_ST_EpochKey, s.epochInfo.Epoch)
+	data, err := s.epochInfo.Serialize()
+	if err != nil {
+		return s.root, err
+	}
+	s.ds.Put(key, data)
+
+	key = store.NewKey(pb.MetaType_ST_EpochKey)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, s.epoch)
+	s.ds.Put(key, buf)
 
 	s.newRoot(msg.Params)
 

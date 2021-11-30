@@ -46,6 +46,7 @@ func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 		height:            0,
 		activeRoles:       make([]uint64, 0, 16),
 		root:              beginRoot,
+		validateRoot:      beginRoot,
 		epoch:             1,
 		epochInfo:         newChalEpoch(),
 		validateEpochInfo: newChalEpoch(),
@@ -90,13 +91,7 @@ func (s *StateMgr) load() {
 		key = store.NewKey(pb.MetaType_ST_EpochKey, s.epoch-1)
 		val, err = s.ds.Get(key)
 		if err == nil {
-			ces := new(chalEpochStored)
-			err := ces.Deserialize(val)
-			if err == nil {
-				s.epochInfo.Seed = types.NewMsgID(val)
-				s.epochInfo.Height = ces.Height
-				s.epochInfo.Epoch = ces.Epoch
-			}
+			s.epochInfo.Deserialize(val)
 		}
 	}
 }

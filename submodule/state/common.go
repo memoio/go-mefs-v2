@@ -8,7 +8,6 @@ import (
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -45,17 +44,12 @@ func newChalEpoch() *ChalEpoch {
 	}
 }
 
-type chalEpochStored struct {
-	tx.SignedEpochParams
-	Height uint64
+func (ce *ChalEpoch) Serialize() ([]byte, error) {
+	return cbor.Marshal(ce)
 }
 
-func (ces *chalEpochStored) Serialize() ([]byte, error) {
-	return cbor.Marshal(ces)
-}
-
-func (ces *chalEpochStored) Deserialize(b []byte) error {
-	return cbor.Unmarshal(b, ces)
+func (ce *ChalEpoch) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ce)
 }
 
 type orderKey struct {
@@ -92,22 +86,25 @@ type bucketManage struct {
 }
 
 type chalManage struct {
-	size  uint64
-	avail *bitset.BitSet
-	accFr bls.Fr //aggreated hashToFr
+	size      uint64
+	avail     *bitset.BitSet
+	accFr     bls.Fr //aggreated hashToFr
+	deletedFr bls.Fr
 }
 
 type chalManageStored struct {
-	Size  uint64
-	Avail []uint64
-	AccFr []byte
+	Size      uint64
+	Avail     []uint64
+	AccFr     []byte
+	DeletedFr []byte
 }
 
 func (cm *chalManage) Serialize() ([]byte, error) {
 	cms := &chalManageStored{
-		Size:  cm.size,
-		Avail: cm.avail.Bytes(),
-		AccFr: bls.FrToBytes(&cm.accFr),
+		Size:      cm.size,
+		Avail:     cm.avail.Bytes(),
+		AccFr:     bls.FrToBytes(&cm.accFr),
+		DeletedFr: bls.FrToBytes(&cm.deletedFr),
 	}
 
 	return cbor.Marshal(cms)

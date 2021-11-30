@@ -57,7 +57,7 @@ func (chal *Challenge) Serialize() []byte {
 
 // Proof is result
 type Proof struct {
-	Psi   []byte `json:"delta"`
+	Psi   []byte `json:"psi"`
 	Kappa []byte `json:"kappa"`
 }
 

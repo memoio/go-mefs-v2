@@ -71,6 +71,8 @@ func (k *KeeperNode) Start() error {
 		}
 	}
 
+	go k.updateEpoch()
+
 	logger.Info("start keeper for: ", k.RoleID())
 	return nil
 }

@@ -24,6 +24,15 @@ type EpochParams struct {
 	Prev  types.MsgID // hash pre
 }
 
+func (ep *EpochParams) Hash() (types.MsgID, error) {
+	res, err := ep.Serialize()
+	if err != nil {
+		return types.MsgID{}, err
+	}
+
+	return types.NewMsgID(res), nil
+}
+
 func (ep *EpochParams) Serialize() ([]byte, error) {
 	return cbor.Marshal(ep)
 }
@@ -39,19 +48,15 @@ type SignedEpochParams struct {
 	Sig types.MultiSignature
 }
 
-func (sep *SignedEpochParams) Hash() (types.MsgID, error) {
-	res, err := sep.EpochParams.Serialize()
-	if err != nil {
-		return types.MsgID{}, err
-	}
-
-	return types.NewMsgID(res), nil
-}
-
 func (sep *SignedEpochParams) Serialize() ([]byte, error) {
 	return cbor.Marshal(sep)
 }
 
 func (sep *SignedEpochParams) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, sep)
+}
+
+type SegChalParams struct {
+	Epoch uint64
+	AccFr []byte
 }

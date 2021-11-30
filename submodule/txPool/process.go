@@ -42,7 +42,7 @@ func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
 		ctx:      ctx,
 		SyncPool: sp,
 		pending:  make(map[uint64]*msgSet),
-		msgChan:  make(chan *tx.Message, 128),
+		msgChan:  sp.msgChan,
 		blkDone:  sp.blkDone,
 	}
 

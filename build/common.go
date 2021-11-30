@@ -4,7 +4,7 @@ import "math/big"
 
 const (
 	DefaultSegSize      = 248 * 1024
-	DefaultChalDuration = 100
+	DefaultChalDuration = 20
 )
 
 var (

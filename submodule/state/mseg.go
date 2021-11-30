@@ -94,9 +94,10 @@ func (s *StateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint6
 	}
 
 	cm = &chalManage{
-		size:  0,
-		accFr: bls.ZERO,
-		avail: bitset.New(1024),
+		size:      0,
+		accFr:     bls.ZERO,
+		deletedFr: bls.ZERO,
+		avail:     bitset.New(1024),
 	}
 
 	bm.accHw[proID] = cm
@@ -230,6 +231,12 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	if err != nil {
 		return err
 	}
+	err = s.ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	key = store.NewKey(pb.MetaType_St_SegMapKey, userID, bucketID, proID, s.epochInfo.Epoch)
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err
