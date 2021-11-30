@@ -56,8 +56,6 @@ func (k *KeeperNode) updateEpoch() {
 					Params:  data,
 				}
 
-				// handle result and retry?
-
 				var mid types.MsgID
 				retry := 0
 				for retry < 60 {

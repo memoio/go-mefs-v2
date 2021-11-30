@@ -47,7 +47,7 @@ func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 		activeRoles:       make([]uint64, 0, 16),
 		root:              beginRoot,
 		validateRoot:      beginRoot,
-		epoch:             1,
+		epoch:             0,
 		epochInfo:         newChalEpoch(),
 		validateEpochInfo: newChalEpoch(),
 		oInfo:             make(map[orderKey]*orderInfo),
@@ -86,7 +86,7 @@ func (s *StateMgr) load() {
 		s.epoch = binary.BigEndian.Uint64(val)
 	}
 
-	if s.epoch > 1 {
+	if s.epoch > 0 {
 		// load chal seed
 		key = store.NewKey(pb.MetaType_ST_EpochKey, s.epoch-1)
 		val, err = s.ds.Get(key)

@@ -1,8 +1,10 @@
 package provider
 
 import (
+	"context"
 	"encoding/binary"
 	"sync"
+	"time"
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
@@ -23,23 +25,35 @@ type SegMgr struct {
 
 	ds store.KVStore
 
+	ctx context.Context
+
 	localID uint64
 
 	epoch uint64
 	users []uint64
-	sInfo map[uint64]*SegInfo // key: userID
+	sInfo map[uint64]*segInfo // key: userID
+
+	chalChan chan *chal
 }
 
-type SegInfo struct {
+type chal struct {
+	userID uint64
+	epoch  uint64
+}
+
+type segInfo struct {
 	userID uint64
 	fsID   []byte
 
-	lastChal uint64
+	nextChal uint64
+	wait     bool
+	chalTime time.Time
 
 	bucket  uint64 // total bucket
 	buckets []*BucketInfo
 }
 
+// each epoch has one
 type BucketSet struct {
 	Size       uint64
 	AvalStripe *bitset.BitSet
@@ -57,7 +71,7 @@ func NewSegMgr(localID uint64, ds store.KVStore) *SegMgr {
 		localID: localID,
 		ds:      ds,
 		users:   make([]uint64, 0, 128),
-		sInfo:   make(map[uint64]*SegInfo),
+		sInfo:   make(map[uint64]*segInfo),
 	}
 
 	s.load()
@@ -88,7 +102,7 @@ func (s *SegMgr) save() error {
 	return s.ds.Put(key, buf)
 }
 
-func (s *SegMgr) loadFs(userID uint64, save bool) *SegInfo {
+func (s *SegMgr) loadFs(userID uint64, save bool) *segInfo {
 	si, ok := s.sInfo[userID]
 	if ok {
 		key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
@@ -103,7 +117,7 @@ func (s *SegMgr) loadFs(userID uint64, save bool) *SegInfo {
 		}
 
 		// load from local
-		si = &SegInfo{
+		si = &segInfo{
 			userID:  userID,
 			fsID:    pk.VerifyKey().Hash(),
 			buckets: make([]*BucketInfo, 0, 2),
@@ -112,7 +126,7 @@ func (s *SegMgr) loadFs(userID uint64, save bool) *SegInfo {
 		key = store.NewKey(pb.MetaType_Chal_ProofKey, userID)
 		data, err = s.ds.Get(key)
 		if err == nil && len(data) >= 8 {
-			si.lastChal = binary.BigEndian.Uint64(data)
+			si.nextChal = binary.BigEndian.Uint64(data)
 		}
 
 		key = store.NewKey(pb.MetaType_ST_BucketOptKey, userID)
@@ -162,7 +176,7 @@ func (s *SegMgr) loadFs(userID uint64, save bool) *SegInfo {
 	return si
 }
 
-func (s *SegMgr) loadBucket(si *SegInfo, bucketID uint64) *BucketInfo {
+func (s *SegMgr) loadBucket(si *segInfo, bucketID uint64) *BucketInfo {
 	if bucketID < si.bucket {
 		return si.buckets[bucketID]
 	}
@@ -243,12 +257,14 @@ func (s *SegMgr) AddStripe(userID, bucketID, stripeStart, stripeLength, proID ui
 }
 
 func (s *SegMgr) UpdateEpoch(epoch uint64) {
+	s.epoch = epoch
 	// save epoch avail map; fr
 	for _, userID := range s.users {
 		si := s.loadFs(userID, false)
 		for i := uint64(0); i < si.bucket; i++ {
 			bm := s.loadBucket(si, i)
 
+			// save for chal
 			key := store.NewKey(pb.MetaType_Chal_BucketInfoKey, userID, i, epoch)
 			data, err := cbor.Marshal(bm.BucketSet)
 			if err != nil {
@@ -258,15 +274,54 @@ func (s *SegMgr) UpdateEpoch(epoch uint64) {
 			s.ds.Put(key, data)
 		}
 	}
-	// prove
 }
 
-func (s *SegMgr) Challenge(userID uint64) {
+func (s *SegMgr) challenge(userID uint64) {
+	si := s.loadFs(userID, false)
+	if si.nextChal <= s.epoch {
+		if si.wait {
+			if time.Since(si.chalTime) > 10*time.Minute {
+				si.wait = false
+			}
+		}
+		// challenge routine
+		// generate proof
+		// submit proof
+		si.chalTime = time.Now()
+		si.wait = true
+		return
+	}
+}
+
+func (s *SegMgr) regularChallenge() {
 	// save epoch avail map; fr
 	// prove
-	si := s.loadFs(userID, false)
-	if si.lastChal < s.epoch {
-		// challenge
-		return
+	i := 0
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case ch := <-s.chalChan:
+			si := s.loadFs(ch.userID, true)
+			if si.nextChal == ch.epoch {
+				si.chalTime = time.Now()
+				si.wait = false
+				si.nextChal++
+			}
+		default:
+			if len(s.users) == 0 {
+				time.Sleep(10 * time.Second)
+				continue
+			}
+
+			if len(s.users) >= i {
+				i = 0
+				time.Sleep(10 * time.Second)
+			}
+
+			userID := s.users[i]
+			s.challenge(userID)
+			i++
+		}
 	}
 }
