@@ -13,7 +13,7 @@ require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gbrlsnchs/jwt/v3 v3.0.1
-	github.com/go-errors/errors v1.4.1
+	github.com/go-errors/errors v1.4.1 // indirect
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
