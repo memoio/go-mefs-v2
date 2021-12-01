@@ -1,24 +1,24 @@
 package pdpcommon
 
-import "errors"
+import "golang.org/x/xerrors"
 
 var (
-	ErrSplitSegmentToAtoms = errors.New("invalid segment")
-	ErrKeyIsNil            = errors.New("the key is nil")
-	ErrSetString           = errors.New("SetString is not true")
-	ErrSetBigInt           = errors.New("SetBigInt is not true")
-	ErrSetToBigInt         = errors.New("SetString (for big.Int) is not true")
+	ErrSplitSegmentToAtoms = xerrors.New("invalid segment")
+	ErrKeyIsNil            = xerrors.New("the key is nil")
+	ErrSetString           = xerrors.New("SetString is not true")
+	ErrSetBigInt           = xerrors.New("SetBigInt is not true")
+	ErrSetToBigInt         = xerrors.New("SetString (for big.Int) is not true")
 
-	ErrInvalidSettings       = errors.New("setting is invalid")
-	ErrNumOutOfRange         = errors.New("numOfAtoms is out of range")
-	ErrDeserializeFailed     = errors.New("deserialize failed")
-	ErrChalOutOfRange        = errors.New("numOfAtoms is out of chal range")
-	ErrSegmentSize           = errors.New("the size of the segment is wrong")
-	ErrGenTag                = errors.New("GenTag failed")
-	ErrOffsetIsNegative      = errors.New("offset is negative")
-	ErrProofVerifyInProvider = errors.New("proof is wrong")
-	ErrVersionUnmatch        = errors.New("version unmatch")
-	ErrVerifyFailed          = errors.New("verification failed")
+	ErrInvalidSettings       = xerrors.New("setting is invalid")
+	ErrNumOutOfRange         = xerrors.New("numOfAtoms is out of range")
+	ErrDeserializeFailed     = xerrors.New("deserialize failed")
+	ErrChalOutOfRange        = xerrors.New("numOfAtoms is out of chal range")
+	ErrSegmentSize           = xerrors.New("the size of the segment is wrong")
+	ErrGenTag                = xerrors.New("GenTag failed")
+	ErrOffsetIsNegative      = xerrors.New("offset is negative")
+	ErrProofVerifyInProvider = xerrors.New("proof is wrong")
+	ErrVersionUnmatch        = xerrors.New("version unmatch")
+	ErrVerifyFailed          = xerrors.New("verification failed")
 )
 
 // Tag constants

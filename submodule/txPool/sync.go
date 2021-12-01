@@ -283,6 +283,15 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.blk.Root)
 	}
 
+	newRoot, err = sp.hbf(nil)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(newRoot.Bytes(), sb.blk.Root.Bytes()) {
+		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.blk.Root)
+	}
+
 	if sp.inProcess {
 		sp.blkDone <- &sb.blk.BlockHeader
 	}

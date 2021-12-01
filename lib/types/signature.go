@@ -1,9 +1,8 @@
 package types
 
 import (
-	"errors"
-
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
 
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 )
@@ -43,7 +42,7 @@ func NewMultiSignature(typ SigType) MultiSignature {
 
 func (ms *MultiSignature) Add(id uint64, sig Signature) error {
 	if sig.Type != ms.Type {
-		return errors.New("type not equal")
+		return xerrors.New("type not equal")
 	}
 
 	switch ms.Type {

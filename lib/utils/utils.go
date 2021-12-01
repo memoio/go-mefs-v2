@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/binary"
-	"errors"
 	"math/rand"
 	"os"
 	"reflect"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/mitchellh/go-homedir"
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/xerrors"
 )
 
 func GetMefsPath() (string, error) {
@@ -28,7 +28,7 @@ func GetMefsPath() (string, error) {
 // pubkey is 65 bytes
 func ToEthAddress(pubkey []byte) ([]byte, error) {
 	if len(pubkey) != 65 {
-		return nil, errors.New("length should be 65")
+		return nil, xerrors.New("length should be 65")
 	}
 
 	d := sha3.NewLegacyKeccak256()

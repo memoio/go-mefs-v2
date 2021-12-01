@@ -2,16 +2,16 @@ package segment
 
 import (
 	"encoding/binary"
-	"errors"
 
 	"github.com/mr-tron/base58/base58"
+	"golang.org/x/xerrors"
 )
 
 var (
-	ErrWrongType      = errors.New("mismatch type")
-	ErrIllegalKey     = errors.New("this key is illegal")
-	ErrWrongKeyLength = errors.New("this key's length is wrong")
-	ErrIllegalValue   = errors.New("this metavalue is illegal")
+	ErrWrongType      = xerrors.New("mismatch type")
+	ErrIllegalKey     = xerrors.New("this key is illegal")
+	ErrWrongKeyLength = xerrors.New("this key's length is wrong")
+	ErrIllegalValue   = xerrors.New("this metavalue is illegal")
 )
 
 const SEGMENTID_LEN = 40

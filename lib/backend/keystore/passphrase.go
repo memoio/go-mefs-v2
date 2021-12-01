@@ -7,12 +7,12 @@ import (
 	cr "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 
 	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/scrypt"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 
 var (
 	//ErrDecrypt before decrypt privatekey, we compare mac, if not equal, use ErrDecrypt
-	ErrDecrypt = errors.New("could not decrypt key with given passphrase")
+	ErrDecrypt = xerrors.New("could not decrypt key with given passphrase")
 )
 
 type Key struct {

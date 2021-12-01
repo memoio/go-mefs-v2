@@ -3,13 +3,13 @@ package netapp
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
@@ -24,7 +24,7 @@ import (
 
 var logger = logging.Logger("netApp")
 
-var ErrTimeOut = errors.New("time out")
+var ErrTimeOut = xerrors.New("time out")
 
 var _ api.INetService = (*NetServiceImpl)(nil)
 

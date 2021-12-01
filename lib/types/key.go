@@ -1,8 +1,6 @@
 package types
 
-import (
-	"errors"
-)
+import "golang.org/x/xerrors"
 
 type KeyType = byte
 
@@ -18,9 +16,9 @@ const (
 )
 
 var (
-	ErrKeyInfoNotFound = errors.New("key info not found")
-	ErrKeyExists       = errors.New("key already exists")
-	ErrKeyFormat       = errors.New("key format is wrong")
+	ErrKeyInfoNotFound = xerrors.New("key info not found")
+	ErrKeyExists       = xerrors.New("key already exists")
+	ErrKeyFormat       = xerrors.New("key format is wrong")
 )
 
 // KeyInfo is used for storing keys in KeyStore

@@ -2,15 +2,16 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"log"
 	"sync"
+
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
 
 var (
-	ErrNoHandle = errors.New("no handle")
+	ErrNoHandle = xerrors.New("no handle")
 )
 
 type HandlerBlockFunc func(context.Context, *tx.Block) error

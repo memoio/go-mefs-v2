@@ -5,9 +5,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
-	"errors"
 
 	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -16,8 +16,8 @@ const (
 )
 
 var (
-	ErrKeySize   = errors.New("keysize must be 32")
-	ErrBlockSize = errors.New("blocksize must be an integer which can be divisible by 128")
+	ErrKeySize   = xerrors.New("keysize must be 32")
+	ErrBlockSize = xerrors.New("blocksize must be an integer which can be divisible by 128")
 )
 
 // ContructAesEnc contructs a new aes encrypt

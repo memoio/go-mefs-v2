@@ -21,6 +21,7 @@ import (
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
@@ -232,7 +233,7 @@ func (ns *NetworkSubmodule) NetGetClosestPeers(ctx context.Context, key string) 
 
 	ipfsDHT, ok := ns.Router.(*dht.IpfsDHT)
 	if !ok {
-		return nil, errors.New("underlying routing should be pointer of IpfsDHT")
+		return nil, xerrors.New("underlying routing should be pointer of IpfsDHT")
 	}
 	return ipfsDHT.GetClosestPeers(ctx, key)
 }

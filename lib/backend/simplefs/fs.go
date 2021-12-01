@@ -1,10 +1,11 @@
 package simplefs
 
 import (
-	"errors"
 	"io/ioutil"
 	"os"
 	"path"
+
+	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -75,7 +76,7 @@ func (sf *SimpleFs) Has(key []byte) (bool, error) {
 	}
 
 	if info.IsDir() {
-		return false, errors.New("is a dir")
+		return false, xerrors.New("is a dir")
 	}
 
 	return true, nil

@@ -1,14 +1,14 @@
 package types
 
 import (
-	"errors"
 	"sort"
 
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
 )
 
 var (
-	ErrNotFound = errors.New("not found")
+	ErrNotFound = xerrors.New("not found")
 )
 
 // sorted by bucketID and jobID

@@ -1,10 +1,11 @@
 package tx
 
 import (
-	"errors"
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -14,8 +15,8 @@ type MsgType = uint32
 const MsgMaxLen = 1 << 20
 
 var (
-	ErrMsgLen      = errors.New("message length too longth")
-	ErrMsgLenShort = errors.New("message length too short")
+	ErrMsgLen      = xerrors.New("message length too longth")
+	ErrMsgLenShort = xerrors.New("message length too short")
 )
 
 const (

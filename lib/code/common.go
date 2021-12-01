@@ -1,7 +1,7 @@
 package code
 
 import (
-	"errors"
+	"golang.org/x/xerrors"
 
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
@@ -20,14 +20,14 @@ const (
 )
 
 var (
-	ErrWrongCoder   = errors.New("coder is not supported")
-	ErrWrongVersion = errors.New("version is not supported")
-	ErrWrongTagFlag = errors.New("no such tag flag")
-	ErrWrongPolicy  = errors.New("policy is not supported")
-	ErrDataLength   = errors.New("data length is wrong")
-	ErrDataBroken   = errors.New("datais broken")
-	ErrRepairCrash  = errors.New("repair crash")
-	ErrRecoverData  = errors.New("the recovered data is incorrect")
+	ErrWrongCoder   = xerrors.New("coder is not supported")
+	ErrWrongVersion = xerrors.New("version is not supported")
+	ErrWrongTagFlag = xerrors.New("no such tag flag")
+	ErrWrongPolicy  = xerrors.New("policy is not supported")
+	ErrDataLength   = xerrors.New("data length is wrong")
+	ErrDataBroken   = xerrors.New("datais broken")
+	ErrRepairCrash  = xerrors.New("repair crash")
+	ErrRecoverData  = xerrors.New("the recovered data is incorrect")
 )
 
 type Codec interface {

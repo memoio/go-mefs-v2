@@ -3,12 +3,12 @@ package types
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"hash"
 
 	"github.com/mr-tron/base58/base58"
 	mh "github.com/multiformats/go-multihash"
 	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	ErrMsgCode = errors.New("illegal msg code")
+	ErrMsgCode = xerrors.New("illegal msg code")
 )
 
 func init() {

@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"errors"
 
 	lru "github.com/hashicorp/golang-lru"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -18,8 +19,8 @@ import (
 var logger = logging.Logger("mefs-user")
 
 var (
-	ErrData = errors.New("err data")
-	ErrSend = errors.New("send fails")
+	ErrData = xerrors.New("err data")
+	ErrSend = xerrors.New("send fails")
 )
 
 type dataService struct {

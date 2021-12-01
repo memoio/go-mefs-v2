@@ -4,11 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 
-	"github.com/go-errors/errors"
 	"github.com/jbenet/goprocess"
 	"github.com/libp2p/go-eventbus"
 	"github.com/libp2p/go-libp2p-core/connmgr"
-	crypto "github.com/libp2p/go-libp2p-core/crypto" //nolint
+	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/event"
 	net "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -16,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
 	"github.com/multiformats/go-multiaddr"
+	"golang.org/x/xerrors"
 )
 
 type mockLibP2PHost struct {
@@ -53,7 +53,7 @@ func (mockLibP2PHost) Mux() protocol.Switch {
 }
 
 func (mockLibP2PHost) Connect(ctx context.Context, pi peer.AddrInfo) error {
-	return errors.New("Connect called on mockLibP2PHost")
+	return xerrors.New("Connect called on mockLibP2PHost")
 }
 
 func (mockLibP2PHost) SetStreamHandler(pid protocol.ID, handler net.StreamHandler) {
@@ -69,7 +69,7 @@ func (mockLibP2PHost) RemoveStreamHandler(pid protocol.ID) {
 }
 
 func (mockLibP2PHost) NewStream(ctx context.Context, p peer.ID, pids ...protocol.ID) (net.Stream, error) {
-	return nil, errors.New("NewStream on mockLibP2PHost")
+	return nil, xerrors.New("NewStream on mockLibP2PHost")
 }
 
 func (mockLibP2PHost) Close() error {

@@ -1,13 +1,13 @@
 package kv
 
 import (
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v2"
 	"go.uber.org/zap"
+	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -15,7 +15,7 @@ import (
 
 var logger = logging.Logger("badger")
 
-var ErrClosed = errors.New("badger closed")
+var ErrClosed = xerrors.New("badger closed")
 
 type compatLogger struct {
 	*zap.SugaredLogger

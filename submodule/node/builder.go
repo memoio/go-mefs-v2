@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p"
 	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/httpio"
 	"github.com/memoio/go-mefs-v2/lib/address"
@@ -183,7 +184,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 
 	if !ok {
-		return nil, errors.New("donot have default address")
+		return nil, xerrors.New("donot have default address")
 	}
 
 	cs, err := netapp.New(ctx, id, nd.MetaStore(), nd.NetworkSubmodule)

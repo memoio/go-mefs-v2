@@ -16,9 +16,10 @@ type MessageDigest struct {
 type RawHeader struct {
 	Version uint32
 	Height  uint64
+	Epoch   uint64 // consensus epoch; logic time
 	MinerID uint64
 	PrevID  types.MsgID // previous block id
-	Time    time.Time   // block time
+	Time    time.Time   // block time, need?
 }
 
 func (rh *RawHeader) Hash() (types.MsgID, error) {

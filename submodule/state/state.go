@@ -19,7 +19,8 @@ type StateMgr struct {
 
 	api.IRole
 
-	// todo: txn store
+	// todo: add txn store
+	// need a different store
 	ds store.KVStore
 
 	activeRoles []uint64
@@ -117,6 +118,13 @@ func (s *StateMgr) newRoot(b []byte) {
 }
 
 func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
+	if blk == nil {
+		// todo: commmit for apply all changes
+		return s.root, nil
+	}
+
+	// todo: create new transcation
+
 	if blk.Height != s.height {
 		return s.root, xerrors.Errorf("apply block is wrong: got %d, expected %d, %w", blk.Height, s.height, ErrBlockHeight)
 	}
@@ -154,7 +162,7 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message) (types.MsgID, error) {
 	case tx.DataOrder:
 		return s.AddSeq(msg)
 	case tx.UpdateEpoch:
-		return s.UpdateEpoch(msg)
+		return s.UpdateChalEpoch(msg)
 	case tx.SegmentProof:
 		return s.AddSegProof(msg)
 	default:

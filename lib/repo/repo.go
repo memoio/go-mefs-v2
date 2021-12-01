@@ -12,6 +12,7 @@ type Repo interface {
 
 	KeyStore() types.KeyStore   // store keyfile
 	MetaStore() store.KVStore   // store meta
+	StateStore() store.KVStore  // store state meta
 	FileStore() store.FileStore // store data files
 
 	SetAPIAddr(maddr string) error

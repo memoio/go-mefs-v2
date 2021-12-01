@@ -1,10 +1,10 @@
 package lfs
 
 import (
-	"errors"
+	"github.com/minio/minio-go/v6/pkg/s3utils"
+	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/minio/minio-go/v6/pkg/s3utils"
 )
 
 var logger = logging.Logger("lfs")
@@ -15,37 +15,37 @@ const (
 )
 
 var (
-	ErrEncode = errors.New("encode is wrong")
+	ErrEncode = xerrors.New("encode is wrong")
 
-	ErrPolicy              = errors.New("policy is error")
-	ErrLfsServiceNotReady  = errors.New("lfs service is not ready, waiting for it")
-	ErrLfsReadOnly         = errors.New("lfs service is read only")
-	ErrLfsStarting         = errors.New("another lfs instance is starting")
-	ErrUpload              = errors.New("upload fails")
-	ErrResourceUnavailable = errors.New("resource unavailable, wait other option about lfs completed")
-	ErrWrongParameters     = errors.New("wrong parameters")
-	ErrCanceled            = errors.New("canceled")
+	ErrPolicy              = xerrors.New("policy is error")
+	ErrLfsServiceNotReady  = xerrors.New("lfs service is not ready, waiting for it")
+	ErrLfsReadOnly         = xerrors.New("lfs service is read only")
+	ErrLfsStarting         = xerrors.New("another lfs instance is starting")
+	ErrUpload              = xerrors.New("upload fails")
+	ErrResourceUnavailable = xerrors.New("resource unavailable, wait other option about lfs completed")
+	ErrWrongParameters     = xerrors.New("wrong parameters")
+	ErrCanceled            = xerrors.New("canceled")
 
-	ErrNoProviders      = errors.New("there is no providers has the designated block")
-	ErrNoKeepers        = errors.New("there is no keepers")
-	ErrNoEnoughProvider = errors.New("no enough providers can be connected")
-	ErrNoEnoughKeeper   = errors.New("no enough keepers can be connected")
+	ErrNoProviders      = xerrors.New("there is no providers has the designated block")
+	ErrNoKeepers        = xerrors.New("there is no keepers")
+	ErrNoEnoughProvider = xerrors.New("no enough providers can be connected")
+	ErrNoEnoughKeeper   = xerrors.New("no enough keepers can be connected")
 
-	ErrBucketNotExist     = errors.New("bucket not exist")
-	ErrBucketAlreadyExist = errors.New("bucket already exists")
-	ErrBucketNotEmpty     = errors.New("bucket is not empty")
-	ErrBucketNameInvalid  = errors.New("bucket name is invalid")
-	ErrBucketTooMany      = errors.New("bucket is too many")
-	ErrBucketIsConfirm    = errors.New("bucket is confirming")
+	ErrBucketNotExist     = xerrors.New("bucket not exist")
+	ErrBucketAlreadyExist = xerrors.New("bucket already exists")
+	ErrBucketNotEmpty     = xerrors.New("bucket is not empty")
+	ErrBucketNameInvalid  = xerrors.New("bucket name is invalid")
+	ErrBucketTooMany      = xerrors.New("bucket is too many")
+	ErrBucketIsConfirm    = xerrors.New("bucket is confirming")
 
-	ErrObjectNotExist       = errors.New("object not exist")
-	ErrObjectIsNil          = errors.New("object is nil")
-	ErrObjectAlreadyExist   = errors.New("object already exist")
-	ErrObjectNameToolong    = errors.New("object name is too long")
-	ErrObjectNameInvalid    = errors.New("object name is invalid")
-	ErrObjectOptionsInvalid = errors.New("object option is invalid")
-	ErrObjectIsDir          = errors.New("object is directory")
-	ErrNoEnoughBlockUpload  = errors.New("block uploaded is not enough")
+	ErrObjectNotExist       = xerrors.New("object not exist")
+	ErrObjectIsNil          = xerrors.New("object is nil")
+	ErrObjectAlreadyExist   = xerrors.New("object already exist")
+	ErrObjectNameToolong    = xerrors.New("object name is too long")
+	ErrObjectNameInvalid    = xerrors.New("object name is invalid")
+	ErrObjectOptionsInvalid = xerrors.New("object option is invalid")
+	ErrObjectIsDir          = xerrors.New("object is directory")
+	ErrNoEnoughBlockUpload  = xerrors.New("block uploaded is not enough")
 )
 
 type MetaName string

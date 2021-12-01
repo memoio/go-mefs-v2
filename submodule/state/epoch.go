@@ -11,7 +11,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (s *StateMgr) UpdateEpoch(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) UpdateChalEpoch(msg *tx.Message) (types.MsgID, error) {
 	sep := new(tx.SignedEpochParams)
 	err := sep.Deserialize(msg.Params)
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *StateMgr) UpdateEpoch(msg *tx.Message) (types.MsgID, error) {
 	return s.root, nil
 }
 
-func (s *StateMgr) CanUpdateEpoch(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) CanUpdateChalEpoch(msg *tx.Message) (types.MsgID, error) {
 	sep := new(tx.SignedEpochParams)
 	err := sep.Deserialize(msg.Params)
 	if err != nil {

@@ -2,7 +2,8 @@ package bls
 
 import (
 	"encoding/hex"
-	"errors"
+
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -12,17 +13,17 @@ const (
 )
 
 var (
-	errZeroSecretKey     = errors.New("zero secret key")
-	errZeroPublicKey     = errors.New("zero public key")
-	errInfinitePublicKey = errors.New("infinite public key")
-	errInvalidPublicKey  = errors.New("invalid public key")
-	errZeroSignature     = errors.New("zero bls signature")
-	errInfiniteSignature = errors.New("infinite bls signature")
-	errInvalidSignature  = errors.New("invalid bls signature")
-	errSecretKeySize     = errors.New("invalid bls secret key size")
-	errInvalidSecretKey  = errors.New("invalid bls secret key")
-	errPublicKeySize     = errors.New("invalid bls public key size")
-	errSignatureSize     = errors.New("invalid bls signature size")
+	errZeroSecretKey     = xerrors.New("zero secret key")
+	errZeroPublicKey     = xerrors.New("zero public key")
+	errInfinitePublicKey = xerrors.New("infinite public key")
+	errInvalidPublicKey  = xerrors.New("invalid public key")
+	errZeroSignature     = xerrors.New("zero bls signature")
+	errInfiniteSignature = xerrors.New("infinite bls signature")
+	errInvalidSignature  = xerrors.New("invalid bls signature")
+	errSecretKeySize     = xerrors.New("invalid bls secret key size")
+	errInvalidSecretKey  = xerrors.New("invalid bls secret key")
+	errPublicKeySize     = xerrors.New("invalid bls public key size")
+	errSignatureSize     = xerrors.New("invalid bls signature size")
 )
 
 var zeroSecretKey = make([]byte, SecretKeySize)

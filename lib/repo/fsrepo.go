@@ -33,14 +33,16 @@ const (
 
 	keyStorePathPrefix = "keystore" // $MefsPath/keystore
 
-	metaPathPrefix = "meta" // $MefsPath/meta
+	metaPathPrefix  = "meta"  // $MefsPath/meta
+	statePathPrefix = "state" // $MefsPath/state
 
 	DataPathPrefix   = "data"   // $MefsPath/data
 	PiecesPathPrefix = "pieces" // $MefsPath/data/pieces
 	SectorPathPrefix = "sector" // $MefsPath/data/sector
 	VoluemPathPrefix = "volume" // $MefsPath/data/volume
 
-	metaStorePrefix = "meta" // key prefix
+	metaStorePrefix  = "meta" // key prefix
+	stateStorePrefix = "meta" // key prefix
 )
 
 var logger = logging.Logger("repo")
@@ -54,9 +56,10 @@ type FSRepo struct {
 	lk  sync.RWMutex
 	cfg *config.Config
 
-	keyDs  types.KeyStore
-	metaDs store.KVStore
-	fileDs store.FileStore
+	keyDs   types.KeyStore
+	metaDs  store.KVStore
+	stateDs store.KVStore
+	fileDs  store.FileStore
 
 	// lockfile is the file system lock to prevent others from opening the same repo.
 	lockfile io.Closer
@@ -150,7 +153,11 @@ func (r *FSRepo) loadFromDisk() error {
 	}
 
 	if err := r.openMetaStore(); err != nil {
-		return errors.Wrap(err, "failed to open datastore")
+		return errors.Wrap(err, "failed to open meta store")
+	}
+
+	if err := r.openStateStore(); err != nil {
+		return errors.Wrap(err, "failed to open state store")
 	}
 
 	if err := r.openFileStore(); err != nil {
@@ -193,6 +200,10 @@ func (r *FSRepo) MetaStore() store.KVStore {
 	return r.metaDs
 }
 
+func (r *FSRepo) StateStore() store.KVStore {
+	return r.stateDs
+}
+
 func (r *FSRepo) FileStore() store.FileStore {
 	return r.fileDs
 }
@@ -200,6 +211,10 @@ func (r *FSRepo) FileStore() store.FileStore {
 // Close closes the repo.
 func (r *FSRepo) Close() error {
 	if err := r.metaDs.Close(); err != nil {
+		return errors.Wrap(err, "failed to close meta datastore")
+	}
+
+	if err := r.stateDs.Close(); err != nil {
 		return errors.Wrap(err, "failed to close meta datastore")
 	}
 
@@ -283,6 +298,21 @@ func (r *FSRepo) openMetaStore() error {
 	}
 
 	r.metaDs = wrap.NewKVStore(metaStorePrefix, ds)
+
+	return nil
+}
+
+func (r *FSRepo) openStateStore() error {
+	mpath := path.Join(r.path, statePathPrefix)
+
+	opt := kv.DefaultOptions
+
+	ds, err := kv.NewBadgerStore(mpath, &opt)
+	if err != nil {
+		return err
+	}
+
+	r.metaDs = wrap.NewKVStore(stateStorePrefix, ds)
 
 	return nil
 }

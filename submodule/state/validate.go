@@ -66,7 +66,7 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 	case tx.DataOrder:
 		return s.CanAddSeq(msg)
 	case tx.UpdateEpoch:
-		return s.CanUpdateEpoch(msg)
+		return s.CanUpdateChalEpoch(msg)
 	case tx.SegmentProof:
 		return s.CanAddSegProof(msg)
 	default:

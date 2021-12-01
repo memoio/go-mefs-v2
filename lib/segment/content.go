@@ -2,7 +2,8 @@ package segment
 
 import (
 	"encoding/binary"
-	"errors"
+
+	"golang.org/x/xerrors"
 
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 )
@@ -12,7 +13,7 @@ const (
 )
 
 var (
-	ErrDataLength = errors.New("data length is wrong")
+	ErrDataLength = xerrors.New("data length is wrong")
 )
 
 type Prefix struct {

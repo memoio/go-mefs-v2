@@ -1,7 +1,7 @@
 package common
 
 import (
-	"errors"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -11,11 +11,11 @@ const (
 )
 
 var (
-	ErrBadKeyType    = errors.New("invalid or unsupported key type")
-	ErrBadSign       = errors.New("invalid signature")
-	ErrBadMsg        = errors.New("invalid message")
-	ErrBadPrivateKey = errors.New("invalid private key")
-	ErrBadPublickKey = errors.New("invalid public key")
+	ErrBadKeyType    = xerrors.New("invalid or unsupported key type")
+	ErrBadSign       = xerrors.New("invalid signature")
+	ErrBadMsg        = xerrors.New("invalid message")
+	ErrBadPrivateKey = xerrors.New("invalid private key")
+	ErrBadPublickKey = xerrors.New("invalid public key")
 )
 
 // Key represents a crypto key that can be compared to another key
