@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/binary"
+	"math/big"
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/gogo/protobuf/proto"
@@ -26,7 +27,7 @@ import (
 // for chal
 // key: pb.MetaType_St_SegMapKey/userID/bucketID/proID/epoch; val: bitmap, accFr
 
-func (s *StateMgr) getBucketManage(spu *segPerUser, userID, bucketID uint64) *bucketManage {
+func (s *StateMgr) getBucketManage(spu *segPerUser, bucketID uint64) *bucketManage {
 	bm, ok := spu.buckets[bucketID]
 	if ok {
 		return bm
@@ -41,7 +42,7 @@ func (s *StateMgr) getBucketManage(spu *segPerUser, userID, bucketID uint64) *bu
 	spu.buckets[bucketID] = bm
 
 	pbo := new(pb.BucketOption)
-	key := store.NewKey(pb.MetaType_ST_BucketOptKey, userID, bucketID)
+	key := store.NewKey(pb.MetaType_ST_BucketOptKey, spu.userID, bucketID)
 	data, err := s.ds.Get(key)
 	if err != nil {
 		return bm
@@ -95,6 +96,7 @@ func (s *StateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint6
 
 	cm = &chalManage{
 		size:      0,
+		price:     new(big.Int),
 		accFr:     bls.ZERO,
 		deletedFr: bls.ZERO,
 		avail:     bitset.New(1024),
@@ -102,7 +104,7 @@ func (s *StateMgr) getChalManage(bm *bucketManage, userID, bucketID, proID uint6
 
 	bm.accHw[proID] = cm
 
-	key := store.NewKey(pb.MetaType_St_SegMapKey, userID, bucketID, proID)
+	key := store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID)
 	data, err := s.ds.Get(key)
 	if err != nil {
 		return cm
@@ -171,7 +173,7 @@ func (s *StateMgr) AddBucket(msg *tx.Message) (types.MsgID, error) {
 	return s.root, nil
 }
 
-func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
+func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32, price *big.Int) error {
 	var err error
 	uinfo, ok := s.sInfo[userID]
 	if !ok {
@@ -185,7 +187,7 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 		return xerrors.Errorf("add chunk %d err: %w", bucketID, ErrBucket)
 	}
 
-	binfo := s.getBucketManage(uinfo, userID, bucketID)
+	binfo := s.getBucketManage(uinfo, bucketID)
 
 	if int(chunkID) >= len(binfo.chunks) {
 		return xerrors.Errorf("add chunk %d err: %w", chunkID, ErrChunk)
@@ -215,6 +217,8 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	var HWi bls.Fr
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
 		cm.size += build.DefaultSegSize
+		pr := new(big.Int).Mul(price, big.NewInt(build.DefaultSegSize))
+		cm.price.Add(cm.price, pr)
 
 		cm.avail.Set(uint(i))
 
@@ -226,7 +230,7 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	}
 
 	// save
-	key := store.NewKey(pb.MetaType_St_SegMapKey, userID, bucketID, proID)
+	key := store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID)
 	data, err := cm.Serialize()
 	if err != nil {
 		return err
@@ -236,7 +240,7 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 		return err
 	}
 
-	key = store.NewKey(pb.MetaType_St_SegMapKey, userID, bucketID, proID, s.epochInfo.Epoch)
+	key = store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID, s.epoch)
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err
@@ -258,6 +262,10 @@ func (s *StateMgr) AddChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	err = s.ds.Put(key, val)
 	if err != nil {
 		return err
+	}
+
+	if s.hasf != nil {
+		s.hasf(userID, bucketID, stripeStart, stripeLength, proID, s.epochInfo.Epoch, chunkID)
 	}
 
 	return nil
@@ -314,7 +322,7 @@ func (s *StateMgr) CanAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 		return xerrors.Errorf("add chunk %d %w", bucketID, ErrBucket)
 	}
 
-	binfo := s.getBucketManage(uinfo, userID, bucketID)
+	binfo := s.getBucketManage(uinfo, bucketID)
 
 	if int(chunkID) >= len(binfo.chunks) {
 		return xerrors.Errorf("add chunk %d %w", chunkID, ErrChunk)

@@ -58,5 +58,13 @@ func (sep *SignedEpochParams) Deserialize(b []byte) error {
 
 type SegChalParams struct {
 	Epoch uint64
-	AccFr []byte
+	Proof []byte
+}
+
+func (scp *SegChalParams) Serialize() ([]byte, error) {
+	return cbor.Marshal(scp)
+}
+
+func (scp *SegChalParams) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, scp)
 }

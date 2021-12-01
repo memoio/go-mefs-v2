@@ -204,7 +204,8 @@ func (pk *PublicKey) GenProof(chal pdpcommon.Challenge, segment, tag []byte, typ
 	}
 
 	var fr_r, pk_r Fr //P_k(r)
-	bls.FrSetInt64(&fr_r, chal.Random())
+	rnd := chal.Random()
+	bls.FrFromBytes(&fr_r, rnd[:])
 	bls.EvalPolyAt(&pk_r, atoms, &fr_r)
 
 	// poly(x) - poly(r) always divides (x - r) since the latter is a root of the former.
@@ -275,7 +276,8 @@ func (vk *VerifyKey) VerifyProof(chal pdpcommon.Challenge, proof pdpcommon.Proof
 	bls.G1Mul(&ProdHWi, &vk.Phi, &HWi)
 	bls.G1Sub(&G1temp1, &pf.Kappa, &ProdHWi)
 
-	bls.FrSetInt64(&tempFr, chal.Random())
+	rnd := chal.Random()
+	bls.FrFromBytes(&tempFr, rnd[:])
 	bls.G2Mul(&G2temp1, &vk.BlsPk, &tempFr)
 	bls.G2Sub(&G2temp1, &vk.Zeta, &G2temp1)
 
@@ -287,7 +289,7 @@ func (vk *VerifyKey) VerifyProof(chal pdpcommon.Challenge, proof pdpcommon.Proof
 
 type ProofAggregator struct {
 	pk     *PublicKey
-	r      int64
+	r      [32]byte
 	typ    int
 	sums   []Fr
 	delta  G1
@@ -296,7 +298,7 @@ type ProofAggregator struct {
 	HWi    Fr
 }
 
-func NewProofAggregator(pki pdpcommon.PublicKey, r int64) pdpcommon.ProofAggregator {
+func NewProofAggregator(pki pdpcommon.PublicKey, seed [32]byte) pdpcommon.ProofAggregator {
 	pk, ok := pki.(*PublicKey)
 	if !ok {
 		return nil
@@ -307,7 +309,7 @@ func NewProofAggregator(pki pdpcommon.PublicKey, r int64) pdpcommon.ProofAggrega
 	var tempG1 G1
 	var tempFr Fr
 	var HWi Fr
-	return &ProofAggregator{pk, r, DefaultType, sums, delta, tempG1, tempFr, HWi}
+	return &ProofAggregator{pk, seed, DefaultType, sums, delta, tempG1, tempFr, HWi}
 }
 
 func (pa *ProofAggregator) Version() uint16 {
@@ -345,7 +347,7 @@ func (pa *ProofAggregator) Add(index, segment, tag []byte) error {
 func (pa *ProofAggregator) Result() (pdpcommon.Proof, error) {
 	var pk_r Fr //P_k(r)
 	var fr_r Fr
-	bls.FrSetInt64(&fr_r, pa.r)
+	bls.FrFromBytes(&fr_r, pa.r[:])
 	bls.EvalPolyAt(&pk_r, pa.sums, &fr_r)
 
 	// poly(x) - poly(r) always divides (x - r) since the latter is a root of the former.
@@ -376,7 +378,7 @@ func (pa *ProofAggregator) Result() (pdpcommon.Proof, error) {
 	bls.G1Mul(&ProdHWi, &pa.pk.Phi, &pa.HWi)
 	bls.G1Sub(&G1temp1, &kappa, &ProdHWi)
 
-	bls.FrSetInt64(&pa.tempFr, pa.r)
+	bls.FrFromBytes(&pa.tempFr, pa.r[:])
 	bls.G2Mul(&G2temp1, &pa.pk.BlsPk, &pa.tempFr)
 	bls.G2Sub(&G2temp1, &pa.pk.Zeta, &G2temp1)
 

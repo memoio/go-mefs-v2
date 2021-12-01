@@ -41,7 +41,7 @@ func TestVerifyProof(t *testing.T) {
 	vk := keySet.VerifyKey()
 	segments := make([][]byte, SegNum)
 	chal := Challenge{
-		r:        time.Now().Unix(),
+		r:        blake3.Sum256([]byte("test")),
 		pubInput: bls.ZERO,
 	}
 
@@ -122,7 +122,7 @@ func TestProofAggregator(t *testing.T) {
 	vk := keySet.VerifyKey()
 	segments := make([][]byte, SegNum)
 	chal := Challenge{
-		r:        time.Now().Unix(),
+		r:        blake3.Sum256([]byte("test")),
 		pubInput: bls.ZERO,
 	}
 

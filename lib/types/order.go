@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
@@ -76,15 +77,19 @@ type SignedOrder struct {
 
 // for sign on chain
 func (so *SignedOrder) Hash() []byte {
+	var buf = make([]byte, 8)
 	d := sha3.NewLegacyKeccak256()
 	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.UserID)).Bytes(), 32))
 	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.ProID)).Bytes(), 32))
 	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.Nonce)).Bytes(), 32))
-	d.Write(utils.LeftPadBytes(big.NewInt(so.Start).Bytes(), 32))
-	d.Write(utils.LeftPadBytes(big.NewInt(so.End).Bytes(), 32))
+	binary.BigEndian.PutUint64(buf, uint64(so.Start))
+	d.Write(buf)
+	binary.BigEndian.PutUint64(buf, uint64(so.End))
+	d.Write(buf)
 	d.Write(utils.LeftPadBytes(so.SegPrice.Bytes(), 32))
 	d.Write(utils.LeftPadBytes(so.PiecePrice.Bytes(), 32))
-	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.Size)).Bytes(), 32))
+	binary.BigEndian.PutUint64(buf, so.Size)
+	d.Write(buf)
 	d.Write(utils.LeftPadBytes(so.Price.Bytes(), 32))
 	return d.Sum(nil)
 }

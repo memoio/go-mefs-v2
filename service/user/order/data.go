@@ -29,23 +29,33 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 	storedPros := m.loadLastProsPerBucket(bucketID)
 
 	pros := make([]uint64, 0, int(bopt.DataCount+bopt.ParityCount))
+	if len(storedPros) == 0 {
+		res := make(chan uint64, bopt.DataCount+bopt.ParityCount)
+		var wg sync.WaitGroup
+		for _, pid := range m.pros {
+			wg.Add(1)
+			go func(pid uint64) {
+				defer wg.Done()
+				err := m.connect(pid)
+				if err == nil {
+					res <- pid
 
-	var wg sync.WaitGroup
-	for _, pid := range storedPros {
-		wg.Add(1)
-		go func(pid uint64) {
-			defer wg.Done()
-			err := m.connect(pid)
-			if err == nil {
-				pros = append(pros, pid)
-			}
-		}(pid)
-	}
+				}
+			}(pid)
+		}
+		wg.Wait()
 
-	wg.Wait()
+		close(res)
 
-	if len(pros) > int(bopt.DataCount+bopt.ParityCount) {
-		pros = pros[:int(bopt.DataCount+bopt.ParityCount)]
+		for pid := range res {
+			pros = append(pros, pid)
+		}
+
+		if len(pros) > int(bopt.DataCount+bopt.ParityCount) {
+			pros = pros[:int(bopt.DataCount+bopt.ParityCount)]
+		}
+	} else {
+		pros = storedPros
 	}
 
 	lp := &lastProsPerBucket{

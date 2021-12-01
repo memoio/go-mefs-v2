@@ -1,6 +1,8 @@
 package state
 
 import (
+	"math/big"
+
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/xerrors"
@@ -29,6 +31,8 @@ var (
 	ErrSize        = xerrors.New("size is wrong")
 	ErrPrice       = xerrors.New("price is wrong")
 )
+
+type HandleAddStripeFunc func(userID, bucketID, stripeStart, stripeLength, proID, epoch uint64, chunkID uint32)
 
 type ChalEpoch struct {
 	Epoch  uint64
@@ -64,15 +68,19 @@ type orderInfo struct {
 	base *types.SignedOrder
 }
 
+type chalResult struct {
+	Epoch uint64
+}
+
 type segPerUser struct {
+	userID    uint64
 	fsID      []byte
-	root      []byte // merkel root
 	verifyKey pdpcommon.VerifyKey
 
 	nextBucket uint64                   // next bucket number
 	buckets    map[uint64]*bucketManage //
 
-	lastChallenge uint64
+	chalRes map[uint64]*chalResult
 }
 
 // A=24+16+100*B
@@ -87,6 +95,7 @@ type bucketManage struct {
 
 type chalManage struct {
 	size      uint64
+	price     *big.Int
 	avail     *bitset.BitSet
 	accFr     bls.Fr //aggreated hashToFr
 	deletedFr bls.Fr
@@ -94,6 +103,7 @@ type chalManage struct {
 
 type chalManageStored struct {
 	Size      uint64
+	Price     *big.Int
 	Avail     []uint64
 	AccFr     []byte
 	DeletedFr []byte
@@ -102,6 +112,7 @@ type chalManageStored struct {
 func (cm *chalManage) Serialize() ([]byte, error) {
 	cms := &chalManageStored{
 		Size:      cm.size,
+		Price:     cm.price,
 		Avail:     cm.avail.Bytes(),
 		AccFr:     bls.FrToBytes(&cm.accFr),
 		DeletedFr: bls.FrToBytes(&cm.deletedFr),

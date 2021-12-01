@@ -13,8 +13,8 @@ type SegmentID interface {
 	Bytes() []byte
 	String() string
 
-	IndexBytes() []byte
-	IndexString() string
+	ShortBytes() []byte
+	ShortString() string
 }
 
 type Segment interface {

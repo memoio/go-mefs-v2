@@ -3,7 +3,6 @@ package log
 import (
 	"fmt"
 
-	ipfslog "github.com/ipfs/go-log/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -21,8 +20,6 @@ func Logger(name string) *zap.SugaredLogger {
 
 // StartLogger starts
 func init() {
-	ipfslog.SetDebugLogging()
-
 	debugLevel := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
 		return lvl >= zapcore.DebugLevel
 	})

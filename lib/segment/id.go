@@ -63,13 +63,13 @@ func (bm *BaseSegmentID) String() string {
 }
 
 // 不包含fsID
-func (bm *BaseSegmentID) IndexBytes() []byte {
+func (bm *BaseSegmentID) ShortBytes() []byte {
 	return bm.buf[FSID_LEN:SEGMENTID_LEN]
 }
 
 // 不包含fsID
-func (bm *BaseSegmentID) IndexString() string {
-	return base58.Encode(bm.IndexBytes())
+func (bm *BaseSegmentID) ShortString() string {
+	return string(bm.ShortBytes())
 }
 
 func NewSegmentID(fid []byte, bid, sid uint64, cid uint32) (SegmentID, error) {

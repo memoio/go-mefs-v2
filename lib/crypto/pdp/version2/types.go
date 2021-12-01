@@ -34,11 +34,11 @@ var ZeroG2 = bls.ZeroG2
 
 // Challenge gives
 type Challenge struct {
-	r        int64
+	r        [32]byte
 	pubInput bls.Fr
 }
 
-func NewChallenge(r int64) pdpcommon.Challenge {
+func NewChallenge(r [32]byte) pdpcommon.Challenge {
 	var temp Fr
 	return &Challenge{r, temp}
 }
@@ -47,7 +47,7 @@ func (chal *Challenge) Version() uint16 {
 	return pdpcommon.PDPV2
 }
 
-func (chal *Challenge) Random() int64 {
+func (chal *Challenge) Random() [32]byte {
 	return chal.r
 }
 
@@ -85,8 +85,16 @@ func (chal *Challenge) Delete(b []byte) error {
 	return nil
 }
 
+func (chal *Challenge) Serialize() []byte {
+	buf := make([]byte, 10+FrSize)
+	binary.BigEndian.PutUint16(buf[:2], chal.Version())
+	copy(buf[2:34], chal.r[:])
+	copy(buf[34:34+FrSize], bls.FrToBytes(&chal.pubInput))
+	return buf
+}
+
 func (chal *Challenge) Deserialize(buf []byte) error {
-	if len(buf) != 10+FrSize {
+	if len(buf) != 34+FrSize {
 		return pdpcommon.ErrDeserializeFailed
 	}
 
@@ -95,24 +103,16 @@ func (chal *Challenge) Deserialize(buf []byte) error {
 		return pdpcommon.ErrVersionUnmatch
 	}
 
-	chal.r = int64(binary.BigEndian.Uint64(buf[2:10]))
+	copy(chal.r[:], buf[2:34])
 
 	var temp Fr
-	err := bls.FrFromBytes(&temp, buf[10:10+FrSize])
+	err := bls.FrFromBytes(&temp, buf[34:34+FrSize])
 	if err != nil {
 		return err
 	}
 	chal.pubInput = temp
 
 	return nil
-}
-
-func (chal *Challenge) Serialize() []byte {
-	buf := make([]byte, 10+FrSize)
-	binary.BigEndian.PutUint16(buf[:2], chal.Version())
-	binary.BigEndian.PutUint64(buf[2:10], uint64(chal.r))
-	copy(buf[10:10+FrSize], bls.FrToBytes(&chal.pubInput))
-	return buf
 }
 
 // Proof is result

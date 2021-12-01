@@ -42,7 +42,7 @@ type VerifyKey interface {
 type Challenge interface {
 	Version() uint16
 
-	Random() int64
+	Random() [32]byte
 	PublicInput() []byte
 
 	Add([]byte) error

@@ -61,9 +61,15 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 
 	// load unfinished
 	pp.load()
-	go pp.syncPush()
 
 	return pp
+}
+
+func (pp *PushPool) Start() {
+	pp.SyncPool.Start()
+
+	logger.Debug("start push pool")
+	go pp.syncPush()
 }
 
 func (pp *PushPool) Ready() bool {

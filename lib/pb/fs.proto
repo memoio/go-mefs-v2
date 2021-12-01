@@ -25,8 +25,8 @@ enum MetaType {
 	ST_OrderBaseKey = 22;    // key: x/userID/proID/nonce; val: SignedOrderBase;
 	ST_OrderSeqKey = 23;     // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
 	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
-	St_SegMapKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap
-
+	ST_SegMapKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap
+	ST_SegProof = 26;        // key: x/userID/proID/epoch; val: proof
    	
 	ST_RootKey = 30;         // key: x; val: root of state	
 	ST_BlockHeightKey = 31;  // key: x; val: height

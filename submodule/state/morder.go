@@ -161,7 +161,7 @@ func (s *StateMgr) AddSeq(msg *tx.Message) (types.MsgID, error) {
 
 	// verify segment
 	for _, seg := range so.Segments {
-		err := s.AddChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
+		err := s.AddChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID, oinfo.base.SegPrice)
 		if err != nil {
 			return s.root, err
 		}

@@ -169,7 +169,7 @@ func BenchmarkGenProof(b *testing.B) {
 
 	segments := make([][]byte, SegNum)
 	chal := Challenge{
-		r:        time.Now().Unix(),
+		r:        blake3.Sum256([]byte("test")),
 		pubInput: bls.ZERO,
 	}
 
@@ -224,7 +224,7 @@ func BenchmarkVerifyProof(b *testing.B) {
 	vk := keySet.VerifyKey()
 	segments := make([][]byte, SegNum)
 	chal := Challenge{
-		r:        time.Now().Unix(),
+		r:        blake3.Sum256([]byte("test")),
 		pubInput: bls.ZERO,
 	}
 	for i := 0; i < SegNum; i++ {
@@ -348,7 +348,7 @@ func BenchmarkProofAggregator(b *testing.B) {
 	vk := keySet.VerifyKey()
 	segments := make([][]byte, SegNum)
 	chal := Challenge{
-		r:        time.Now().Unix(),
+		r:        blake3.Sum256([]byte("test")),
 		pubInput: bls.ZERO,
 	}
 

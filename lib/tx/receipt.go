@@ -1,6 +1,6 @@
 package tx
 
-type ErrCode int64
+type ErrCode uint16
 
 // need?
 type Receipt struct {

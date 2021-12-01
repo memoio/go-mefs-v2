@@ -37,6 +37,8 @@ type StateMgr struct {
 	validateRoot      types.MsgID
 	validateOInfo     map[orderKey]*orderInfo
 	validateSInfo     map[uint64]*segPerUser
+
+	hasf HandleAddStripeFunc
 }
 
 func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
@@ -57,6 +59,12 @@ func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 	s.load()
 
 	return s
+}
+
+func (s *StateMgr) RegisterAddStripeFunc(h HandleAddStripeFunc) {
+	s.Lock()
+	s.hasf = h
+	s.Unlock()
 }
 
 func (s *StateMgr) load() {
@@ -147,6 +155,8 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message) (types.MsgID, error) {
 		return s.AddSeq(msg)
 	case tx.UpdateEpoch:
 		return s.UpdateEpoch(msg)
+	case tx.SegmentProof:
+		return s.AddSegProof(msg)
 	default:
 		return s.root, ErrRes
 	}

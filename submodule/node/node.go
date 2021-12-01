@@ -77,7 +77,7 @@ func (n *BaseNode) Start() error {
 	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
 
 	// wait for sync
-
+	n.PPool.Start()
 	for {
 		if n.PPool.Ready() {
 			break

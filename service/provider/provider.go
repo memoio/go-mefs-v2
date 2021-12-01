@@ -10,6 +10,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/service/data"
+	pchal "github.com/memoio/go-mefs-v2/service/provider/challenge"
 	porder "github.com/memoio/go-mefs-v2/service/provider/order"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
@@ -26,6 +27,8 @@ type ProviderNode struct {
 	api.IDataService
 
 	pom *porder.OrderMgr
+
+	chalSeg *pchal.SegMgr
 
 	ctx context.Context
 }
@@ -46,12 +49,14 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 	ids := data.New(ds, segStore, bn.NetServiceImpl)
 
 	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids)
+	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, segStore, bn.PPool, bn.StateDB)
 
 	pn := &ProviderNode{
 		BaseNode:     bn,
 		IDataService: ids,
 		ctx:          ctx,
 		pom:          por,
+		chalSeg:      sm,
 	}
 
 	return pn, nil
@@ -76,10 +81,10 @@ func (p *ProviderNode) Start() error {
 	p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
 	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
 
-	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
+	p.StateDB.RegisterAddStripeFunc(p.chalSeg.AddStripe)
 
 	// wait for sync
-
+	p.PPool.Start()
 	for {
 		if p.PPool.Ready() {
 			break
@@ -89,6 +94,9 @@ func (p *ProviderNode) Start() error {
 		}
 	}
 
+	p.chalSeg.Start()
+
+	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
 	logger.Info("start provider for: ", p.RoleID())
 	return nil
 }

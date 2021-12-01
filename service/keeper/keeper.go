@@ -34,10 +34,6 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 
 	inp := txPool.NewInPool(ctx, bn.PPool.SyncPool)
 
-	// register for can apply msg
-	inp.RegisterValidateMsgFunc(bn.StateDB.ValidateMsg)
-	inp.RegisterValidateBlockFunc(bn.StateDB.ValidateBlock)
-
 	kn := &KeeperNode{
 		BaseNode: bn,
 		ctx:      ctx,
@@ -58,20 +54,31 @@ func (k *KeeperNode) Start() error {
 	k.TxMsgHandle.Register(k.txMsgHandler)
 	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
-	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
-
 	// wait for sync
-
+	k.PPool.Start()
+	retry := 0
 	for {
 		if k.PPool.Ready() {
 			break
 		} else {
 			logger.Debug("wait for sync")
+			retry++
+			if retry > 12 {
+				// no more new block, set to ready
+				k.PPool.SyncPool.SetReady()
+			}
 			time.Sleep(5 * time.Second)
 		}
 	}
 
+	// register for can apply msg
+	k.inp.RegisterValidateMsgFunc(k.StateDB.ValidateMsg)
+	k.inp.RegisterValidateBlockFunc(k.StateDB.ValidateBlock)
+	k.inp.Start()
+
 	go k.updateEpoch()
+
+	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
 
 	logger.Info("start keeper for: ", k.RoleID())
 	return nil

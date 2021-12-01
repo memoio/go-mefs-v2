@@ -136,3 +136,9 @@ type IChain interface {
 	PushMessage(context.Context, *tx.Message) (types.MsgID, error)
 	PushSignedMessage(context.Context, *tx.SignedMessage) (types.MsgID, error)
 }
+
+type IState interface {
+	GetRoot() types.MsgID
+	GetEpoch() uint64
+	GetHeight() uint64
+}

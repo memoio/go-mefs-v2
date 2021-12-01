@@ -121,7 +121,7 @@ func DeserializeChallenge(data []byte) (pdpcommon.Challenge, error) {
 	return chal, nil
 }
 
-func NewChallenge(vk pdpcommon.VerifyKey, r int64) (pdpcommon.Challenge, error) {
+func NewChallenge(vk pdpcommon.VerifyKey, r [32]byte) (pdpcommon.Challenge, error) {
 	switch vk.Version() {
 	case pdpcommon.PDPV2:
 		return pdpv2.NewChallenge(r), nil
@@ -139,7 +139,7 @@ func NewDataVerifier(pk pdpcommon.PublicKey, sk pdpcommon.SecretKey) (pdpcommon.
 	}
 }
 
-func NewProofAggregator(pk pdpcommon.PublicKey, r int64) (pdpcommon.ProofAggregator, error) {
+func NewProofAggregator(pk pdpcommon.PublicKey, r [32]byte) (pdpcommon.ProofAggregator, error) {
 	switch pk.Version() {
 	case pdpcommon.PDPV2:
 		return pdpv2.NewProofAggregator(pk, r), nil

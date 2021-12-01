@@ -81,9 +81,18 @@ func NewSyncPool(ctx context.Context, roleID uint64, ds store.KVStore, ts tx.Sto
 
 	sp.load()
 
-	go sp.syncBlock()
-
 	return sp
+}
+
+func (sp *SyncPool) Start() {
+	logger.Debug("start sync pool")
+	go sp.syncBlock()
+}
+
+func (sp *SyncPool) SetReady() {
+	sp.Lock()
+	sp.ready = true
+	sp.Unlock()
 }
 
 func (sp *SyncPool) load() {
@@ -124,7 +133,9 @@ func (sp *SyncPool) syncBlock() {
 
 		// from end -> begin
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
+			sp.RLock()
 			sb, ok := sp.blks[i]
+			sp.RUnlock()
 			if !ok {
 				// sync block from remote
 
@@ -190,7 +201,7 @@ func (sp *SyncPool) syncBlock() {
 				err := sp.processTxBlock(blk)
 				if err != nil {
 					sp.Unlock()
-					logger.Debug("block is wrong, should not", err)
+					logger.Debug(err)
 					break
 				}
 				delete(sp.blks, i)
@@ -318,9 +329,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 		return ErrLowHeight
 	}
 
-	sp.Lock()
-	sp.ready = true // got new block
-	sp.Unlock()
+	sp.SetReady()
 
 	sp.RLock()
 	_, ok := sp.blks[tb.Height]

@@ -30,6 +30,7 @@ type OrderMgr struct {
 
 	segPrice *big.Int
 
+	pros   []uint64
 	orders map[uint64]*OrderFull         // key: proID
 	proMap map[uint64]*lastProsPerBucket // key: bucketID
 
@@ -144,11 +145,9 @@ func (m *OrderMgr) load() error {
 }
 
 func (m *OrderMgr) save() error {
-	buf := make([]byte, 8*len(m.orders))
-	i := 0
-	for pid := range m.orders {
+	buf := make([]byte, 8*len(m.pros))
+	for i, pid := range m.pros {
 		binary.BigEndian.PutUint64(buf[8*i:8*(i+1)], pid)
-		i++
 	}
 
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID)
@@ -159,7 +158,7 @@ func (m *OrderMgr) addPros() {
 	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
 	for _, pro := range pros {
 		has := false
-		for pid := range m.orders {
+		for _, pid := range m.pros {
 			if pid == pro {
 				has = true
 			}
@@ -178,6 +177,8 @@ func (m *OrderMgr) runSched() {
 
 	lt := time.NewTicker(5 * time.Minute)
 	defer lt.Stop()
+
+	m.addPros() // add providers
 
 	for {
 		// handle data
@@ -229,6 +230,7 @@ func (m *OrderMgr) runSched() {
 		case of := <-m.proChan:
 			logger.Debug("add order to pro:", of.pro)
 			m.orders[of.pro] = of
+			m.pros = append(m.pros, of.pro)
 			go m.update(of.pro)
 		case lp := <-m.bucketChan:
 			_, ok := m.proMap[lp.bucketID]
@@ -247,7 +249,8 @@ func (m *OrderMgr) runSched() {
 			// dispatch to each pro
 			m.dispatch()
 
-			for _, of := range m.orders {
+			for _, pid := range m.pros {
+				of := m.orders[pid]
 				m.check(of)
 			}
 		case <-lt.C:

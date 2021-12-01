@@ -24,22 +24,19 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 	}
 
 	spu := &segPerUser{
+		userID:    userID,
 		buckets:   make(map[uint64]*bucketManage),
 		fsID:      pk.VerifyKey().Hash(),
 		verifyKey: pk.VerifyKey(),
+		chalRes:   make(map[uint64]*chalResult),
 	}
 
 	// load bucket
 	key = store.NewKey(pb.MetaType_ST_BucketOptKey, userID)
 	data, err = s.ds.Get(key)
-	if err != nil {
-		return spu, nil
-	}
-
-	if len(data) >= 8 {
+	if err == nil && len(data) >= 8 {
 		spu.nextBucket = binary.BigEndian.Uint64(data)
 	}
-
 	return spu, nil
 }
 
@@ -58,9 +55,11 @@ func (s *StateMgr) AddUser(msg *tx.Message) (types.MsgID, error) {
 
 	// verify vk
 	spu := &segPerUser{
+		userID:    msg.From,
 		fsID:      pk.VerifyKey().Hash(),
 		verifyKey: pk.VerifyKey(),
 		buckets:   make(map[uint64]*bucketManage),
+		chalRes:   make(map[uint64]*chalResult),
 	}
 	s.sInfo[msg.From] = spu
 	s.Unlock()
@@ -93,10 +92,11 @@ func (s *StateMgr) CanAddUser(msg *tx.Message) (types.MsgID, error) {
 
 	// verify vk
 	spu := &segPerUser{
-		fsID: pk.VerifyKey().Hash(),
-
+		userID:    msg.From,
+		fsID:      pk.VerifyKey().Hash(),
 		verifyKey: pk.VerifyKey(),
 		buckets:   make(map[uint64]*bucketManage),
+		chalRes:   make(map[uint64]*chalResult),
 	}
 	s.validateSInfo[msg.From] = spu
 	s.Unlock()

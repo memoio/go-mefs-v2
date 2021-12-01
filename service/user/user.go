@@ -79,7 +79,7 @@ func (u *UserNode) Start() error {
 	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(u))
 
 	// wait for sync
-
+	u.PPool.Start()
 	for {
 		if u.PPool.Ready() {
 			break

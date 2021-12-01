@@ -24,7 +24,6 @@ require (
 	github.com/ipfs/go-cid v0.1.0 // indirect
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-fs-lock v0.0.7
-	github.com/ipfs/go-log/v2 v2.3.0
 	github.com/ipfs/go-metrics-prometheus v0.0.2
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0

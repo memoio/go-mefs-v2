@@ -46,12 +46,14 @@ func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
 		blkDone:  sp.blkDone,
 	}
 
-	go pl.sync()
+	return pl
+}
+
+func (mp *InPool) Start() {
+	go mp.sync()
 
 	// enable inprocess callback
-	sp.inProcess = true
-
-	return pl
+	mp.SyncPool.inProcess = true
 }
 
 func (mp *InPool) sync() {
@@ -90,19 +92,28 @@ func (mp *InPool) sync() {
 			ms.info[m.Nonce] = md
 			mp.Unlock()
 		case <-tc.C:
-			tb := mp.createBlock()
+			tb, err := mp.createBlock()
+			if err != nil {
+				continue
+			}
 
-			id, _ := tb.Hash()
+			id, err := tb.Hash()
+			if err != nil {
+				continue
+			}
 
-			sig, _ := mp.RoleSign(mp.ctx, mp.localID, id.Bytes(), types.SigSecp256k1)
+			sig, err := mp.RoleSign(mp.ctx, mp.localID, id.Bytes(), types.SigSecp256k1)
+			if err != nil {
+				continue
+			}
 
 			tb.MultiSignature.Add(mp.localID, sig)
 
 			logger.Debugf("create new block at height: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, id.String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Txs))
 
-			mp.INetService.PublishTxBlock(mp.ctx, tb)
-
 			mp.AddTxBlock(tb)
+
+			mp.INetService.PublishTxBlock(mp.ctx, tb)
 
 		case bh := <-mp.blkDone:
 			logger.Debug("process new block:", bh.Height)
@@ -152,14 +163,20 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	return nil
 }
 
-func (mp *InPool) createBlock() *tx.Block {
+func (mp *InPool) createBlock() (*tx.Block, error) {
 	mp.Lock()
 	defer mp.Unlock()
 
 	// synced
-	_, rh := mp.GetSyncHeight(mp.ctx)
+	lh, rh := mp.GetSyncHeight(mp.ctx)
+	if lh < rh {
+		return nil, ErrLowNonce
+	}
 
-	bid, _ := mp.GetTxBlockByHeight(rh - 1)
+	bid, err := mp.GetTxBlockByHeight(rh - 1)
+	if err != nil {
+		return nil, err
+	}
 
 	nbh := &tx.Block{
 		BlockHeader: tx.BlockHeader{
@@ -177,18 +194,18 @@ func (mp *InPool) createBlock() *tx.Block {
 	}
 
 	if mp.vbf == nil || mp.vmf == nil {
-		return nbh
+		return nbh, ErrNotReady
 	}
 
 	oldRoot, err := mp.vmf(nil)
 	if err != nil {
-		return nbh
+		return nbh, err
 	}
 
 	// reset
 	newRoot, err := mp.vbf(nbh)
 	if err != nil {
-		return nbh
+		return nbh, err
 	}
 
 	nbh.ParentRoot = oldRoot
@@ -225,7 +242,7 @@ func (mp *InPool) createBlock() *tx.Block {
 		}
 	}
 
-	return nbh
+	return nbh, nil
 }
 
 func (mp *InPool) RegisterValidateBlockFunc(h ValidateBlockFunc) {
