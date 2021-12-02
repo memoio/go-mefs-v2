@@ -1,70 +1,83 @@
 package state
 
 import (
+	"encoding/binary"
 	"math/big"
 
-	"github.com/fxamacker/cbor/v2"
+	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/build"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-// key: pb.MetaType_ST_OrderBaseKey/userID/proID; val: NonceSeq
-// key: pb.MetaType_ST_OrderBaseKey/userID/proID/nonce; val: SignedOrder
-// key: pb.MetaType_ST_OrderSeqKey/userID/proID/nonce/seqNum; val: SignedOrderSeq
+// key: pb.MetaType_ST_OrderStateKey/userID/proID; val: types.OrderNonce
+// key: pb.MetaType_ST_OrderBaseKey/userID/proID; val: order start and end
+// key: pb.MetaType_ST_OrderBaseKey/userID/proID/nonce; val: SignedOrder + accFr
+// key: pb.MetaType_ST_OrderSeqKey/userID/proID/nonce/seqNum; val: OrderSeq + accFr
+
+// for challenge last order at some epoch
+// key: pb.MetaType_ST_OrderStateKey/userID/proID/epoch; val: types.OrderNonce
+
+// key: pb.MetaType_ST_SegProof/userID/proID; val: proof epoch
+// key: pb.MetaType_ST_SegProof/userID/proID/epoch; val: proof
 func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	oinfo := &orderInfo{
 		ns: &types.NonceSeq{
 			Nonce:  0,
 			SeqNum: 0,
 		},
+		accFr: bls.ZERO,
 	}
 
-	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID)
+	// load proof
+	key := store.NewKey(pb.MetaType_ST_SegProof, userID, proID)
 	data, err := s.ds.Get(key)
-	if err != nil {
-		return oinfo
+	if err == nil && len(data) >= 8 {
+		oinfo.prove = binary.BigEndian.Uint64(data[:8])
 	}
 
-	err = cbor.Unmarshal(data, oinfo.ns)
-	if err != nil {
-		return oinfo
+	// load order state
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		oinfo.ns.Deserialize(data)
 	}
 
 	if oinfo.ns.Nonce == 0 {
 		return oinfo
 	}
 
+	// load current order
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.ns.Nonce-1)
 	data, err = s.ds.Get(key)
 	if err != nil {
 		return oinfo
 	}
-	so := new(types.SignedOrder)
-	err = so.Deserialize(data)
+	of := new(orderFull)
+	err = of.Deserialize(data)
 	if err != nil {
 		return oinfo
 	}
-	oinfo.base = so
+	oinfo.base = &of.SignedOrder
+	bls.FrFromBytes(&oinfo.accFr, of.AccFr)
 
 	return oinfo
 }
 
-func (s *StateMgr) AddOrder(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) addOrder(msg *tx.Message) error {
 	or := new(types.SignedOrder)
 	err := or.Deserialize(msg.Params)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	// todo verify sign
-
-	s.Lock()
-	defer s.Unlock()
+	// todo: verify sign
 
 	okey := orderKey{
 		userID: or.UserID,
@@ -78,51 +91,93 @@ func (s *StateMgr) AddOrder(msg *tx.Message) (types.MsgID, error) {
 	}
 
 	if or.Nonce != oinfo.ns.Nonce {
-		return s.root, xerrors.Errorf("add order got %d, expected %d, err: %w", or.Nonce, oinfo.ns.Nonce, ErrNonce)
+		return xerrors.Errorf("add order nonce wrong, got %d, expected %d", or.Nonce, oinfo.ns.Nonce)
 	}
 
 	oinfo.ns.Nonce++
 	oinfo.base = or
 	// reset
 	oinfo.ns.SeqNum = 0
+	oinfo.accFr = bls.ZERO
 
-	// save
+	// save order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID, or.Nonce)
-	data, err := or.Serialize()
+	of := &orderFull{
+		SignedOrder: *or,
+		SeqNum:      oinfo.ns.SeqNum,
+		AccFr:       bls.FrToBytes(&oinfo.accFr),
+	}
+	data, err := of.Serialize()
 	if err != nil {
-		return s.root, err
+		return err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID)
-	data, err = cbor.Marshal(oinfo.ns)
+	// save state
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID)
+	data, err = oinfo.ns.Serialize()
 	if err != nil {
-		return s.root, err
+		return err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	s.newRoot(msg.Params)
+	// save for challenge
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID, s.epoch)
+	err = s.ds.Put(key, data)
+	if err != nil {
+		return err
+	}
 
-	return s.root, nil
+	return nil
 }
 
-func (s *StateMgr) AddSeq(msg *tx.Message) (types.MsgID, error) {
-	// verify sign
+func (s *StateMgr) canAddOrder(msg *tx.Message) error {
+	or := new(types.SignedOrder)
+	err := or.Deserialize(msg.Params)
+	if err != nil {
+		return err
+	}
 
+	// todo: verify sign
+
+	okey := orderKey{
+		userID: or.UserID,
+		proID:  or.ProID,
+	}
+
+	oinfo, ok := s.validateOInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(or.UserID, or.ProID)
+		s.validateOInfo[okey] = oinfo
+	}
+
+	if or.Nonce != oinfo.ns.Nonce {
+		return xerrors.Errorf("add order nonce wrong, got %d, expected %d", or.Nonce, oinfo.ns.Nonce)
+	}
+
+	oinfo.ns.Nonce++
+	oinfo.base = or
+	// reset
+	oinfo.ns.SeqNum = 0
+	oinfo.accFr = bls.ZERO
+
+	return nil
+}
+
+func (s *StateMgr) addSeq(msg *tx.Message) error {
 	so := new(types.SignedOrderSeq)
 	err := so.Deserialize(msg.Params)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	s.Lock()
-	defer s.Unlock()
+	// todo: verify sign
 
 	okey := orderKey{
 		userID: so.UserID,
@@ -131,16 +186,25 @@ func (s *StateMgr) AddSeq(msg *tx.Message) (types.MsgID, error) {
 
 	oinfo, ok := s.oInfo[okey]
 	if !ok {
-		oinfo = s.loadOrder(so.UserID, so.ProID)
+		oinfo = s.loadOrder(okey.userID, okey.proID)
 		s.oInfo[okey] = oinfo
 	}
 
+	uinfo, ok := s.sInfo[okey.userID]
+	if !ok {
+		uinfo, err = s.loadUser(okey.userID)
+		if err != nil {
+			return err
+		}
+		s.sInfo[okey.userID] = uinfo
+	}
+
 	if oinfo.ns.Nonce != so.Nonce+1 {
-		return s.root, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Nonce, oinfo.ns.Nonce, ErrNonce)
+		return xerrors.Errorf("add seq nonce err got %d, expected %d", so.Nonce, oinfo.ns.Nonce)
 	}
 
 	if oinfo.ns.SeqNum != so.SeqNum {
-		return s.root, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.SeqNum, oinfo.ns.SeqNum, ErrSeq)
+		return xerrors.Errorf("add seq seqnum err got %d, expected %d", so.SeqNum, oinfo.ns.SeqNum)
 	}
 
 	// verify size and price
@@ -149,21 +213,31 @@ func (s *StateMgr) AddSeq(msg *tx.Message) (types.MsgID, error) {
 		size += (seg.Length * build.DefaultSegSize)
 	}
 	if oinfo.base.Size+size != so.Size {
-		return s.root, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Size, oinfo.base.Size+size, ErrSize)
+		return xerrors.Errorf("add seq size wrong, got %d, expected %d", so.Size, oinfo.base.Size+size)
 	}
 
 	price := new(big.Int).Mul(oinfo.base.SegPrice, big.NewInt(int64(size)))
-
 	price.Add(price, oinfo.base.Price)
 	if price.Cmp(so.Price) != 0 {
-		return s.root, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Price, price, ErrPrice)
+		return xerrors.Errorf("add seq price wrong, got %d, expected %d", so.Price, price)
 	}
 
 	// verify segment
 	for _, seg := range so.Segments {
-		err := s.AddChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID, oinfo.base.SegPrice)
+		err := s.addChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
 		if err != nil {
-			return s.root, err
+			return err
+		}
+	}
+
+	var HWi bls.Fr
+	for _, seg := range so.Segments {
+		for i := seg.Start; i < seg.Start+seg.Length; i++ {
+			// calculate fr
+			sid := segment.CreateSegmentID(uinfo.fsID, seg.BucketID, i, seg.ChunkID)
+			h := blake3.Sum256(sid)
+			bls.FrFromBytes(&HWi, h[:])
+			bls.FrAddMod(&oinfo.accFr, &oinfo.accFr, &HWi)
 		}
 	}
 
@@ -171,89 +245,68 @@ func (s *StateMgr) AddSeq(msg *tx.Message) (types.MsgID, error) {
 	oinfo.ns.SeqNum++
 	oinfo.base.Size = so.Size
 	oinfo.base.Price.Set(so.Price)
+	oinfo.base.Usign = so.UserSig
+	oinfo.base.Psign = so.ProSig
 
-	// save
+	// save order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, oinfo.base.Nonce)
-	data, err := oinfo.base.Serialize()
+	of := &orderFull{
+		SignedOrder: *oinfo.base,
+		SeqNum:      oinfo.ns.SeqNum,
+		AccFr:       bls.FrToBytes(&oinfo.accFr),
+	}
+	data, err := of.Serialize()
 	if err != nil {
-		return s.root, err
+		return err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
+	// save seq
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	data, err = so.Serialize()
+	sf := &seqFull{
+		OrderSeq: so.OrderSeq,
+		AccFr:    bls.FrToBytes(&oinfo.accFr),
+	}
+	data, err = sf.Serialize()
 	if err != nil {
-		return s.root, err
+		return err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID)
-	data, err = cbor.Marshal(oinfo.ns)
+	//save state
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID)
+	data, err = oinfo.ns.Serialize()
 	if err != nil {
-		return s.root, err
+		return err
 	}
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	s.newRoot(msg.Params)
-
-	return s.root, nil
-}
-
-func (s *StateMgr) CanAddOrder(msg *tx.Message) (types.MsgID, error) {
-	// verify sign
-	or := new(types.SignedOrder)
-	err := or.Deserialize(msg.Params)
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID, s.epoch)
+	err = s.ds.Put(key, data)
 	if err != nil {
-		return s.validateRoot, err
+		return err
 	}
 
-	s.Lock()
-	defer s.Unlock()
-
-	okey := orderKey{
-		userID: or.UserID,
-		proID:  or.ProID,
-	}
-
-	oinfo, ok := s.validateOInfo[okey]
-	if !ok {
-		oinfo = s.loadOrder(or.UserID, or.ProID)
-		s.validateOInfo[okey] = oinfo
-	}
-
-	if or.Nonce != oinfo.ns.Nonce {
-		return s.validateRoot, xerrors.Errorf("add order got %d, expected %d, err: %w", or.Nonce, oinfo.ns.Nonce, ErrNonce)
-	}
-
-	oinfo.ns.Nonce++
-	// reset
-	oinfo.ns.SeqNum = 0
-
-	s.newValidateRoot(msg.Params)
-
-	return s.validateRoot, nil
+	return nil
 }
 
-func (s *StateMgr) CanAddSeq(msg *tx.Message) (types.MsgID, error) {
-	// verify sign
-
+func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 	so := new(types.SignedOrderSeq)
 	err := so.Deserialize(msg.Params)
 	if err != nil {
-		return s.validateRoot, err
+		return err
 	}
 
-	s.Lock()
-	defer s.Unlock()
+	// todo: verify sign
 
 	okey := orderKey{
 		userID: so.UserID,
@@ -262,31 +315,67 @@ func (s *StateMgr) CanAddSeq(msg *tx.Message) (types.MsgID, error) {
 
 	oinfo, ok := s.validateOInfo[okey]
 	if !ok {
-		oinfo = s.loadOrder(so.UserID, so.ProID)
+		oinfo = s.loadOrder(okey.userID, okey.proID)
 		s.validateOInfo[okey] = oinfo
 	}
 
+	uinfo, ok := s.validateSInfo[okey.userID]
+	if !ok {
+		uinfo, err = s.loadUser(okey.userID)
+		if err != nil {
+			return err
+		}
+		s.validateSInfo[okey.userID] = uinfo
+	}
+
 	if oinfo.ns.Nonce != so.Nonce+1 {
-		return s.validateRoot, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.Nonce, oinfo.ns.Nonce, ErrNonce)
+		return xerrors.Errorf("add seq nonce err got %d, expected %d", so.Nonce, oinfo.ns.Nonce)
 	}
 
 	if oinfo.ns.SeqNum != so.SeqNum {
-		return s.validateRoot, xerrors.Errorf("add seq got %d, expected %d, err: %w", so.SeqNum, oinfo.ns.SeqNum, ErrSeq)
+		return xerrors.Errorf("add seq seqnum err got %d, expected %d", so.SeqNum, oinfo.ns.SeqNum)
 	}
+
 	// verify size and price
+	size := uint64(0)
+	for _, seg := range so.Segments {
+		size += (seg.Length * build.DefaultSegSize)
+	}
+	if oinfo.base.Size+size != so.Size {
+		return xerrors.Errorf("add seq size wrong, got %d, expected %d", so.Size, oinfo.base.Size+size)
+	}
+
+	price := new(big.Int).Mul(oinfo.base.SegPrice, big.NewInt(int64(size)))
+	price.Add(price, oinfo.base.Price)
+	if price.Cmp(so.Price) != 0 {
+		return xerrors.Errorf("add seq price wrong, got %d, expected %d", so.Price, price)
+	}
 
 	// verify segment
 	for _, seg := range so.Segments {
-		err := s.CanAddChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
+		err := s.canAddChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
 		if err != nil {
-			return s.validateRoot, err
+			return err
 		}
 	}
 
-	// update size and price
+	var HWi bls.Fr
+	for _, seg := range so.Segments {
+		for i := seg.Start; i < seg.Start+seg.Length; i++ {
+			// calculate fr
+			sid := segment.CreateSegmentID(uinfo.fsID, seg.BucketID, i, seg.ChunkID)
+			h := blake3.Sum256(sid)
+			bls.FrFromBytes(&HWi, h[:])
+			bls.FrAddMod(&oinfo.accFr, &oinfo.accFr, &HWi)
+		}
+	}
+
+	// validate size and price
 	oinfo.ns.SeqNum++
+	oinfo.base.Size = so.Size
+	oinfo.base.Price.Set(so.Price)
+	oinfo.base.Usign = so.UserSig
+	oinfo.base.Psign = so.ProSig
 
-	s.newValidateRoot(msg.Params)
-
-	return s.validateRoot, nil
+	return nil
 }

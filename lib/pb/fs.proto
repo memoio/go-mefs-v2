@@ -22,15 +22,19 @@ enum MetaType {
 	// key in state
 	ST_PDPPublicKey = 20;    // key: x/userID; val: Bls Prove key set
 	ST_BucketOptKey = 21;    // key: x/userID/bucketID; val: bucket option
-	ST_OrderBaseKey = 22;    // key: x/userID/proID/nonce; val: SignedOrderBase;
-	ST_OrderSeqKey = 23;     // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
-	ST_SegLocKey = 24;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
-	ST_SegMapKey = 25;       // key: x/userID/bucketID/proID; val: accFr, bitmap
-	ST_SegProof = 26;        // key: x/userID/proID/epoch; val: proof
+	
+	ST_OrderStateKey = 22;   // key: x/userID/proID/epoch; val: OrderNonce;
+	ST_OrderBaseKey = 23;    // key: x/userID/proID/nonce; val: SignedOrderBase;
+	ST_OrderSeqKey = 24;     // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
+	
+	ST_SegLocKey = 27;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
+	ST_SegMapKey = 28;       // key: x/userID/bucketID/proID; val: accFr, bitmap
+	ST_SegProof = 29;        // key: x/userID/proID/epoch; val: proof
    	
-	ST_RootKey = 30;         // key: x; val: root of state	
-	ST_BlockHeightKey = 31;  // key: x; val: height
-	ST_EpochKey = 32;        // key: x; val: epoch; key: x/epoch; val: content
+	ST_RootKey = 35;         // key: x; val: root of state	
+	ST_BlockHeightKey = 36;  // key: x; val: height
+	ST_ChalEpochKey = 37;    // key: x; val: epoch; key: x/epoch; val: content
+	ST_RoleInfoKey = 38;     // key: x/roleID; val: roleInfo
 
 	// data meta
 	SegLocationKey = 40;     // key: x/segID; val: proID; on user

@@ -81,7 +81,7 @@ func (p *ProviderNode) Start() error {
 	p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
 	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
 
-	p.StateDB.RegisterAddStripeFunc(p.chalSeg.AddStripe)
+	p.StateDB.RegisterAddUserFunc(p.chalSeg.AddUser)
 
 	// wait for sync
 	p.PPool.Start()

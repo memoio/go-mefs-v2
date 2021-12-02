@@ -9,28 +9,26 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"golang.org/x/xerrors"
 )
 
-func (s *StateMgr) UpdateChalEpoch(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 	sep := new(tx.SignedEpochParams)
 	err := sep.Deserialize(msg.Params)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	s.Lock()
-	defer s.Unlock()
-
 	if sep.Epoch != s.epoch {
-		return s.root, ErrEpoch
+		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.epoch)
 	}
 
 	if !bytes.Equal(sep.Prev.Bytes(), s.epochInfo.Seed.Bytes()) {
-		return s.root, ErrEpoch
+		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.epochInfo.Seed)
 	}
 
 	if s.height-s.epochInfo.Height < build.DefaultChalDuration {
-		return s.root, ErrEpoch
+		return xerrors.Errorf("add chal epoch err: duration is wrong")
 	}
 
 	s.epoch++
@@ -39,43 +37,38 @@ func (s *StateMgr) UpdateChalEpoch(msg *tx.Message) (types.MsgID, error) {
 	s.epochInfo.Height = s.height - 1
 
 	// store
-	key := store.NewKey(pb.MetaType_ST_EpochKey, s.epochInfo.Epoch)
+	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, s.epochInfo.Epoch)
 	data, err := s.epochInfo.Serialize()
 	if err != nil {
-		return s.root, err
+		return err
 	}
 	s.ds.Put(key, data)
 
-	key = store.NewKey(pb.MetaType_ST_EpochKey)
+	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, s.epoch)
 	s.ds.Put(key, buf)
 
-	s.newRoot(msg.Params)
-
-	return s.root, nil
+	return nil
 }
 
-func (s *StateMgr) CanUpdateChalEpoch(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) canUpdateChalEpoch(msg *tx.Message) error {
 	sep := new(tx.SignedEpochParams)
 	err := sep.Deserialize(msg.Params)
 	if err != nil {
-		return s.validateRoot, err
+		return err
 	}
 
-	s.Lock()
-	defer s.Unlock()
-
 	if sep.Epoch != s.validateEpoch {
-		return s.validateRoot, ErrEpoch
+		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.validateEpoch)
 	}
 
 	if !bytes.Equal(sep.Prev.Bytes(), s.validateEpochInfo.Seed.Bytes()) {
-		return s.validateRoot, ErrEpoch
+		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.validateEpochInfo.Seed)
 	}
 
 	if s.validateHeight-s.validateEpochInfo.Height < build.DefaultChalDuration {
-		return s.validateRoot, ErrEpoch
+		return xerrors.Errorf("add chal epoch err: duration is wrong")
 	}
 
 	s.validateEpoch++
@@ -83,7 +76,5 @@ func (s *StateMgr) CanUpdateChalEpoch(msg *tx.Message) (types.MsgID, error) {
 	s.validateEpochInfo.Epoch = sep.Epoch
 	s.validateEpochInfo.Height = s.validateHeight - 1
 
-	s.newValidateRoot(msg.Params)
-
-	return s.root, nil
+	return nil
 }

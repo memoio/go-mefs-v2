@@ -1,10 +1,17 @@
 package types
 
+import "github.com/fxamacker/cbor/v2"
+
 type ChalEpoch struct {
-	Epoch uint64
-	Prev  []byte
+	Epoch  uint64
+	Height uint64
+	Seed   MsgID
 }
 
-func (c *ChalEpoch) NewSeed() {
+func (ce *ChalEpoch) Serialize() ([]byte, error) {
+	return cbor.Marshal(ce)
+}
 
+func (ce *ChalEpoch) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ce)
 }

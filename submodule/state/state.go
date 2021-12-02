@@ -25,21 +25,23 @@ type StateMgr struct {
 
 	activeRoles []uint64
 
-	height    uint64      // next block height
-	epoch     uint64      // next epoch
-	epochInfo *ChalEpoch  // chal epoch
-	root      types.MsgID // for verify
+	height    uint64           // next block height
+	epoch     uint64           // next epoch
+	epochInfo *types.ChalEpoch // chal epoch
+	root      types.MsgID      // for verify
 	oInfo     map[orderKey]*orderInfo
 	sInfo     map[uint64]*segPerUser // key: userID
+	rInfo     map[uint64]*roleInfo
 
 	validateHeight    uint64
 	validateEpoch     uint64
-	validateEpochInfo *ChalEpoch
+	validateEpochInfo *types.ChalEpoch
 	validateRoot      types.MsgID
 	validateOInfo     map[orderKey]*orderInfo
 	validateSInfo     map[uint64]*segPerUser
+	validateRInfo     map[uint64]*roleInfo
 
-	hasf HandleAddStripeFunc
+	hauf HandleAddUserFunc
 }
 
 func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
@@ -55,6 +57,7 @@ func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 		validateEpochInfo: newChalEpoch(),
 		oInfo:             make(map[orderKey]*orderInfo),
 		sInfo:             make(map[uint64]*segPerUser),
+		rInfo:             make(map[uint64]*roleInfo),
 	}
 
 	s.load()
@@ -62,9 +65,9 @@ func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 	return s
 }
 
-func (s *StateMgr) RegisterAddStripeFunc(h HandleAddStripeFunc) {
+func (s *StateMgr) RegisterAddUserFunc(h HandleAddUserFunc) {
 	s.Lock()
-	s.hasf = h
+	s.hauf = h
 	s.Unlock()
 }
 
@@ -89,19 +92,21 @@ func (s *StateMgr) load() {
 	}
 
 	// load chal epoch
-	key = store.NewKey(pb.MetaType_ST_EpochKey)
+	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 8 {
 		s.epoch = binary.BigEndian.Uint64(val)
 	}
 
-	if s.epoch > 0 {
-		// load chal seed
-		key = store.NewKey(pb.MetaType_ST_EpochKey, s.epoch-1)
-		val, err = s.ds.Get(key)
-		if err == nil {
-			s.epochInfo.Deserialize(val)
-		}
+	if s.epoch == 0 {
+		return
+	}
+
+	// load current chal
+	key = store.NewKey(pb.MetaType_ST_ChalEpochKey, s.epoch-1)
+	val, err = s.ds.Get(key)
+	if err == nil {
+		s.epochInfo.Deserialize(val)
 	}
 }
 
@@ -117,6 +122,22 @@ func (s *StateMgr) newRoot(b []byte) {
 	s.ds.Put(key, s.root.Bytes())
 }
 
+func (s *StateMgr) loadNonce(roleID uint64) uint64 {
+	key := store.NewKey(pb.MetaType_ST_RoleInfoKey, roleID)
+	data, err := s.ds.Get(key)
+	if err == nil && len(data) >= 8 {
+		return binary.BigEndian.Uint64(data[:8])
+	}
+	return 0
+}
+
+func (s *StateMgr) saveNonce(roleID, nonce uint64) {
+	key := store.NewKey(pb.MetaType_ST_RoleInfoKey, roleID)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, nonce)
+	s.ds.Put(key, buf)
+}
+
 func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
 	if blk == nil {
 		// todo: commmit for apply all changes
@@ -126,7 +147,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
 	// todo: create new transcation
 
 	if blk.Height != s.height {
-		return s.root, xerrors.Errorf("apply block is wrong: got %d, expected %d, %w", blk.Height, s.height, ErrBlockHeight)
+		return s.root, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
 	}
 
 	b, err := blk.RawHeader.Serialize()
@@ -146,26 +167,69 @@ func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
 	return s.root, nil
 }
 
-func (s *StateMgr) AppleyMsg(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
 	if msg == nil {
 		return s.root, nil
 	}
 
 	logger.Debug("block apply message:", msg.From, msg.Nonce, msg.Method, s.root)
+	s.Lock()
+	defer s.Unlock()
+	ri, ok := s.rInfo[msg.From]
+	if !ok {
+		ri = &roleInfo{
+			Nonce: s.loadNonce(msg.From),
+		}
+		s.rInfo[msg.From] = ri
+	}
+
+	if msg.Nonce != ri.Nonce {
+		return s.root, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.Nonce, msg.Nonce)
+	}
+	ri.Nonce++
+	s.saveNonce(msg.From, ri.Nonce)
+	s.newRoot(msg.Params)
+
+	// not apply wrong message; but update its nonce
+	if tr.Err != 0 {
+		logger.Debug("not apply wrong message")
+		return s.root, nil
+	}
+
 	switch msg.Method {
 	case tx.CreateFs:
-		return s.AddUser(msg)
+		err := s.addUser(msg)
+		if err != nil {
+			return s.root, err
+		}
 	case tx.CreateBucket:
-		return s.AddBucket(msg)
+		err := s.addBucket(msg)
+		if err != nil {
+			return s.root, err
+		}
 	case tx.DataPreOrder:
-		return s.AddOrder(msg)
+		err := s.addOrder(msg)
+		if err != nil {
+			return s.root, err
+		}
 	case tx.DataOrder:
-		return s.AddSeq(msg)
+		err := s.addSeq(msg)
+		if err != nil {
+			return s.root, err
+		}
 	case tx.UpdateEpoch:
-		return s.UpdateChalEpoch(msg)
+		err := s.updateChalEpoch(msg)
+		if err != nil {
+			return s.root, err
+		}
 	case tx.SegmentProof:
-		return s.AddSegProof(msg)
+		err := s.addSegProof(msg)
+		if err != nil {
+			return s.root, err
+		}
 	default:
-		return s.root, ErrRes
+		return s.root, xerrors.Errorf("unsupported type: %d", msg.Method)
 	}
+
+	return s.root, nil
 }

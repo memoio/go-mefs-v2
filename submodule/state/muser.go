@@ -6,7 +6,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
-	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
@@ -28,7 +27,6 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 		buckets:   make(map[uint64]*bucketManage),
 		fsID:      pk.VerifyKey().Hash(),
 		verifyKey: pk.VerifyKey(),
-		chalRes:   make(map[uint64]*chalResult),
 	}
 
 	// load bucket
@@ -40,17 +38,15 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 	return spu, nil
 }
 
-func (s *StateMgr) AddUser(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) addUser(msg *tx.Message) error {
 	pk, err := pdp.DeserializePublicKey(msg.Params)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	s.Lock()
 	_, ok := s.sInfo[msg.From]
 	if ok {
-		s.Unlock()
-		return s.root, nil
+		return nil
 	}
 
 	// verify vk
@@ -59,35 +55,33 @@ func (s *StateMgr) AddUser(msg *tx.Message) (types.MsgID, error) {
 		fsID:      pk.VerifyKey().Hash(),
 		verifyKey: pk.VerifyKey(),
 		buckets:   make(map[uint64]*bucketManage),
-		chalRes:   make(map[uint64]*chalResult),
 	}
 	s.sInfo[msg.From] = spu
-	s.Unlock()
 
 	// save users
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, msg.From)
 	data := pk.Serialize()
 	err = s.ds.Put(key, data)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 
-	s.newRoot(msg.Params)
+	if s.hauf != nil {
+		s.hauf(msg.From)
+	}
 
-	return s.root, nil
+	return nil
 }
 
-func (s *StateMgr) CanAddUser(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) canAddUser(msg *tx.Message) error {
 	pk, err := pdp.DeserializePublicKey(msg.Params)
 	if err != nil {
-		return s.validateRoot, err
+		return err
 	}
 
-	s.Lock()
 	_, ok := s.validateSInfo[msg.From]
 	if ok {
-		s.Unlock()
-		return s.validateRoot, nil
+		return nil
 	}
 
 	// verify vk
@@ -96,12 +90,8 @@ func (s *StateMgr) CanAddUser(msg *tx.Message) (types.MsgID, error) {
 		fsID:      pk.VerifyKey().Hash(),
 		verifyKey: pk.VerifyKey(),
 		buckets:   make(map[uint64]*bucketManage),
-		chalRes:   make(map[uint64]*chalResult),
 	}
 	s.validateSInfo[msg.From] = spu
-	s.Unlock()
 
-	s.newValidateRoot(msg.Params)
-
-	return s.validateRoot, nil
+	return nil
 }

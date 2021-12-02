@@ -3,7 +3,6 @@ package state
 import (
 	"encoding/binary"
 
-	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -13,195 +12,265 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (s *StateMgr) AddSegProof(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	scp := new(tx.SegChalParams)
 	err := scp.Deserialize(msg.Params)
 	if err != nil {
-		return s.root, err
+		return err
 	}
 	prf, err := pdp.DeserializeProof(scp.Proof)
 	if err != nil {
-		return s.root, err
+		return err
 	}
-
-	userID := msg.To
-	proID := msg.From
-
-	s.Lock()
-	defer s.Unlock()
 
 	if scp.Epoch != s.epochInfo.Epoch {
-		return s.root, xerrors.Errorf("wrong challeng epoch, expectd %d, got %d", s.epochInfo.Epoch, scp.Epoch)
+		return xerrors.Errorf("wrong challenge epoch, expectd %d, got %d", s.epochInfo.Epoch, scp.Epoch)
 	}
 
-	uinfo, ok := s.sInfo[userID]
+	okey := orderKey{
+		userID: msg.To,
+		proID:  msg.From,
+	}
+
+	oinfo, ok := s.oInfo[okey]
 	if !ok {
-		uinfo, err = s.loadUser(userID)
-		if err != nil {
-			return s.root, err
-		}
-		s.sInfo[userID] = uinfo
+		oinfo = s.loadOrder(okey.userID, okey.proID)
+		s.oInfo[okey] = oinfo
 	}
 
-	lastChal, ok := uinfo.chalRes[proID]
-	if !ok {
-		lastChal = new(chalResult)
-		key := store.NewKey(pb.MetaType_ST_SegProof, userID, proID)
-		data, err := s.ds.Get(key)
-		if err == nil && len(data) >= 8 {
-			lastChal.Epoch = binary.BigEndian.Uint64(data)
-		}
-
-		uinfo.chalRes[proID] = lastChal
-	}
-	if lastChal.Epoch == scp.Epoch {
-		return s.root, xerrors.Errorf("challeng proof submitted at %d", scp.Epoch)
+	if oinfo.prove > scp.Epoch {
+		return xerrors.Errorf("challeng proof submitted or missed at %d", scp.Epoch)
 	}
 
 	buf := make([]byte, 8+len(s.epochInfo.Seed.Bytes()))
-	binary.BigEndian.PutUint64(buf[:8], userID)
+	binary.BigEndian.PutUint64(buf[:8], okey.userID)
 	copy(buf[8:], s.epochInfo.Seed.Bytes())
 	bh := blake3.Sum256(buf)
 
-	chal, _ := pdp.NewChallenge(uinfo.verifyKey, bh)
-
-	for i := uint64(0); i < uinfo.nextBucket; i++ {
-		key := store.NewKey(pb.MetaType_ST_SegMapKey, userID, i, proID, scp.Epoch)
-		cm := new(chalManage)
-		data, err := s.ds.Get(key)
+	uinfo, ok := s.sInfo[okey.userID]
+	if !ok {
+		uinfo, err = s.loadUser(okey.userID)
 		if err != nil {
-			bm := s.getBucketManage(uinfo, i)
-			cm = s.getChalManage(bm, userID, i, proID)
-			data, err := cm.Serialize()
+			return err
+		}
+		s.sInfo[okey.userID] = uinfo
+	}
+
+	chal, err := pdp.NewChallenge(uinfo.verifyKey, bh)
+	if err != nil {
+		return err
+	}
+
+	// load
+	ns := &types.NonceSeq{
+		Nonce:  oinfo.ns.Nonce,
+		SeqNum: oinfo.ns.SeqNum,
+	}
+	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		ns.Deserialize(data)
+	}
+
+	if ns.Nonce == 0 && ns.SeqNum == 0 {
+		return xerrors.Errorf("challenge on empty data")
+	}
+
+	// always challenge latest one
+	if ns.Nonce > 0 {
+		if ns.SeqNum > 0 {
+			key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, ns.SeqNum-1)
+			data, err = s.ds.Get(key)
 			if err != nil {
-				return s.root, xerrors.Errorf("wrong challeng %d %w", scp.Epoch, err)
+				return err
 			}
-			err = s.ds.Put(key, data)
+			sf := new(seqFull)
+			err = sf.Deserialize(data)
 			if err != nil {
-				return s.root, xerrors.Errorf("wrong challeng %d %w", scp.Epoch, err)
+				return err
 			}
+
+			chal.Add(sf.AccFr)
 		} else {
-			err := cm.Deserialize(data)
+			// load order
+			key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce-1)
+			data, err = s.ds.Get(key)
 			if err != nil {
-				return s.root, xerrors.Errorf("wrong challeng %d des err %w", scp.Epoch, err)
+				return err
+			}
+			of := new(orderFull)
+			err = of.Deserialize(data)
+			if err != nil {
+				return err
+			}
+			if of.SeqNum > 0 {
+				chal.Add(of.AccFr)
 			}
 		}
+	}
 
-		chal.Add(bls.FrToBytes(&cm.accFr))
+	if ns.Nonce > 1 {
+		// todo: choose some from [0, ns.Nonce-1)
+		for i := uint64(0); i < ns.Nonce-1; i++ {
+			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
+			data, err = s.ds.Get(key)
+			if err != nil {
+				return err
+			}
+			of := new(orderFull)
+			err = of.Deserialize(data)
+			if err != nil {
+				return err
+			}
+			chal.Add(of.AccFr)
+		}
 	}
 
 	ok, err = uinfo.verifyKey.VerifyProof(chal, prf)
 	if err != nil {
-		return s.root, nil
+		return err
 	}
 
 	if !ok {
-		return s.root, xerrors.Errorf("wrong challeng proof at %d", scp.Epoch)
+		return xerrors.Errorf("wrong challenge proof at %d", scp.Epoch)
 	}
+
+	oinfo.prove = scp.Epoch + 1
 
 	// save proof result
-	key := store.NewKey(pb.MetaType_ST_SegProof, userID, proID, scp.Epoch)
+	key = store.NewKey(pb.MetaType_ST_SegProof, okey.userID, okey.proID, scp.Epoch)
 	s.ds.Put(key, scp.Proof)
 
-	key = store.NewKey(pb.MetaType_ST_SegProof, userID, proID)
+	key = store.NewKey(pb.MetaType_ST_SegProof, okey.userID, okey.proID)
 	buf = make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, scp.Epoch)
+	binary.BigEndian.PutUint64(buf, oinfo.prove)
 	s.ds.Put(key, buf)
 
-	s.newRoot(msg.Params)
-
-	return s.root, nil
+	return nil
 }
 
-func (s *StateMgr) CanAddSegProof(msg *tx.Message) (types.MsgID, error) {
+func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	scp := new(tx.SegChalParams)
 	err := scp.Deserialize(msg.Params)
 	if err != nil {
-		return s.validateRoot, err
+		return err
 	}
 	prf, err := pdp.DeserializeProof(scp.Proof)
 	if err != nil {
-		return s.validateRoot, err
+		return err
 	}
 
-	userID := msg.To
-	proID := msg.From
-
-	s.Lock()
-	defer s.Unlock()
-
-	if scp.Epoch != s.epochInfo.Epoch {
-		return s.validateRoot, xerrors.Errorf("wrong challeng epoch, expectd %d, got %d", s.epochInfo.Epoch, scp.Epoch)
+	if scp.Epoch != s.validateEpochInfo.Epoch {
+		return xerrors.Errorf("wrong challenge epoch, expectd %d, got %d", s.epochInfo.Epoch, scp.Epoch)
 	}
 
-	uinfo, ok := s.validateSInfo[userID]
+	okey := orderKey{
+		userID: msg.To,
+		proID:  msg.From,
+	}
+
+	oinfo, ok := s.validateOInfo[okey]
 	if !ok {
-		uinfo, err = s.loadUser(userID)
-		if err != nil {
-			return s.validateRoot, err
-		}
-		s.sInfo[userID] = uinfo
+		oinfo = s.loadOrder(okey.userID, okey.proID)
+		s.validateOInfo[okey] = oinfo
 	}
 
-	lastChal, ok := uinfo.chalRes[proID]
-	if !ok {
-		lastChal = new(chalResult)
-		key := store.NewKey(pb.MetaType_ST_SegProof, userID, proID)
-		data, err := s.ds.Get(key)
-		if err == nil && len(data) >= 8 {
-			lastChal.Epoch = binary.BigEndian.Uint64(data)
-		}
-
-		uinfo.chalRes[proID] = lastChal
-	}
-	if lastChal.Epoch == scp.Epoch {
-		return s.root, xerrors.Errorf("challeng proof submitted at %d", scp.Epoch)
+	if oinfo.prove > scp.Epoch {
+		return xerrors.Errorf("challeng proof submitted or missed at %d", scp.Epoch)
 	}
 
 	buf := make([]byte, 8+len(s.epochInfo.Seed.Bytes()))
-	binary.BigEndian.PutUint64(buf[:8], userID)
+	binary.BigEndian.PutUint64(buf[:8], okey.userID)
 	copy(buf[8:], s.epochInfo.Seed.Bytes())
 	bh := blake3.Sum256(buf)
 
-	chal, _ := pdp.NewChallenge(uinfo.verifyKey, bh)
-
-	for i := uint64(0); i < uinfo.nextBucket; i++ {
-		key := store.NewKey(pb.MetaType_ST_SegMapKey, userID, i, proID, scp.Epoch)
-		cm := new(chalManage)
-		data, err := s.ds.Get(key)
+	uinfo, ok := s.validateSInfo[okey.userID]
+	if !ok {
+		uinfo, err = s.loadUser(okey.userID)
 		if err != nil {
-			bm := s.getBucketManage(uinfo, i)
-			cm = s.getChalManage(bm, userID, i, proID)
-			data, err := cm.Serialize()
-			if err != nil {
-				return s.validateRoot, xerrors.Errorf("wrong challeng %d %w", scp.Epoch, err)
-			}
-			err = s.ds.Put(key, data)
-			if err != nil {
-				return s.validateRoot, xerrors.Errorf("wrong challeng %d %w", scp.Epoch, err)
-			}
-		} else {
-			err := cm.Deserialize(data)
-			if err != nil {
-				return s.validateRoot, xerrors.Errorf("wrong challeng %d des err %w", scp.Epoch, err)
-			}
+			return err
 		}
+		s.validateSInfo[okey.userID] = uinfo
+	}
 
-		chal.Add(bls.FrToBytes(&cm.accFr))
+	chal, err := pdp.NewChallenge(uinfo.verifyKey, bh)
+	if err != nil {
+		return err
+	}
+
+	ns := &types.NonceSeq{
+		Nonce:  oinfo.ns.Nonce,
+		SeqNum: oinfo.ns.SeqNum,
+	}
+
+	// load
+	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, scp.Epoch)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		ns.Deserialize(data)
+	}
+
+	if ns.Nonce == 0 && ns.SeqNum == 0 {
+		return xerrors.Errorf("challenge on empty data")
+	}
+
+	if ns.Nonce > 0 {
+		if ns.SeqNum > 0 {
+			key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, ns.SeqNum-1)
+			data, err = s.ds.Get(key)
+			if err != nil {
+				return err
+			}
+			sf := new(seqFull)
+			err = sf.Deserialize(data)
+			if err != nil {
+				return err
+			}
+
+			chal.Add(sf.AccFr)
+		} else {
+			// load order
+			key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce-1)
+			data, err = s.ds.Get(key)
+			if err != nil {
+				return err
+			}
+			of := new(orderFull)
+			err = of.Deserialize(data)
+			if err != nil {
+				return err
+			}
+			chal.Add(of.AccFr)
+		}
+	}
+
+	if ns.Nonce > 1 {
+		// todo: choose some from [0, ns.Nonce-1)
+		for i := uint64(0); i < ns.Nonce-1; i++ {
+			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
+			data, err = s.ds.Get(key)
+			if err != nil {
+				return err
+			}
+			of := new(orderFull)
+			err = of.Deserialize(data)
+			if err != nil {
+				return err
+			}
+			chal.Add(of.AccFr)
+		}
 	}
 
 	ok, err = uinfo.verifyKey.VerifyProof(chal, prf)
 	if err != nil {
-		return s.validateRoot, nil
+		return err
 	}
 
 	if !ok {
-		return s.validateRoot, xerrors.Errorf("wrong challeng proof at %d", scp.Epoch)
+		return xerrors.Errorf("wrong challenge proof at %d", scp.Epoch)
 	}
 
-	lastChal.Epoch = scp.Epoch
+	oinfo.prove = scp.Epoch + 1
 
-	s.newValidateRoot(msg.Params)
-
-	return s.validateRoot, nil
+	return nil
 }

@@ -18,6 +18,7 @@ func (s *StateMgr) reset() {
 
 	s.validateOInfo = make(map[orderKey]*orderInfo)
 	s.validateSInfo = make(map[uint64]*segPerUser)
+	s.validateRInfo = make(map[uint64]*roleInfo)
 }
 
 func (s *StateMgr) newValidateRoot(b []byte) {
@@ -37,7 +38,7 @@ func (s *StateMgr) ValidateBlock(blk *tx.Block) (types.MsgID, error) {
 	s.reset()
 
 	if blk.Height != s.height {
-		return s.validateRoot, xerrors.Errorf("apply block is wrong: got %d, expected %d, %w", blk.Height, s.height, ErrBlockHeight)
+		return s.validateRoot, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
 	}
 
 	b, err := blk.RawHeader.Serialize()
@@ -56,20 +57,58 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 	}
 
 	logger.Debug("validate message:", msg.From, msg.Nonce, msg.Method, s.validateRoot)
+	s.Lock()
+	defer s.Unlock()
+
+	ri, ok := s.validateRInfo[msg.From]
+	if !ok {
+		ri = &roleInfo{
+			Nonce: s.loadNonce(msg.From),
+		}
+		s.validateRInfo[msg.From] = ri
+	}
+
+	if msg.Nonce != ri.Nonce {
+		return s.validateRoot, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.Nonce, msg.Nonce)
+	}
+
+	ri.Nonce++
+	s.newValidateRoot(msg.Params)
+
 	switch msg.Method {
 	case tx.CreateFs:
-		return s.CanAddUser(msg)
+		err := s.canAddUser(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	case tx.CreateBucket:
-		return s.CanAddBucket(msg)
+		err := s.canAddBucket(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	case tx.DataPreOrder:
-		return s.CanAddOrder(msg)
+		err := s.canAddOrder(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	case tx.DataOrder:
-		return s.CanAddSeq(msg)
+		err := s.canAddSeq(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	case tx.UpdateEpoch:
-		return s.CanUpdateChalEpoch(msg)
+		err := s.canUpdateChalEpoch(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	case tx.SegmentProof:
-		return s.CanAddSegProof(msg)
+		err := s.canAddSegProof(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	default:
-		return s.validateRoot, ErrRes
+		return s.validateRoot, xerrors.Errorf("unsupported type: %d", msg.Method)
 	}
+
+	return s.validateRoot, nil
 }

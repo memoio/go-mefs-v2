@@ -11,6 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -139,6 +140,15 @@ type IChain interface {
 
 type IState interface {
 	GetRoot() types.MsgID
-	GetEpoch() uint64
 	GetHeight() uint64
+
+	GetPublicKey(userID uint64) (pdpcommon.PublicKey, error)
+
+	GetProof(userID, proID, epoch uint64) bool
+
+	GetChalEpoch() uint64
+	GetChalEpochInfo() *types.ChalEpoch
+	GetOrderState(userID, proID, epoch uint64) *types.NonceSeq
+	GetOrder(userID, proID, nonce uint64) (*types.SignedOrder, []byte, uint32, error)
+	GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.OrderSeq, []byte, error)
 }

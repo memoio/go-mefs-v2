@@ -226,7 +226,7 @@ func (sp *SyncPool) syncBlock() {
 
 func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 	logger.Debug("process block:", sb.blk.Height)
-	oRoot, err := sp.hmf(nil)
+	oRoot, err := sp.hmf(nil, nil)
 	if err != nil {
 		return err
 	}
@@ -260,13 +260,10 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		sp.nonce[tx.From] = tx.Nonce + 1
 
 		// apply message
-		if sb.blk.Receipts[i].Err == 0 {
-			nroot, err := sp.hmf(sb.msg[i])
-			if err != nil {
-				// should not; todo
-				logger.Error("fail to apply: ", err, nroot)
-			}
-			newRoot = nroot
+		newRoot, err = sp.hmf(sb.msg[i], &sb.blk.Receipts[i])
+		if err != nil {
+			// should not; todo
+			logger.Error("fail to apply message: ", err, newRoot)
 		}
 
 		binary.BigEndian.PutUint64(buf, tx.Nonce+1)

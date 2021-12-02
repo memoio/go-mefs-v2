@@ -34,9 +34,14 @@ type NonceSeq struct {
 	SeqNum uint32
 }
 
-// key: 'OrderNonce'/user/pro; value: nonce
-// key: 'OrderNonceDone'/user/pro; value: nonce
-// key: 'OrderBase'/user/pro/nonce; value: content
+func (ns *NonceSeq) Serialize() ([]byte, error) {
+	return cbor.Marshal(ns)
+}
+
+func (ns *NonceSeq) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ns)
+}
+
 type OrderBase struct {
 	UserID     uint64
 	ProID      uint64
@@ -48,6 +53,7 @@ type OrderBase struct {
 	PiecePrice *big.Int
 }
 
+// for sign on data chain
 func (b *OrderBase) Hash() ([]byte, error) {
 	buf, err := cbor.Marshal(b)
 	if err != nil {
@@ -69,13 +75,14 @@ func (b *OrderBase) Deserialize(buf []byte) error {
 
 type SignedOrder struct {
 	OrderBase
-	Size  uint64
-	Price *big.Int
-	Usign Signature
-	Psign Signature
+	Size     uint64
+	Price    *big.Int
+	Usign    Signature
+	Psign    Signature      // sign hash
+	DataSign MultiSignature // sign serialize
 }
 
-// for sign on chain
+// for sign on settle chain
 func (so *SignedOrder) Hash() []byte {
 	var buf = make([]byte, 8)
 	d := sha3.NewLegacyKeccak256()
@@ -86,8 +93,6 @@ func (so *SignedOrder) Hash() []byte {
 	d.Write(buf)
 	binary.BigEndian.PutUint64(buf, uint64(so.End))
 	d.Write(buf)
-	d.Write(utils.LeftPadBytes(so.SegPrice.Bytes(), 32))
-	d.Write(utils.LeftPadBytes(so.PiecePrice.Bytes(), 32))
 	binary.BigEndian.PutUint64(buf, so.Size)
 	d.Write(buf)
 	d.Write(utils.LeftPadBytes(so.Price.Bytes(), 32))
@@ -110,18 +115,17 @@ type OrderSeq struct {
 	Size     uint64   // accumulated
 	Price    *big.Int //
 	Segments AggSegsQueue
-	//Pieces    [][]byte // dataType/name/size; 多个dataName;
 }
 
-// key: 'SignedOrderSeq'/user/pro/nonce/seqnum; value: SignedOrderSeq
 type SignedOrderSeq struct {
 	OrderSeq
-	UserDataSig Signature // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
+	UserDataSig Signature // for data chain; sign serialize); signed by fs and pro
 	ProDataSig  Signature
-	UserSig     Signature // for settlement chain; hash(fsID+proID+nonce+start+end+size+price)
+	UserSig     Signature // for settlement chain; sign hash
 	ProSig      Signature
 }
 
+// for sign on data chain
 func (os *SignedOrderSeq) Hash() ([]byte, error) {
 	data, err := cbor.Marshal(os.OrderSeq)
 	if err != nil {

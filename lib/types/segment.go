@@ -131,7 +131,7 @@ func (asq *AggSegsQueue) Merge() {
 
 // stripe in state
 type AggStripe struct {
-	Nonce  uint64
+	Order  uint64
 	ProID  uint64
 	Start  uint64
 	Length uint64
