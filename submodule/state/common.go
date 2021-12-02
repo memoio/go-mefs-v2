@@ -26,9 +26,9 @@ type roleInfo struct {
 
 func newChalEpoch() *types.ChalEpoch {
 	return &types.ChalEpoch{
-		Epoch:  0,
-		Height: 0,
-		Seed:   types.NewMsgID([]byte("chalepoch")),
+		Epoch: 0,
+		Slot:  0,
+		Seed:  types.NewMsgID([]byte("chalepoch")),
 	}
 }
 

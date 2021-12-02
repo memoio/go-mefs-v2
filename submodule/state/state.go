@@ -25,10 +25,9 @@ type StateMgr struct {
 
 	activeRoles []uint64
 
-	height uint64 // next block height
-	epoch  uint64 // logical time
-	msgNum uint16 // applied msg number of current height
-
+	msgNum        uint16           // applied msg number of current height
+	height        uint64           // next block height
+	slot          uint64           // logical time
 	chalEpoch     uint64           // next epoch
 	chalEpochInfo *types.ChalEpoch // chal epoch
 	root          types.MsgID      // for verify
@@ -36,7 +35,6 @@ type StateMgr struct {
 	sInfo         map[uint64]*segPerUser // key: userID
 	rInfo         map[uint64]*roleInfo
 
-	validateHeight        uint64
 	validateChalEpoch     uint64
 	validateChalEpochInfo *types.ChalEpoch
 	validateRoot          types.MsgID
@@ -82,7 +80,7 @@ func (s *StateMgr) load() {
 	val, err := s.ds.Get(key)
 	if err == nil && len(val) >= 18 {
 		s.height = binary.BigEndian.Uint64(val[:8])
-		s.epoch = binary.BigEndian.Uint64(val[8:16])
+		s.slot = binary.BigEndian.Uint64(val[8:16])
 		s.msgNum = binary.BigEndian.Uint16(val[16:])
 	}
 
@@ -156,8 +154,8 @@ func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
 		return s.root, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
 	}
 
-	if blk.Epoch <= s.epoch {
-		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Epoch, s.epoch)
+	if blk.Slot <= s.slot {
+		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.slot)
 	}
 
 	b, err := blk.RawHeader.Serialize()
@@ -166,13 +164,13 @@ func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
 	}
 
 	s.height++
-	s.epoch = blk.Epoch
+	s.slot = blk.Slot
 	s.msgNum = uint16(len(blk.Txs))
 
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 	buf := make([]byte, 18)
 	binary.BigEndian.PutUint64(buf[:8], s.height)
-	binary.BigEndian.PutUint64(buf[8:16], s.epoch)
+	binary.BigEndian.PutUint64(buf[8:16], s.slot)
 	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
 	s.ds.Put(key, buf)
 
@@ -213,7 +211,7 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
 	buf := make([]byte, 18)
 	binary.BigEndian.PutUint64(buf[:8], s.height)
-	binary.BigEndian.PutUint64(buf[8:16], s.epoch)
+	binary.BigEndian.PutUint64(buf[8:16], s.slot)
 	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
 	s.ds.Put(key, buf)
 

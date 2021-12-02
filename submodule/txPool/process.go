@@ -180,14 +180,14 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 		return nil, err
 	}
 
-	appliedHeight, appliedEpoch, _ := mp.state.GetHeight()
+	appliedHeight, appliedSlot, _ := mp.state.GetHeight()
 	if appliedHeight != lh {
 		logger.Debug("create block state height is not equal")
 	}
 
 	nt := time.Now().Unix()
-	epoch := uint64(nt-build.BaseTime) / 30
-	if appliedEpoch >= epoch {
+	slot := uint64(nt-build.BaseTime) / 30
+	if appliedSlot >= slot {
 		return nil, xerrors.Errorf("create new block time is not up")
 	}
 
@@ -198,7 +198,7 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 			RawHeader: tx.RawHeader{
 				Version: 1,
 				Height:  rh,
-				Epoch:   epoch,
+				Slot:    slot,
 				MinerID: mp.localID,
 				PrevID:  bid,
 				Time:    time.Now(),

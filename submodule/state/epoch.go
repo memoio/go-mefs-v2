@@ -27,14 +27,14 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.chalEpochInfo.Seed)
 	}
 
-	if s.height-s.chalEpochInfo.Height < build.DefaultChalDuration {
+	if s.slot-s.chalEpochInfo.Slot < build.DefaultChalDuration {
 		return xerrors.Errorf("add chal epoch err: duration is wrong")
 	}
 
 	s.chalEpoch++
 	s.chalEpochInfo.Seed = types.NewMsgID(msg.Params)
 	s.chalEpochInfo.Epoch = sep.Epoch
-	s.chalEpochInfo.Height = s.height - 1
+	s.chalEpochInfo.Slot = s.slot
 
 	// store
 	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, s.chalEpochInfo.Epoch)
@@ -67,14 +67,14 @@ func (s *StateMgr) canUpdateChalEpoch(msg *tx.Message) error {
 		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.validateChalEpochInfo.Seed)
 	}
 
-	if s.validateHeight-s.validateChalEpochInfo.Height < build.DefaultChalDuration {
+	if s.slot-s.validateChalEpochInfo.Slot < build.DefaultChalDuration {
 		return xerrors.Errorf("add chal epoch err: duration is wrong")
 	}
 
 	s.validateChalEpoch++
 	s.validateChalEpochInfo.Seed = types.NewMsgID(msg.Params)
 	s.validateChalEpochInfo.Epoch = sep.Epoch
-	s.validateChalEpochInfo.Height = s.validateHeight - 1
+	s.validateChalEpochInfo.Slot = s.slot
 
 	return nil
 }

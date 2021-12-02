@@ -10,10 +10,9 @@ import (
 
 func (s *StateMgr) reset() {
 	s.validateRoot = s.root
-	s.validateHeight = s.height
 	s.validateChalEpoch = s.chalEpoch
 	s.validateChalEpochInfo.Epoch = s.chalEpochInfo.Epoch
-	s.validateChalEpochInfo.Height = s.chalEpochInfo.Height
+	s.validateChalEpochInfo.Slot = s.chalEpochInfo.Slot
 	s.validateChalEpochInfo.Seed = s.chalEpochInfo.Seed
 
 	s.validateOInfo = make(map[orderKey]*orderInfo)
@@ -39,6 +38,10 @@ func (s *StateMgr) ValidateBlock(blk *tx.Block) (types.MsgID, error) {
 
 	if blk.Height != s.height {
 		return s.validateRoot, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
+	}
+
+	if blk.Slot <= s.slot {
+		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.slot)
 	}
 
 	b, err := blk.RawHeader.Serialize()

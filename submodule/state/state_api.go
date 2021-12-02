@@ -29,7 +29,7 @@ func (s *StateMgr) GetHeight() (uint64, uint64, uint16) {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.height, s.epoch, s.msgNum
+	return s.height, s.slot, s.msgNum
 }
 
 func (s *StateMgr) GetPublicKey(userID uint64) (pdpcommon.PublicKey, error) {
@@ -82,9 +82,9 @@ func (s *StateMgr) GetChalEpochInfo() *types.ChalEpoch {
 	defer s.RUnlock()
 
 	return &types.ChalEpoch{
-		Epoch:  s.chalEpochInfo.Epoch,
-		Height: s.chalEpochInfo.Height,
-		Seed:   s.chalEpochInfo.Seed,
+		Epoch: s.chalEpochInfo.Epoch,
+		Slot:  s.chalEpochInfo.Slot,
+		Seed:  s.chalEpochInfo.Seed,
 	}
 }
 

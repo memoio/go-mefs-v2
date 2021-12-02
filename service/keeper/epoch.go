@@ -17,12 +17,12 @@ func (k *KeeperNode) updateEpoch() {
 		case <-k.ctx.Done():
 			return
 		case <-ticker.C:
-			h, _, _ := k.StateDB.GetHeight()
+			_, slot, _ := k.StateDB.GetHeight()
 			ne := k.StateDB.GetChalEpoch()
 			ce := k.StateDB.GetChalEpochInfo()
-			if ce.Height < h && h-ce.Height > build.DefaultChalDuration {
+			if ce.Slot < slot && slot-ce.Slot > build.DefaultChalDuration {
 				// update
-				logger.Debug("update epoch to: ", ce.Epoch, ne, ce.Height, h)
+				logger.Debug("update epoch to: ", ce.Epoch, ne, ce.Slot, slot)
 				ep := tx.SignedEpochParams{
 					EpochParams: tx.EpochParams{
 						Epoch: ne,
