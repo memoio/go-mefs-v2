@@ -5,8 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"golang.org/x/xerrors"
 )
 
 type mesWithID struct {
@@ -57,7 +59,7 @@ func (mp *InPool) Start() {
 }
 
 func (mp *InPool) sync() {
-	tc := time.NewTicker(30 * time.Second)
+	tc := time.NewTicker(3 * time.Second)
 	defer tc.Stop()
 
 	for {
@@ -66,7 +68,6 @@ func (mp *InPool) sync() {
 			logger.Debug("process block done")
 			return
 		case m := <-mp.msgChan:
-
 			id, err := m.Hash()
 			if err != nil {
 				continue
@@ -94,6 +95,7 @@ func (mp *InPool) sync() {
 		case <-tc.C:
 			tb, err := mp.createBlock()
 			if err != nil {
+				logger.Debug("create block err: ", err)
 				continue
 			}
 
@@ -167,7 +169,7 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 	mp.Lock()
 	defer mp.Unlock()
 
-	// synced
+	// synced; should get from state
 	lh, rh := mp.GetSyncHeight(mp.ctx)
 	if lh < rh {
 		return nil, ErrLowNonce
@@ -178,11 +180,25 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 		return nil, err
 	}
 
+	appliedHeight, appliedEpoch, _ := mp.state.GetHeight()
+	if appliedHeight != lh {
+		logger.Debug("create block state height is not equal")
+	}
+
+	nt := time.Now().Unix()
+	epoch := uint64(nt-build.BaseTime) / 30
+	if appliedEpoch >= epoch {
+		return nil, xerrors.Errorf("create new block time is not up")
+	}
+
+	// check epoch > latest epoch
+
 	nbh := &tx.Block{
 		BlockHeader: tx.BlockHeader{
 			RawHeader: tx.RawHeader{
 				Version: 1,
 				Height:  rh,
+				Epoch:   epoch,
 				MinerID: mp.localID,
 				PrevID:  bid,
 				Time:    time.Now(),

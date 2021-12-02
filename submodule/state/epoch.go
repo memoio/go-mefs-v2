@@ -19,26 +19,26 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 		return err
 	}
 
-	if sep.Epoch != s.epoch {
-		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.epoch)
+	if sep.Epoch != s.chalEpoch {
+		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.chalEpoch)
 	}
 
-	if !bytes.Equal(sep.Prev.Bytes(), s.epochInfo.Seed.Bytes()) {
-		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.epochInfo.Seed)
+	if !bytes.Equal(sep.Prev.Bytes(), s.chalEpochInfo.Seed.Bytes()) {
+		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.chalEpochInfo.Seed)
 	}
 
-	if s.height-s.epochInfo.Height < build.DefaultChalDuration {
+	if s.height-s.chalEpochInfo.Height < build.DefaultChalDuration {
 		return xerrors.Errorf("add chal epoch err: duration is wrong")
 	}
 
-	s.epoch++
-	s.epochInfo.Seed = types.NewMsgID(msg.Params)
-	s.epochInfo.Epoch = sep.Epoch
-	s.epochInfo.Height = s.height - 1
+	s.chalEpoch++
+	s.chalEpochInfo.Seed = types.NewMsgID(msg.Params)
+	s.chalEpochInfo.Epoch = sep.Epoch
+	s.chalEpochInfo.Height = s.height - 1
 
 	// store
-	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, s.epochInfo.Epoch)
-	data, err := s.epochInfo.Serialize()
+	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, s.chalEpochInfo.Epoch)
+	data, err := s.chalEpochInfo.Serialize()
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 
 	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
 	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, s.epoch)
+	binary.BigEndian.PutUint64(buf, s.chalEpoch)
 	s.ds.Put(key, buf)
 
 	return nil
@@ -59,22 +59,22 @@ func (s *StateMgr) canUpdateChalEpoch(msg *tx.Message) error {
 		return err
 	}
 
-	if sep.Epoch != s.validateEpoch {
-		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.validateEpoch)
+	if sep.Epoch != s.validateChalEpoch {
+		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.validateChalEpoch)
 	}
 
-	if !bytes.Equal(sep.Prev.Bytes(), s.validateEpochInfo.Seed.Bytes()) {
-		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.validateEpochInfo.Seed)
+	if !bytes.Equal(sep.Prev.Bytes(), s.validateChalEpochInfo.Seed.Bytes()) {
+		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.validateChalEpochInfo.Seed)
 	}
 
-	if s.validateHeight-s.validateEpochInfo.Height < build.DefaultChalDuration {
+	if s.validateHeight-s.validateChalEpochInfo.Height < build.DefaultChalDuration {
 		return xerrors.Errorf("add chal epoch err: duration is wrong")
 	}
 
-	s.validateEpoch++
-	s.validateEpochInfo.Seed = types.NewMsgID(msg.Params)
-	s.validateEpochInfo.Epoch = sep.Epoch
-	s.validateEpochInfo.Height = s.validateHeight - 1
+	s.validateChalEpoch++
+	s.validateChalEpochInfo.Seed = types.NewMsgID(msg.Params)
+	s.validateChalEpochInfo.Epoch = sep.Epoch
+	s.validateChalEpochInfo.Height = s.validateHeight - 1
 
 	return nil
 }

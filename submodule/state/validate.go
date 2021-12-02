@@ -11,10 +11,10 @@ import (
 func (s *StateMgr) reset() {
 	s.validateRoot = s.root
 	s.validateHeight = s.height
-	s.validateEpoch = s.epoch
-	s.validateEpochInfo.Epoch = s.epochInfo.Epoch
-	s.validateEpochInfo.Height = s.epochInfo.Height
-	s.validateEpochInfo.Seed = s.epochInfo.Seed
+	s.validateChalEpoch = s.chalEpoch
+	s.validateChalEpochInfo.Epoch = s.chalEpochInfo.Epoch
+	s.validateChalEpochInfo.Height = s.chalEpochInfo.Height
+	s.validateChalEpochInfo.Seed = s.chalEpochInfo.Seed
 
 	s.validateOInfo = make(map[orderKey]*orderInfo)
 	s.validateSInfo = make(map[uint64]*segPerUser)

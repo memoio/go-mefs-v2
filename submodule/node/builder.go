@@ -215,15 +215,12 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, err
 	}
 
-	sp := txPool.NewSyncPool(ctx, id, nd.MetaStore(), txs, rm, cs)
+	// use a different state store
+	nd.StateDB = state.NewStateMgr(nd.StateStore(), rm)
+
+	sp := txPool.NewSyncPool(ctx, id, nd.StateDB, nd.MetaStore(), txs, rm, cs)
 
 	nd.PPool = txPool.NewPushPool(ctx, sp)
-
-	nd.StateDB = state.NewStateMgr(nd.MetaStore(), rm)
-
-	// register apply msg
-	nd.PPool.RegisterMsgFunc(nd.StateDB.AppleyMsg)
-	nd.PPool.RegisterBlockFunc(nd.StateDB.ApplyBlock)
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
 

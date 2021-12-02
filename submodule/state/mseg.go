@@ -236,7 +236,7 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 		return err
 	}
 
-	key = store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID, s.epoch)
+	key = store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID, s.chalEpoch)
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err

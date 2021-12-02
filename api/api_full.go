@@ -140,7 +140,7 @@ type IChain interface {
 
 type IState interface {
 	GetRoot() types.MsgID
-	GetHeight() uint64
+	GetHeight() (uint64, uint64, uint16)
 
 	GetPublicKey(userID uint64) (pdpcommon.PublicKey, error)
 

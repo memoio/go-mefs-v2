@@ -25,39 +25,42 @@ type StateMgr struct {
 
 	activeRoles []uint64
 
-	height    uint64           // next block height
-	epoch     uint64           // next epoch
-	epochInfo *types.ChalEpoch // chal epoch
-	root      types.MsgID      // for verify
-	oInfo     map[orderKey]*orderInfo
-	sInfo     map[uint64]*segPerUser // key: userID
-	rInfo     map[uint64]*roleInfo
+	height uint64 // next block height
+	epoch  uint64 // logical time
+	msgNum uint16 // applied msg number of current height
 
-	validateHeight    uint64
-	validateEpoch     uint64
-	validateEpochInfo *types.ChalEpoch
-	validateRoot      types.MsgID
-	validateOInfo     map[orderKey]*orderInfo
-	validateSInfo     map[uint64]*segPerUser
-	validateRInfo     map[uint64]*roleInfo
+	chalEpoch     uint64           // next epoch
+	chalEpochInfo *types.ChalEpoch // chal epoch
+	root          types.MsgID      // for verify
+	oInfo         map[orderKey]*orderInfo
+	sInfo         map[uint64]*segPerUser // key: userID
+	rInfo         map[uint64]*roleInfo
+
+	validateHeight        uint64
+	validateChalEpoch     uint64
+	validateChalEpochInfo *types.ChalEpoch
+	validateRoot          types.MsgID
+	validateOInfo         map[orderKey]*orderInfo
+	validateSInfo         map[uint64]*segPerUser
+	validateRInfo         map[uint64]*roleInfo
 
 	hauf HandleAddUserFunc
 }
 
 func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 	s := &StateMgr{
-		IRole:             ir,
-		ds:                ds,
-		height:            0,
-		activeRoles:       make([]uint64, 0, 16),
-		root:              beginRoot,
-		validateRoot:      beginRoot,
-		epoch:             0,
-		epochInfo:         newChalEpoch(),
-		validateEpochInfo: newChalEpoch(),
-		oInfo:             make(map[orderKey]*orderInfo),
-		sInfo:             make(map[uint64]*segPerUser),
-		rInfo:             make(map[uint64]*roleInfo),
+		IRole:                 ir,
+		ds:                    ds,
+		height:                0,
+		activeRoles:           make([]uint64, 0, 16),
+		root:                  beginRoot,
+		validateRoot:          beginRoot,
+		chalEpoch:             0,
+		chalEpochInfo:         newChalEpoch(),
+		validateChalEpochInfo: newChalEpoch(),
+		oInfo:                 make(map[orderKey]*orderInfo),
+		sInfo:                 make(map[uint64]*segPerUser),
+		rInfo:                 make(map[uint64]*roleInfo),
 	}
 
 	s.load()
@@ -74,11 +77,13 @@ func (s *StateMgr) RegisterAddUserFunc(h HandleAddUserFunc) {
 func (s *StateMgr) load() {
 	// load keepers
 
-	// load block height
+	// load block height, epoch and uncompleted msgs
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 	val, err := s.ds.Get(key)
-	if err == nil && len(val) >= 8 {
-		s.height = binary.BigEndian.Uint64(val)
+	if err == nil && len(val) >= 18 {
+		s.height = binary.BigEndian.Uint64(val[:8])
+		s.epoch = binary.BigEndian.Uint64(val[8:16])
+		s.msgNum = binary.BigEndian.Uint16(val[16:])
 	}
 
 	// load root
@@ -88,6 +93,7 @@ func (s *StateMgr) load() {
 		rt, err := types.FromBytes(val)
 		if err == nil {
 			s.root = rt
+			s.validateRoot = rt
 		}
 	}
 
@@ -95,18 +101,18 @@ func (s *StateMgr) load() {
 	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 8 {
-		s.epoch = binary.BigEndian.Uint64(val)
+		s.chalEpoch = binary.BigEndian.Uint64(val)
 	}
 
-	if s.epoch == 0 {
+	if s.chalEpoch == 0 {
 		return
 	}
 
 	// load current chal
-	key = store.NewKey(pb.MetaType_ST_ChalEpochKey, s.epoch-1)
+	key = store.NewKey(pb.MetaType_ST_ChalEpochKey, s.chalEpoch-1)
 	val, err = s.ds.Get(key)
 	if err == nil {
-		s.epochInfo.Deserialize(val)
+		s.chalEpochInfo.Deserialize(val)
 	}
 }
 
@@ -150,16 +156,27 @@ func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
 		return s.root, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
 	}
 
+	if blk.Epoch <= s.epoch {
+		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Epoch, s.epoch)
+	}
+
 	b, err := blk.RawHeader.Serialize()
 	if err != nil {
 		return s.root, err
 	}
 
 	s.height++
+	s.epoch = blk.Epoch
+	s.msgNum = uint16(len(blk.Txs))
 
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, s.height)
+	buf := make([]byte, 18)
+	binary.BigEndian.PutUint64(buf[:8], s.height)
+	binary.BigEndian.PutUint64(buf[8:16], s.epoch)
+	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
+	s.ds.Put(key, buf)
+
+	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
 	s.ds.Put(key, buf)
 
 	s.newRoot(b)
@@ -173,8 +190,10 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 	}
 
 	logger.Debug("block apply message:", msg.From, msg.Nonce, msg.Method, s.root)
+
 	s.Lock()
 	defer s.Unlock()
+
 	ri, ok := s.rInfo[msg.From]
 	if !ok {
 		ri = &roleInfo{
@@ -189,6 +208,14 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 	ri.Nonce++
 	s.saveNonce(msg.From, ri.Nonce)
 	s.newRoot(msg.Params)
+
+	s.msgNum--
+	key := store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
+	buf := make([]byte, 18)
+	binary.BigEndian.PutUint64(buf[:8], s.height)
+	binary.BigEndian.PutUint64(buf[8:16], s.epoch)
+	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
+	s.ds.Put(key, buf)
 
 	// not apply wrong message; but update its nonce
 	if tr.Err != 0 {

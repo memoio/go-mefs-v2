@@ -23,8 +23,8 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return err
 	}
 
-	if scp.Epoch != s.epochInfo.Epoch {
-		return xerrors.Errorf("wrong challenge epoch, expectd %d, got %d", s.epochInfo.Epoch, scp.Epoch)
+	if scp.Epoch != s.chalEpochInfo.Epoch {
+		return xerrors.Errorf("wrong challenge epoch, expectd %d, got %d", s.chalEpochInfo.Epoch, scp.Epoch)
 	}
 
 	okey := orderKey{
@@ -42,9 +42,9 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("challeng proof submitted or missed at %d", scp.Epoch)
 	}
 
-	buf := make([]byte, 8+len(s.epochInfo.Seed.Bytes()))
+	buf := make([]byte, 8+len(s.chalEpochInfo.Seed.Bytes()))
 	binary.BigEndian.PutUint64(buf[:8], okey.userID)
-	copy(buf[8:], s.epochInfo.Seed.Bytes())
+	copy(buf[8:], s.chalEpochInfo.Seed.Bytes())
 	bh := blake3.Sum256(buf)
 
 	uinfo, ok := s.sInfo[okey.userID]
@@ -160,8 +160,8 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		return err
 	}
 
-	if scp.Epoch != s.validateEpochInfo.Epoch {
-		return xerrors.Errorf("wrong challenge epoch, expectd %d, got %d", s.epochInfo.Epoch, scp.Epoch)
+	if scp.Epoch != s.validateChalEpochInfo.Epoch {
+		return xerrors.Errorf("wrong challenge epoch, expectd %d, got %d", s.validateChalEpochInfo.Epoch, scp.Epoch)
 	}
 
 	okey := orderKey{
@@ -179,9 +179,9 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("challeng proof submitted or missed at %d", scp.Epoch)
 	}
 
-	buf := make([]byte, 8+len(s.epochInfo.Seed.Bytes()))
+	buf := make([]byte, 8+len(s.chalEpochInfo.Seed.Bytes()))
 	binary.BigEndian.PutUint64(buf[:8], okey.userID)
-	copy(buf[8:], s.epochInfo.Seed.Bytes())
+	copy(buf[8:], s.chalEpochInfo.Seed.Bytes())
 	bh := blake3.Sum256(buf)
 
 	uinfo, ok := s.validateSInfo[okey.userID]

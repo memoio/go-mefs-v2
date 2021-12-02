@@ -128,7 +128,7 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	}
 
 	// save for challenge
-	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID, s.epoch)
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID, s.chalEpoch)
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err
@@ -290,7 +290,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		return err
 	}
 
-	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID, s.epoch)
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID, s.chalEpoch)
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err

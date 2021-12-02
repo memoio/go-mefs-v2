@@ -25,11 +25,11 @@ func (s *StateMgr) GetRoot() types.MsgID {
 	return s.root
 }
 
-func (s *StateMgr) GetHeight() uint64 {
+func (s *StateMgr) GetHeight() (uint64, uint64, uint16) {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.height
+	return s.height, s.epoch, s.msgNum
 }
 
 func (s *StateMgr) GetPublicKey(userID uint64) (pdpcommon.PublicKey, error) {
@@ -74,7 +74,7 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 func (s *StateMgr) GetChalEpoch() uint64 {
 	s.RLock()
 	defer s.RUnlock()
-	return s.epoch
+	return s.chalEpoch
 }
 
 func (s *StateMgr) GetChalEpochInfo() *types.ChalEpoch {
@@ -82,9 +82,9 @@ func (s *StateMgr) GetChalEpochInfo() *types.ChalEpoch {
 	defer s.RUnlock()
 
 	return &types.ChalEpoch{
-		Epoch:  s.epochInfo.Epoch,
-		Height: s.epochInfo.Height,
-		Seed:   s.epochInfo.Seed,
+		Epoch:  s.chalEpochInfo.Epoch,
+		Height: s.chalEpochInfo.Height,
+		Seed:   s.chalEpochInfo.Seed,
 	}
 }
 

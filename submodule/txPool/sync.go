@@ -16,6 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/state"
 )
 
 type SyncedBlock struct {
@@ -31,6 +32,8 @@ type SyncPool struct {
 	api.IRole
 	tx.Store
 
+	state *state.StateMgr
+
 	ctx context.Context
 	ds  store.KVStore
 
@@ -43,9 +46,6 @@ type SyncPool struct {
 
 	syncChan chan struct{}
 
-	hmf HandlerMessageFunc
-	hbf HandlerBlockFunc
-
 	ready bool
 
 	msgDone chan *tx.MessageDigest
@@ -57,11 +57,13 @@ type SyncPool struct {
 }
 
 // sync
-func NewSyncPool(ctx context.Context, roleID uint64, ds store.KVStore, ts tx.Store, ir api.IRole, ins api.INetService) *SyncPool {
+func NewSyncPool(ctx context.Context, roleID uint64, st *state.StateMgr, ds store.KVStore, ts tx.Store, ir api.IRole, ins api.INetService) *SyncPool {
 	sp := &SyncPool{
 		INetService: ins,
 		IRole:       ir,
 		Store:       ts,
+
+		state: st,
 
 		ds:  ds,
 		ctx: ctx,
@@ -96,13 +98,13 @@ func (sp *SyncPool) SetReady() {
 }
 
 func (sp *SyncPool) load() {
-	key := store.NewKey(pb.MetaType_Tx_BlockSyncedKey)
-	val, err := sp.ds.Get(key)
-	if err == nil && len(val) >= 8 {
-		sp.nextHeight = binary.BigEndian.Uint64(val)
-		sp.remoteHeight = sp.nextHeight
+	// todo: handle case if msglen > 0
+	ht, _, msglen := sp.state.GetHeight()
+	if msglen != 0 {
+		logger.Warn("state is incomplet at: ", ht, msglen)
 	}
-
+	sp.nextHeight = ht
+	sp.remoteHeight = ht
 	if sp.nextHeight == 0 {
 		sp.PutTxBlockHeight(math.MaxUint64, build.GenesisBlockID("test"))
 	}
@@ -114,8 +116,6 @@ func (sp *SyncPool) syncBlock() {
 	tc := time.NewTicker(10 * time.Second)
 	defer tc.Stop()
 
-	key := store.NewKey(pb.MetaType_Tx_BlockSyncedKey)
-	buf := make([]byte, 8)
 	for {
 		select {
 		case <-sp.ctx.Done():
@@ -181,11 +181,6 @@ func (sp *SyncPool) syncBlock() {
 			}
 		}
 
-		if sp.hmf == nil || sp.hbf == nil {
-			logger.Debug("regular process block need msg handle")
-			continue
-		}
-
 		logger.Debug("regular process block:", sp.nextHeight, sp.remoteHeight)
 
 		// process syncd blk
@@ -212,8 +207,6 @@ func (sp *SyncPool) syncBlock() {
 			}
 			sp.nextHeight++
 			sp.Unlock()
-			binary.BigEndian.PutUint64(buf, i+1)
-			sp.ds.Put(key, buf)
 		}
 
 		sp.Lock()
@@ -226,7 +219,7 @@ func (sp *SyncPool) syncBlock() {
 
 func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 	logger.Debug("process block:", sb.blk.Height)
-	oRoot, err := sp.hmf(nil, nil)
+	oRoot, err := sp.state.AppleyMsg(nil, nil)
 	if err != nil {
 		return err
 	}
@@ -235,7 +228,7 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.blk.ParentRoot)
 	}
 
-	newRoot, err := sp.hbf(sb.blk)
+	newRoot, err := sp.state.ApplyBlock(sb.blk)
 	if err != nil {
 		return err
 	}
@@ -260,7 +253,7 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		sp.nonce[tx.From] = tx.Nonce + 1
 
 		// apply message
-		newRoot, err = sp.hmf(sb.msg[i], &sb.blk.Receipts[i])
+		newRoot, err = sp.state.AppleyMsg(sb.msg[i], &sb.blk.Receipts[i])
 		if err != nil {
 			// should not; todo
 			logger.Error("fail to apply message: ", err, newRoot)
@@ -280,7 +273,7 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.blk.Root)
 	}
 
-	newRoot, err = sp.hbf(nil)
+	newRoot, err = sp.state.ApplyBlock(nil)
 	if err != nil {
 		return err
 	}
@@ -454,18 +447,6 @@ func (sp *SyncPool) GetTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
 
 	logger.Debug("get tx msg from remote: ", mid)
 	return sm, sp.AddTxMsg(sp.ctx, sm)
-}
-
-func (sp *SyncPool) RegisterBlockFunc(h HandlerBlockFunc) {
-	sp.Lock()
-	sp.hbf = h
-	sp.Unlock()
-}
-
-func (sp *SyncPool) RegisterMsgFunc(h HandlerMessageFunc) {
-	sp.Lock()
-	sp.hmf = h
-	sp.Unlock()
 }
 
 func (sp *SyncPool) getRoleInfoRemote(roleID uint64) {
