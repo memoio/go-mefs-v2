@@ -22,14 +22,16 @@ var (
 const (
 	DataTxErr MsgType = iota
 
-	UpdateEpoch  // next epoch, by keeper
-	CreateFs     // register, by user
-	CreateBucket // by user
-	DataPreOrder // by user
-	DataOrder    // contain piece and segment; by user
-	SegmentProof // segment proof; by provider
-	SegmentFault // segment remove; by provider
-	PostIncome   // add post income for provider; by keeper
+	UpdateChalEpoch // next epoch, by keeper
+	AddRole         // by each role
+	CreateFs        // register, by user
+	CreateBucket    // by user
+	DataPreOrder    // by user
+	DataOrder       // contain piece and segment; by user
+	SegmentProof    // segment proof; by provider
+	SegmentFault    // segment remove; by provider
+	PostIncome      // add post income for provider; by keeper
+
 )
 
 // MsgID(message) as key

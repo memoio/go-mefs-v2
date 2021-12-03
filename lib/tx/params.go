@@ -1,6 +1,8 @@
 package tx
 
 import (
+	"math/big"
+
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -57,8 +59,12 @@ func (sep *SignedEpochParams) Deserialize(b []byte) error {
 }
 
 type SegChalParams struct {
-	Epoch uint64
-	Proof []byte
+	Epoch      uint64
+	OrderStart uint64
+	OrderEnd   uint64
+	Size       uint64
+	Price      *big.Int
+	Proof      []byte
 }
 
 func (scp *SegChalParams) Serialize() ([]byte, error) {

@@ -76,6 +76,11 @@ func (k *KeeperNode) Start() error {
 	k.inp.RegisterValidateBlockFunc(k.StateDB.ValidateBlock)
 	k.inp.Start()
 
+	err := k.Register()
+	if err != nil {
+		return err
+	}
+
 	go k.updateEpoch()
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))

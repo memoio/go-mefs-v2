@@ -49,7 +49,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl)
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PPool, bn.RoleMgr, bn.NetServiceImpl, ids)
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PPool, bn.RoleMgr, bn.NetServiceImpl, ids, bn.StateDB)
 
 	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {
@@ -89,7 +89,13 @@ func (u *UserNode) Start() error {
 		}
 	}
 
-	// start lfs service
+	// wait for register
+	err := u.Register()
+	if err != nil {
+		return err
+	}
+
+	// start lfs service and its ordermgr service
 	u.LfsService.Start()
 
 	logger.Info("start user for: ", u.RoleID())

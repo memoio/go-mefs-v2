@@ -52,7 +52,7 @@ func (k *KeeperNode) updateEpoch() {
 					Version: 0,
 					From:    k.RoleID(),
 					To:      k.RoleID(),
-					Method:  tx.UpdateEpoch,
+					Method:  tx.UpdateChalEpoch,
 					Params:  data,
 				}
 

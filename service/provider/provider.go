@@ -48,8 +48,9 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl)
 
-	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids)
 	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, segStore, bn.PPool, bn.StateDB)
+
+	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids, sm)
 
 	pn := &ProviderNode{
 		BaseNode:     bn,
@@ -92,6 +93,12 @@ func (p *ProviderNode) Start() error {
 			logger.Debug("wait for sync")
 			time.Sleep(5 * time.Second)
 		}
+	}
+
+	// wait for register
+	err := p.Register()
+	if err != nil {
+		return err
 	}
 
 	p.chalSeg.Start()

@@ -23,42 +23,53 @@ type StateMgr struct {
 	// need a different store
 	ds store.KVStore
 
-	activeRoles []uint64
+	users     []uint64
+	providers []uint64
 
-	msgNum        uint16           // applied msg number of current height
-	height        uint64           // next block height
-	slot          uint64           // logical time
-	chalEpoch     uint64           // next epoch
-	chalEpochInfo *types.ChalEpoch // chal epoch
-	root          types.MsgID      // for verify
-	oInfo         map[orderKey]*orderInfo
-	sInfo         map[uint64]*segPerUser // key: userID
-	rInfo         map[uint64]*roleInfo
+	msgNum uint16 // applied msg number of current height
+	height uint64 // next block height
+	slot   uint64 // logical time
 
-	validateChalEpoch     uint64
-	validateChalEpochInfo *types.ChalEpoch
-	validateRoot          types.MsgID
-	validateOInfo         map[orderKey]*orderInfo
-	validateSInfo         map[uint64]*segPerUser
-	validateRInfo         map[uint64]*roleInfo
+	ceInfo *chalEpochInfo
+	root   types.MsgID // for verify
+	oInfo  map[orderKey]*orderInfo
+	sInfo  map[uint64]*segPerUser // key: userID
+	rInfo  map[uint64]*roleInfo
+
+	validateHeight uint64 // next block height
+	validateSlot   uint64 // logical time
+	validateCeInfo *chalEpochInfo
+	validateRoot   types.MsgID
+	validateOInfo  map[orderKey]*orderInfo
+	validateSInfo  map[uint64]*segPerUser
+	validateRInfo  map[uint64]*roleInfo
 
 	hauf HandleAddUserFunc
 }
 
 func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 	s := &StateMgr{
-		IRole:                 ir,
-		ds:                    ds,
-		height:                0,
-		activeRoles:           make([]uint64, 0, 16),
-		root:                  beginRoot,
-		validateRoot:          beginRoot,
-		chalEpoch:             0,
-		chalEpochInfo:         newChalEpoch(),
-		validateChalEpochInfo: newChalEpoch(),
-		oInfo:                 make(map[orderKey]*orderInfo),
-		sInfo:                 make(map[uint64]*segPerUser),
-		rInfo:                 make(map[uint64]*roleInfo),
+		IRole:        ir,
+		ds:           ds,
+		height:       0,
+		users:        make([]uint64, 0, 16),
+		providers:    make([]uint64, 0, 16),
+		root:         beginRoot,
+		validateRoot: beginRoot,
+		ceInfo: &chalEpochInfo{
+			epoch:    0,
+			current:  newChalEpoch(),
+			previous: newChalEpoch(),
+		},
+		oInfo: make(map[orderKey]*orderInfo),
+		sInfo: make(map[uint64]*segPerUser),
+		rInfo: make(map[uint64]*roleInfo),
+
+		validateCeInfo: &chalEpochInfo{
+			epoch:    0,
+			current:  newChalEpoch(),
+			previous: newChalEpoch(),
+		},
 	}
 
 	s.load()
@@ -99,18 +110,28 @@ func (s *StateMgr) load() {
 	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 8 {
-		s.chalEpoch = binary.BigEndian.Uint64(val)
+		s.ceInfo.epoch = binary.BigEndian.Uint64(val)
 	}
 
-	if s.chalEpoch == 0 {
+	if s.ceInfo.epoch == 0 {
 		return
 	}
 
 	// load current chal
-	key = store.NewKey(pb.MetaType_ST_ChalEpochKey, s.chalEpoch-1)
-	val, err = s.ds.Get(key)
-	if err == nil {
-		s.chalEpochInfo.Deserialize(val)
+	if s.ceInfo.epoch > 0 {
+		key = store.NewKey(pb.MetaType_ST_ChalEpochKey, s.ceInfo.epoch-1)
+		val, err = s.ds.Get(key)
+		if err == nil {
+			s.ceInfo.current.Deserialize(val)
+		}
+	}
+
+	if s.ceInfo.epoch > 1 {
+		key = store.NewKey(pb.MetaType_ST_ChalEpochKey, s.ceInfo.epoch-2)
+		val, err = s.ds.Get(key)
+		if err == nil {
+			s.ceInfo.previous.Deserialize(val)
+		}
 	}
 }
 
@@ -124,22 +145,6 @@ func (s *StateMgr) newRoot(b []byte) {
 	// store
 	key := store.NewKey(pb.MetaType_ST_RootKey)
 	s.ds.Put(key, s.root.Bytes())
-}
-
-func (s *StateMgr) loadNonce(roleID uint64) uint64 {
-	key := store.NewKey(pb.MetaType_ST_RoleInfoKey, roleID)
-	data, err := s.ds.Get(key)
-	if err == nil && len(data) >= 8 {
-		return binary.BigEndian.Uint64(data[:8])
-	}
-	return 0
-}
-
-func (s *StateMgr) saveNonce(roleID, nonce uint64) {
-	key := store.NewKey(pb.MetaType_ST_RoleInfoKey, roleID)
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, nonce)
-	s.ds.Put(key, buf)
 }
 
 func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
@@ -194,17 +199,15 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 
 	ri, ok := s.rInfo[msg.From]
 	if !ok {
-		ri = &roleInfo{
-			Nonce: s.loadNonce(msg.From),
-		}
+		ri = s.loadRole(msg.From)
 		s.rInfo[msg.From] = ri
 	}
 
-	if msg.Nonce != ri.Nonce {
-		return s.root, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.Nonce, msg.Nonce)
+	if msg.Nonce != ri.val.Nonce {
+		return s.root, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.val.Nonce, msg.Nonce)
 	}
-	ri.Nonce++
-	s.saveNonce(msg.From, ri.Nonce)
+	ri.val.Nonce++
+	s.saveVal(msg.From, ri.val)
 	s.newRoot(msg.Params)
 
 	s.msgNum--
@@ -222,6 +225,11 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 	}
 
 	switch msg.Method {
+	case tx.AddRole:
+		err := s.addRole(msg)
+		if err != nil {
+			return s.root, err
+		}
 	case tx.CreateFs:
 		err := s.addUser(msg)
 		if err != nil {
@@ -242,7 +250,7 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 		if err != nil {
 			return s.root, err
 		}
-	case tx.UpdateEpoch:
+	case tx.UpdateChalEpoch:
 		err := s.updateChalEpoch(msg)
 		if err != nil {
 			return s.root, err

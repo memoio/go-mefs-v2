@@ -111,7 +111,7 @@ func (mp *InPool) sync() {
 
 			tb.MultiSignature.Add(mp.localID, sig)
 
-			logger.Debugf("create new block at height: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, id.String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Txs))
+			logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, id.String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Txs))
 
 			mp.AddTxBlock(tb)
 
@@ -186,9 +186,9 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 	}
 
 	nt := time.Now().Unix()
-	slot := uint64(nt-build.BaseTime) / 30
+	slot := uint64(nt-build.BaseTime) / build.SlotDuration
 	if appliedSlot >= slot {
-		return nil, xerrors.Errorf("create new block time is not up")
+		return nil, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, appliedSlot)
 	}
 
 	// check epoch > latest epoch

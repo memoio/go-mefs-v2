@@ -26,6 +26,9 @@ import (
 
 // key: pb.MetaType_ST_SegProof/userID/proID; val: proof epoch
 // key: pb.MetaType_ST_SegProof/userID/proID/epoch; val: proof
+
+// for chal pay
+// key: pb.MetaType_ST_OrderDuration/userID/proID; val: order durations;
 func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	oinfo := &orderInfo{
 		ns: &types.NonceSeq{
@@ -33,10 +36,11 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 			SeqNum: 0,
 		},
 		accFr: bls.ZERO,
+		od:    new(types.OrderDuration),
 	}
 
 	// load proof
-	key := store.NewKey(pb.MetaType_ST_SegProof, userID, proID)
+	key := store.NewKey(pb.MetaType_ST_SegProofKey, userID, proID)
 	data, err := s.ds.Get(key)
 	if err == nil && len(data) >= 8 {
 		oinfo.prove = binary.BigEndian.Uint64(data[:8])
@@ -51,6 +55,12 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 
 	if oinfo.ns.Nonce == 0 {
 		return oinfo
+	}
+
+	key = store.NewKey(pb.MetaType_ST_OrderDurationKey, userID, proID)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		oinfo.od.Deserialize(data)
 	}
 
 	// load current order
@@ -94,6 +104,11 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		return xerrors.Errorf("add order nonce wrong, got %d, expected %d", or.Nonce, oinfo.ns.Nonce)
 	}
 
+	err = oinfo.od.Add(or.Start, or.End)
+	if err != nil {
+		return err
+	}
+
 	oinfo.ns.Nonce++
 	oinfo.base = or
 	// reset
@@ -116,6 +131,16 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		return err
 	}
 
+	key = store.NewKey(pb.MetaType_ST_OrderDurationKey, or.UserID, or.ProID)
+	data, err = oinfo.od.Serialize()
+	if err != nil {
+		return err
+	}
+	err = s.ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
 	// save state
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID)
 	data, err = oinfo.ns.Serialize()
@@ -128,11 +153,13 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	}
 
 	// save for challenge
-	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID, s.chalEpoch)
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID, s.ceInfo.epoch)
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err
 	}
+
+	// callback for user-pro relationgrep fa
 
 	return nil
 }
@@ -159,6 +186,11 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 
 	if or.Nonce != oinfo.ns.Nonce {
 		return xerrors.Errorf("add order nonce wrong, got %d, expected %d", or.Nonce, oinfo.ns.Nonce)
+	}
+
+	err = oinfo.od.Add(or.Start, or.End)
+	if err != nil {
+		return err
 	}
 
 	oinfo.ns.Nonce++
@@ -290,7 +322,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		return err
 	}
 
-	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID, s.chalEpoch)
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID, s.ceInfo.epoch)
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err

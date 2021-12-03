@@ -338,7 +338,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 				SegPrice:   quo.SegPrice,
 				PiecePrice: quo.PiecePrice,
 				Start:      time.Now().Unix(),
-				End:        time.Now().Unix() + 8640000,
+				End:        time.Now().Unix() + build.OrderDuration,
 			},
 			Size:  0,
 			Price: big.NewInt(0),

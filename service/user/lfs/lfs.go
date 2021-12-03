@@ -2,14 +2,12 @@ package lfs
 
 import (
 	"context"
-	"encoding/binary"
 	"sync"
 	"time"
 
 	"golang.org/x/sync/semaphore"
 
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -78,8 +76,9 @@ func (l *LfsService) Start() error {
 	l.om.Start()
 
 	has := false
-	ok, err := l.ds.Has(store.NewKey(pb.MetaType_ST_PDPPublicKey, l.userID))
-	if err != nil || !ok {
+
+	_, err := l.om.GetPublicKey(l.userID)
+	if err != nil {
 		time.Sleep(15 * time.Second)
 		logger.Debug("push create fs message for: ", l.userID)
 
@@ -122,10 +121,7 @@ func (l *LfsService) Start() error {
 	}
 
 	// load bucket
-	data, err := l.ds.Get(store.NewKey(pb.MetaType_ST_BucketOptKey, l.userID))
-	if err == nil && len(data) >= 8 {
-		l.sb.bucketVerify = binary.BigEndian.Uint64(data)
-	}
+	l.sb.bucketVerify = l.om.GetBucket(l.userID)
 
 	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
 		bu := l.sb.buckets[bid]

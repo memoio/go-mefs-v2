@@ -12,8 +12,6 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -26,6 +24,7 @@ type OrderMgr struct {
 	api.IRole
 	api.INetService
 	api.IDataService
+	api.IState
 
 	ctx context.Context
 	ds  store.KVStore
@@ -36,7 +35,7 @@ type OrderMgr struct {
 	orders map[uint64]*OrderFull // key: userID
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService, is api.IState) *OrderMgr {
 	quo := &types.Quotation{
 		ProID:      roleID,
 		TokenIndex: 1,
@@ -48,6 +47,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 		IRole:        ir,
 		IDataService: id,
 		INetService:  in,
+		IState:       is,
 
 		ctx: ctx,
 		ds:  ds,
@@ -157,8 +157,6 @@ func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	go m.getBlsPubkey(userID)
 
 	return data, nil
 }
@@ -508,23 +506,4 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 	}
 
 	return nil, ErrState
-}
-
-// need retry?
-func (m *OrderMgr) getBlsPubkey(userID uint64) (pdpcommon.PublicKey, error) {
-	// get bls publickey from local
-	logger.Debug("get pdp publickey for: ", userID)
-	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
-
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return nil, err
-	}
-	pk, err := pdp.DeserializePublicKey(val)
-	if err != nil {
-		return pk, err
-	}
-
-	logger.Debug("get pdp publickey local for: ", userID)
-	return pk, nil
 }

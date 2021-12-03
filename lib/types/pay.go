@@ -1,6 +1,10 @@
 package types
 
-import "github.com/fxamacker/cbor/v2"
+import (
+	"math/big"
+
+	"github.com/fxamacker/cbor/v2"
+)
 
 type ChalEpoch struct {
 	Epoch uint64
@@ -14,4 +18,8 @@ func (ce *ChalEpoch) Serialize() ([]byte, error) {
 
 func (ce *ChalEpoch) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, ce)
+}
+
+type PostIncome struct {
+	Value *big.Int
 }

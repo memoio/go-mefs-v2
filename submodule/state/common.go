@@ -1,13 +1,15 @@
 package state
 
 import (
+	"math/big"
+
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
-	"golang.org/x/xerrors"
 
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -18,10 +20,31 @@ var (
 )
 
 type HandleAddUserFunc func(userID uint64)
+type HandleProPayFunc func(proID uint64)
 
 // todo: add msg fee here
 type roleInfo struct {
+	base *pb.RoleInfo
+	val  *roleValue
+}
+
+type roleValue struct {
 	Nonce uint64 // msg nonce
+	Value *big.Int
+}
+
+func (rv *roleValue) Serialize() ([]byte, error) {
+	return cbor.Marshal(rv)
+}
+
+func (rv *roleValue) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, rv)
+}
+
+type chalEpochInfo struct {
+	epoch    uint64
+	current  *types.ChalEpoch
+	previous *types.ChalEpoch
 }
 
 func newChalEpoch() *types.ChalEpoch {
@@ -64,46 +87,12 @@ func (sf *seqFull) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, sf)
 }
 
-type OrderDuration struct {
-	Start []int64
-	End   []int64
-}
-
-func (od *OrderDuration) Add(start, end int64) error {
-	if start < end {
-		return xerrors.Errorf("start %d is later than end %d", start, end)
-	}
-
-	if len(od.Start) > 0 {
-		olen := len(od.Start)
-		if od.Start[olen-1] > start {
-			return xerrors.Errorf("start %d is later than previous %d", start, od.Start[olen-1])
-		}
-
-		if od.End[olen-1] > end {
-			return xerrors.Errorf("end %d is early than previous %d", end, od.End[olen-1])
-		}
-	}
-
-	od.Start = append(od.Start, start)
-	od.End = append(od.End, end)
-	return nil
-}
-
-func (od *OrderDuration) Serialize() ([]byte, error) {
-	return cbor.Marshal(od)
-}
-
-func (od *OrderDuration) Deserialize(b []byte) error {
-	return cbor.Unmarshal(b, od)
-}
-
 type orderInfo struct {
 	prove uint64 // next prove epoch
 	ns    *types.NonceSeq
 	accFr bls.Fr
 	base  *types.SignedOrder
-	od    *OrderDuration
+	od    *types.OrderDuration
 }
 
 type segPerUser struct {

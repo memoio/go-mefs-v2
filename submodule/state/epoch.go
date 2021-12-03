@@ -19,26 +19,30 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 		return err
 	}
 
-	if sep.Epoch != s.chalEpoch {
-		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.chalEpoch)
+	if sep.Epoch != s.ceInfo.epoch {
+		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.ceInfo.epoch)
 	}
 
-	if !bytes.Equal(sep.Prev.Bytes(), s.chalEpochInfo.Seed.Bytes()) {
-		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.chalEpochInfo.Seed)
+	if !bytes.Equal(sep.Prev.Bytes(), s.ceInfo.current.Seed.Bytes()) {
+		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.ceInfo.current.Seed)
 	}
 
-	if s.slot-s.chalEpochInfo.Slot < build.DefaultChalDuration {
+	if s.slot-s.ceInfo.current.Slot < build.DefaultChalDuration {
 		return xerrors.Errorf("add chal epoch err: duration is wrong")
 	}
 
-	s.chalEpoch++
-	s.chalEpochInfo.Seed = types.NewMsgID(msg.Params)
-	s.chalEpochInfo.Epoch = sep.Epoch
-	s.chalEpochInfo.Slot = s.slot
+	s.ceInfo.epoch++
+	s.ceInfo.previous.Epoch = s.ceInfo.current.Epoch
+	s.ceInfo.previous.Slot = s.ceInfo.current.Slot
+	s.ceInfo.previous.Seed = s.ceInfo.current.Seed
+
+	s.ceInfo.current.Epoch = sep.Epoch
+	s.ceInfo.current.Slot = s.slot
+	s.ceInfo.current.Seed = types.NewMsgID(msg.Params)
 
 	// store
-	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, s.chalEpochInfo.Epoch)
-	data, err := s.chalEpochInfo.Serialize()
+	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, s.ceInfo.current.Epoch)
+	data, err := s.ceInfo.current.Serialize()
 	if err != nil {
 		return err
 	}
@@ -46,7 +50,7 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 
 	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
 	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, s.chalEpoch)
+	binary.BigEndian.PutUint64(buf, s.ceInfo.epoch)
 	s.ds.Put(key, buf)
 
 	return nil
@@ -59,22 +63,26 @@ func (s *StateMgr) canUpdateChalEpoch(msg *tx.Message) error {
 		return err
 	}
 
-	if sep.Epoch != s.validateChalEpoch {
-		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.validateChalEpoch)
+	if sep.Epoch != s.validateCeInfo.epoch {
+		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.validateCeInfo.epoch)
 	}
 
-	if !bytes.Equal(sep.Prev.Bytes(), s.validateChalEpochInfo.Seed.Bytes()) {
-		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.validateChalEpochInfo.Seed)
+	if !bytes.Equal(sep.Prev.Bytes(), s.validateCeInfo.current.Seed.Bytes()) {
+		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.validateCeInfo.current.Seed)
 	}
 
-	if s.slot-s.validateChalEpochInfo.Slot < build.DefaultChalDuration {
+	if s.validateSlot-s.validateCeInfo.current.Slot < build.DefaultChalDuration {
 		return xerrors.Errorf("add chal epoch err: duration is wrong")
 	}
 
-	s.validateChalEpoch++
-	s.validateChalEpochInfo.Seed = types.NewMsgID(msg.Params)
-	s.validateChalEpochInfo.Epoch = sep.Epoch
-	s.validateChalEpochInfo.Slot = s.slot
+	s.validateCeInfo.epoch++
+	s.validateCeInfo.previous.Epoch = s.validateCeInfo.current.Epoch
+	s.validateCeInfo.previous.Slot = s.validateCeInfo.current.Slot
+	s.validateCeInfo.previous.Seed = s.validateCeInfo.current.Seed
+
+	s.validateCeInfo.current.Epoch = sep.Epoch
+	s.validateCeInfo.current.Slot = s.slot
+	s.validateCeInfo.current.Seed = types.NewMsgID(msg.Params)
 
 	return nil
 }

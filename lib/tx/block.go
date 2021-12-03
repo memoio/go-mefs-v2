@@ -46,6 +46,8 @@ type BlockHeader struct {
 	Txs      []MessageDigest
 	Receipts []Receipt
 
+	// todo: add agg signs of all tx
+
 	// state root
 	ParentRoot types.MsgID
 	Root       types.MsgID

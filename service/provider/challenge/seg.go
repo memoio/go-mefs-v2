@@ -3,12 +3,12 @@ package challenge
 import (
 	"context"
 	"encoding/binary"
+	"math/big"
 	"sync"
 	"time"
 
-	"github.com/zeebo/blake3"
-
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -17,6 +17,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/zeebo/blake3"
 )
 
 var logger = logging.Logger("pro-challenge")
@@ -72,12 +73,11 @@ func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, ss segment
 		chalChan: make(chan *chal, 8),
 	}
 
-	s.load()
-
 	return s
 }
 
 func (s *SegMgr) Start() {
+	s.load()
 	go s.regularChallenge()
 }
 
@@ -135,202 +135,6 @@ func (s *SegMgr) loadFs(userID uint64, save bool) *segInfo {
 	return si
 }
 
-func (s *SegMgr) challenge(userID uint64) {
-	logger.Debug("challenge: ", userID)
-	if s.epoch == 0 {
-		return
-	}
-	si := s.loadFs(userID, false)
-	if si.nextChal > s.eInfo.Epoch {
-		logger.Debug("challenged at: ", userID, s.eInfo.Epoch)
-		return
-	} else {
-		si.nextChal = s.eInfo.Epoch
-	}
-	if si.wait {
-		if time.Since(si.chalTime) > 10*time.Minute {
-			si.wait = false
-			logger.Debug("redo challenge at: ", userID, si.nextChal)
-		}
-		return
-	}
-
-	if s.GetProof(userID, s.localID, si.nextChal) {
-		logger.Debug("has challenged: ", userID, si.nextChal)
-		return
-	}
-
-	// get epoch info
-
-	buf := make([]byte, 8+len(s.eInfo.Seed.Bytes()))
-	binary.BigEndian.PutUint64(buf[:8], userID)
-	copy(buf[8:], s.eInfo.Seed.Bytes())
-	bh := blake3.Sum256(buf)
-
-	chal, err := pdp.NewChallenge(si.pk.VerifyKey(), bh)
-	if err != nil {
-		logger.Debug("challenge cannot create chal: ", si.nextChal)
-		return
-	}
-
-	pf, err := pdp.NewProofAggregator(si.pk, bh)
-	if err != nil {
-		logger.Debug("challenge cannot create proof: ", si.nextChal)
-		return
-	}
-
-	sid, err := segment.NewSegmentID(si.fsID, 0, 0, 0)
-	if err != nil {
-		logger.Debug("chal create seg fails:", err)
-		return
-	}
-
-	cnt := uint64(0)
-
-	// challenge routine
-	ns := s.GetOrderState(userID, s.localID, si.nextChal)
-	if ns.Nonce == 0 && ns.SeqNum == 0 {
-		logger.Debug("chal  on empty data")
-		return
-	}
-
-	if ns.Nonce > 0 {
-		if ns.SeqNum == 0 {
-			_, _, seqNum, err := s.GetOrder(userID, s.localID, ns.Nonce-1)
-			if err != nil {
-				logger.Debug("chal get order fails:", ns.Nonce-1, err)
-				return
-			}
-			ns.SeqNum = seqNum
-		}
-
-		for i := uint32(0); i < ns.SeqNum; i++ {
-			seq, accFr, err := s.GetOrderSeq(userID, s.localID, ns.Nonce-1, i)
-			if err != nil {
-				logger.Debug("chal get order seq fails:", ns.Nonce-1, i, err)
-				return
-			}
-			for _, seg := range seq.Segments {
-				sid.SetBucketID(seg.BucketID)
-				for j := seg.Start; j < seg.Start+seg.Length; j++ {
-					sid.SetStripeID(j)
-					sid.SetChunkID(seg.ChunkID)
-					segm, err := s.segStore.Get(sid)
-					if err != nil {
-						logger.Debug("challenge not have chunk for stripe: ", sid.ShortString())
-						continue
-					}
-
-					segData, _ := segm.Content()
-					segTag, _ := segm.Tags()
-
-					err = pf.Add(sid.Bytes(), segData, segTag[0])
-					if err != nil {
-						logger.Debug("challenge add to proof: ", sid.ShortString(), err)
-						continue
-					}
-					cnt++
-				}
-			}
-
-			if i == ns.SeqNum-1 {
-				chal.Add(accFr)
-			}
-		}
-	}
-
-	if ns.Nonce > 1 {
-		// todo: choose some from [0, ns.Nonce-1)
-		for i := uint64(0); i < ns.Nonce-1; i++ {
-			_, accFr, seqNum, err := s.GetOrder(userID, s.localID, ns.Nonce-1)
-			if err != nil {
-				logger.Debug("chal get order fails:", ns.Nonce-1, err)
-				return
-			}
-			chal.Add(accFr)
-
-			for i := uint32(0); i < seqNum; i++ {
-				seq, _, err := s.GetOrderSeq(userID, s.localID, ns.Nonce-1, i)
-				if err != nil {
-					logger.Debug("chal get order seq fails:", ns.Nonce-1, i, err)
-					return
-				}
-				for _, seg := range seq.Segments {
-					sid.SetBucketID(seg.BucketID)
-					for j := seg.Start; j < seg.Start+seg.Length; j++ {
-						sid.SetStripeID(j)
-						sid.SetChunkID(seg.ChunkID)
-
-						segm, err := s.segStore.Get(sid)
-						if err != nil {
-							logger.Debug("challenge not have chunk for stripe: ", sid.ShortString())
-							continue
-						}
-
-						segData, _ := segm.Content()
-						segTag, _ := segm.Tags()
-
-						err = pf.Add(sid.Bytes(), segData, segTag[0])
-						if err != nil {
-							logger.Debug("challenge add to proof: ", sid.ShortString(), err)
-							continue
-						}
-						cnt++
-					}
-				}
-			}
-		}
-	}
-
-	if cnt == 0 {
-		logger.Debug("chal has zero size: ", userID, si.nextChal)
-		return
-	}
-
-	// generate proof
-	res, err := pf.Result()
-	if err != nil {
-		logger.Debug("challenge generate proof: ", userID, err)
-		return
-	}
-
-	ok, err := si.pk.VerifyKey().VerifyProof(chal, res)
-	if err != nil {
-		logger.Debug("challenge generate wrong proof: ", userID, err)
-		return
-	}
-
-	if !ok {
-		logger.Debug("challenge generate wrong proof: ", userID)
-		return
-	}
-
-	logger.Debug("challenge create proof: ", userID, si.nextChal)
-
-	scp := &tx.SegChalParams{
-		Epoch: si.nextChal,
-		Proof: res.Serialize(),
-	}
-
-	data, err := scp.Serialize()
-	if err != nil {
-		logger.Debug("challenge serialize: ", userID, err)
-	}
-
-	// submit proof
-	msg := &tx.Message{
-		Version: 0,
-		From:    s.localID,
-		To:      si.userID,
-		Method:  tx.SegmentProof,
-		Params:  data,
-	}
-
-	si.chalTime = time.Now()
-	si.wait = true
-	s.pushMessage(msg, si.nextChal)
-}
-
 func (s *SegMgr) regularChallenge() {
 	tc := time.NewTicker(time.Minute)
 	defer tc.Stop()
@@ -375,4 +179,258 @@ func (s *SegMgr) regularChallenge() {
 			i++
 		}
 	}
+}
+
+func (s *SegMgr) challenge(userID uint64) {
+	logger.Debug("challenge: ", userID)
+	if s.epoch < 2 {
+		logger.Debug("not challenge at epoch: ", userID, s.epoch)
+		return
+	}
+	si := s.loadFs(userID, false)
+	if si.nextChal > s.eInfo.Epoch {
+		logger.Debug("challenged at: ", userID, s.eInfo.Epoch)
+		return
+	} else {
+		si.nextChal = s.eInfo.Epoch
+	}
+
+	if si.wait {
+		if time.Since(si.chalTime) > 10*time.Minute {
+			si.wait = false
+			logger.Debug("redo challenge at: ", userID, si.nextChal)
+		}
+		return
+	}
+
+	if s.GetProof(userID, s.localID, si.nextChal) {
+		logger.Debug("has challenged: ", userID, si.nextChal)
+		return
+	}
+
+	// get epoch info
+
+	buf := make([]byte, 8+len(s.eInfo.Seed.Bytes()))
+	binary.BigEndian.PutUint64(buf[:8], userID)
+	copy(buf[8:], s.eInfo.Seed.Bytes())
+	bh := blake3.Sum256(buf)
+
+	chal, err := pdp.NewChallenge(si.pk.VerifyKey(), bh)
+	if err != nil {
+		logger.Debug("challenge cannot create chal: ", userID, si.nextChal)
+		return
+	}
+
+	pf, err := pdp.NewProofAggregator(si.pk, bh)
+	if err != nil {
+		logger.Debug("challenge cannot create proof: ", userID, si.nextChal)
+		return
+	}
+
+	sid, err := segment.NewSegmentID(si.fsID, 0, 0, 0)
+	if err != nil {
+		logger.Debug("chal create seg fails:", userID, si.nextChal, err)
+		return
+	}
+
+	cnt := uint64(0)
+
+	// challenge routine
+	ns := s.GetOrderStateAt(userID, s.localID, si.nextChal)
+	if ns.Nonce == 0 && ns.SeqNum == 0 {
+		logger.Debug("chal on empty data at epoch: ", userID, si.nextChal)
+		return
+	}
+
+	pce := s.GetChalEpochInfoAt(si.nextChal - 1)
+	if pce.Slot == 0 {
+		logger.Debug("chal at wrong epoch: ", userID, si.nextChal)
+		return
+	}
+
+	chalStart := build.BaseTime + int64(pce.Slot*build.SlotDuration)
+	chalEnd := build.BaseTime + int64(s.eInfo.Slot*build.SlotDuration)
+	chalDur := chalEnd - chalStart
+	if chalDur <= 0 {
+		logger.Debug("chal at wrong epoch: ", userID, si.nextChal)
+		return
+	}
+
+	orderDur := int64(0)
+
+	price := new(big.Int)
+	totalPrice := new(big.Int)
+	totalSize := uint64(0)
+
+	if ns.Nonce > 0 {
+		so, _, _, err := s.GetOrder(userID, s.localID, ns.Nonce-1)
+		if err != nil {
+			logger.Debug("chal get order fails: ", userID, ns.Nonce-1, err)
+			return
+		}
+
+		for i := uint32(0); i < ns.SeqNum; i++ {
+			seq, accFr, err := s.GetOrderSeq(userID, s.localID, ns.Nonce-1, i)
+			if err != nil {
+				logger.Debug("chal get order seq fails: ", userID, ns.Nonce-1, i, err)
+				return
+			}
+			for _, seg := range seq.Segments {
+				sid.SetBucketID(seg.BucketID)
+				for j := seg.Start; j < seg.Start+seg.Length; j++ {
+					sid.SetStripeID(j)
+					sid.SetChunkID(seg.ChunkID)
+					segm, err := s.segStore.Get(sid)
+					if err != nil {
+						logger.Debug("challenge not have chunk for stripe: ", userID, sid.ShortString())
+						continue
+					}
+
+					segData, _ := segm.Content()
+					segTag, _ := segm.Tags()
+
+					err = pf.Add(sid.Bytes(), segData, segTag[0])
+					if err != nil {
+						logger.Debug("challenge add to proof: ", userID, sid.ShortString(), err)
+						continue
+					}
+					cnt++
+				}
+			}
+
+			if i == ns.SeqNum-1 {
+				if so.Start >= chalEnd || so.End <= chalStart {
+					logger.Debug("chal order all expired: ", userID, si.nextChal)
+					return
+
+				} else if so.Start <= chalStart && so.End >= chalEnd {
+					orderDur = chalDur
+				} else if so.Start >= chalStart && so.End >= chalEnd {
+					orderDur = chalEnd - so.Start
+				} else if so.Start <= chalStart && so.End <= chalEnd {
+					orderDur = so.End - chalStart
+				}
+				price.Set(seq.Price)
+				price.Mul(price, big.NewInt(orderDur))
+				totalPrice.Add(totalPrice, price)
+				totalSize += seq.Size
+				chal.Add(accFr)
+			}
+		}
+	}
+
+	if ns.Nonce > 1 {
+		// todo: choose some from [0, ns.Nonce-1)
+		for i := uint64(0); i < ns.Nonce-1; i++ {
+			so, accFr, seqNum, err := s.GetOrder(userID, s.localID, i)
+			if err != nil {
+				logger.Debug("chal get order fails:", userID, i, err)
+				return
+			}
+
+			if so.Start >= chalEnd || so.End <= chalStart {
+				logger.Debug("chal order expired: ", userID, si.nextChal)
+				continue
+			} else if so.Start <= chalStart && so.End >= chalEnd {
+				orderDur = chalDur
+			} else if so.Start >= chalStart && so.End >= chalEnd {
+				orderDur = chalEnd - so.Start
+			} else if so.Start <= chalStart && so.End <= chalEnd {
+				orderDur = so.End - chalStart
+			}
+
+			price.Set(so.Price)
+			price.Mul(price, big.NewInt(orderDur))
+			totalPrice.Add(totalPrice, price)
+			totalSize += so.Size
+
+			chal.Add(accFr)
+
+			for k := uint32(0); k < seqNum; k++ {
+				seq, _, err := s.GetOrderSeq(userID, s.localID, i, k)
+				if err != nil {
+					logger.Debug("chal get order seq fails:", userID, i, k, err)
+					return
+				}
+				for _, seg := range seq.Segments {
+					sid.SetBucketID(seg.BucketID)
+					for j := seg.Start; j < seg.Start+seg.Length; j++ {
+						sid.SetStripeID(j)
+						sid.SetChunkID(seg.ChunkID)
+
+						segm, err := s.segStore.Get(sid)
+						if err != nil {
+							logger.Debug("challenge not have chunk for stripe: ", userID, sid.ShortString())
+							continue
+						}
+
+						segData, _ := segm.Content()
+						segTag, _ := segm.Tags()
+
+						err = pf.Add(sid.Bytes(), segData, segTag[0])
+						if err != nil {
+							logger.Debug("challenge add to proof: ", userID, sid.ShortString(), err)
+							continue
+						}
+						cnt++
+					}
+				}
+			}
+		}
+	}
+
+	if cnt == 0 {
+		logger.Debug("chal has zero size: ", userID, si.nextChal)
+		return
+	}
+
+	if totalSize == 0 {
+		logger.Debug("chal has zero size: ", userID, si.nextChal)
+		return
+	}
+
+	// generate proof
+	res, err := pf.Result()
+	if err != nil {
+		logger.Debug("challenge generate proof: ", userID, err)
+		return
+	}
+
+	ok, err := si.pk.VerifyKey().VerifyProof(chal, res)
+	if err != nil {
+		logger.Debug("challenge generate wrong proof: ", userID, err)
+		return
+	}
+
+	if !ok {
+		logger.Debug("challenge generate wrong proof: ", userID)
+		return
+	}
+
+	logger.Debug("challenge create proof: ", userID, s.localID, si.nextChal, ns.Nonce, ns.SeqNum, cnt, totalSize, totalPrice)
+
+	scp := &tx.SegChalParams{
+		Epoch: si.nextChal,
+		Size:  totalSize,
+		Price: totalPrice,
+		Proof: res.Serialize(),
+	}
+
+	data, err := scp.Serialize()
+	if err != nil {
+		logger.Debug("challenge serialize: ", userID, err)
+	}
+
+	// submit proof
+	msg := &tx.Message{
+		Version: 0,
+		From:    s.localID,
+		To:      si.userID,
+		Method:  tx.SegmentProof,
+		Params:  data,
+	}
+
+	si.chalTime = time.Now()
+	si.wait = true
+	s.pushMessage(msg, si.nextChal)
 }

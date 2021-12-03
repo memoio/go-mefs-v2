@@ -6,8 +6,10 @@ import (
 )
 
 const (
-	DefaultSegSize      = 248 * 1024
-	DefaultChalDuration = 20
+	DefaultSegSize      = 248 * 1024 // byte
+	DefaultChalDuration = 20         // slot
+	SlotDuration        = 30         // seconds
+	OrderDuration       = 1 * 86400  // 1 days
 )
 
 var (

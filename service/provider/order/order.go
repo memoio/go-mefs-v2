@@ -62,13 +62,16 @@ type OrderFull struct {
 }
 
 func (m *OrderMgr) createOrder(op *OrderFull) *OrderFull {
-	pk, err := m.getBlsPubkey(op.userID)
+
+	pk, err := m.GetPublicKey(op.userID)
 	if err != nil {
+		logger.Warn("create order bls pk err: ", err)
 		return op
 	}
 
 	op.dv, err = pdp.NewDataVerifier(pk, nil)
 	if err != nil {
+		logger.Warn("create order data verifier err: ", err)
 		return op
 	}
 
@@ -84,21 +87,19 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		userID: userID,
 	}
 
-	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
-	val, err := m.ds.Get(key)
+	pk, err := m.GetPublicKey(userID)
 	if err == nil {
-		pk, err := pdp.DeserializePublicKey(val)
-		if err == nil {
-			logger.Debug("get pdp publickey local for: ", userID)
-			op.dv, err = pdp.NewDataVerifier(pk, nil)
-			op.fsID = pk.VerifyKey().Hash()
-			op.ready = true
+		op.dv, err = pdp.NewDataVerifier(pk, nil)
+		if err != nil {
+			return op
 		}
+		op.fsID = pk.VerifyKey().Hash()
+		op.ready = true
 	}
 
 	ns := new(NonceState)
-	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
-	val, err = m.ds.Get(key)
+	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
+	val, err := m.ds.Get(key)
 	if err != nil {
 		return op
 	}

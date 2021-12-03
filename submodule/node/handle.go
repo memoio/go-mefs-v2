@@ -63,6 +63,54 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 	return resp, nil
 }
 
+func (n *BaseNode) Register() error {
+	_, err := n.StateDB.GetRoleBaseInfo(n.RoleID())
+	if err != nil {
+		ri, err := n.RoleSelf(n.ctx)
+		if err != nil {
+			return err
+		}
+
+		data, err := proto.Marshal(ri)
+		if err != nil {
+			return err
+		}
+		msg := &tx.Message{
+			Version: 0,
+			From:    n.RoleID(),
+			To:      n.RoleID(),
+			Method:  tx.AddRole,
+			Params:  data,
+		}
+
+		for {
+			mid, err := n.PPool.PushMessage(n.ctx, msg)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
+			defer cancle()
+			for {
+				st, err := n.PPool.GetTxMsgStatus(ctx, mid)
+				if err != nil {
+					time.Sleep(10 * time.Second)
+					continue
+				}
+
+				logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+				break
+			}
+			break
+		}
+	}
+
+	logger.Debug("role is registered")
+
+	return nil
+}
+
 func (n *BaseNode) OpenTest() error {
 	ticker := time.NewTicker(11 * time.Second)
 	defer ticker.Stop()

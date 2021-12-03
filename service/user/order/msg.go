@@ -51,12 +51,7 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 }
 
 func (m *OrderMgr) loadUnfinished(of *OrderFull) {
-	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, of.localID, of.pro)
-	ns := new(types.NonceSeq)
-	data, err := m.ds.Get(key)
-	if err == nil && len(data) > 0 {
-		cbor.Unmarshal(data, ns)
-	}
+	ns := m.GetOrderState(of.localID, of.pro)
 
 	if of.nonce == 0 {
 		return
@@ -66,7 +61,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 
 	if ns.Nonce == 0 {
 		key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
-		data, err = m.ds.Get(key)
+		data, err := m.ds.Get(key)
 		if err != nil {
 			return
 		}
@@ -85,7 +80,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 
 	for ns.Nonce < of.nonce {
 		ss := new(SeqState)
-		key = store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce-1)
+		key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce-1)
 		val, err := m.ds.Get(key)
 		if err != nil {
 			return
@@ -111,8 +106,8 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 			m.msgChan <- msg
 		}
 
-		key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
-		data, err = m.ds.Get(key)
+		key = store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
+		data, err := m.ds.Get(key)
 		if err != nil {
 			return
 		}
@@ -130,7 +125,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 	}
 
 	ss := new(SeqState)
-	key = store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce-1)
+	key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce-1)
 	val, err := m.ds.Get(key)
 	if err != nil {
 		return
@@ -162,7 +157,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 
 	if of.orderState >= Order_Running {
 		key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
-		data, err = m.ds.Get(key)
+		data, err := m.ds.Get(key)
 		if err != nil {
 			return
 		}

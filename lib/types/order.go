@@ -7,6 +7,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
@@ -142,4 +143,38 @@ func (os *SignedOrderSeq) Serialize() ([]byte, error) {
 
 func (os *SignedOrderSeq) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, os)
+}
+
+type OrderDuration struct {
+	Start []int64
+	End   []int64
+}
+
+func (od *OrderDuration) Add(start, end int64) error {
+	if start >= end {
+		return xerrors.Errorf("start %d is later than end %d", start, end)
+	}
+
+	if len(od.Start) > 0 {
+		olen := len(od.Start)
+		if od.Start[olen-1] > start {
+			return xerrors.Errorf("start %d is later than previous %d", start, od.Start[olen-1])
+		}
+
+		if od.End[olen-1] > end {
+			return xerrors.Errorf("end %d is early than previous %d", end, od.End[olen-1])
+		}
+	}
+
+	od.Start = append(od.Start, start)
+	od.End = append(od.End, end)
+	return nil
+}
+
+func (od *OrderDuration) Serialize() ([]byte, error) {
+	return cbor.Marshal(od)
+}
+
+func (od *OrderDuration) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, od)
 }

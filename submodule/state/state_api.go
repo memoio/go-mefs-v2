@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/binary"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
@@ -32,6 +33,22 @@ func (s *StateMgr) GetHeight() (uint64, uint64, uint16) {
 	return s.height, s.slot, s.msgNum
 }
 
+func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
+	pri := new(pb.RoleInfo)
+	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, userID)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return pri, err
+	}
+
+	err = proto.Unmarshal(data, pri)
+	if err != nil {
+		return pri, err
+	}
+
+	return pri, nil
+}
+
 func (s *StateMgr) GetPublicKey(userID uint64) (pdpcommon.PublicKey, error) {
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
 	data, err := s.ds.Get(key)
@@ -40,6 +57,16 @@ func (s *StateMgr) GetPublicKey(userID uint64) (pdpcommon.PublicKey, error) {
 	}
 
 	return pdp.DeserializePublicKey(data)
+}
+
+func (s *StateMgr) GetBucket(userID uint64) uint64 {
+	key := store.NewKey(pb.MetaType_ST_BucketOptKey, userID)
+	data, err := s.ds.Get(key)
+	if err == nil && len(data) >= 8 {
+		return binary.BigEndian.Uint64(data)
+	}
+
+	return 0
 }
 
 func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
@@ -60,7 +87,7 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 	}
 	s.RUnlock()
 
-	key := store.NewKey(pb.MetaType_ST_SegProof, userID, proID)
+	key := store.NewKey(pb.MetaType_ST_SegProofKey, userID, proID)
 	data, err := s.ds.Get(key)
 	if err == nil && len(data) >= 8 {
 		if binary.BigEndian.Uint64(data[:8]) > epoch {
@@ -74,7 +101,7 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 func (s *StateMgr) GetChalEpoch() uint64 {
 	s.RLock()
 	defer s.RUnlock()
-	return s.chalEpoch
+	return s.ceInfo.epoch
 }
 
 func (s *StateMgr) GetChalEpochInfo() *types.ChalEpoch {
@@ -82,13 +109,50 @@ func (s *StateMgr) GetChalEpochInfo() *types.ChalEpoch {
 	defer s.RUnlock()
 
 	return &types.ChalEpoch{
-		Epoch: s.chalEpochInfo.Epoch,
-		Slot:  s.chalEpochInfo.Slot,
-		Seed:  s.chalEpochInfo.Seed,
+		Epoch: s.ceInfo.current.Epoch,
+		Slot:  s.ceInfo.current.Slot,
+		Seed:  s.ceInfo.current.Seed,
 	}
 }
 
-func (s *StateMgr) GetOrderState(userID, proID, epoch uint64) *types.NonceSeq {
+func (s *StateMgr) GetChalEpochInfoAt(epoch uint64) *types.ChalEpoch {
+	ce := new(types.ChalEpoch)
+
+	s.RLock()
+	if epoch >= s.ceInfo.epoch {
+		s.RUnlock()
+		return ce
+	}
+	s.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, epoch)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return ce
+	}
+	err = ce.Deserialize(data)
+	if err != nil {
+		return ce
+	}
+
+	return ce
+}
+
+func (s *StateMgr) GetOrderState(userID, proID uint64) *types.NonceSeq {
+	ns := new(types.NonceSeq)
+	key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		err = ns.Deserialize(data)
+		if err == nil {
+			return ns
+		}
+	}
+
+	return ns
+}
+
+func (s *StateMgr) GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq {
 	ns := new(types.NonceSeq)
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID, epoch)
 	data, err := s.ds.Get(key)
@@ -138,4 +202,19 @@ func (s *StateMgr) GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*typ
 	}
 
 	return nil, nil, xerrors.Errorf("not found order seq:%d, %d, %d, %d ", userID, proID, nonce, seqNum)
+}
+
+func (s *StateMgr) GetOrderDuration(userID, proID uint64) *types.OrderDuration {
+	sf := new(types.OrderDuration)
+	key := store.NewKey(pb.MetaType_ST_OrderDurationKey, userID, proID)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return sf
+	}
+	err = sf.Deserialize(data)
+	if err != nil {
+		return sf
+	}
+
+	return sf
 }

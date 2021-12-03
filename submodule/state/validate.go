@@ -9,11 +9,16 @@ import (
 )
 
 func (s *StateMgr) reset() {
+	s.validateHeight = s.height
+	s.validateSlot = s.slot
 	s.validateRoot = s.root
-	s.validateChalEpoch = s.chalEpoch
-	s.validateChalEpochInfo.Epoch = s.chalEpochInfo.Epoch
-	s.validateChalEpochInfo.Slot = s.chalEpochInfo.Slot
-	s.validateChalEpochInfo.Seed = s.chalEpochInfo.Seed
+	s.validateCeInfo.epoch = s.ceInfo.epoch
+	s.validateCeInfo.current.Epoch = s.ceInfo.current.Epoch
+	s.validateCeInfo.current.Slot = s.ceInfo.current.Slot
+	s.validateCeInfo.current.Seed = s.ceInfo.current.Seed
+	s.validateCeInfo.previous.Epoch = s.ceInfo.previous.Epoch
+	s.validateCeInfo.previous.Slot = s.ceInfo.previous.Slot
+	s.validateCeInfo.previous.Seed = s.ceInfo.previous.Seed
 
 	s.validateOInfo = make(map[orderKey]*orderInfo)
 	s.validateSInfo = make(map[uint64]*segPerUser)
@@ -36,18 +41,21 @@ func (s *StateMgr) ValidateBlock(blk *tx.Block) (types.MsgID, error) {
 
 	s.reset()
 
-	if blk.Height != s.height {
+	if blk.Height != s.validateHeight {
 		return s.validateRoot, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
 	}
 
-	if blk.Slot <= s.slot {
-		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.slot)
+	if blk.Slot <= s.validateSlot {
+		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.validateSlot)
 	}
 
 	b, err := blk.RawHeader.Serialize()
 	if err != nil {
 		return s.validateRoot, err
 	}
+
+	s.validateHeight++
+	s.validateSlot = blk.Slot
 
 	s.newValidateRoot(b)
 
@@ -65,20 +73,23 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 
 	ri, ok := s.validateRInfo[msg.From]
 	if !ok {
-		ri = &roleInfo{
-			Nonce: s.loadNonce(msg.From),
-		}
+		ri = s.loadRole(msg.From)
 		s.validateRInfo[msg.From] = ri
 	}
 
-	if msg.Nonce != ri.Nonce {
-		return s.validateRoot, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.Nonce, msg.Nonce)
+	if msg.Nonce != ri.val.Nonce {
+		return s.validateRoot, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.val.Nonce, msg.Nonce)
 	}
 
-	ri.Nonce++
+	ri.val.Nonce++
 	s.newValidateRoot(msg.Params)
 
 	switch msg.Method {
+	case tx.AddRole:
+		err := s.canAddRole(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	case tx.CreateFs:
 		err := s.canAddUser(msg)
 		if err != nil {
@@ -99,7 +110,7 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
-	case tx.UpdateEpoch:
+	case tx.UpdateChalEpoch:
 		err := s.canUpdateChalEpoch(msg)
 		if err != nil {
 			return s.validateRoot, err
