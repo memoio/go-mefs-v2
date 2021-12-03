@@ -30,7 +30,7 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 	pros := make([]uint64, 0, int(bopt.DataCount+bopt.ParityCount))
 	if len(storedPros) == 0 {
-		res := make(chan uint64, bopt.DataCount+bopt.ParityCount)
+		res := make(chan uint64, len(m.pros))
 		var wg sync.WaitGroup
 		for _, pid := range m.pros {
 			wg.Add(1)
@@ -51,11 +51,13 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 			pros = append(pros, pid)
 		}
 
+		pros = removeDup(pros)
+
 		if len(pros) > int(bopt.DataCount+bopt.ParityCount) {
 			pros = pros[:int(bopt.DataCount+bopt.ParityCount)]
 		}
 	} else {
-		pros = storedPros
+		pros = removeDup(storedPros)
 	}
 
 	lp := &lastProsPerBucket{
@@ -96,23 +98,35 @@ func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) error {
 }
 
 func removeDup(a []uint64) []uint64 {
-	if len(a) < 2 {
-		return a
-	}
-	i := 0
-	for j := 1; j < len(a); j++ {
-		if a[i] != a[j] {
-			i++
-			a[i] = a[j]
+	res := make([]uint64, 0, len(a))
+	tMap := make(map[uint64]struct{}, len(a))
+	for _, ai := range a {
+		_, has := tMap[ai]
+		if !has {
+			tMap[ai] = struct{}{}
+			res = append(res, ai)
 		}
 	}
-	return a[:i+1]
+	return res
 }
 
 func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
-	otherPros := make([]uint64, 0, lp.dc+lp.pc)
+	cnt := 0
+	for _, pid := range lp.pros {
+		or, ok := m.orders[pid]
+		if ok {
+			if !or.inStop {
+				continue
+			}
+			cnt++
+		}
+	}
 
-	lp.pros = removeDup(lp.pros)
+	if cnt >= lp.dc+lp.pc {
+		return
+	}
+
+	otherPros := make([]uint64, 0, lp.dc+lp.pc)
 
 	pros := make([]uint64, 0, len(m.orders))
 	for pid, por := range m.orders {

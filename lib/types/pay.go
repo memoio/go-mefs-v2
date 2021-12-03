@@ -21,5 +21,16 @@ func (ce *ChalEpoch) Deserialize(b []byte) error {
 }
 
 type PostIncome struct {
-	Value *big.Int
+	UserID  uint64
+	ProID   uint64
+	Value   *big.Int // duo to income
+	Penalty *big.Int // due to delete
+}
+
+func (pi *PostIncome) Serialize() ([]byte, error) {
+	return cbor.Marshal(pi)
+}
+
+func (pi *PostIncome) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, pi)
 }
