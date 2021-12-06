@@ -281,22 +281,23 @@ func (s *SegMgr) challenge(userID uint64) {
 				logger.Debug("chal get order seq fails: ", userID, ns.Nonce-1, i, err)
 				return
 			}
-			for _, seg := range seq.Segments {
-				if i == ns.SeqNum-1 {
-					if so.Start <= chalStart && so.End >= chalEnd {
-						orderDur = chalDur
-					} else if so.Start >= chalStart && so.End >= chalEnd {
-						orderDur = chalEnd - so.Start
-					} else if so.Start <= chalStart && so.End <= chalEnd {
-						orderDur = so.End - chalStart
-					}
-					price.Set(seq.Price)
-					price.Mul(price, big.NewInt(orderDur))
-					totalPrice.Add(totalPrice, price)
-					totalSize += seq.Size
-					chal.Add(accFr)
-				}
 
+			if i == ns.SeqNum-1 {
+				if so.Start <= chalStart && so.End >= chalEnd {
+					orderDur = chalDur
+				} else if so.Start >= chalStart && so.End >= chalEnd {
+					orderDur = chalEnd - so.Start
+				} else if so.Start <= chalStart && so.End <= chalEnd {
+					orderDur = so.End - chalStart
+				}
+				price.Set(seq.Price)
+				price.Mul(price, big.NewInt(orderDur))
+				totalPrice.Add(totalPrice, price)
+				totalSize += seq.Size
+				chal.Add(accFr)
+			}
+
+			for _, seg := range seq.Segments {
 				sid.SetBucketID(seg.BucketID)
 				for j := seg.Start; j < seg.Start+seg.Length; j++ {
 					sid.SetStripeID(j)

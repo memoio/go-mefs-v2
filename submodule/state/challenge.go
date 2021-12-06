@@ -144,7 +144,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 
 	if ns.Nonce > 1 {
 		// todo: choose some from [0, ns.Nonce-1)
-		for i := scp.OrderStart; i < scp.OrderEnd-1; i++ {
+		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
@@ -352,7 +352,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 
 	if ns.Nonce > 1 {
 		// todo: choose some un-expire orders from [scp.OrderStart, ns.Nonce-1)
-		for i := scp.OrderStart; i < scp.OrderEnd-1; i++ {
+		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
