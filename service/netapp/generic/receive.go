@@ -11,7 +11,7 @@ import (
 	"github.com/libp2p/go-msgio/protoio"
 	"golang.org/x/xerrors"
 
-	pb "github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 var dhtStreamIdleTimeout = 1 * time.Minute
