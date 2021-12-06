@@ -15,12 +15,12 @@ import (
 
 func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
 	logger.Debug("received pub message:", mes.From, mes.Nonce, mes.Method)
-	return n.PPool.SyncPool.AddTxMsg(ctx, mes)
+	return n.SyncPool.AddTxMsg(ctx, mes)
 }
 
 func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.Block) error {
 	logger.Debug("received pub block:", blk.MinerID, blk.Height)
-	return n.PPool.SyncPool.AddTxBlock(blk)
+	return n.SyncPool.AddTxBlock(blk)
 }
 
 func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
@@ -64,7 +64,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 }
 
 func (n *BaseNode) Register() error {
-	_, err := n.PPool.GetRoleBaseInfo(n.RoleID())
+	_, err := n.PushPool.GetRoleBaseInfo(n.RoleID())
 	if err != nil {
 		ri, err := n.RoleSelf(n.ctx)
 		if err != nil {
@@ -84,7 +84,7 @@ func (n *BaseNode) Register() error {
 		}
 
 		for {
-			mid, err := n.PPool.PushMessage(n.ctx, msg)
+			mid, err := n.PushPool.PushMessage(n.ctx, msg)
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				continue
@@ -93,7 +93,7 @@ func (n *BaseNode) Register() error {
 			ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
 			defer cancle()
 			for {
-				st, err := n.PPool.GetTxMsgStatus(ctx, mid)
+				st, err := n.PushPool.GetTxMsgStatus(ctx, mid)
 				if err != nil {
 					time.Sleep(10 * time.Second)
 					continue

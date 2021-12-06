@@ -23,6 +23,7 @@ type FullNode interface {
 	IConfig
 	IWallet
 	IRole
+	IState
 }
 
 type UserNode interface {
@@ -35,16 +36,19 @@ type ProviderNode interface {
 	FullNode
 }
 
+// json api auth and verify
 type IAuth interface {
 	AuthVerify(context.Context, string) ([]auth.Permission, error)
 	AuthNew(context.Context, []auth.Permission) ([]byte, error)
 }
 
+// config
 type IConfig interface {
 	ConfigSet(context.Context, string, string) error
 	ConfigGet(context.Context, string) (interface{}, error)
 }
 
+// wallet sign
 type IWallet interface {
 	WalletNew(context.Context, types.KeyType) (address.Address, error)
 	WalletSign(context.Context, address.Address, []byte) ([]byte, error)
@@ -139,25 +143,33 @@ type IChain interface {
 }
 
 type IState interface {
-	GetRoot() types.MsgID
-	GetHeight() (uint64, uint64, uint16)
+	GetRoot(context.Context) types.MsgID
+	GetHeight(context.Context) uint64
+	GetSlot(context.Context) uint64
 
-	GetChalEpoch() uint64
-	GetChalEpochInfo() *types.ChalEpoch
-	GetChalEpochInfoAt(uint64) *types.ChalEpoch
+	GetChalEpoch(context.Context) uint64
+	GetChalEpochInfo(context.Context) *types.ChalEpoch
+	GetChalEpochInfoAt(context.Context, uint64) (*types.ChalEpoch, error)
 
-	GetNonce(uint64) uint64
+	GetNonce(context.Context, uint64) uint64
 
-	GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error)
-	GetPublicKey(userID uint64) (pdpcommon.PublicKey, error)
-	GetBucket(userID uint64) uint64
+	GetUsersForPro(context.Context, uint64) []uint64
+	GetProsForUser(context.Context, uint64) []uint64
+	GetAllUsers(context.Context) []uint64
 
-	GetOrderState(userID, proID uint64) *types.NonceSeq
-	GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq
-	GetOrder(userID, proID, nonce uint64) (*types.SignedOrder, []byte, uint32, error)
-	GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.OrderSeq, []byte, error)
-	GetProof(userID, proID, epoch uint64) bool
-	GetPostIncome(userID, proID uint64) *types.PostIncome
+	GetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
+	GetBucket(context.Context, uint64) uint64
 
-	GetOrderDuration(userID, proID uint64) *types.OrderDuration
+	GetOrderState(context.Context, uint64, uint64) *types.NonceSeq
+	GetPostIncome(context.Context, uint64, uint64) *types.PostIncome
+
+	/*
+		GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error)
+		GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq
+		GetOrder(userID, proID, nonce uint64) (*types.SignedOrder, []byte, uint32, error)
+		GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.OrderSeq, []byte, error)
+		GetProof(userID, proID, epoch uint64) bool
+
+		GetOrderDuration(userID, proID uint64) *types.OrderDuration
+	*/
 }

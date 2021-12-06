@@ -54,32 +54,40 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 		return err
 	}
 
-	// has?
-	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, msg.From)
-	ok, err := s.ds.Has(key)
-	if err == nil && ok {
-		return xerrors.Errorf("local already has role: %d", msg.From)
+	if pri.ID != msg.From {
+		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.ID, msg.From)
 	}
 
-	ri, ok := s.rInfo[msg.From]
+	// has?
+	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.ID)
+	ok, err := s.ds.Has(key)
+	if err == nil && ok {
+		return xerrors.Errorf("local already has role: %d", pri.ID)
+	}
+
+	ri, ok := s.rInfo[pri.ID]
 	if ok {
 		if ri.base != nil {
-			return xerrors.Errorf("already has role: %d", msg.From)
+			return xerrors.Errorf("already has role: %d", pri.ID)
 		}
 
 		ri.base = pri
 	} else {
 		ri = &roleInfo{
 			base: pri,
-			val:  s.loadVal(msg.From),
+			val:  s.loadVal(pri.ID),
 		}
-		s.rInfo[msg.From] = ri
+		s.rInfo[pri.ID] = ri
 	}
 
 	// save
 	err = s.ds.Put(key, msg.Params)
 	if err != nil {
 		return err
+	}
+
+	if s.handleAddRole != nil {
+		s.handleAddRole(pri.ID, pri.Type)
 	}
 
 	return nil
@@ -92,26 +100,30 @@ func (s *StateMgr) canAddRole(msg *tx.Message) error {
 		return err
 	}
 
-	// has?
-	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, msg.From)
-	ok, err := s.ds.Has(key)
-	if err == nil && ok {
-		return xerrors.Errorf("local already has role: %d", msg.From)
+	if pri.ID != msg.From {
+		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.ID, msg.From)
 	}
 
-	ri, ok := s.validateRInfo[msg.From]
+	// has?
+	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.ID)
+	ok, err := s.ds.Has(key)
+	if err == nil && ok {
+		return xerrors.Errorf("local already has role: %d", pri.ID)
+	}
+
+	ri, ok := s.validateRInfo[pri.ID]
 	if ok {
 		if ri.base != nil {
-			return xerrors.Errorf("already has role: %d", msg.From)
+			return xerrors.Errorf("already has role: %d", pri.ID)
 		}
 
 		ri.base = pri
 		return nil
 	}
 
-	s.validateRInfo[msg.From] = &roleInfo{
+	s.validateRInfo[pri.ID] = &roleInfo{
 		base: pri,
-		val:  s.loadVal(msg.From),
+		val:  s.loadVal(pri.ID),
 	}
 
 	return nil

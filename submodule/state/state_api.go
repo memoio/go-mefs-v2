@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"encoding/binary"
 
 	"github.com/golang/protobuf/proto"
@@ -19,21 +20,74 @@ type stateAPI struct {
 	*StateMgr
 }
 
-func (s *StateMgr) GetRoot() types.MsgID {
+func (s *StateMgr) GetRoot(ctx context.Context) types.MsgID {
 	s.RLock()
 	defer s.RUnlock()
 
 	return s.root
 }
 
-func (s *StateMgr) GetHeight() (uint64, uint64, uint16) {
+func (s *StateMgr) GetHeight(ctx context.Context) uint64 {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.height, s.slot, s.msgNum
+	return s.height
 }
 
-func (s *StateMgr) GetNonce(roleID uint64) uint64 {
+func (s *StateMgr) GetSlot(ctx context.Context) uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.slot
+}
+
+func (s *StateMgr) GetMsgNum() uint16 {
+	s.RLock()
+	defer s.RUnlock()
+	return s.msgNum
+}
+
+func (s *StateMgr) GetChalEpoch(ctx context.Context) uint64 {
+	s.RLock()
+	defer s.RUnlock()
+	return s.ceInfo.epoch
+}
+
+func (s *StateMgr) GetChalEpochInfo(ctx context.Context) *types.ChalEpoch {
+	s.RLock()
+	defer s.RUnlock()
+
+	return &types.ChalEpoch{
+		Epoch: s.ceInfo.current.Epoch,
+		Slot:  s.ceInfo.current.Slot,
+		Seed:  s.ceInfo.current.Seed,
+	}
+}
+
+func (s *StateMgr) GetChalEpochInfoAt(ctx context.Context, epoch uint64) (*types.ChalEpoch, error) {
+	ce := new(types.ChalEpoch)
+
+	s.RLock()
+	if epoch >= s.ceInfo.epoch {
+		s.RUnlock()
+		return ce, nil
+	}
+	s.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, epoch)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return ce, err
+	}
+	err = ce.Deserialize(data)
+	if err != nil {
+		return ce, err
+	}
+
+	return ce, nil
+}
+
+func (s *StateMgr) GetNonce(ctx context.Context, roleID uint64) uint64 {
 	s.RLock()
 
 	ri, ok := s.rInfo[roleID]
@@ -46,6 +100,51 @@ func (s *StateMgr) GetNonce(roleID uint64) uint64 {
 	rv := s.loadVal(roleID)
 
 	return rv.Nonce
+}
+
+func (s *StateMgr) GetProsForUser(ctx context.Context, userID uint64) []uint64 {
+	key := store.NewKey(pb.MetaType_ST_ProsKey, userID)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return nil
+	}
+
+	res := make([]uint64, len(data)/8)
+	for i := 0; i < len(data)/8; i++ {
+		res[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
+	}
+
+	return res
+}
+
+func (s *StateMgr) GetUsersForPro(ctx context.Context, proID uint64) []uint64 {
+	key := store.NewKey(pb.MetaType_ST_UsersKey, proID)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return nil
+	}
+
+	res := make([]uint64, len(data)/8)
+	for i := 0; i < len(data)/8; i++ {
+		res[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
+	}
+
+	return res
+}
+
+func (s *StateMgr) GetAllUsers(ctx context.Context) []uint64 {
+	key := store.NewKey(pb.MetaType_ST_UsersKey)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return nil
+	}
+
+	res := make([]uint64, len(data)/8)
+	for i := 0; i < len(data)/8; i++ {
+		res[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
+	}
+
+	return res
 }
 
 func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
@@ -64,7 +163,7 @@ func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
 	return pri, nil
 }
 
-func (s *StateMgr) GetPublicKey(userID uint64) (pdpcommon.PublicKey, error) {
+func (s *StateMgr) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
 	data, err := s.ds.Get(key)
 	if err != nil {
@@ -74,7 +173,7 @@ func (s *StateMgr) GetPublicKey(userID uint64) (pdpcommon.PublicKey, error) {
 	return pdp.DeserializePublicKey(data)
 }
 
-func (s *StateMgr) GetBucket(userID uint64) uint64 {
+func (s *StateMgr) GetBucket(ctx context.Context, userID uint64) uint64 {
 	key := store.NewKey(pb.MetaType_ST_BucketOptKey, userID)
 	data, err := s.ds.Get(key)
 	if err == nil && len(data) >= 8 {
@@ -113,9 +212,9 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 	return proved
 }
 
-func (s *StateMgr) GetPostIncome(userID, proID uint64) *types.PostIncome {
+func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) *types.PostIncome {
 	pi := new(types.PostIncome)
-	key := store.NewKey(pb.MetaType_ST_PayKey, userID, proID)
+	key := store.NewKey(pb.MetaType_ST_SegPayKey, userID, proID)
 	data, err := s.ds.Get(key)
 	if err == nil {
 		err = pi.Deserialize(data)
@@ -127,47 +226,7 @@ func (s *StateMgr) GetPostIncome(userID, proID uint64) *types.PostIncome {
 	return pi
 }
 
-func (s *StateMgr) GetChalEpoch() uint64 {
-	s.RLock()
-	defer s.RUnlock()
-	return s.ceInfo.epoch
-}
-
-func (s *StateMgr) GetChalEpochInfo() *types.ChalEpoch {
-	s.RLock()
-	defer s.RUnlock()
-
-	return &types.ChalEpoch{
-		Epoch: s.ceInfo.current.Epoch,
-		Slot:  s.ceInfo.current.Slot,
-		Seed:  s.ceInfo.current.Seed,
-	}
-}
-
-func (s *StateMgr) GetChalEpochInfoAt(epoch uint64) *types.ChalEpoch {
-	ce := new(types.ChalEpoch)
-
-	s.RLock()
-	if epoch >= s.ceInfo.epoch {
-		s.RUnlock()
-		return ce
-	}
-	s.RUnlock()
-
-	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, epoch)
-	data, err := s.ds.Get(key)
-	if err != nil {
-		return ce
-	}
-	err = ce.Deserialize(data)
-	if err != nil {
-		return ce
-	}
-
-	return ce
-}
-
-func (s *StateMgr) GetOrderState(userID, proID uint64) *types.NonceSeq {
+func (s *StateMgr) GetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
 	ns := new(types.NonceSeq)
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID)
 	data, err := s.ds.Get(key)

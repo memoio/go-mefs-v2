@@ -121,6 +121,20 @@ func DeserializeChallenge(data []byte) (pdpcommon.Challenge, error) {
 	return chal, nil
 }
 
+func Validate(pk pdpcommon.PublicKey, vk pdpcommon.VerifyKey) bool {
+	if pk.Version() != vk.Version() {
+		return false
+	}
+	switch pk.Version() {
+	case pdpcommon.PDPV2:
+		pk2 := pk.(*pdpv2.PublicKey)
+		vk2 := vk.(*pdpv2.VerifyKey)
+		return pk2.Validate(vk2)
+	default:
+		return false
+	}
+}
+
 func NewChallenge(vk pdpcommon.VerifyKey, r [32]byte) (pdpcommon.Challenge, error) {
 	switch vk.Version() {
 	case pdpcommon.PDPV2:

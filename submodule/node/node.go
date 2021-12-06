@@ -48,13 +48,13 @@ type BaseNode struct {
 
 	*jsonrpc.RPCServer
 
+	*txPool.PushPool
+
 	repo.Repo
 
 	ctx context.Context
 
 	httpHandle *mux.Router
-
-	PPool *txPool.PushPool
 
 	ShutdownChan chan struct{}
 
@@ -74,9 +74,9 @@ func (n *BaseNode) Start() error {
 	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
 
 	// wait for sync
-	n.PPool.Start()
+	n.PushPool.Start()
 	for {
-		if n.PPool.Ready() {
+		if n.PushPool.Ready() {
 			break
 		} else {
 			logger.Debug("wait for sync")

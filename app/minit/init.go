@@ -71,31 +71,37 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 
 	log.Println("generating bls key...")
 
+	blsSeed := make([]byte, len(sBytes)+1)
+	copy(blsSeed[:len(sBytes)], sBytes)
+	blsSeed[len(sBytes)] = byte(types.BLS)
+	blsByte := blake3.Sum256(blsSeed)
+	blsKey := &types.KeyInfo{
+		SecretKey: blsByte[:],
+		Type:      types.BLS,
+	}
+
+	blsAddr, err := w.WalletImport(ctx, blsKey)
+	if err != nil {
+		return err
+	}
+
+	log.Println("genenrated bls: ", blsAddr.String())
+
+	ri.BlsVerifyKey = blsAddr.Bytes()
+
 	switch roleType {
-	case "keeper", "provider":
-		if roleType == "keeper" {
-			ri.Type = pb.RoleInfo_Keeper
-		} else {
-			ri.Type = pb.RoleInfo_Provider
-		}
-		sBytes = append(sBytes, byte(types.BLS))
-		blsByte := blake3.Sum256(sBytes)
-		blsKey := &types.KeyInfo{
-			SecretKey: blsByte[:],
-			Type:      types.BLS,
-		}
-
-		blsAddr, err := w.WalletImport(ctx, blsKey)
-		if err != nil {
-			return err
-		}
-
-		ri.BlsVerifyKey = blsAddr.Bytes()
-
-		log.Println("genenrated bls: ", blsAddr.String())
+	case "keeper":
+		ri.Type = pb.RoleInfo_Keeper
+	case "provider":
+		ri.Type = pb.RoleInfo_Provider
 	case "user":
 		ri.Type = pb.RoleInfo_User
-		pdpKeySet, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, sBytes)
+
+		blsSeed := make([]byte, len(sBytes)+1)
+		copy(blsSeed[:len(sBytes)], sBytes)
+		blsSeed[len(sBytes)] = byte(types.PDP)
+
+		pdpKeySet, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, blsSeed)
 		if err != nil {
 			return err
 		}
@@ -111,7 +117,7 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 			return err
 		}
 
-		ri.BlsVerifyKey = pdpKeySet.VerifyKey().Serialize()
+		ri.Extra = pdpKeySet.VerifyKey().Serialize()
 
 		// store pdp pubkey and verify key
 		log.Println("generated user bls pdp key")

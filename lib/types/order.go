@@ -76,11 +76,10 @@ func (b *OrderBase) Deserialize(buf []byte) error {
 
 type SignedOrder struct {
 	OrderBase
-	Size     uint64
-	Price    *big.Int
-	Usign    Signature
-	Psign    Signature      // sign hash
-	DataSign MultiSignature // sign serialize
+	Size  uint64
+	Price *big.Int
+	Usign Signature
+	Psign Signature // sign hash
 }
 
 // for sign on settle chain

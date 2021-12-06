@@ -178,8 +178,7 @@ func (k *PublicKey) Validate(vk *VerifyKey) bool {
 		return false
 	}
 
-	var i int64
-	for i = 0; i < k.Count-1; i++ {
+	for i := int64(0); i < k.Count-1; i++ {
 		if !bls.PairingsVerify(&k.ElemAlphas[i], &k.Zeta, &k.ElemAlphas[i+1], &k.BlsPk) {
 			return false
 		}
@@ -204,9 +203,8 @@ func (k *PublicKey) ValidateFast(vk *VerifyKey) bool {
 		return false
 	}
 
-	var i int64
 	rand.Seed(time.Now().UnixNano())
-	for i = 0; i < 470; i++ {
+	for i := 0; i < 470; i++ {
 		index := rand.Int63n(k.Count - 1)
 		if !bls.PairingsVerify(&k.ElemAlphas[index], &k.Zeta, &k.ElemAlphas[index+1], &k.BlsPk) {
 			return false

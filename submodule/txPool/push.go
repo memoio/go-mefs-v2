@@ -86,7 +86,7 @@ func (pp *PushPool) syncPush() {
 	pp.ready = true
 
 	pp.pending[pp.localID] = &pendingMsg{
-		nonce: pp.GetNonce(pp.localID),
+		nonce: pp.GetNonce(pp.ctx, pp.localID),
 		msg:   make(map[types.MsgID]*msgTo),
 	}
 	logger.Debug("pool is ready")
@@ -134,7 +134,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 	lp, ok := pp.pending[mes.From]
 	if !ok {
 		lp = &pendingMsg{
-			nonce: pp.GetNonce(mes.From),
+			nonce: pp.GetNonce(pp.ctx, mes.From),
 			msg:   make(map[types.MsgID]*msgTo),
 		}
 		pp.pending[mes.From] = lp
@@ -182,7 +182,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	lp, ok := pp.pending[sm.From]
 	if !ok {
 		lp = &pendingMsg{
-			nonce: pp.GetNonce(sm.From),
+			nonce: pp.GetNonce(pp.ctx, sm.From),
 			msg:   make(map[types.MsgID]*msgTo),
 		}
 		pp.pending[sm.From] = lp

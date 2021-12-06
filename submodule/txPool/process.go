@@ -143,7 +143,7 @@ func (mp *InPool) sync() {
 }
 
 func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
-	nonce := mp.SyncPool.GetNonce(m.From)
+	nonce := mp.SyncPool.GetNonce(mp.ctx, m.From)
 	if m.Nonce < nonce {
 		logger.Debug("add tx msg fails: ", ErrLowNonce)
 		return ErrLowNonce
@@ -177,13 +177,14 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 		return nil, err
 	}
 
-	appliedHeight, appliedSlot, _ := mp.GetHeight()
+	appliedHeight := mp.GetHeight(mp.ctx)
 	if appliedHeight != lh {
 		logger.Debug("create block state height is not equal")
 	}
 
 	nt := time.Now().Unix()
 	slot := uint64(nt-build.BaseTime) / build.SlotDuration
+	appliedSlot := mp.GetSlot(mp.ctx)
 	if appliedSlot >= slot {
 		return nil, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, appliedSlot)
 	}
@@ -220,7 +221,7 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 	nbh.ParentRoot = oldRoot
 	nbh.Root = newRoot
 	for from, ms := range mp.pending {
-		nc := mp.GetNonce(from)
+		nc := mp.GetNonce(mp.ctx, from)
 		for i := nc; ; i++ {
 			m, ok := ms.info[i]
 			if ok {

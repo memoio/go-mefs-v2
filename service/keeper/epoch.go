@@ -17,9 +17,9 @@ func (k *KeeperNode) updateEpoch() {
 		case <-k.ctx.Done():
 			return
 		case <-ticker.C:
-			_, slot, _ := k.PPool.GetHeight()
-			ne := k.PPool.GetChalEpoch()
-			ce := k.PPool.GetChalEpochInfo()
+			slot := k.GetSlot(k.ctx)
+			ne := k.GetChalEpoch(k.ctx)
+			ce := k.GetChalEpochInfo(k.ctx)
 			if ce.Slot < slot && slot-ce.Slot > build.DefaultChalDuration {
 				// update
 				logger.Debug("update epoch to: ", ce.Epoch, ne, ce.Slot, slot)
@@ -60,7 +60,7 @@ func (k *KeeperNode) updateEpoch() {
 				retry := 0
 				for retry < 60 {
 					retry++
-					id, err := k.PPool.PushMessage(k.ctx, msg)
+					id, err := k.PushMessage(k.ctx, msg)
 					if err != nil {
 						time.Sleep(10 * time.Second)
 						continue
@@ -75,7 +75,7 @@ func (k *KeeperNode) updateEpoch() {
 					logger.Debug("waiting tx message done: ", mid)
 
 					for {
-						st, err := k.PPool.GetTxMsgStatus(ctx, mid)
+						st, err := k.GetTxMsgStatus(ctx, mid)
 						if err != nil {
 							time.Sleep(5 * time.Second)
 							continue

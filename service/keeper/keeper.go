@@ -32,7 +32,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		return nil, err
 	}
 
-	inp := txPool.NewInPool(ctx, bn.PPool.SyncPool)
+	inp := txPool.NewInPool(ctx, bn.PushPool.SyncPool)
 
 	kn := &KeeperNode{
 		BaseNode: bn,
@@ -55,17 +55,17 @@ func (k *KeeperNode) Start() error {
 	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
 	// wait for sync
-	k.PPool.Start()
+	k.PushPool.Start()
 	retry := 0
 	for {
-		if k.PPool.Ready() {
+		if k.PushPool.Ready() {
 			break
 		} else {
 			logger.Debug("wait for sync")
 			retry++
 			if retry > 12 {
 				// no more new block, set to ready
-				k.PPool.SyncPool.SetReady()
+				k.SyncPool.SetReady()
 			}
 			time.Sleep(5 * time.Second)
 		}

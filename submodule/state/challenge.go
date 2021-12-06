@@ -209,14 +209,17 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	key = store.NewKey(pb.MetaType_ST_PayKey, okey.userID, okey.proID, scp.Epoch)
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
 	s.ds.Put(key, data)
 
 	// save at epoch
-	key = store.NewKey(pb.MetaType_ST_PayKey, okey.userID, okey.proID)
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
 	s.ds.Put(key, data)
 
 	// keeper handle callback income
+	if s.handleAddPay != nil {
+		s.handleAddPay(okey.userID, okey.proID, scp.Epoch, oinfo.income.Value, oinfo.income.Penalty)
+	}
 
 	return nil
 }
@@ -324,10 +327,12 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 			return xerrors.Errorf("chal order all expired")
 		} else if of.Start <= chalStart && of.End >= chalEnd {
 			orderDur = chalDur
-		} else if of.Start >= chalStart && of.End >= chalEnd {
-			orderDur = chalEnd - of.Start
 		} else if of.Start <= chalStart && of.End <= chalEnd {
 			orderDur = of.End - chalStart
+		} else if of.Start >= chalStart && of.End >= chalEnd {
+			orderDur = chalEnd - of.Start
+		} else if of.Start >= chalStart && of.End <= chalEnd {
+			orderDur = of.End - of.Start
 		}
 
 		if ns.SeqNum > 0 {
@@ -342,7 +347,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 				return err
 			}
 
-			price.Set(of.Price)
+			price.Set(sf.Price)
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
 			totalSize += sf.Size
@@ -368,11 +373,14 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 				return xerrors.Errorf("chal order expired at %d", i)
 			} else if of.Start <= chalStart && of.End >= chalEnd {
 				orderDur = chalDur
-			} else if of.Start >= chalStart && of.End >= chalEnd {
-				orderDur = chalEnd - of.Start
 			} else if of.Start <= chalStart && of.End <= chalEnd {
 				orderDur = of.End - chalStart
+			} else if of.Start >= chalStart && of.End >= chalEnd {
+				orderDur = chalEnd - of.Start
+			} else if of.Start >= chalStart && of.End <= chalEnd {
+				orderDur = of.End - of.Start
 			}
+
 			price.Set(of.Price)
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)

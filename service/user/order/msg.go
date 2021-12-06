@@ -51,8 +51,7 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 }
 
 func (m *OrderMgr) loadUnfinished(of *OrderFull) {
-	ns := m.GetOrderState(of.localID, of.pro)
-
+	ns := m.GetOrderState(m.ctx, of.localID, of.pro)
 	if of.nonce == 0 {
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -36,6 +37,26 @@ type CommonStruct struct {
 		RoleSign        func(context.Context, uint64, []byte, types.SigType) (types.Signature, error) `perm:"write"`
 		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)          `perm:"read"`
 		RoleVerifyMulti func(context.Context, []byte, types.MultiSignature) (bool, error)             `perm:"read"`
+
+		GetRoot   func(context.Context) types.MsgID `perm:"read"`
+		GetHeight func(context.Context) uint64      `perm:"read"`
+		GetSlot   func(context.Context) uint64      `perm:"read"`
+
+		GetChalEpoch       func(context.Context) uint64                            `perm:"read"`
+		GetChalEpochInfo   func(context.Context) *types.ChalEpoch                  `perm:"read"`
+		GetChalEpochInfoAt func(context.Context, uint64) (*types.ChalEpoch, error) `perm:"read"`
+
+		GetNonce func(context.Context, uint64) uint64 `perm:"read"`
+
+		GetUsersForPro func(context.Context, uint64) []uint64 `perm:"read"`
+		GetProsForUser func(context.Context, uint64) []uint64 `perm:"read"`
+		GetAllUsers    func(context.Context) []uint64         `perm:"read"`
+
+		GetPDPPublicKey func(context.Context, uint64) (pdpcommon.PublicKey, error) `perm:"read"`
+		GetBucket       func(context.Context, uint64) uint64                       `perm:"read"`
+
+		GetOrderState func(context.Context, uint64, uint64) *types.NonceSeq   `perm:"read"`
+		GetPostIncome func(context.Context, uint64, uint64) *types.PostIncome `perm:"read"`
 	}
 }
 
@@ -109,6 +130,62 @@ func (s *CommonStruct) RoleVerify(ctx context.Context, id uint64, msg []byte, si
 
 func (s *CommonStruct) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.MultiSignature) (bool, error) {
 	return s.Internal.RoleVerifyMulti(ctx, msg, sig)
+}
+
+func (s *CommonStruct) GetRoot(ctx context.Context) types.MsgID {
+	return s.Internal.GetRoot(ctx)
+}
+
+func (s *CommonStruct) GetHeight(ctx context.Context) uint64 {
+	return s.Internal.GetHeight(ctx)
+}
+
+func (s *CommonStruct) GetSlot(ctx context.Context) uint64 {
+	return s.Internal.GetSlot(ctx)
+}
+
+func (s *CommonStruct) GetChalEpoch(ctx context.Context) uint64 {
+	return s.Internal.GetChalEpoch(ctx)
+}
+
+func (s *CommonStruct) GetChalEpochInfo(ctx context.Context) *types.ChalEpoch {
+	return s.Internal.GetChalEpochInfo(ctx)
+}
+
+func (s *CommonStruct) GetChalEpochInfoAt(ctx context.Context, epoch uint64) (*types.ChalEpoch, error) {
+	return s.Internal.GetChalEpochInfoAt(ctx, epoch)
+}
+
+func (s *CommonStruct) GetNonce(ctx context.Context, roleID uint64) uint64 {
+	return s.Internal.GetNonce(ctx, roleID)
+}
+
+func (s *CommonStruct) GetUsersForPro(ctx context.Context, proID uint64) []uint64 {
+	return s.Internal.GetUsersForPro(ctx, proID)
+}
+
+func (s *CommonStruct) GetProsForUser(ctx context.Context, userID uint64) []uint64 {
+	return s.Internal.GetProsForUser(ctx, userID)
+}
+
+func (s *CommonStruct) GetAllUsers(ctx context.Context) []uint64 {
+	return s.Internal.GetAllUsers(ctx)
+}
+
+func (s *CommonStruct) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
+	return s.Internal.GetPDPPublicKey(ctx, userID)
+}
+
+func (s *CommonStruct) GetBucket(ctx context.Context, userID uint64) uint64 {
+	return s.Internal.GetBucket(ctx, userID)
+}
+
+func (s *CommonStruct) GetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
+	return s.Internal.GetOrderState(ctx, userID, proID)
+}
+
+func (s *CommonStruct) GetPostIncome(ctx context.Context, userID, proID uint64) *types.PostIncome {
+	return s.Internal.GetPostIncome(ctx, userID, proID)
 }
 
 type FullNodeStruct struct {

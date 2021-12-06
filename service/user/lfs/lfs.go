@@ -77,7 +77,7 @@ func (l *LfsService) Start() error {
 
 	has := false
 
-	_, err := l.om.GetPublicKey(l.userID)
+	_, err := l.om.GetPDPPublicKey(l.ctx, l.userID)
 	if err != nil {
 		time.Sleep(15 * time.Second)
 		logger.Debug("push create fs message for: ", l.userID)
@@ -121,7 +121,7 @@ func (l *LfsService) Start() error {
 	}
 
 	// load bucket
-	l.sb.bucketVerify = l.om.GetBucket(l.userID)
+	l.sb.bucketVerify = l.om.GetBucket(l.ctx, l.userID)
 
 	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
 		bu := l.sb.buckets[bid]

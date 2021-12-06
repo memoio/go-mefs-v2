@@ -44,7 +44,10 @@ type StateMgr struct {
 	validateSInfo  map[uint64]*segPerUser
 	validateRInfo  map[uint64]*roleInfo
 
-	hauf HandleAddUserFunc
+	handleAddRole HanderAddRoleFunc
+	handleAddUser HandleAddUserFunc
+	handleAddUP   HandleAddUPFunc
+	handleAddPay  HandleAddPayFunc
 }
 
 func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
@@ -77,9 +80,27 @@ func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 	return s
 }
 
+func (s *StateMgr) RegisterAddRoleFunc(h HanderAddRoleFunc) {
+	s.Lock()
+	s.handleAddRole = h
+	s.Unlock()
+}
+
 func (s *StateMgr) RegisterAddUserFunc(h HandleAddUserFunc) {
 	s.Lock()
-	s.hauf = h
+	s.handleAddUser = h
+	s.Unlock()
+}
+
+func (s *StateMgr) RegisterAddUPFunc(h HandleAddUPFunc) {
+	s.Lock()
+	s.handleAddUP = h
+	s.Unlock()
+}
+
+func (s *StateMgr) RegisterAddPayFunc(h HandleAddPayFunc) {
+	s.Lock()
+	s.handleAddPay = h
 	s.Unlock()
 }
 

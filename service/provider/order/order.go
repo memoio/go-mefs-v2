@@ -63,7 +63,7 @@ type OrderFull struct {
 
 func (m *OrderMgr) createOrder(op *OrderFull) *OrderFull {
 
-	pk, err := m.GetPublicKey(op.userID)
+	pk, err := m.GetPDPPublicKey(m.ctx, op.userID)
 	if err != nil {
 		logger.Warn("create order bls pk err: ", err)
 		return op
@@ -87,7 +87,7 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 		userID: userID,
 	}
 
-	pk, err := m.GetPublicKey(userID)
+	pk, err := m.GetPDPPublicKey(m.ctx, userID)
 	if err == nil {
 		op.dv, err = pdp.NewDataVerifier(pk, nil)
 		if err != nil {

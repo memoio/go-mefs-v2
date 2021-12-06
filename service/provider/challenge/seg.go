@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
@@ -17,6 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/txPool"
 	"github.com/zeebo/blake3"
 )
 
@@ -24,7 +24,8 @@ var logger = logging.Logger("pro-challenge")
 
 type SegMgr struct {
 	sync.RWMutex
-	api.IChain
+
+	*txPool.PushPool
 
 	ds       store.KVStore
 	segStore segment.SegmentStore
@@ -58,9 +59,9 @@ type segInfo struct {
 	chalTime time.Time
 }
 
-func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, ss segment.SegmentStore, ic api.IChain) *SegMgr {
+func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, ss segment.SegmentStore, pp *txPool.PushPool) *SegMgr {
 	s := &SegMgr{
-		IChain:   ic,
+		PushPool: pp,
 		ctx:      ctx,
 		localID:  localID,
 		ds:       ds,
@@ -109,7 +110,7 @@ func (s *SegMgr) AddUser(userID uint64) {
 func (s *SegMgr) loadFs(userID uint64, save bool) *segInfo {
 	si, ok := s.sInfo[userID]
 	if !ok {
-		pk, err := s.GetPublicKey(userID)
+		pk, err := s.GetPDPPublicKey(s.ctx, userID)
 		if err != nil {
 			logger.Debug("challenge not get fs")
 			return nil
@@ -137,8 +138,8 @@ func (s *SegMgr) regularChallenge() {
 	tc := time.NewTicker(time.Minute)
 	defer tc.Stop()
 
-	s.epoch = s.GetChalEpoch()
-	s.eInfo = s.GetChalEpochInfo()
+	s.epoch = s.GetChalEpoch(s.ctx)
+	s.eInfo = s.GetChalEpochInfo(s.ctx)
 
 	i := 0
 	for {
@@ -157,8 +158,8 @@ func (s *SegMgr) regularChallenge() {
 			si.wait = false
 			si.nextChal++
 		case <-tc.C:
-			s.epoch = s.GetChalEpoch()
-			s.eInfo = s.GetChalEpochInfo()
+			s.epoch = s.GetChalEpoch(s.ctx)
+			s.eInfo = s.GetChalEpochInfo(s.ctx)
 			logger.Debug("challenge update epoch: ", s.eInfo.Epoch, s.epoch)
 		default:
 			if len(s.users) == 0 {
@@ -240,9 +241,9 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	pce := s.GetChalEpochInfoAt(si.nextChal - 1)
-	if pce.Slot == 0 {
-		logger.Debug("chal at wrong epoch: ", userID, si.nextChal)
+	pce, err := s.GetChalEpochInfoAt(s.ctx, si.nextChal-1)
+	if err != nil {
+		logger.Debug("chal at wrong epoch: ", userID, si.nextChal, err)
 		return
 	}
 
@@ -285,10 +286,12 @@ func (s *SegMgr) challenge(userID uint64) {
 			if i == ns.SeqNum-1 {
 				if so.Start <= chalStart && so.End >= chalEnd {
 					orderDur = chalDur
-				} else if so.Start >= chalStart && so.End >= chalEnd {
-					orderDur = chalEnd - so.Start
 				} else if so.Start <= chalStart && so.End <= chalEnd {
 					orderDur = so.End - chalStart
+				} else if so.Start >= chalStart && so.End >= chalEnd {
+					orderDur = chalEnd - so.Start
+				} else if so.Start >= chalStart && so.End <= chalEnd {
+					orderDur = so.End - so.Start
 				}
 				price.Set(seq.Price)
 				price.Mul(price, big.NewInt(orderDur))
@@ -334,16 +337,18 @@ func (s *SegMgr) challenge(userID uint64) {
 
 			if so.Start >= chalEnd || so.End <= chalStart {
 				logger.Debug("chal order expired: ", userID, si.nextChal, i)
-				orderStart = i
+				orderStart = i + 1
 				continue
 			}
 
 			if so.Start <= chalStart && so.End >= chalEnd {
 				orderDur = chalDur
-			} else if so.Start >= chalStart && so.End >= chalEnd {
-				orderDur = chalEnd - so.Start
 			} else if so.Start <= chalStart && so.End <= chalEnd {
 				orderDur = so.End - chalStart
+			} else if so.Start >= chalStart && so.End >= chalEnd {
+				orderDur = chalEnd - so.Start
+			} else if so.Start >= chalStart && so.End <= chalEnd {
+				orderDur = so.End - so.Start
 			}
 
 			price.Set(so.Price)
@@ -414,7 +419,6 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	orderStart++
 	logger.Debug("challenge create proof: ", userID, s.localID, si.nextChal, ns.Nonce, ns.SeqNum, orderStart, orderEnd, cnt, totalSize, totalPrice)
 
 	scp := &tx.SegChalParams{

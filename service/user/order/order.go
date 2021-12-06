@@ -719,7 +719,7 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	msg := &tx.Message{
 		Version: 0,
 		From:    m.localID,
-		To:      m.localID,
+		To:      o.pro,
 		Method:  tx.DataOrder,
 		Params:  data,
 	}

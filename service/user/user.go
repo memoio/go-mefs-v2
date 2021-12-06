@@ -49,7 +49,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl)
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PPool, bn.RoleMgr, bn.NetServiceImpl, ids)
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PushPool, bn.RoleMgr, bn.NetServiceImpl, ids)
 
 	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {
@@ -79,9 +79,9 @@ func (u *UserNode) Start() error {
 	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(u))
 
 	// wait for sync
-	u.PPool.Start()
+	u.PushPool.Start()
 	for {
-		if u.PPool.Ready() {
+		if u.PushPool.Ready() {
 			break
 		} else {
 			logger.Debug("wait for sync")

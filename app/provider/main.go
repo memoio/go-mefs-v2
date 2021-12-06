@@ -7,7 +7,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
-	lfscmd "github.com/memoio/go-mefs-v2/app/cmd/lfs"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
 
@@ -19,7 +18,7 @@ func main() {
 		cmd.InitCmd,
 		cmd.AuthCmd,
 		cmd.WalletCmd,
-		lfscmd.LfsCmd,
+		cmd.StateCmd,
 	}
 
 	app := &cli.App{

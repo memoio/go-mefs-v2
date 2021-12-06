@@ -25,17 +25,21 @@ enum MetaType {
 	ST_SegLocKey = 22;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
 	ST_SegMapKey = 23;       // key: x/userID/bucketID/proID; val: accFr, bitmap
 
-	ST_OrderDurationKey = 24;   // key: x/userID/proID/epoch; val: proof
-	ST_OrderStateKey = 25;      // key: x/userID/proID/epoch; val: OrderNonce;
+	ST_OrderCommitKey = 24;     // key: x/userID/proID; val: OrderNonce;
+	ST_OrderStateKey = 25;      // key: x/userID/proID/epoch; val: Order Seq;
 	ST_OrderBaseKey = 26;       // key: x/userID/proID/nonce; val: SignedOrderBase;
 	ST_OrderSeqKey = 27;        // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
 	ST_SegProofKey = 28;        // key: x/userID/proID/epoch; val: proof
-	ST_PayKey = 29;             // key: x/userID/proID; val: payinfo 
+	ST_SegPayKey = 29;          // key: x/userID/proID; val: payinfo 
+
+	ST_OrderDurationKey = 32;   // key: x/userID/proID/epoch; val: proof
+	ST_UsersKey = 33;           // key: x/roleID; val: users
+	ST_ProsKey = 34;            // key: x/roleID; val: pros
 	
-	ST_RootKey = 35;         // key: x; val: root of state	
-	ST_BlockHeightKey = 36;  // key: x; val: height
-	ST_ChalEpochKey = 37;    // key: x; val: epoch; key: x/epoch; val: content
-	ST_RoleBaseKey = 38;     // key: x/roleID; val: pb.RoleInfo
+	ST_RootKey = 35;          // key: x; val: root of state	
+	ST_BlockHeightKey = 36;   // key: x; val: height
+	ST_ChalEpochKey = 37;     // key: x; val: epoch; key: x/epoch; val: content
+	ST_RoleBaseKey = 38;      // key: x/roleID; val: pb.RoleInfo
 	ST_RoleValueKey = 39;     // key: x/roleID; val: nonce, val
 
 	// data meta

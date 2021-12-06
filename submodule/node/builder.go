@@ -220,7 +220,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	sp := txPool.NewSyncPool(ctx, id, stDB, nd.MetaStore(), txs, rm, cs)
 
-	nd.PPool = txPool.NewPushPool(ctx, sp)
+	nd.PushPool = txPool.NewPushPool(ctx, sp)
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
 

@@ -98,9 +98,10 @@ func (sp *SyncPool) SetReady() {
 
 func (sp *SyncPool) load() {
 	// todo: handle case if msglen > 0
-	ht, _, msglen := sp.GetHeight()
+	ht := sp.GetHeight(sp.ctx)
+	msglen := sp.GetMsgNum()
 	if msglen != 0 {
-		logger.Warn("state is incomplet at: ", ht, msglen)
+		logger.Warn("state is incomplete at: ", ht, msglen)
 	}
 	sp.nextHeight = ht
 	sp.remoteHeight = ht
@@ -237,7 +238,7 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 
 		nextNonce, ok := sp.nonce[tx.From]
 		if !ok {
-			nextNonce = sp.GetNonce(tx.From)
+			nextNonce = sp.GetNonce(sp.ctx, tx.From)
 		}
 
 		if nextNonce != tx.Nonce {

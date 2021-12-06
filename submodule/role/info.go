@@ -33,7 +33,6 @@ type RoleMgr struct {
 }
 
 func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet) (*RoleMgr, error) {
-
 	data, err := ds.Get(store.NewKey(pb.MetaType_RoleInfoKey))
 	if err != nil {
 		return nil, err
@@ -155,7 +154,6 @@ func (rm *RoleMgr) GetPubKey(roleID uint64, typ types.KeyType) (address.Address,
 		return address.NewAddress(ri.ChainVerifyKey)
 	case types.BLS:
 		return address.NewAddress(ri.BlsVerifyKey)
-
 	default:
 		return address.Undef, ErrNotFound
 	}
