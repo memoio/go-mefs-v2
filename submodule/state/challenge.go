@@ -68,7 +68,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		Nonce:  oinfo.ns.Nonce,
 		SeqNum: oinfo.ns.SeqNum,
 	}
-	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID)
+	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, scp.Epoch)
 	data, err := s.ds.Get(key)
 	if err == nil {
 		ns.Deserialize(data)
