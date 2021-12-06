@@ -2,13 +2,11 @@ package node
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p"
-	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/httpio"
@@ -142,7 +140,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	// Set default values on un-initialized fields
 	//
 	if b.repo == nil {
-		return nil, fmt.Errorf("no repo")
+		return nil, xerrors.Errorf("repo is nil")
 	}
 	var err error
 	// create the node
@@ -172,7 +170,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.NetworkSubmodule, err = network.NewNetworkSubmodule(ctx, (*builder)(b), b.repo.Config(), b.repo.MetaStore(), networkName)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to build node Network")
+		return nil, xerrors.Errorf("failed to build node network %w", err)
 	}
 	nd.IsOnline = true
 
@@ -189,14 +187,14 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	cs, err := netapp.New(ctx, id, nd.MetaStore(), nd.NetworkSubmodule)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create core service")
+		return nil, xerrors.Errorf("failed to create core service %w", err)
 	}
 
 	nd.NetServiceImpl = cs
 
 	rm, err := role.New(ctx, id, gid, nd.MetaStore(), nd.LocalWallet)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create role service")
+		return nil, xerrors.Errorf("failed to create role service %w", err)
 	}
 
 	nd.RoleMgr = rm

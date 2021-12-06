@@ -2,10 +2,11 @@ package state
 
 import (
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"golang.org/x/xerrors"
 )
 
 func (s *StateMgr) loadVal(roleID uint64) *roleValue {

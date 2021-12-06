@@ -48,7 +48,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.3.3
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/multiformats/go-multihash v0.0.15
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sakeven/RbTree v0.0.0-20190505104653-18ee3093df2f
 	github.com/stretchr/testify v1.7.0

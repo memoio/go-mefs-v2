@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
 	ma "github.com/multiformats/go-multiaddr"
-	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -112,7 +110,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 
 	router, err := dht.New(ctx, rawHost, dhtopts...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to setup routing")
+		return nil, xerrors.Errorf("failed to setup routing %w", err)
 	}
 
 	peerHost := routed.Wrap(rawHost, router)
@@ -145,7 +143,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 
 	gsub, err := pubsub.NewGossipSub(ctx, peerHost, options...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to set up network")
+		return nil, xerrors.Errorf("failed to set up gossip %w", err)
 	}
 
 	// build the network submdule
@@ -214,7 +212,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 
 	swrm, ok := ns.Host.Network().(*swarm.Swarm)
 	if !ok {
-		return fmt.Errorf("peerhost network was not a swarm")
+		return xerrors.Errorf("peerhost network was not a swarm")
 	}
 
 	swrm.Backoff().Clear(pai.ID)

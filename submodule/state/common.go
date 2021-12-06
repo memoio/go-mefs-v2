@@ -5,9 +5,11 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
 
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -123,4 +125,28 @@ func (bs *bitsetStored) Serialize() ([]byte, error) {
 
 func (bs *bitsetStored) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, bs)
+}
+
+func verify(ri *pb.RoleInfo, msg []byte, sig types.Signature) error {
+	switch sig.Type {
+	case types.SigSecp256k1:
+		ok, err := signature.Verify(ri.ChainVerifyKey, msg, sig.Data)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return xerrors.Errorf("%d sign %d is wrong", ri.ID, sig.Type)
+		}
+	case types.SigBLS:
+		ok, err := signature.Verify(ri.BlsVerifyKey, msg, sig.Data)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return xerrors.Errorf("%d sign %d is wrong", ri.ID, sig.Type)
+		}
+	default:
+		return xerrors.Errorf("sign type %d is not supported", sig.Type)
+	}
+	return nil
 }

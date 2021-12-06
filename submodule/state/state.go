@@ -4,13 +4,14 @@ import (
 	"encoding/binary"
 	"sync"
 
+	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/zeebo/blake3"
-	"golang.org/x/xerrors"
 )
 
 // key: pb.MetaType_ST_RootKey; val: root []byte

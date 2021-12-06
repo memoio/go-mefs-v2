@@ -2,10 +2,9 @@ package signature
 
 import (
 	"bytes"
-	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
@@ -41,7 +40,7 @@ func ParsePrivateKey(privatekey []byte, typ types.KeyType) (common.PrivKey, erro
 			return nil, err
 		}
 	default:
-		return nil, errors.Wrap(common.ErrBadKeyType, strconv.Itoa(int(typ)))
+		return nil, xerrors.Errorf("%d is %w", typ, common.ErrBadKeyType)
 	}
 	return privkey, nil
 }

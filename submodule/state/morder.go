@@ -9,7 +9,6 @@ import (
 
 	"github.com/memoio/go-mefs-v2/build"
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
-	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -121,25 +120,9 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		s.rInfo[or.UserID] = uri
 	}
 
-	switch or.Usign.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(uri.base.ChainVerifyKey, or.Hash(), or.Usign.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", or.UserID, or.Usign.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(uri.base.BlsVerifyKey, or.Hash(), or.Usign.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", or.UserID, or.Usign.Type)
-		}
-	default:
-		return xerrors.Errorf("sign type %d is not supported", or.Usign.Type)
+	err = verify(uri.base, or.Hash(), or.Usign)
+	if err != nil {
+		return err
 	}
 
 	pri, ok := s.rInfo[or.ProID]
@@ -147,25 +130,10 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		pri = s.loadRole(or.ProID)
 		s.rInfo[or.ProID] = pri
 	}
-	switch or.Psign.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(pri.base.ChainVerifyKey, or.Hash(), or.Psign.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", or.ProID, or.Psign.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(pri.base.BlsVerifyKey, or.Hash(), or.Psign.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", or.ProID, or.Psign.Type)
-		}
-	default:
-		return xerrors.Errorf("sign type %d is not supported", or.Psign.Type)
+
+	err = verify(pri.base, or.Hash(), or.Psign)
+	if err != nil {
+		return err
 	}
 
 	okey := orderKey{
@@ -285,25 +253,9 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 		s.validateRInfo[or.UserID] = uri
 	}
 
-	switch or.Usign.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(uri.base.ChainVerifyKey, or.Hash(), or.Usign.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", or.UserID, or.Usign.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(uri.base.BlsVerifyKey, or.Hash(), or.Usign.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", or.UserID, or.Usign.Type)
-		}
-	default:
-		return xerrors.Errorf("user sign type %d is not supported", or.Usign.Type)
+	err = verify(uri.base, or.Hash(), or.Usign)
+	if err != nil {
+		return err
 	}
 
 	pri, ok := s.validateRInfo[or.ProID]
@@ -311,25 +263,10 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 		pri = s.loadRole(or.ProID)
 		s.validateRInfo[or.ProID] = pri
 	}
-	switch or.Psign.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(pri.base.ChainVerifyKey, or.Hash(), or.Psign.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", or.ProID, or.Psign.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(pri.base.BlsVerifyKey, or.Hash(), or.Psign.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", or.ProID, or.Psign.Type)
-		}
-	default:
-		return xerrors.Errorf("pro sign type %d is not supported", or.Psign.Type)
+
+	err = verify(pri.base, or.Hash(), or.Psign)
+	if err != nil {
+		return err
 	}
 
 	okey := orderKey{
@@ -388,25 +325,9 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		s.rInfo[so.UserID] = uri
 	}
 
-	switch so.UserDataSig.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(uri.base.ChainVerifyKey, sHash, so.UserDataSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d data sign %d is wrong", so.UserID, so.UserDataSig.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(uri.base.BlsVerifyKey, sHash, so.UserDataSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d data sign %d is wrong", so.UserID, so.UserDataSig.Type)
-		}
-	default:
-		return xerrors.Errorf("user data sign type %d is not supported", so.UserDataSig.Type)
+	err = verify(uri.base, sHash, so.UserDataSig)
+	if err != nil {
+		return err
 	}
 
 	pri, ok := s.rInfo[so.ProID]
@@ -414,25 +335,10 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		pri = s.loadRole(so.ProID)
 		s.rInfo[so.ProID] = pri
 	}
-	switch so.ProDataSig.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(pri.base.ChainVerifyKey, sHash, so.ProDataSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d data sign %d is wrong", so.ProID, so.ProDataSig.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(pri.base.BlsVerifyKey, sHash, so.ProDataSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d data sign %d is wrong", so.ProID, so.ProDataSig.Type)
-		}
-	default:
-		return xerrors.Errorf("pro data sign type %d is not supported", so.ProDataSig.Type)
+
+	err = verify(pri.base, sHash, so.ProDataSig)
+	if err != nil {
+		return err
 	}
 
 	okey := orderKey{
@@ -484,46 +390,14 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		Price:     price,
 	}
 
-	switch so.UserSig.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(uri.base.ChainVerifyKey, nso.Hash(), so.UserSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.UserSig.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(uri.base.BlsVerifyKey, nso.Hash(), so.UserSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.UserSig.Type)
-		}
-	default:
-		return xerrors.Errorf("sign type %d is not supported", so.UserSig.Type)
+	err = verify(uri.base, nso.Hash(), so.UserSig)
+	if err != nil {
+		return err
 	}
 
-	switch so.ProSig.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(pri.base.ChainVerifyKey, nso.Hash(), so.ProSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.ProID, so.ProSig.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(pri.base.BlsVerifyKey, nso.Hash(), so.ProSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.ProID, so.ProSig.Type)
-		}
-	default:
-		return xerrors.Errorf("sign type %d is not supported", so.ProSig.Type)
+	err = verify(pri.base, nso.Hash(), so.ProSig)
+	if err != nil {
+		return err
 	}
 
 	// verify segment
@@ -633,25 +507,9 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		s.validateRInfo[so.UserID] = uri
 	}
 
-	switch so.UserDataSig.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(uri.base.ChainVerifyKey, sHash, so.UserDataSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.UserDataSig.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(uri.base.BlsVerifyKey, sHash, so.UserDataSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.UserDataSig.Type)
-		}
-	default:
-		return xerrors.Errorf("sign type %d is not supported", so.UserDataSig.Type)
+	err = verify(uri.base, sHash, so.UserDataSig)
+	if err != nil {
+		return err
 	}
 
 	pri, ok := s.validateRInfo[so.ProID]
@@ -659,25 +517,10 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		pri = s.loadRole(so.ProID)
 		s.validateRInfo[so.ProID] = pri
 	}
-	switch so.ProDataSig.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(pri.base.ChainVerifyKey, sHash, so.ProDataSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.ProDataSig.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(pri.base.BlsVerifyKey, sHash, so.ProDataSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.ProDataSig.Type)
-		}
-	default:
-		return xerrors.Errorf("sign type %d is not supported", so.ProDataSig.Type)
+
+	err = verify(pri.base, sHash, so.ProDataSig)
+	if err != nil {
+		return err
 	}
 
 	okey := orderKey{
@@ -729,46 +572,14 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		Price:     price,
 	}
 
-	switch so.UserSig.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(uri.base.ChainVerifyKey, nso.Hash(), so.UserSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.UserSig.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(uri.base.BlsVerifyKey, nso.Hash(), so.UserSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.UserSig.Type)
-		}
-	default:
-		return xerrors.Errorf("sign type %d is not supported", so.UserSig.Type)
+	err = verify(uri.base, nso.Hash(), so.UserSig)
+	if err != nil {
+		return err
 	}
 
-	switch so.ProSig.Type {
-	case types.SigSecp256k1:
-		ok, err := signature.Verify(pri.base.ChainVerifyKey, nso.Hash(), so.ProSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.ProSig.Type)
-		}
-	case types.SigBLS:
-		ok, err := signature.Verify(pri.base.BlsVerifyKey, nso.Hash(), so.ProSig.Data)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", so.UserID, so.ProSig.Type)
-		}
-	default:
-		return xerrors.Errorf("sign type %d is not supported", so.ProSig.Type)
+	err = verify(pri.base, nso.Hash(), so.ProSig)
+	if err != nil {
+		return err
 	}
 
 	// verify segment

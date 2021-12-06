@@ -2,7 +2,6 @@ package generic
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-msgio"
 	"github.com/libp2p/go-msgio/protoio"
+	"golang.org/x/xerrors"
 
 	pb "github.com/memoio/go-mefs-v2/lib/pb"
 )
@@ -17,7 +17,7 @@ import (
 var dhtStreamIdleTimeout = 1 * time.Minute
 
 // ErrReadTimeout is an error that occurs when no message is read within the timeout period.
-var ErrReadTimeout = fmt.Errorf("timed out reading response")
+var ErrReadTimeout = xerrors.New("timed out reading response")
 
 // The Protobuf writer performs multiple small writes when writing a message.
 // We need to buffer those writes, to make sure that we're not sending a new

@@ -3,7 +3,6 @@ package net
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-msgio"
 	"github.com/libp2p/go-msgio/protoio"
+	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -22,7 +22,7 @@ import (
 
 var dhtReadMessageTimeout = 10 * time.Second
 
-var ErrReadTimeout = fmt.Errorf("timed out reading response")
+var ErrReadTimeout = xerrors.New("timed out reading response")
 
 var logger = logging.Logger("net")
 
@@ -174,7 +174,7 @@ func (ms *peerMessageSender) prepOrInvalidate(ctx context.Context) error {
 
 func (ms *peerMessageSender) prep(ctx context.Context) error {
 	if ms.invalid {
-		return fmt.Errorf("message sender has been invalidated")
+		return xerrors.Errorf("message sender has been invalidated")
 	}
 	if ms.s != nil {
 		return nil

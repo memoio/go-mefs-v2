@@ -5,13 +5,14 @@ import (
 	"encoding/binary"
 
 	"github.com/golang/protobuf/proto"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"golang.org/x/xerrors"
 )
 
 var _ api.IState = &stateAPI{}
