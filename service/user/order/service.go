@@ -21,7 +21,6 @@ type OrderMgr struct {
 	api.INetService
 	api.IDataService
 	api.IChain
-	api.IState
 
 	ctx context.Context
 	ds  store.KVStore // save order info
@@ -59,14 +58,13 @@ type OrderMgr struct {
 	ready bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, in api.INetService, id api.IDataService, is api.IState) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
 
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
 		INetService:  in,
 		IChain:       pp,
-		IState:       is,
 
 		ctx: ctx,
 		ds:  ds,

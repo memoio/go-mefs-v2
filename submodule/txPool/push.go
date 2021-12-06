@@ -54,14 +54,6 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 		ready:   false,
 	}
 
-	pp.pending[sp.localID] = &pendingMsg{
-		nonce: sp.GetNonce(ctx, sp.localID),
-		msg:   make(map[types.MsgID]*msgTo),
-	}
-
-	// load unfinished
-	pp.load()
-
 	return pp
 }
 
@@ -74,9 +66,6 @@ func (pp *PushPool) Start() {
 
 func (pp *PushPool) Ready() bool {
 	return pp.ready
-}
-
-func (pp *PushPool) load() {
 }
 
 func (pp *PushPool) syncPush() {
@@ -95,8 +84,11 @@ func (pp *PushPool) syncPush() {
 	}
 
 	pp.ready = true
-	lpending := pp.pending[pp.localID]
-	lpending.nonce = pp.GetNonce(pp.ctx, pp.localID)
+
+	pp.pending[pp.localID] = &pendingMsg{
+		nonce: pp.GetNonce(pp.localID),
+		msg:   make(map[types.MsgID]*msgTo),
+	}
 	logger.Debug("pool is ready")
 
 	pp.inPush = true
@@ -142,7 +134,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 	lp, ok := pp.pending[mes.From]
 	if !ok {
 		lp = &pendingMsg{
-			nonce: pp.GetNonce(ctx, mes.From),
+			nonce: pp.GetNonce(mes.From),
 			msg:   make(map[types.MsgID]*msgTo),
 		}
 		pp.pending[mes.From] = lp
@@ -190,7 +182,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	lp, ok := pp.pending[sm.From]
 	if !ok {
 		lp = &pendingMsg{
-			nonce: pp.GetNonce(ctx, sm.From),
+			nonce: pp.GetNonce(sm.From),
 			msg:   make(map[types.MsgID]*msgTo),
 		}
 		pp.pending[sm.From] = lp
@@ -215,6 +207,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 		key := store.NewKey(pb.MetaType_TX_MessageKey, sm.From, sm.Nonce)
 		pp.ds.Put(key, mid.Bytes())
 
+		// for reload at beign?
 		key = store.NewKey(pb.MetaType_TX_MessageKey, sm.From)
 		buf := make([]byte, 8)
 		binary.BigEndian.PutUint64(buf, sm.Nonce+1)

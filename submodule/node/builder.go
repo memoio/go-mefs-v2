@@ -216,9 +216,9 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 
 	// use a different state store
-	nd.StateDB = state.NewStateMgr(nd.StateStore(), rm)
+	stDB := state.NewStateMgr(nd.StateStore(), rm)
 
-	sp := txPool.NewSyncPool(ctx, id, nd.StateDB, nd.MetaStore(), txs, rm, cs)
+	sp := txPool.NewSyncPool(ctx, id, stDB, nd.MetaStore(), txs, rm, cs)
 
 	nd.PPool = txPool.NewPushPool(ctx, sp)
 

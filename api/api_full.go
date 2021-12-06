@@ -129,8 +129,8 @@ type ILfsService interface {
 }
 
 type IChain interface {
+	IState
 	GetSyncHeight(context.Context) (uint64, uint64)
-	GetNonce(context.Context, uint64) uint64
 	GetPendingNonce(context.Context, uint64) uint64
 	GetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
 
@@ -142,20 +142,22 @@ type IState interface {
 	GetRoot() types.MsgID
 	GetHeight() (uint64, uint64, uint16)
 
-	GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error)
-
-	GetPublicKey(userID uint64) (pdpcommon.PublicKey, error)
-	GetBucket(userID uint64) uint64
-
-	GetProof(userID, proID, epoch uint64) bool
-
 	GetChalEpoch() uint64
 	GetChalEpochInfo() *types.ChalEpoch
 	GetChalEpochInfoAt(uint64) *types.ChalEpoch
+
+	GetNonce(uint64) uint64
+
+	GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error)
+	GetPublicKey(userID uint64) (pdpcommon.PublicKey, error)
+	GetBucket(userID uint64) uint64
+
 	GetOrderState(userID, proID uint64) *types.NonceSeq
 	GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq
 	GetOrder(userID, proID, nonce uint64) (*types.SignedOrder, []byte, uint32, error)
 	GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.OrderSeq, []byte, error)
+	GetProof(userID, proID, epoch uint64) bool
+	GetPostIncome(userID, proID uint64) *types.PostIncome
 
 	GetOrderDuration(userID, proID uint64) *types.OrderDuration
 }

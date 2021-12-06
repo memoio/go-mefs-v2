@@ -31,9 +31,6 @@ type InPool struct {
 
 	pending map[uint64]*msgSet // key: from; all currently processable tx
 
-	vmf ValidateMessageFunc
-	vbf ValidateBlockFunc
-
 	msgChan chan *tx.Message
 
 	blkDone chan *tx.BlockHeader
@@ -146,7 +143,7 @@ func (mp *InPool) sync() {
 }
 
 func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
-	nonce := mp.SyncPool.GetNonce(ctx, m.From)
+	nonce := mp.SyncPool.GetNonce(m.From)
 	if m.Nonce < nonce {
 		logger.Debug("add tx msg fails: ", ErrLowNonce)
 		return ErrLowNonce
@@ -180,7 +177,7 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 		return nil, err
 	}
 
-	appliedHeight, appliedSlot, _ := mp.state.GetHeight()
+	appliedHeight, appliedSlot, _ := mp.GetHeight()
 	if appliedHeight != lh {
 		logger.Debug("create block state height is not equal")
 	}
@@ -209,17 +206,13 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 		MultiSignature: types.NewMultiSignature(types.SigSecp256k1),
 	}
 
-	if mp.vbf == nil || mp.vmf == nil {
-		return nbh, ErrNotReady
-	}
-
-	oldRoot, err := mp.vmf(nil)
+	oldRoot, err := mp.ValidateMsg(nil)
 	if err != nil {
 		return nbh, err
 	}
 
 	// reset
-	newRoot, err := mp.vbf(nbh)
+	newRoot, err := mp.ValidateBlock(nbh)
 	if err != nil {
 		return nbh, err
 	}
@@ -227,7 +220,7 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 	nbh.ParentRoot = oldRoot
 	nbh.Root = newRoot
 	for from, ms := range mp.pending {
-		nc := mp.GetNonce(mp.ctx, from)
+		nc := mp.GetNonce(from)
 		for i := nc; ; i++ {
 			m, ok := ms.info[i]
 			if ok {
@@ -235,7 +228,7 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 				tr := tx.Receipt{
 					Err: 0,
 				}
-				nroot, err := mp.vmf(m.mes)
+				nroot, err := mp.ValidateMsg(m.mes)
 				if err != nil {
 					logger.Debug("block message invalid:", m.mes.From, m.mes.Nonce, err)
 					tr.Err = 1
@@ -259,16 +252,4 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 	}
 
 	return nbh, nil
-}
-
-func (mp *InPool) RegisterValidateBlockFunc(h ValidateBlockFunc) {
-	mp.Lock()
-	mp.vbf = h
-	mp.Unlock()
-}
-
-func (mp *InPool) RegisterValidateMsgFunc(h ValidateMessageFunc) {
-	mp.Lock()
-	mp.vmf = h
-	mp.Unlock()
 }

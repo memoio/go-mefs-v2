@@ -24,7 +24,7 @@ type OrderMgr struct {
 	api.IRole
 	api.INetService
 	api.IDataService
-	api.IState
+	api.IChain
 
 	ctx context.Context
 	ds  store.KVStore
@@ -35,7 +35,7 @@ type OrderMgr struct {
 	orders map[uint64]*OrderFull // key: userID
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService, is api.IState) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService, ic api.IChain) *OrderMgr {
 	quo := &types.Quotation{
 		ProID:      roleID,
 		TokenIndex: 1,
@@ -47,7 +47,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 		IRole:        ir,
 		IDataService: id,
 		INetService:  in,
-		IState:       is,
+		IChain:       ic,
 
 		ctx: ctx,
 		ds:  ds,

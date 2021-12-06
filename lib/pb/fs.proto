@@ -56,7 +56,6 @@ enum MetaType {
 	Tx_BlockSyncedKey = 60;   // key: x; value: blk height	
 	TX_BlockKey = 61;         // key: x/blockHash; value: blk content, 
 	Tx_BlockHeightKey = 62;	  // key: x/blockHeight; value: blk hash
-	Tx_NonceKey = 63;	      // key: x/roleID; value: nonce
 	TX_MessageKey = 64;       // key: x/messageHash; value: SignedMessage
 	Tx_MessageStateKey = 65;  // key: x/messageHash; value: blkID, height	
 }

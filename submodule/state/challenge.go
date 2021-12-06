@@ -78,6 +78,14 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("challenge on empty data")
 	}
 
+	if scp.OrderStart > scp.OrderEnd {
+		return xerrors.Errorf("chal has invalid orders %d %d at wrong epoch: %d ", scp.OrderStart, scp.OrderEnd, s.ceInfo.epoch)
+	}
+
+	if ns.Nonce != scp.OrderEnd+1 {
+		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce-1, s.ceInfo.epoch)
+	}
+
 	chalStart := build.BaseTime + int64(s.ceInfo.previous.Slot*build.SlotDuration)
 	chalEnd := build.BaseTime + int64(s.ceInfo.current.Slot*build.SlotDuration)
 	chalDur := chalEnd - chalStart
@@ -136,7 +144,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 
 	if ns.Nonce > 1 {
 		// todo: choose some from [0, ns.Nonce-1)
-		for i := uint64(0); i < ns.Nonce-1; i++ {
+		for i := scp.OrderStart; i < scp.OrderEnd-1; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
@@ -148,7 +156,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 				return err
 			}
 			if of.Start >= chalEnd || of.End <= chalStart {
-				continue
+				return xerrors.Errorf("chal order expired at %d", i)
 			} else if of.Start <= chalStart && of.End >= chalEnd {
 				orderDur = chalDur
 			} else if of.Start >= chalStart && of.End >= chalEnd {
@@ -181,9 +189,11 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("wrong challenge proof: %d %d %d %d %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum)
 	}
 
-	logger.Debugf("apply challenge proof: %d %d %d %d %d %d %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice)
-
 	oinfo.prove = scp.Epoch + 1
+
+	oinfo.income.Value.Add(oinfo.income.Value, totalPrice)
+
+	logger.Debugf("apply challenge proof: %d %d %d %d %d %d %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice)
 
 	// save proof result
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID, scp.Epoch)
@@ -194,7 +204,19 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	binary.BigEndian.PutUint64(buf, oinfo.prove)
 	s.ds.Put(key, buf)
 
-	// keeper handle cal income
+	// save posincome
+	data, err = oinfo.income.Serialize()
+	if err != nil {
+		return err
+	}
+	key = store.NewKey(pb.MetaType_ST_PayKey, okey.userID, okey.proID, scp.Epoch)
+	s.ds.Put(key, data)
+
+	// save at epoch
+	key = store.NewKey(pb.MetaType_ST_PayKey, okey.userID, okey.proID)
+	s.ds.Put(key, data)
+
+	// keeper handle callback income
 
 	return nil
 }
@@ -264,6 +286,14 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("challenge on empty data")
 	}
 
+	if scp.OrderStart > scp.OrderEnd {
+		return xerrors.Errorf("chal has invalid orders %d %d at wrong epoch: %d ", scp.OrderStart, scp.OrderEnd, s.ceInfo.epoch)
+	}
+
+	if ns.Nonce != scp.OrderEnd+1 {
+		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce-1, s.ceInfo.epoch)
+	}
+
 	chalStart := build.BaseTime + int64(s.validateCeInfo.previous.Slot*build.SlotDuration)
 	chalEnd := build.BaseTime + int64(s.validateCeInfo.current.Slot*build.SlotDuration)
 	chalDur := chalEnd - chalStart
@@ -321,8 +351,8 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	}
 
 	if ns.Nonce > 1 {
-		// todo: choose some un-expire orders from [0, ns.Nonce-1)
-		for i := uint64(0); i < ns.Nonce-1; i++ {
+		// todo: choose some un-expire orders from [scp.OrderStart, ns.Nonce-1)
+		for i := scp.OrderStart; i < scp.OrderEnd-1; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
@@ -335,7 +365,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 			}
 
 			if of.Start >= chalEnd || of.End <= chalStart {
-				continue
+				return xerrors.Errorf("chal order expired at %d", i)
 			} else if of.Start <= chalStart && of.End >= chalEnd {
 				orderDur = chalDur
 			} else if of.Start >= chalStart && of.End >= chalEnd {

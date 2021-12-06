@@ -25,7 +25,6 @@ var logger = logging.Logger("pro-challenge")
 type SegMgr struct {
 	sync.RWMutex
 	api.IChain
-	api.IState
 
 	ds       store.KVStore
 	segStore segment.SegmentStore
@@ -59,10 +58,9 @@ type segInfo struct {
 	chalTime time.Time
 }
 
-func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, ss segment.SegmentStore, ic api.IChain, is api.IState) *SegMgr {
+func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, ss segment.SegmentStore, ic api.IChain) *SegMgr {
 	s := &SegMgr{
 		IChain:   ic,
-		IState:   is,
 		ctx:      ctx,
 		localID:  localID,
 		ds:       ds,
@@ -257,10 +255,12 @@ func (s *SegMgr) challenge(userID uint64) {
 	}
 
 	orderDur := int64(0)
-
 	price := new(big.Int)
 	totalPrice := new(big.Int)
 	totalSize := uint64(0)
+
+	orderStart := uint64(0)
+	orderEnd := uint64(0)
 
 	if ns.Nonce > 0 {
 		so, _, _, err := s.GetOrder(userID, s.localID, ns.Nonce-1)
@@ -269,6 +269,12 @@ func (s *SegMgr) challenge(userID uint64) {
 			return
 		}
 
+		if so.Start >= chalEnd || so.End <= chalStart {
+			logger.Debug("chal order all expired: ", userID, si.nextChal)
+			return
+		}
+		orderEnd = ns.Nonce - 1
+
 		for i := uint32(0); i < ns.SeqNum; i++ {
 			seq, accFr, err := s.GetOrderSeq(userID, s.localID, ns.Nonce-1, i)
 			if err != nil {
@@ -276,6 +282,21 @@ func (s *SegMgr) challenge(userID uint64) {
 				return
 			}
 			for _, seg := range seq.Segments {
+				if i == ns.SeqNum-1 {
+					if so.Start <= chalStart && so.End >= chalEnd {
+						orderDur = chalDur
+					} else if so.Start >= chalStart && so.End >= chalEnd {
+						orderDur = chalEnd - so.Start
+					} else if so.Start <= chalStart && so.End <= chalEnd {
+						orderDur = so.End - chalStart
+					}
+					price.Set(seq.Price)
+					price.Mul(price, big.NewInt(orderDur))
+					totalPrice.Add(totalPrice, price)
+					totalSize += seq.Size
+					chal.Add(accFr)
+				}
+
 				sid.SetBucketID(seg.BucketID)
 				for j := seg.Start; j < seg.Start+seg.Length; j++ {
 					sid.SetStripeID(j)
@@ -298,24 +319,6 @@ func (s *SegMgr) challenge(userID uint64) {
 				}
 			}
 
-			if i == ns.SeqNum-1 {
-				if so.Start >= chalEnd || so.End <= chalStart {
-					logger.Debug("chal order all expired: ", userID, si.nextChal)
-					return
-
-				} else if so.Start <= chalStart && so.End >= chalEnd {
-					orderDur = chalDur
-				} else if so.Start >= chalStart && so.End >= chalEnd {
-					orderDur = chalEnd - so.Start
-				} else if so.Start <= chalStart && so.End <= chalEnd {
-					orderDur = so.End - chalStart
-				}
-				price.Set(seq.Price)
-				price.Mul(price, big.NewInt(orderDur))
-				totalPrice.Add(totalPrice, price)
-				totalSize += seq.Size
-				chal.Add(accFr)
-			}
 		}
 	}
 
@@ -329,9 +332,12 @@ func (s *SegMgr) challenge(userID uint64) {
 			}
 
 			if so.Start >= chalEnd || so.End <= chalStart {
-				logger.Debug("chal order expired: ", userID, si.nextChal)
+				logger.Debug("chal order expired: ", userID, si.nextChal, i)
+				orderStart = i
 				continue
-			} else if so.Start <= chalStart && so.End >= chalEnd {
+			}
+
+			if so.Start <= chalStart && so.End >= chalEnd {
 				orderDur = chalDur
 			} else if so.Start >= chalStart && so.End >= chalEnd {
 				orderDur = chalEnd - so.Start
@@ -407,13 +413,16 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	logger.Debug("challenge create proof: ", userID, s.localID, si.nextChal, ns.Nonce, ns.SeqNum, cnt, totalSize, totalPrice)
+	orderStart++
+	logger.Debug("challenge create proof: ", userID, s.localID, si.nextChal, ns.Nonce, ns.SeqNum, orderStart, orderEnd, cnt, totalSize, totalPrice)
 
 	scp := &tx.SegChalParams{
-		Epoch: si.nextChal,
-		Size:  totalSize,
-		Price: totalPrice,
-		Proof: res.Serialize(),
+		Epoch:      si.nextChal,
+		OrderStart: orderStart,
+		OrderEnd:   orderEnd,
+		Size:       totalSize,
+		Price:      totalPrice,
+		Proof:      res.Serialize(),
 	}
 
 	data, err := scp.Serialize()

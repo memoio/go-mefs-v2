@@ -71,9 +71,6 @@ func (k *KeeperNode) Start() error {
 		}
 	}
 
-	// register for can apply msg
-	k.inp.RegisterValidateMsgFunc(k.StateDB.ValidateMsg)
-	k.inp.RegisterValidateBlockFunc(k.StateDB.ValidateBlock)
 	k.inp.Start()
 
 	err := k.Register()

@@ -145,6 +145,7 @@ func (os *SignedOrderSeq) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, os)
 }
 
+// for quick filter expired
 type OrderDuration struct {
 	Start []int64
 	End   []int64

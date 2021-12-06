@@ -35,6 +35,12 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 			Nonce:  0,
 			SeqNum: 0,
 		},
+		income: &types.PostIncome{
+			UserID:  userID,
+			ProID:   proID,
+			Value:   big.NewInt(0),
+			Penalty: big.NewInt(0),
+		},
 		accFr: bls.ZERO,
 		od:    new(types.OrderDuration),
 	}
@@ -57,6 +63,14 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 		return oinfo
 	}
 
+	// load pay
+	key = store.NewKey(pb.MetaType_ST_PayKey, userID, proID)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		oinfo.income.Deserialize(data)
+	}
+
+	// load order durations
 	key = store.NewKey(pb.MetaType_ST_OrderDurationKey, userID, proID)
 	data, err = s.ds.Get(key)
 	if err == nil {
@@ -159,7 +173,8 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		return err
 	}
 
-	// callback for user-pro relationgrep fa
+	// callback for user-pro relation
+	// callback for add segmap and delete data in user
 
 	return nil
 }

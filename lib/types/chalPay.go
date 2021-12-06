@@ -34,3 +34,8 @@ func (pi *PostIncome) Serialize() ([]byte, error) {
 func (pi *PostIncome) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, pi)
 }
+
+type SignedPostIncome struct {
+	PostIncome
+	Sign MultiSignature // signed by keepers
+}

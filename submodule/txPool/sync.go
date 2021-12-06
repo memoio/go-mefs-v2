@@ -3,7 +3,6 @@ package txPool
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"math"
 	"sync"
 	"time"
@@ -32,7 +31,7 @@ type SyncPool struct {
 	api.IRole
 	tx.Store
 
-	state *state.StateMgr
+	*state.StateMgr
 
 	ctx context.Context
 	ds  store.KVStore
@@ -63,7 +62,7 @@ func NewSyncPool(ctx context.Context, roleID uint64, st *state.StateMgr, ds stor
 		IRole:       ir,
 		Store:       ts,
 
-		state: st,
+		StateMgr: st,
 
 		ds:  ds,
 		ctx: ctx,
@@ -99,7 +98,7 @@ func (sp *SyncPool) SetReady() {
 
 func (sp *SyncPool) load() {
 	// todo: handle case if msglen > 0
-	ht, _, msglen := sp.state.GetHeight()
+	ht, _, msglen := sp.GetHeight()
 	if msglen != 0 {
 		logger.Warn("state is incomplet at: ", ht, msglen)
 	}
@@ -173,7 +172,7 @@ func (sp *SyncPool) syncBlock() {
 				sm, err := sp.GetTxMsg(tx.ID)
 				if err != nil {
 					go sp.getRoleInfoRemote(tx.From)
-					go sp.GetTxMsgRemote(tx.ID)
+					go sp.getTxMsgRemote(tx.ID)
 				} else {
 					sb.msg[j] = &sm.Message
 					sb.msgCount++
@@ -219,7 +218,7 @@ func (sp *SyncPool) syncBlock() {
 
 func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 	logger.Debug("process block:", sb.blk.Height)
-	oRoot, err := sp.state.AppleyMsg(nil, nil)
+	oRoot, err := sp.AppleyMsg(nil, nil)
 	if err != nil {
 		return err
 	}
@@ -228,39 +227,31 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.blk.ParentRoot)
 	}
 
-	newRoot, err := sp.state.ApplyBlock(sb.blk)
+	newRoot, err := sp.ApplyBlock(sb.blk)
 	if err != nil {
 		return err
 	}
 
-	buf := make([]byte, 8)
 	for i := 0; i < sb.msgCount; i++ {
 		tx := sb.blk.Txs[i]
 
-		key := store.NewKey(pb.MetaType_Tx_NonceKey, tx.From)
 		nextNonce, ok := sp.nonce[tx.From]
 		if !ok {
-			val, err := sp.ds.Get(key)
-			if err == nil && len(val) >= 8 {
-				nextNonce = binary.BigEndian.Uint64(val)
-			}
+			nextNonce = sp.GetNonce(tx.From)
 		}
 
 		if nextNonce != tx.Nonce {
-			logger.Debug("has nonce: ", tx.From, tx.Nonce, nextNonce)
+			logger.Debug("has wrong nonce: ", tx.From, tx.Nonce, nextNonce)
 		}
 
 		sp.nonce[tx.From] = tx.Nonce + 1
 
 		// apply message
-		newRoot, err = sp.state.AppleyMsg(sb.msg[i], &sb.blk.Receipts[i])
+		newRoot, err = sp.AppleyMsg(sb.msg[i], &sb.blk.Receipts[i])
 		if err != nil {
 			// should not; todo
 			logger.Error("fail to apply message: ", err, newRoot)
 		}
-
-		binary.BigEndian.PutUint64(buf, tx.Nonce+1)
-		sp.ds.Put(key, buf)
 
 		if tx.From == sp.localID {
 			if sp.inPush {
@@ -273,7 +264,7 @@ func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
 		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.blk.Root)
 	}
 
-	newRoot, err = sp.state.ApplyBlock(nil)
+	newRoot, err = sp.ApplyBlock(nil)
 	if err != nil {
 		return err
 	}
@@ -298,24 +289,6 @@ func (sp *SyncPool) GetSyncStatus(ctx context.Context) bool {
 
 func (sp *SyncPool) GetSyncHeight(ctx context.Context) (uint64, uint64) {
 	return sp.nextHeight, sp.remoteHeight
-}
-
-func (sp *SyncPool) GetNonce(ctx context.Context, from uint64) uint64 {
-	nextNonce, ok := sp.nonce[from]
-	if ok {
-		return nextNonce
-	} else {
-		key := store.NewKey(pb.MetaType_Tx_NonceKey, from)
-		val, err := sp.ds.Get(key)
-		if err == nil && len(val) >= 8 {
-			nextNonce = binary.BigEndian.Uint64(val)
-			sp.Lock()
-			sp.nonce[from] = nextNonce
-			sp.Unlock()
-			return nextNonce
-		}
-	}
-	return 0
 }
 
 func (sp *SyncPool) GetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.MsgState, error) {
@@ -431,7 +404,7 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, tb *tx.SignedMessage) error {
 }
 
 // fetch msg over network
-func (sp *SyncPool) GetTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
+func (sp *SyncPool) getTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
 	key := store.NewKey(pb.MetaType_TX_MessageKey, mid.String())
 	res, err := sp.INetService.Fetch(sp.ctx, key)
 	if err != nil {

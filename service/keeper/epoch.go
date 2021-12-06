@@ -17,9 +17,9 @@ func (k *KeeperNode) updateEpoch() {
 		case <-k.ctx.Done():
 			return
 		case <-ticker.C:
-			_, slot, _ := k.StateDB.GetHeight()
-			ne := k.StateDB.GetChalEpoch()
-			ce := k.StateDB.GetChalEpochInfo()
+			_, slot, _ := k.PPool.GetHeight()
+			ne := k.PPool.GetChalEpoch()
+			ce := k.PPool.GetChalEpochInfo()
 			if ce.Slot < slot && slot-ce.Slot > build.DefaultChalDuration {
 				// update
 				logger.Debug("update epoch to: ", ce.Epoch, ne, ce.Slot, slot)

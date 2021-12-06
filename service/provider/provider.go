@@ -48,9 +48,9 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl)
 
-	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, segStore, bn.PPool, bn.StateDB)
+	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, segStore, bn.PPool)
 
-	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids, sm)
+	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.PPool)
 
 	pn := &ProviderNode{
 		BaseNode:     bn,
@@ -82,7 +82,7 @@ func (p *ProviderNode) Start() error {
 	p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
 	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
 
-	p.StateDB.RegisterAddUserFunc(p.chalSeg.AddUser)
+	p.PPool.RegisterAddUserFunc(p.chalSeg.AddUser)
 
 	// wait for sync
 	p.PPool.Start()

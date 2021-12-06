@@ -88,11 +88,12 @@ func (sf *seqFull) Deserialize(b []byte) error {
 }
 
 type orderInfo struct {
-	prove uint64 // next prove epoch
-	ns    *types.NonceSeq
-	accFr bls.Fr
-	base  *types.SignedOrder
-	od    *types.OrderDuration
+	prove  uint64 // next prove epoch
+	income *types.PostIncome
+	ns     *types.NonceSeq
+	accFr  bls.Fr
+	base   *types.SignedOrder
+	od     *types.OrderDuration
 }
 
 type segPerUser struct {

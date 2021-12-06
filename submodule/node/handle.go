@@ -64,7 +64,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 }
 
 func (n *BaseNode) Register() error {
-	_, err := n.StateDB.GetRoleBaseInfo(n.RoleID())
+	_, err := n.PPool.GetRoleBaseInfo(n.RoleID())
 	if err != nil {
 		ri, err := n.RoleSelf(n.ctx)
 		if err != nil {

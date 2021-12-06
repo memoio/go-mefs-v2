@@ -33,6 +33,21 @@ func (s *StateMgr) GetHeight() (uint64, uint64, uint16) {
 	return s.height, s.slot, s.msgNum
 }
 
+func (s *StateMgr) GetNonce(roleID uint64) uint64 {
+	s.RLock()
+
+	ri, ok := s.rInfo[roleID]
+	if ok {
+		s.RUnlock()
+		return ri.val.Nonce
+	}
+	s.RUnlock()
+
+	rv := s.loadVal(roleID)
+
+	return rv.Nonce
+}
+
 func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
 	pri := new(pb.RoleInfo)
 	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, userID)
@@ -96,6 +111,20 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 	}
 
 	return proved
+}
+
+func (s *StateMgr) GetPostIncome(userID, proID uint64) *types.PostIncome {
+	pi := new(types.PostIncome)
+	key := store.NewKey(pb.MetaType_ST_PayKey, userID, proID)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		err = pi.Deserialize(data)
+		if err == nil {
+			return pi
+		}
+	}
+
+	return pi
 }
 
 func (s *StateMgr) GetChalEpoch() uint64 {
