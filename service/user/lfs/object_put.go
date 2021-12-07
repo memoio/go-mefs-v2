@@ -3,10 +3,10 @@ package lfs
 import (
 	"context"
 	"io"
-	"log"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -97,7 +97,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 
 	bucket.objects.Insert(MetaName(objectName), object)
 
-	log.Printf("Upload create object: %s in bucket: %s", object.GetName(), bucket.GetName())
+	logger.Info("Upload create object: %s in bucket: %s", object.GetName(), bucket.GetName())
 
 	return object, nil
 }

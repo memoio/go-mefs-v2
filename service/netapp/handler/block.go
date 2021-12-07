@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"log"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -66,6 +65,5 @@ func (i *BlockImpl) Close() {
 }
 
 func defaultBlockHandler(ctx context.Context, msg *tx.Block) error {
-	log.Println("received block:", msg.Height)
 	return nil
 }

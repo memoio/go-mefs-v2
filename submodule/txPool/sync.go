@@ -43,8 +43,6 @@ type SyncPool struct {
 	blks  map[uint64]*SyncedBlock // key: height
 	nonce map[uint64]uint64       // key: roleID
 
-	syncChan chan struct{}
-
 	ready bool
 
 	msgDone chan *tx.MessageDigest
@@ -74,10 +72,9 @@ func NewSyncPool(ctx context.Context, roleID uint64, st *state.StateMgr, ds stor
 		nonce: make(map[uint64]uint64),
 		blks:  make(map[uint64]*SyncedBlock),
 
-		syncChan: make(chan struct{}),
-		msgChan:  make(chan *tx.Message, 128),
-		msgDone:  make(chan *tx.MessageDigest, 16),
-		blkDone:  make(chan *tx.BlockHeader, 8),
+		msgChan: make(chan *tx.Message, 128),
+		msgDone: make(chan *tx.MessageDigest, 16),
+		blkDone: make(chan *tx.BlockHeader, 8),
 	}
 
 	sp.load()
@@ -113,7 +110,7 @@ func (sp *SyncPool) load() {
 }
 
 func (sp *SyncPool) syncBlock() {
-	tc := time.NewTicker(10 * time.Second)
+	tc := time.NewTicker(5 * time.Second)
 	defer tc.Stop()
 
 	for {
@@ -121,7 +118,6 @@ func (sp *SyncPool) syncBlock() {
 		case <-sp.ctx.Done():
 			return
 		case <-tc.C:
-		case <-sp.syncChan:
 		}
 
 		if sp.remoteHeight == sp.nextHeight {
@@ -129,16 +125,16 @@ func (sp *SyncPool) syncBlock() {
 			continue
 		}
 
-		logger.Debug("regular handle block:", sp.nextHeight, sp.remoteHeight)
+		logger.Debug("regular get block:", sp.nextHeight, sp.remoteHeight)
 
 		// from end -> begin
+		// sync all block head
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
 			sp.RLock()
-			sb, ok := sp.blks[i]
+			_, ok := sp.blks[i]
 			sp.RUnlock()
 			if !ok {
 				// sync block from remote
-
 				bid, err := sp.GetTxBlockByHeight(i)
 				if err != nil {
 					logger.Debug("get block height fail: ", i, err)
@@ -147,12 +143,14 @@ func (sp *SyncPool) syncBlock() {
 
 				blk, err := sp.GetTxBlock(bid)
 				if err != nil {
-					logger.Debug("get block fail: ", i, bid, err)
-					go sp.GetTxBlockRemote(bid)
-					continue
+					blk, err = sp.GetTxBlockRemote(bid)
+					if err != nil {
+						logger.Debug("get block remote fail: ", i, bid, err)
+						continue
+					}
 				}
 
-				sb = &SyncedBlock{
+				sb := &SyncedBlock{
 					blk:      blk,
 					msg:      make([]*tx.Message, len(blk.Txs)),
 					msgCount: 0,
@@ -161,39 +159,55 @@ func (sp *SyncPool) syncBlock() {
 				sp.Lock()
 				sp.blks[i] = sb
 				sp.Unlock()
-
-				sp.PutTxBlockHeight(i-1, blk.PrevID)
 			}
+		}
 
-			// sync all msg of one block
-			for j, tx := range sb.blk.Txs {
-				if sb.msg[j] != nil {
-					continue
-				}
-				sm, err := sp.GetTxMsg(tx.ID)
-				if err != nil {
-					go sp.getRoleInfoRemote(tx.From)
-					go sp.getTxMsgRemote(tx.ID)
-				} else {
+		rh := sp.remoteHeight
+		if rh > sp.nextHeight+128 {
+			rh = sp.nextHeight + 128
+		}
+
+		logger.Debug("regular get block msg:", sp.nextHeight, rh, sp.remoteHeight)
+
+		for i := sp.nextHeight; i < rh; i++ {
+			sp.RLock()
+			sb, ok := sp.blks[i]
+			sp.RUnlock()
+			if ok {
+				// sync all msg of one block
+				for j, tx := range sb.blk.Txs {
+					if sb.msg[j] != nil {
+						continue
+					}
+					sm, err := sp.GetTxMsg(tx.ID)
+					if err != nil {
+						// for test
+						go sp.getRoleInfoRemote(tx.From)
+						// get from remote
+						sm, err = sp.getTxMsgRemote(tx.ID)
+						if err != nil {
+							continue
+						}
+					}
 					sb.msg[j] = &sm.Message
 					sb.msgCount++
 				}
 			}
 		}
 
-		logger.Debug("regular process block:", sp.nextHeight, sp.remoteHeight)
+		logger.Debug("regular process block:", sp.nextHeight, rh, sp.remoteHeight)
 
 		// process syncd blk
-		for i := sp.nextHeight; i < sp.remoteHeight; i++ {
+		for i := sp.nextHeight; i < rh; i++ {
 			sp.Lock()
-			blk, ok := sp.blks[i]
+			sb, ok := sp.blks[i]
 			if ok {
-				if len(blk.blk.Txs) > blk.msgCount {
-					logger.Debug("before process block: ", len(blk.blk.Txs), blk.msgCount)
+				if len(sb.blk.Txs) > sb.msgCount {
+					logger.Debug("before process block: ", len(sb.blk.Txs), sb.msgCount)
 					sp.Unlock()
 					break
 				}
-				err := sp.processTxBlock(blk)
+				err := sp.processTxBlock(sb)
 				if err != nil {
 					sp.Unlock()
 					logger.Debug(err)
@@ -356,8 +370,6 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 		sp.remoteHeight = tb.Height + 1
 	}
 	sp.Unlock()
-
-	sp.syncChan <- struct{}{}
 
 	return nil
 }

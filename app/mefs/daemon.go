@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	_ "net/http/pprof"
 	"strings"
 
@@ -16,9 +14,8 @@ import (
 )
 
 const (
-	bootstrapOptionKwd = "bootstrap"
-	apiAddrKwd         = "api"
-	swarmPortKwd       = "swarm-port"
+	apiAddrKwd   = "api"
+	swarmPortKwd = "swarm-port"
 )
 
 var DaemonCmd = &cli.Command{
@@ -33,12 +30,12 @@ var DaemonCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  apiAddrKwd,
 			Usage: "set the api addr to use",
-			Value: "/ip4/127.0.0.1/tcp/8001",
+			Value: "/ip4/127.0.0.1/tcp/8000",
 		},
 		&cli.StringFlag{
 			Name:  swarmPortKwd,
 			Usage: "set the swarm port to use",
-			Value: "12000",
+			Value: "7000",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -49,20 +46,11 @@ var DaemonCmd = &cli.Command{
 func daemonFunc(cctx *cli.Context) (_err error) {
 	err := mprome.Inject()
 	if err != nil {
-		fmt.Errorf("Injecting prometheus handler for metrics failed with message: %s\n", err.Error())
+		logger.Errorf("Injecting prometheus handler for metrics failed with message: %s", err)
 		return err
 	}
 
-	log.Println("Initializing daemon...")
-
-	defer func() {
-		if _err != nil {
-			// Print an extra line before any errors. This could go
-			// in the commands lib but doesn't really make sense for
-			// all commands.
-			fmt.Println()
-		}
-	}()
+	logger.Info("Initializing daemon...")
 
 	minit.PrintVersion()
 
@@ -119,22 +107,10 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		}
 	}
 
-	minit.PrintSwarmAddrs(node)
-
 	// Start the node
 	if err := node.Start(); err != nil {
 		return err
 	}
 
-	// Run API server around the keeper.
-	ready := make(chan interface{}, 1)
-	go func() {
-		<-ready
-
-		// The daemon is *finally* ready.
-		log.Printf("Network PeerID is %s\n", node.GetHost().ID().String())
-		log.Printf("Daemon is ready\n")
-	}()
-
-	return node.RunDaemon(ready)
+	return node.RunDaemon()
 }

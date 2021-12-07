@@ -2,6 +2,9 @@ package node
 
 import (
 	"context"
+	"log"
+	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/filecoin-project/go-jsonrpc"
@@ -164,26 +167,39 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		groupID: gid,
 	}
 
-	networkName := cfg.Net.Name + "/group" + strconv.FormatInt(int64(gid), 10)
-
-	logger.Debug("networkName is: ", networkName)
-
-	nd.NetworkSubmodule, err = network.NewNetworkSubmodule(ctx, (*builder)(b), b.repo.Config(), b.repo.MetaStore(), networkName)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to build node network %w", err)
-	}
-	nd.IsOnline = true
-
 	nd.LocalWallet = wallet.New(b.walletPassword, b.repo.KeyStore())
-
 	ok, err := nd.LocalWallet.WalletHas(ctx, defaultAddr)
 	if err != nil {
 		return nil, err
 	}
-
 	if !ok {
-		return nil, xerrors.New("donot have default address")
+		return nil, xerrors.New("donot have default wallet address")
 	}
+
+	networkName := cfg.Net.Name + "/group" + strconv.FormatInt(int64(gid), 10)
+
+	logger.Debug("networkName is: ", networkName)
+
+	nd.NetworkSubmodule, err = network.NewNetworkSubmodule(ctx, (*builder)(b), networkName)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to build node network %w", err)
+	}
+
+	var lisAddrs []string
+	ifaceAddrs, err := nd.Host.Network().InterfaceListenAddresses()
+	if err != nil {
+		log.Fatalf("failed to read listening addresses: %s", err)
+		return nil, err
+	}
+	for _, addr := range ifaceAddrs {
+		lisAddrs = append(lisAddrs, addr.String())
+	}
+	sort.Strings(lisAddrs)
+	for _, addr := range lisAddrs {
+		logger.Debug("Swarm listening on %s", addr)
+	}
+
+	nd.isOnline = true
 
 	cs, err := netapp.New(ctx, id, nd.MetaStore(), nd.NetworkSubmodule)
 	if err != nil {
@@ -204,9 +220,9 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, err
 	}
 
-	nd.ConfigModule = mconfig.NewConfigModule(b.repo)
-
 	nd.JwtAuth = jauth
+
+	nd.ConfigModule = mconfig.NewConfigModule(b.repo)
 
 	txs, err := tx.NewTxStore(ctx, nd.MetaStore())
 	if err != nil {
@@ -224,12 +240,12 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.RPCServer = jsonrpc.NewServer(readerServerOpt)
 
-	muxRouter := mux.NewRouter()
+	nd.httpHandle = mux.NewRouter()
 
-	muxRouter.Handle("/rpc/v0", nd.RPCServer)
-	muxRouter.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
-
-	nd.httpHandle = muxRouter
+	nd.httpHandle.Handle("/rpc/v0", nd.RPCServer)
+	nd.httpHandle.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
+	nd.httpHandle.Handle("/debug/metrics", exporter())
+	nd.httpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	return nd, nil
 }

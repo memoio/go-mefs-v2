@@ -86,10 +86,6 @@ func (k *KeeperNode) Start() error {
 	return nil
 }
 
-func (k *KeeperNode) RunDaemon(ready chan interface{}) error {
-	return k.BaseNode.RunDaemon(ready)
-}
-
 func (k *KeeperNode) Close() {
 	k.BaseNode.Close()
 }

@@ -107,11 +107,3 @@ func (p *ProviderNode) Start() error {
 	logger.Info("start provider for: ", p.RoleID())
 	return nil
 }
-
-func (p *ProviderNode) RunDaemon(ready chan interface{}) error {
-	return p.BaseNode.RunDaemon(ready)
-}
-
-func (p *ProviderNode) Close() {
-	p.BaseNode.Close()
-}

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"log"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -61,6 +60,5 @@ func (i *Impl) Close() {
 }
 
 func defaultHandler(ctx context.Context, msg *tx.SignedMessage) error {
-	log.Println("received tx message:", msg.From)
 	return nil
 }

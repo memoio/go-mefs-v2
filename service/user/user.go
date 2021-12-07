@@ -102,10 +102,7 @@ func (u *UserNode) Start() error {
 	return nil
 }
 
-func (u *UserNode) RunDaemon(ready chan interface{}) error {
-	return u.BaseNode.RunDaemon(ready)
-}
-
-func (u *UserNode) Close() {
-	u.BaseNode.Close()
+func (u *UserNode) Stop(ctx context.Context) error {
+	u.LfsService.Stop()
+	return u.BaseNode.Stop(ctx)
 }

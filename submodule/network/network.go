@@ -23,8 +23,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
-	config "github.com/memoio/go-mefs-v2/config"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/utils/net"
 	"github.com/memoio/go-mefs-v2/lib/utils/storeutil"
 )
@@ -55,6 +54,7 @@ type NetworkSubmodule struct { //nolint
 
 type networkConfig interface {
 	Libp2pOpts() []libp2p.Option
+	Repo() repo.Repo
 }
 
 type blankValidator struct{}
@@ -63,7 +63,7 @@ func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
 func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 // NewNetworkSubmodule creates a new network submodule.
-func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.Config, ds store.KVStore, networkName string) (*NetworkSubmodule, error) {
+func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName string) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
 
 	libP2pOpts := append(config.Libp2pOpts(), Transport())
@@ -74,6 +74,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 	libP2pOpts = append(libP2pOpts, makeSmuxTransportOption())
 	libP2pOpts = append(libP2pOpts, Security(true, false))
 
+	ds := config.Repo().MetaStore()
 	nds, err := storeutil.NewDatastore("dht", ds)
 	if err != nil {
 		return nil, err
@@ -92,7 +93,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 
 	// setup dht
 	validator := blankValidator{}
-	bootNodes, err := net.ParseAddresses(ctx, cfg.Bootstrap.Addresses)
+	bootNodes, err := net.ParseAddresses(ctx, config.Repo().Config().Bootstrap.Addresses)
 	if err != nil {
 		return nil, err
 	}

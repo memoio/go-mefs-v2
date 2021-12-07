@@ -12,7 +12,6 @@ import (
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/gorilla/mux"
-	"github.com/libp2p/go-libp2p-core/host"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 
@@ -59,9 +58,7 @@ type BaseNode struct {
 	roleID  uint64
 	groupID uint64
 
-	ShutdownChan chan struct{}
-
-	IsOnline bool
+	isOnline bool
 }
 
 func (n *BaseNode) RoleID() uint64 {
@@ -98,34 +95,33 @@ func (n *BaseNode) Start() error {
 	return nil
 }
 
-func (n *BaseNode) Stop(ctx context.Context) {
+func (n *BaseNode) Stop(ctx context.Context) error {
 	n.GenericService.MsgHandle.Close()
 
 	n.NetworkSubmodule.Stop(ctx)
 
-	if err := n.Repo.Close(); err != nil {
-		logger.Errorf("error closing repo: %s\n", err)
+	// stop other module
+
+	err := n.Repo.Close()
+	if err != nil {
+		logger.Errorf("error closing repo: %s", err)
 	}
 
 	logger.Info("stopping Memoriae :(")
+	return nil
 }
 
-func (n *BaseNode) RunDaemon(ready chan interface{}) error {
+func (n *BaseNode) RunDaemon() error {
 	cfg := n.Repo.Config()
 	apiAddr, err := ma.NewMultiaddr(cfg.API.Address)
 	if err != nil {
 		return err
 	}
 
-	// Listen on the configured address in order to bind the port number in case it has
-	// been configured as zero (i.e. OS-provided)
-	apiListener, err := manet.Listen(apiAddr) //nolint
+	apiListener, err := manet.Listen(apiAddr)
 	if err != nil {
 		return err
 	}
-
-	n.httpHandle.Handle("/debug/metrics", exporter())
-	n.httpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	netListener := manet.NetListener(apiListener) //nolint
 
@@ -144,36 +140,40 @@ func (n *BaseNode) RunDaemon(ready chan interface{}) error {
 		return err
 	}
 
-	var terminate = make(chan os.Signal, 1)
-	signal.Notify(terminate, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(terminate)
-
-	n.ShutdownChan = make(chan struct{})
-
-	close(ready)
-
+	var terminate = make(chan os.Signal, 2)
+	shutdownChan := make(chan struct{})
 	go func() {
 		select {
-		case <-n.ShutdownChan:
+		case <-shutdownChan:
 			logger.Warn("received shutdown")
-		case <-terminate:
-			logger.Warn("received shutdown signal")
+		case sig := <-terminate:
+			logger.Warn("received shutdown signal: ", sig)
 		}
 
 		logger.Warn("shutdown...")
-		err = apiserv.Shutdown(n.ctx)
+		err = apiserv.Shutdown(context.TODO())
 		if err != nil {
-			return
+			logger.Errorf("shut down api server failed: %s", err)
 		}
-		n.Stop(n.ctx)
+		err = n.Stop(context.TODO())
+		if err != nil {
+			logger.Errorf("shut down node failed: %s", err)
+		}
+
+		logger.Info("shutdown successful")
+		close(shutdownChan)
 	}()
-	return apiserv.Serve(netListener)
+	signal.Notify(terminate, syscall.SIGTERM, syscall.SIGINT)
+
+	err = apiserv.Serve(netListener)
+	if err == http.ErrServerClosed {
+		<-shutdownChan
+		return nil
+	}
+
+	return err
 }
 
 func (n *BaseNode) Online() bool {
-	return n.IsOnline
-}
-
-func (n *BaseNode) GetHost() host.Host {
-	return n.Host
+	return n.isOnline
 }

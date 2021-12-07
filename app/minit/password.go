@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/howeyc/gopass"
+	"golang.org/x/xerrors"
 )
 
 func GetPassWord() (string, error) {
@@ -21,12 +22,10 @@ func GetPassWord() (string, error) {
 		password = string(pd)
 	}()
 
-	select {
-	case <-ctx.Done():
-	}
+	<-ctx.Done()
 
 	if len(password) < 8 {
-		return password, fmt.Errorf("Password length should be at least 8")
+		return password, xerrors.Errorf("Password length should be at least 8")
 	}
 	return password, nil
 }

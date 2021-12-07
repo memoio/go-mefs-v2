@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"log"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -45,7 +44,6 @@ func (ei *EventImpl) Handle(ctx context.Context, mes *pb.EventMessage) error {
 
 	h, ok := ei.hmap[mes.GetType()]
 	if ok {
-		log.Println("handle event")
 		return h(ctx, mes)
 	}
 	return nil
@@ -70,6 +68,5 @@ func (i *EventImpl) Close() {
 }
 
 func defaultEventHandler(ctx context.Context, msg *pb.EventMessage) error {
-	log.Println("received event unknown message")
 	return nil
 }

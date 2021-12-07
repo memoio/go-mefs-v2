@@ -124,21 +124,12 @@ func (m *OrderMgr) load() error {
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
 		res[i] = pid
-		go m.newProOrder(pid)
 	}
 
-	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
-	for _, pid := range pros {
-		has := false
-		for _, pro := range res {
-			if pro == pid {
-				has = true
-				break
-			}
-		}
-		if !has {
-			go m.newProOrder(pid)
-		}
+	res = removeDup(res)
+
+	for _, pid := range res {
+		go m.newProOrder(pid)
 	}
 
 	return nil
@@ -165,7 +156,7 @@ func (m *OrderMgr) addPros() {
 		}
 
 		if !has {
-			go m.newProOrder(pro)
+			go m.update(pro)
 		}
 	}
 
@@ -229,9 +220,13 @@ func (m *OrderMgr) runSched() {
 			}
 		case of := <-m.proChan:
 			logger.Debug("add order to pro:", of.pro)
-			m.orders[of.pro] = of
-			m.pros = append(m.pros, of.pro)
-			go m.update(of.pro)
+			_, ok := m.orders[of.pro]
+			if !ok {
+				m.orders[of.pro] = of
+				m.pros = append(m.pros, of.pro)
+				go m.update(of.pro)
+			}
+
 		case lp := <-m.bucketChan:
 			_, ok := m.proMap[lp.bucketID]
 			if !ok {

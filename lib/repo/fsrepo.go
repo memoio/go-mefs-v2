@@ -3,7 +3,6 @@ package repo
 import (
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -87,7 +86,7 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 
 	if !hasConfig {
 		if cfg != nil {
-			log.Println("initializing memo repo at: ", repoPath)
+			logger.Info("initializing memo repo at: ", repoPath)
 			if err = initFSRepo(repoPath, cfg); err != nil {
 				return nil, err
 			}

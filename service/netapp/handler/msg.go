@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"log"
 	"sync"
 
 	peer "github.com/libp2p/go-libp2p-core/peer"
@@ -85,7 +84,6 @@ func (i *MsgImpl) Close() {
 }
 
 func defaultMsgHandler(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	log.Println("handle type::", mes.Header.Type)
 	mes.Data.MsgInfo = []byte("hello")
 	return mes, nil
 }
