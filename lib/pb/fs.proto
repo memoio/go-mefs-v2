@@ -53,8 +53,9 @@ enum MetaType {
 	OrderBaseKey = 51;       // key: x/userID/proID/nonce; value: OrderBase
 	OrderSeqNumKey = 52;     // key: x/userID/proID/nonce; value: seqnum, OrderSeqState
 	OrderSeqKey = 53;        // key: x/userID/proID/nonce/seqnum; value: SignedOrderSeq
-	OrderProsKey = 54;       // key: x/userID; value: pros
+	OrderProsKey = 54;       // key: x/userID; value: pros; x/userID/bucketID
 	OrderUsersKey = 55;      // key: x/proID; value: users
+	OrderProsDeleteKey = 56; // key: x/userID/bucketID; val: deleted pros
 
 	// tx message and block
 	Tx_BlockSyncedKey = 60;   // key: x; value: blk height	

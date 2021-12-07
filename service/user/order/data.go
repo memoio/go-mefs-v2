@@ -2,6 +2,7 @@ package order
 
 import (
 	"encoding/binary"
+	"math"
 	"sync"
 	"time"
 
@@ -18,7 +19,8 @@ import (
 type lastProsPerBucket struct {
 	bucketID uint64
 	dc, pc   int
-	pros     []uint64 // pre pros; update and save to local
+	pros     []uint64 // update and save to local
+	deleted  []uint64
 }
 
 func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
@@ -26,9 +28,13 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 	m.loadUnfinishedSegJobs(bucketID, nextOpID)
 
-	storedPros := m.loadLastProsPerBucket(bucketID)
+	storedPros, delPros := m.loadLastProsPerBucket(bucketID)
 
-	pros := make([]uint64, 0, int(bopt.DataCount+bopt.ParityCount))
+	pros := make([]uint64, bopt.DataCount+bopt.ParityCount)
+	for i := 0; i < int(bopt.DataCount+bopt.ParityCount); i++ {
+		pros[i] = math.MaxUint64
+	}
+
 	if len(storedPros) == 0 {
 		res := make(chan uint64, len(m.pros))
 		var wg sync.WaitGroup
@@ -47,17 +53,26 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 		close(res)
 
+		tmpPros := make([]uint64, 0, len(m.pros))
 		for pid := range res {
-			pros = append(pros, pid)
+			tmpPros = append(tmpPros, pid)
 		}
 
-		pros = removeDup(pros)
+		tmpPros = removeDup(tmpPros)
 
-		if len(pros) > int(bopt.DataCount+bopt.ParityCount) {
-			pros = pros[:int(bopt.DataCount+bopt.ParityCount)]
+		for i, pid := range tmpPros {
+			if i >= int(bopt.DataCount+bopt.ParityCount) {
+				break
+			}
+			pros[i] = pid
 		}
 	} else {
-		pros = removeDup(storedPros)
+		for i, pid := range storedPros {
+			if i >= int(bopt.DataCount+bopt.ParityCount) {
+				break
+			}
+			pros[i] = pid
+		}
 	}
 
 	lp := &lastProsPerBucket{
@@ -65,6 +80,7 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 		dc:       int(bopt.DataCount),
 		pc:       int(bopt.ParityCount),
 		pros:     pros,
+		deleted:  delPros,
 	}
 
 	m.updateProsForBucket(lp)
@@ -72,11 +88,11 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 	m.bucketChan <- lp
 }
 
-func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64) []uint64 {
+func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64) ([]uint64, []uint64) {
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID, bucketID)
 	val, err := m.ds.Get(key)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
 	res := make([]uint64, len(val)/8)
@@ -84,17 +100,36 @@ func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64) []uint64 {
 		res[i] = binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
 	}
 
-	return res
+	key = store.NewKey(pb.MetaType_OrderProsDeleteKey, m.localID, bucketID)
+	val, err = m.ds.Get(key)
+	if err != nil {
+		return res, nil
+	}
+
+	delres := make([]uint64, len(val)/8)
+	for i := 0; i < len(val)/8; i++ {
+		delres[i] = binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+	}
+
+	return res, delres
 }
 
-func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) error {
+func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) {
 	buf := make([]byte, 8*len(lp.pros))
 	for i, pid := range lp.pros {
 		binary.BigEndian.PutUint64(buf[8*i:8*(i+1)], pid)
 	}
 
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID, lp.bucketID)
-	return m.ds.Put(key, buf)
+	m.ds.Put(key, buf)
+
+	buf = make([]byte, 8*len(lp.deleted))
+	for i, pid := range lp.deleted {
+		binary.BigEndian.PutUint64(buf[8*i:8*(i+1)], pid)
+	}
+
+	key = store.NewKey(pb.MetaType_OrderProsDeleteKey, m.localID, lp.bucketID)
+	m.ds.Put(key, buf)
 }
 
 func removeDup(a []uint64) []uint64 {
@@ -113,12 +148,14 @@ func removeDup(a []uint64) []uint64 {
 func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	cnt := 0
 	for _, pid := range lp.pros {
+		if pid == math.MaxUint64 {
+			continue
+		}
 		or, ok := m.orders[pid]
 		if ok {
 			if !or.inStop {
-				continue
+				cnt++
 			}
-			cnt++
 		}
 	}
 
@@ -128,14 +165,14 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 
 	otherPros := make([]uint64, 0, lp.dc+lp.pc)
 
-	pros := make([]uint64, 0, len(m.orders))
-	for pid, por := range m.orders {
-		if por.ready && !por.inStop {
-			pros = append(pros, pid)
-		}
-	}
+	pros := make([]uint64, 0, len(m.pros))
+	pros = append(pros, m.pros...)
 
+	// todo:
+	// 1. skip deleted first
+	// 2. if not enough, add deleted?
 	utils.DisorderUint(pros)
+
 	for _, pid := range pros {
 		has := false
 		for _, hasPid := range lp.pros {
@@ -144,16 +181,23 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 			}
 		}
 
-		if !has {
-			otherPros = append(otherPros, pid)
+		if has {
+			continue
+		}
+		or, ok := m.orders[pid]
+		if ok {
+			if or.ready && !or.inStop {
+				otherPros = append(otherPros, pid)
+			}
 		}
 	}
 
 	change := false
 
-	for i, j := 0, 0; i < lp.dc+lp.pc && j < len(otherPros); i++ {
-		if i < len(lp.pros) {
-			pid := lp.pros[i]
+	j := 0
+	for i := 0; i < lp.dc+lp.pc; i++ {
+		pid := lp.pros[i]
+		if pid != math.MaxUint64 {
 			or, ok := m.orders[pid]
 			if ok {
 				if !or.inStop {
@@ -163,18 +207,14 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		}
 
 		for j < len(otherPros) {
-			pid := otherPros[j]
+			npid := otherPros[j]
 			j++
-			or, ok := m.orders[pid]
+			or, ok := m.orders[npid]
 			if ok {
 				if !or.inStop && m.ready {
 					change = true
-					if i < len(lp.pros) {
-						lp.pros[i] = pid
-					} else {
-						lp.pros = append(lp.pros, pid)
-					}
-
+					lp.pros[i] = npid
+					lp.deleted = append(lp.deleted, pid)
 					break
 				}
 			}
@@ -458,6 +498,10 @@ func (m *OrderMgr) dispatch() {
 		}
 
 		for i, pid := range lp.pros {
+			if pid == math.MaxUint64 {
+				logger.Debug("fail dispatch to wrong pro:", pid)
+				continue
+			}
 			or, ok := m.orders[pid]
 			if !ok {
 				logger.Debug("fail dispatch to pro:", pid)
