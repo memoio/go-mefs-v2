@@ -25,6 +25,7 @@ type HanderAddRoleFunc func(roleID uint64, typ pb.RoleInfo_Type)
 type HandleAddUserFunc func(userID uint64)
 type HandleAddUPFunc func(userID, proID uint64)
 type HandleAddPayFunc func(userID, proID, epoch uint64, pay, penaly *big.Int)
+type HandleAddSeqFunc func(types.OrderSeq)
 
 // todo: add msg fee here
 type roleInfo struct {

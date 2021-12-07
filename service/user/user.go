@@ -62,6 +62,8 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		ctx:        ctx,
 	}
 
+	un.RegisterAddSeqFunc(om.AddOrderSeq)
+
 	return un, nil
 }
 

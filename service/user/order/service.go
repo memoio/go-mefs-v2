@@ -59,7 +59,6 @@ type OrderMgr struct {
 }
 
 func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
-
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,

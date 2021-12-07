@@ -13,7 +13,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var logger = logging.Logger("data-service")
@@ -80,13 +79,6 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 		return ErrSend
 	}
 
-	// save meta
-	key := store.NewKey(pb.MetaType_SegLocationKey, seg.SegmentID().String())
-	val := utils.UintToBytes(to)
-	err = d.ds.Put(key, val)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -147,7 +139,14 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 		return nil, ErrData
 	}
 
+	d.cache.Add(bs.SegmentID(), bs)
+
 	// save to local? or after valid it?
 
 	return bs, nil
+}
+
+func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) error {
+	d.cache.Remove(sid)
+	return d.segStore.Delete(sid)
 }

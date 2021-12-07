@@ -2,10 +2,12 @@ package order
 
 import (
 	"context"
+	"encoding/binary"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -170,5 +172,30 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 		}
 
 		m.msgChan <- msg
+	}
+}
+
+func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
+	// filter other
+	if seq.UserID != m.localID {
+		return
+	}
+	sid, err := segment.NewSegmentID(m.fsID, 0, 0, 0)
+	if err != nil {
+		return
+	}
+	val := make([]byte, 8)
+	binary.BigEndian.PutUint64(val, seq.ProID)
+	for _, seg := range seq.Segments {
+		sid.SetBucketID(seg.BucketID)
+		for j := seg.Start; j < seg.Start+seg.Length; j++ {
+			sid.SetStripeID(j)
+			sid.SetChunkID(seg.ChunkID)
+			key := store.NewKey(pb.MetaType_SegLocationKey, sid.String())
+			// add location map
+			m.ds.Put(key, val)
+			// delete from local
+			m.DeleteSegment(m.ctx, sid)
+		}
 	}
 }

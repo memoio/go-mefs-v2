@@ -475,6 +475,9 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	}
 
 	// callback for add segmap and delete data in user
+	if s.handleAddSeq != nil {
+		s.handleAddSeq(so.OrderSeq)
+	}
 
 	return nil
 }

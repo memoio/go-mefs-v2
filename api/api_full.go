@@ -108,6 +108,7 @@ type INetService interface {
 type IDataService interface {
 	PutSegmentToLocal(ctx context.Context, seg segment.Segment) error
 	GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error)
+	DeleteSegment(ctx context.Context, sid segment.SegmentID) error
 
 	SendSegment(ctx context.Context, seg segment.Segment, to uint64) error
 	SendSegmentByID(ctx context.Context, sid segment.SegmentID, to uint64) error

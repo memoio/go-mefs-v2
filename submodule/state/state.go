@@ -49,6 +49,7 @@ type StateMgr struct {
 	handleAddUser HandleAddUserFunc
 	handleAddUP   HandleAddUPFunc
 	handleAddPay  HandleAddPayFunc
+	handleAddSeq  HandleAddSeqFunc
 }
 
 func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
@@ -96,6 +97,12 @@ func (s *StateMgr) RegisterAddUserFunc(h HandleAddUserFunc) {
 func (s *StateMgr) RegisterAddUPFunc(h HandleAddUPFunc) {
 	s.Lock()
 	s.handleAddUP = h
+	s.Unlock()
+}
+
+func (s *StateMgr) RegisterAddSeqFunc(h HandleAddSeqFunc) {
+	s.Lock()
+	s.handleAddSeq = h
 	s.Unlock()
 }
 
