@@ -68,6 +68,10 @@ func (pp *PushPool) Ready() bool {
 	return pp.ready
 }
 
+func (pp *PushPool) API() *pushAPI {
+	return &pushAPI{pp}
+}
+
 func (pp *PushPool) syncPush() {
 	tc := time.NewTicker(5 * time.Second)
 	defer tc.Stop()

@@ -16,7 +16,7 @@ import (
 
 var logger = logging.Logger("roleinfo")
 
-var ErrNotFound = xerrors.New("not found")
+var ErrNotFound = xerrors.New("roleinfo not found")
 
 var _ api.IRole = &roleAPI{}
 
@@ -107,8 +107,6 @@ func (rm *RoleMgr) RoleSign(ctx context.Context, id uint64, msg []byte, typ type
 		return ts, ErrNotFound
 	}
 
-	//logger.Debug("sign message:", base64.RawStdEncoding.EncodeToString(rm.localAddr.Bytes()), base64.RawStdEncoding.EncodeToString(msg), base64.RawStdEncoding.EncodeToString(ts.Data))
-
 	return ts, nil
 }
 
@@ -135,8 +133,6 @@ func (rm *RoleMgr) RoleVerify(ctx context.Context, id uint64, msg []byte, sig ty
 		logger.Warn("local has no pubkey for:", id)
 		return false, ErrNotFound
 	}
-
-	//logger.Debug("verify sign message:", base64.RawStdEncoding.EncodeToString(pubByte), base64.RawStdEncoding.EncodeToString(msg), base64.RawStdEncoding.EncodeToString(sig.Data))
 
 	ok, err := signature.Verify(pubByte, msg, sig.Data)
 	if err != nil {

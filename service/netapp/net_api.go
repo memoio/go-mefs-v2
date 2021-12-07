@@ -6,17 +6,25 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/xerrors"
+
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/memoio/go-mefs-v2/api"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
 
-func (c *NetServiceImpl) SendMetaMessage(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value []byte) error {
-	pid, ok := c.idMap[id]
-	if ok {
-		return c.GenericService.SendNetMessage(ctx, pid, typ, value)
-	}
-	return nil
+var logger = logging.Logger("netApp")
+
+var ErrTimeOut = xerrors.New("send time out")
+
+// wrap net direct send and pubsub
+
+var _ api.INetService = (*netServiceAPI)(nil)
+
+type netServiceAPI struct {
+	*NetServiceImpl
 }
 
 func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value, sig []byte) (*pb.NetMessage, error) {
@@ -44,7 +52,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 
 				time.Sleep(1 * time.Second)
 			} else {
-				return c.GenericService.SendNetRequest(ctx, pid, c.RoleID(), typ, value, sig)
+				return c.GenericService.SendNetRequest(ctx, pid, c.roleID, typ, value, sig)
 			}
 		}
 
@@ -52,8 +60,6 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 }
 
 func (c *NetServiceImpl) PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
-	logger.Debug("push tx message: ", msg.From, msg.Nonce, msg.Method)
-
 	data, err := msg.Serialize()
 	if err != nil {
 		return err
@@ -93,7 +99,7 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 	disorder(pinfos)
 
 	for _, pi := range pinfos {
-		resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.RoleID(), pb.NetMessage_Get, key, nil)
+		resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.roleID, pb.NetMessage_Get, key, nil)
 		if err != nil {
 			continue
 		}
@@ -106,9 +112,4 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 	}
 
 	return nil, ErrTimeOut
-}
-
-func (c *NetServiceImpl) FetchBlock(ctx context.Context, msgID []byte) error {
-	// iter over connected peers
-	return nil
 }

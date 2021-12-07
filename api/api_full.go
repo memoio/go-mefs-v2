@@ -48,7 +48,7 @@ type IConfig interface {
 	ConfigGet(context.Context, string) (interface{}, error)
 }
 
-// wallet sign
+// wallet ops
 type IWallet interface {
 	WalletNew(context.Context, types.KeyType) (address.Address, error)
 	WalletSign(context.Context, address.Address, []byte) ([]byte, error)
@@ -94,11 +94,12 @@ type IRole interface {
 
 type INetService interface {
 	// send/handle msg directly over network
-	SendMetaMessage(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val []byte) error
 	SendMetaRequest(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val, sig []byte) (*pb.NetMessage, error)
 
+	// todo: should be swap network
 	Fetch(ctx context.Context, key []byte) ([]byte, error)
 
+	// broadcast using pubsub
 	PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error
 	PublishTxBlock(ctx context.Context, msg *tx.Block) error
 	PublishEvent(ctx context.Context, msg *pb.EventMessage) error
@@ -112,7 +113,7 @@ type IDataService interface {
 	SendSegmentByID(ctx context.Context, sid segment.SegmentID, to uint64) error
 
 	GetSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error)
-	GetSegmentFrom(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error)
+	GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error)
 }
 
 type ILfsService interface {

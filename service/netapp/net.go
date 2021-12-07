@@ -9,11 +9,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"golang.org/x/xerrors"
 
-	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -21,12 +18,6 @@ import (
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
-
-var logger = logging.Logger("netApp")
-
-var ErrTimeOut = xerrors.New("time out")
-
-var _ api.INetService = (*NetServiceImpl)(nil)
 
 // wrap net interface
 type NetServiceImpl struct {
@@ -113,8 +104,8 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 	return core, nil
 }
 
-func (c *NetServiceImpl) RoleID() uint64 {
-	return c.roleID
+func (c *NetServiceImpl) API() *netServiceAPI {
+	return &netServiceAPI{c}
 }
 
 // add a new node

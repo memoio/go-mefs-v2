@@ -56,9 +56,20 @@ type BaseNode struct {
 
 	httpHandle *mux.Router
 
+	roleID  uint64
+	groupID uint64
+
 	ShutdownChan chan struct{}
 
 	IsOnline bool
+}
+
+func (n *BaseNode) RoleID() uint64 {
+	return n.roleID
+}
+
+func (n *BaseNode) GroupID() uint64 {
+	return n.groupID
 }
 
 // Start boots up the node.

@@ -36,7 +36,8 @@ type Builder struct {
 	authURL        string
 }
 
-// construct build ops from repo.
+// construct build ops from repo
+// todo: move some ops here
 func OptionsFromRepo(r repo.Repo) ([]BuilderOpt, error) {
 	_, sk, err := network.GetSelfNetKey(r.KeyStore())
 	if err != nil {
@@ -136,17 +137,8 @@ func New(ctx context.Context, opts ...BuilderOpt) (*BaseNode, error) {
 }
 
 func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
-	//
-	// Set default values on un-initialized fields
-	//
 	if b.repo == nil {
 		return nil, xerrors.Errorf("repo is nil")
-	}
-	var err error
-	// create the node
-	nd := &BaseNode{
-		ctx:  ctx,
-		Repo: b.repo,
 	}
 
 	cfg := b.repo.Config()
@@ -164,9 +156,17 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	gid := settle.GetGroupID(id)
 
-	networkName := cfg.Net.Name + "/group" + strconv.Itoa(int(gid))
+	// create the node
+	nd := &BaseNode{
+		ctx:     ctx,
+		Repo:    b.repo,
+		roleID:  id,
+		groupID: gid,
+	}
 
-	logger.Debug("networkName is :", networkName)
+	networkName := cfg.Net.Name + "/group" + strconv.FormatInt(int64(gid), 10)
+
+	logger.Debug("networkName is: ", networkName)
 
 	nd.NetworkSubmodule, err = network.NewNetworkSubmodule(ctx, (*builder)(b), b.repo.Config(), b.repo.MetaStore(), networkName)
 	if err != nil {

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
@@ -45,7 +47,7 @@ func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.I
 	}
 
 	if ri.ID != roleID {
-		logger.Debug("roleID not equal")
+		return nil, xerrors.New("roleID not equal to local")
 	}
 
 	rm := &RoleMgr{
@@ -66,38 +68,30 @@ func (rm *RoleMgr) API() *roleAPI {
 	return &roleAPI{rm}
 }
 
-// load infos from local store
+func (rm *RoleMgr) Start() {
+	go rm.sync()
+}
+
+// load infos from settle chain
 func (rm *RoleMgr) load() {
-	// load pb.NodeInfo from local
 }
 
-// save infos to local store
-func (rm *RoleMgr) save() {
-
-}
-
-func (rm *RoleMgr) Sync(ctx context.Context) {
+func (rm *RoleMgr) sync() {
 	t := time.NewTicker(60 * time.Second)
 	defer t.Stop()
 	for {
 		select {
 		case <-t.C:
 			// load from chain
-			rm.SyncFromChain(ctx)
-		case <-ctx.Done():
+			rm.syncFromChain()
+		case <-rm.ctx.Done():
 			return
 		}
 	}
 }
 
-func (rm *RoleMgr) SyncFromChain(ctx context.Context) {
+func (rm *RoleMgr) syncFromChain() {
 
-}
-
-func (rm *RoleMgr) AddRoleInfo(ri *pb.RoleInfo) {
-	rm.Lock()
-	defer rm.Unlock()
-	rm.addRoleInfo(ri)
 }
 
 func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo) {
@@ -127,9 +121,15 @@ func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo) {
 	}
 }
 
+func (rm *RoleMgr) AddRoleInfo(ri *pb.RoleInfo) {
+	rm.Lock()
+	defer rm.Unlock()
+	rm.addRoleInfo(ri)
+}
+
 func (rm *RoleMgr) GetPubKey(roleID uint64, typ types.KeyType) (address.Address, error) {
-	rm.RLock()
-	defer rm.RUnlock()
+	rm.Lock()
+	defer rm.Unlock()
 	ri, ok := rm.infos[roleID]
 	if !ok {
 		key := store.NewKey(pb.MetaType_RoleInfoKey, roleID)
@@ -142,11 +142,7 @@ func (rm *RoleMgr) GetPubKey(roleID uint64, typ types.KeyType) (address.Address,
 		if err != nil {
 			return address.Undef, err
 		}
-		rm.RUnlock()
-		rm.Lock()
 		rm.addRoleInfo(ri)
-		rm.Unlock()
-		rm.RLock()
 	}
 
 	switch typ {
@@ -155,7 +151,7 @@ func (rm *RoleMgr) GetPubKey(roleID uint64, typ types.KeyType) (address.Address,
 	case types.BLS:
 		return address.NewAddress(ri.BlsVerifyKey)
 	default:
-		return address.Undef, ErrNotFound
+		return address.Undef, xerrors.New("key not supported")
 	}
 }
 

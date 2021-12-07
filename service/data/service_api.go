@@ -2,8 +2,10 @@ package data
 
 import "github.com/memoio/go-mefs-v2/api"
 
-var _ api.IDataService = (*data_API)(nil)
+// wrap local store, cache and net
 
-type data_API struct {
+var _ api.IDataService = (*dataAPI)(nil)
+
+type dataAPI struct {
 	*dataService
 }

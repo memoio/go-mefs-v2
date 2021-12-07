@@ -209,11 +209,10 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
-	s.ds.Put(key, data)
-
-	// save at epoch
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
+	s.ds.Put(key, data)
+	// save at epoch
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
 	s.ds.Put(key, data)
 
 	// keeper handle callback income

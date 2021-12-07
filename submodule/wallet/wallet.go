@@ -12,6 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 type LocalWallet struct {
@@ -98,6 +99,23 @@ func (w *LocalWallet) WalletNew(ctx context.Context, kt types.KeyType) (address.
 	err = w.keystore.Put(addr.String(), w.password, ki)
 	if err != nil {
 		return address.Undef, err
+	}
+
+	// for eth short addr
+	if kt == types.Secp256k1 {
+		addrByte, err := utils.ToEthAddress(cbyte)
+		if err != nil {
+			return address.Undef, err
+		}
+
+		eaddr, err := address.NewAddress(addrByte)
+		if err != nil {
+			return address.Undef, err
+		}
+		err = w.keystore.Put(eaddr.String(), w.password, ki)
+		if err != nil {
+			return address.Undef, err
+		}
 	}
 
 	w.Lock()

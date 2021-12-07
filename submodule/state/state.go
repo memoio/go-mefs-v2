@@ -105,6 +105,10 @@ func (s *StateMgr) RegisterAddPayFunc(h HandleAddPayFunc) {
 	s.Unlock()
 }
 
+func (s *StateMgr) API() *stateAPI {
+	return &stateAPI{s}
+}
+
 func (s *StateMgr) load() {
 	// load keepers
 

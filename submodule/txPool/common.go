@@ -11,6 +11,6 @@ var logger = logging.Logger("txPool")
 var (
 	ErrNotReady    = xerrors.New("service not ready")
 	ErrInvalidSign = xerrors.New("invalid sign")
-	ErrLowHeight   = xerrors.New("height is low")
+	ErrLowHeight   = xerrors.New("block height is low")
 	ErrLowNonce    = xerrors.New("nonce is low")
 )

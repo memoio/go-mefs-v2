@@ -16,7 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
-var logger = logging.Logger("mefs-user")
+var logger = logging.Logger("data-service")
 
 var (
 	ErrData = xerrors.New("err data")
@@ -45,7 +45,9 @@ func New(ds store.KVStore, ss segment.SegmentStore, is api.INetService) *dataSer
 	return d
 }
 
-// todo add piece put/get
+func (d *dataService) API() *dataAPI {
+	return &dataAPI{d}
+}
 
 func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment) error {
 	logger.Debug("put segment to local:", seg.SegmentID().String())
@@ -119,11 +121,13 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 
 	from := binary.BigEndian.Uint64(val)
 
-	return d.GetSegmentFrom(ctx, sid, from)
+	return d.GetSegmentRemote(ctx, sid, from)
 }
 
+// todo: add readpay sign here
+
 // GetSegmentFrom get segmemnt over network
-func (d *dataService) GetSegmentFrom(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error) {
+func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error) {
 	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), nil)
 	if err != nil {
 		return nil, err
@@ -143,7 +147,7 @@ func (d *dataService) GetSegmentFrom(ctx context.Context, sid segment.SegmentID,
 		return nil, ErrData
 	}
 
-	// save to local?
+	// save to local? or after valid it?
 
 	return bs, nil
 }
