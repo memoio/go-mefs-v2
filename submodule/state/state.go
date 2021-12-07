@@ -293,8 +293,13 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 		if err != nil {
 			return s.root, err
 		}
+	case tx.PostIncome:
+		err := s.addPay(msg)
+		if err != nil {
+			return s.root, err
+		}
 	default:
-		return s.root, xerrors.Errorf("unsupported type: %d", msg.Method)
+		return s.root, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}
 
 	return s.root, nil

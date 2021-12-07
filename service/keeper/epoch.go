@@ -9,7 +9,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-func (k *KeeperNode) updateEpoch() {
+func (k *KeeperNode) updateChalEpoch() {
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 	for {
@@ -55,37 +55,40 @@ func (k *KeeperNode) updateEpoch() {
 					Method:  tx.UpdateChalEpoch,
 					Params:  data,
 				}
-
-				var mid types.MsgID
-				retry := 0
-				for retry < 60 {
-					retry++
-					id, err := k.PushMessage(k.ctx, msg)
-					if err != nil {
-						time.Sleep(10 * time.Second)
-						continue
-					}
-					mid = id
-					break
-				}
-
-				go func(mid types.MsgID) {
-					ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
-					defer cancle()
-					logger.Debug("waiting tx message done: ", mid)
-
-					for {
-						st, err := k.GetTxMsgStatus(ctx, mid)
-						if err != nil {
-							time.Sleep(5 * time.Second)
-							continue
-						}
-
-						logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
-						break
-					}
-				}(mid)
+				k.pushMsg(msg)
 			}
 		}
 	}
+}
+
+func (k *KeeperNode) pushMsg(msg *tx.Message) {
+	var mid types.MsgID
+	retry := 0
+	for retry < 60 {
+		retry++
+		id, err := k.PushMessage(k.ctx, msg)
+		if err != nil {
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		mid = id
+		break
+	}
+
+	go func(mid types.MsgID) {
+		ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancle()
+		logger.Debug("waiting tx message done: ", mid)
+
+		for {
+			st, err := k.GetTxMsgStatus(ctx, mid)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+			break
+		}
+	}(mid)
 }

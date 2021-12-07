@@ -105,12 +105,20 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		return err
 	}
 
-	if msg.From != or.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
+	if or.SegPrice == nil {
+		return xerrors.Errorf("wrong paras seg price")
 	}
 
-	if msg.To != or.ProID {
-		return xerrors.Errorf("wrong provider expected %d, got %d", msg.To, or.ProID)
+	if or.PiecePrice == nil {
+		return xerrors.Errorf("wrong paras piece price")
+	}
+
+	if or.Price == nil {
+		return xerrors.Errorf("wrong paras price")
+	}
+
+	if msg.From != or.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
 	}
 
 	// todo: verify sign
@@ -238,12 +246,20 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 		return err
 	}
 
-	if msg.From != or.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
+	if or.SegPrice == nil {
+		return xerrors.Errorf("wrong paras seg price")
 	}
 
-	if msg.To != or.ProID {
-		return xerrors.Errorf("wrong provider expected %d, got %d", msg.To, or.ProID)
+	if or.PiecePrice == nil {
+		return xerrors.Errorf("wrong paras piece price")
+	}
+
+	if or.Price == nil {
+		return xerrors.Errorf("wrong paras price")
+	}
+
+	if msg.From != or.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
 	}
 
 	// todo: verify sign
@@ -305,12 +321,12 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		return err
 	}
 
-	if msg.From != so.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, so.UserID)
+	if so.Price == nil {
+		return xerrors.Errorf("wrong paras price")
 	}
 
-	if msg.To != so.ProID {
-		return xerrors.Errorf("wrong provider expected %d, got %d", msg.To, so.ProID)
+	if msg.From != so.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, so.UserID)
 	}
 
 	sHash, err := so.Hash()
@@ -489,12 +505,12 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		return err
 	}
 
-	if msg.From != so.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, so.UserID)
+	if so.Price == nil {
+		return xerrors.Errorf("wrong paras price")
 	}
 
-	if msg.To != so.ProID {
-		return xerrors.Errorf("wrong provider expected %d, got %d", msg.To, so.ProID)
+	if msg.From != so.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, so.UserID)
 	}
 
 	// todo: verify sign

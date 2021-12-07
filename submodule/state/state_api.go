@@ -227,6 +227,20 @@ func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) *typ
 	return pi
 }
 
+func (s *StateMgr) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) *types.PostIncome {
+	spi := new(types.SignedPostIncome)
+	key := store.NewKey(pb.MetaType_ST_SegPayKey, userID, proID, epoch)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		err = spi.Deserialize(data)
+		if err == nil {
+			return &spi.PostIncome
+		}
+	}
+
+	return &spi.PostIncome
+}
+
 func (s *StateMgr) GetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
 	ns := new(types.NonceSeq)
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID)

@@ -72,9 +72,12 @@ func (k *PrivateKey) Sign(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	msg := blake3.Sum256(data)
+	if len(data) != 32 {
+		msg := blake3.Sum256(data)
+		data = msg[:]
+	}
 
-	sig, err := bls.Sign(sk, msg[:])
+	sig, err := bls.Sign(sk, data)
 	if err != nil {
 		return nil, err
 	}
@@ -164,9 +167,12 @@ func (k *PublicKey) Verify(data, sig []byte) (bool, error) {
 		return false, common.ErrBadSign
 	}
 
-	msg := blake3.Sum256(data)
+	if len(data) != 32 {
+		msg := blake3.Sum256(data)
+		data = msg[:]
+	}
 
-	err = bls.Verify(pubBytes, msg[:], sig)
+	err = bls.Verify(pubBytes, data, sig)
 	if err != nil {
 		return false, err
 	}

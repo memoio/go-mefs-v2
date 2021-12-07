@@ -55,8 +55,9 @@ type CommonStruct struct {
 		GetPDPPublicKey func(context.Context, uint64) (pdpcommon.PublicKey, error) `perm:"read"`
 		GetBucket       func(context.Context, uint64) uint64                       `perm:"read"`
 
-		GetOrderState func(context.Context, uint64, uint64) *types.NonceSeq   `perm:"read"`
-		GetPostIncome func(context.Context, uint64, uint64) *types.PostIncome `perm:"read"`
+		GetOrderState   func(context.Context, uint64, uint64) *types.NonceSeq           `perm:"read"`
+		GetPostIncome   func(context.Context, uint64, uint64) *types.PostIncome         `perm:"read"`
+		GetPostIncomeAt func(context.Context, uint64, uint64, uint64) *types.PostIncome `perm:"read"`
 	}
 }
 
@@ -186,6 +187,10 @@ func (s *CommonStruct) GetOrderState(ctx context.Context, userID, proID uint64) 
 
 func (s *CommonStruct) GetPostIncome(ctx context.Context, userID, proID uint64) *types.PostIncome {
 	return s.Internal.GetPostIncome(ctx, userID, proID)
+}
+
+func (s *CommonStruct) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) *types.PostIncome {
+	return s.Internal.GetPostIncomeAt(ctx, userID, proID, epoch)
 }
 
 type FullNodeStruct struct {

@@ -25,13 +25,21 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return err
 	}
 
+	if scp.Price == nil {
+		return xerrors.Errorf("wrong paras price")
+	}
+
+	if msg.From != scp.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, scp.UserID)
+	}
+
 	if scp.Epoch != s.ceInfo.current.Epoch {
 		return xerrors.Errorf("wrong challenge epoch, expectd %d, got %d", s.ceInfo.current.Epoch, scp.Epoch)
 	}
 
 	okey := orderKey{
-		userID: msg.To,
-		proID:  msg.From,
+		userID: scp.UserID,
+		proID:  scp.ProID,
 	}
 
 	oinfo, ok := s.oInfo[okey]
@@ -211,8 +219,18 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
 	s.ds.Put(key, data)
+
 	// save at epoch
+	spi := types.SignedPostIncome{
+		PostIncome: *oinfo.income,
+		Sign:       types.NewMultiSignature(types.SigSecp256k1),
+	}
+	data, err = spi.Serialize()
+	if err != nil {
+		return err
+	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
+
 	s.ds.Put(key, data)
 
 	// keeper handle callback income
@@ -234,13 +252,21 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		return err
 	}
 
+	if scp.Price == nil {
+		return xerrors.Errorf("wrong paras price")
+	}
+
+	if msg.From != scp.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, scp.UserID)
+	}
+
 	if scp.Epoch != s.validateCeInfo.current.Epoch {
 		return xerrors.Errorf("wrong challenge epoch, expectd %d, got %d", s.validateCeInfo.current.Epoch, scp.Epoch)
 	}
 
 	okey := orderKey{
-		userID: msg.To,
-		proID:  msg.From,
+		userID: scp.UserID,
+		proID:  scp.ProID,
 	}
 
 	oinfo, ok := s.validateOInfo[okey]

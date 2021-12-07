@@ -82,9 +82,12 @@ func (k *PrivateKey) Sign(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	msg := blake3.Sum256(data)
+	if len(data) != 32 {
+		msg := blake3.Sum256(data)
+		data = msg[:]
+	}
 
-	sig, err := Sign(sk, msg[:])
+	sig, err := Sign(sk, data)
 	if err != nil {
 		return nil, err
 	}
@@ -191,9 +194,12 @@ func (k *PublicKey) Verify(data, sig []byte) (bool, error) {
 		return false, err
 	}
 
-	msg := blake3.Sum256(data)
+	if len(data) != 32 {
+		msg := blake3.Sum256(data)
+		data = msg[:]
+	}
 
-	rePub, err := EcRecover(msg[:], sig)
+	rePub, err := EcRecover(data, sig)
 	if err != nil {
 		return false, err
 	}

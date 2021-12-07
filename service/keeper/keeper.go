@@ -54,6 +54,8 @@ func (k *KeeperNode) Start() error {
 	k.TxMsgHandle.Register(k.txMsgHandler)
 	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
+	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
+
 	// wait for sync
 	k.PushPool.Start()
 	retry := 0
@@ -78,9 +80,8 @@ func (k *KeeperNode) Start() error {
 		return err
 	}
 
-	go k.updateEpoch()
-
-	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
+	go k.updateChalEpoch()
+	go k.updatePay()
 
 	logger.Info("start keeper for: ", k.RoleID())
 	return nil

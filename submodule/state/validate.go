@@ -120,8 +120,13 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
+	case tx.PostIncome:
+		err := s.canAddPay(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	default:
-		return s.validateRoot, xerrors.Errorf("unsupported type: %d", msg.Method)
+		return s.validateRoot, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}
 
 	return s.validateRoot, nil

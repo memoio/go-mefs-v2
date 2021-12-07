@@ -59,6 +59,8 @@ func (sep *SignedEpochParams) Deserialize(b []byte) error {
 }
 
 type SegChalParams struct {
+	UserID     uint64
+	ProID      uint64
 	Epoch      uint64
 	OrderStart uint64
 	OrderEnd   uint64
@@ -73,4 +75,19 @@ func (scp *SegChalParams) Serialize() ([]byte, error) {
 
 func (scp *SegChalParams) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, scp)
+}
+
+type PostIncomeParams struct {
+	Epoch  uint64
+	UserID uint64
+	Pros   []uint64
+	Sig    []types.Signature
+}
+
+func (pip *PostIncomeParams) Serialize() ([]byte, error) {
+	return cbor.Marshal(pip)
+}
+
+func (pip *PostIncomeParams) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, pip)
 }
