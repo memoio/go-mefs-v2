@@ -15,10 +15,6 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 		return err
 	}
 
-	if msg.From != pip.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, pip.UserID)
-	}
-
 	if pip.Epoch != s.ceInfo.previous.Epoch {
 		return xerrors.Errorf("add post income epoch, expected %d, got %d", s.ceInfo.previous.Epoch, pip.Epoch)
 	}
@@ -73,10 +69,6 @@ func (s *StateMgr) canAddPay(msg *tx.Message) error {
 	err := pip.Deserialize(msg.Params)
 	if err != nil {
 		return err
-	}
-
-	if msg.From != pip.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, pip.UserID)
 	}
 
 	if pip.Epoch != s.validateCeInfo.previous.Epoch {

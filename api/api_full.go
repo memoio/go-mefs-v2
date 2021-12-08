@@ -164,7 +164,7 @@ type IState interface {
 
 	GetOrderState(context.Context, uint64, uint64) *types.NonceSeq
 	GetPostIncome(context.Context, uint64, uint64) *types.PostIncome
-	GetPostIncomeAt(context.Context, uint64, uint64, uint64) *types.PostIncome
+	GetPostIncomeAt(context.Context, uint64, uint64, uint64) (*types.SignedPostIncome, error)
 
 	/*
 		GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error)

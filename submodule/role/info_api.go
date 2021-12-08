@@ -11,6 +11,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -191,4 +192,35 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 	default:
 		return false, ErrNotFound
 	}
+}
+
+func (rm *RoleMgr) SanityCheck(msg *tx.SignedMessage) bool {
+	rm.RLock()
+	ri, ok := rm.infos[msg.From]
+	rm.RUnlock()
+	if !ok {
+		return false
+	}
+
+	switch msg.Method {
+	case tx.UpdateChalEpoch, tx.PostIncome:
+		// verift tx.From keeper
+		if ri.Type != pb.RoleInfo_Keeper {
+			return false
+		}
+	case tx.CreateFs, tx.CreateBucket, tx.DataPreOrder, tx.DataOrder:
+		// verify tx.From user
+		if ri.Type != pb.RoleInfo_User {
+			return false
+		}
+	case tx.SegmentProof:
+		// verify tx.From provider
+		if ri.Type != pb.RoleInfo_Provider {
+			return false
+		}
+	case tx.DataTxErr:
+		return false
+	}
+
+	return true
 }

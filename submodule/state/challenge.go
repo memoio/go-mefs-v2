@@ -4,14 +4,15 @@ import (
 	"encoding/binary"
 	"math/big"
 
+	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/zeebo/blake3"
-	"golang.org/x/xerrors"
 )
 
 func (s *StateMgr) addSegProof(msg *tx.Message) error {
@@ -29,8 +30,8 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("wrong paras price")
 	}
 
-	if msg.From != scp.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, scp.UserID)
+	if msg.From != scp.ProID {
+		return xerrors.Errorf("wrong pro expected %d, got %d", msg.From, scp.ProID)
 	}
 
 	if scp.Epoch != s.ceInfo.current.Epoch {
@@ -256,8 +257,8 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("wrong paras price")
 	}
 
-	if msg.From != scp.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, scp.UserID)
+	if msg.From != scp.ProID {
+		return xerrors.Errorf("wrong pro expected %d, got %d", msg.From, scp.ProID)
 	}
 
 	if scp.Epoch != s.validateCeInfo.current.Epoch {

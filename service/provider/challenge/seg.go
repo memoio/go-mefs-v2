@@ -419,7 +419,7 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	logger.Debug("challenge create proof: ", userID, s.localID, si.nextChal, ns.Nonce, ns.SeqNum, orderStart, orderEnd, cnt, totalSize, totalPrice)
+	logger.Debugf("challenge create proof: user %d, pro %d, chal %d, nonce %d, seq %d, order start %d, end %d, seg count %d, size %d, price %d", userID, s.localID, si.nextChal, ns.Nonce, ns.SeqNum, orderStart, orderEnd, cnt, totalSize, totalPrice)
 
 	scp := &tx.SegChalParams{
 		UserID:     userID,

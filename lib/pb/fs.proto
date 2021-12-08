@@ -47,6 +47,7 @@ enum MetaType {
 	Chal_UsersKey = 41;      // key: x; val: users
 	Chal_ProofKey = 42;      // key: x/userID; val: proof
 	Chal_BucketInfoKey = 43; // key: x/userID/bucketID; val: BucketInfo
+	ConfirmPayKey = 44;      // key: x; val: epoch
 
 	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState

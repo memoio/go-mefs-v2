@@ -42,7 +42,13 @@ func NewMultiSignature(typ SigType) MultiSignature {
 
 func (ms *MultiSignature) Add(id uint64, sig Signature) error {
 	if sig.Type != ms.Type {
-		return xerrors.New("type not equal")
+		return xerrors.Errorf("type not equal expected %d, got %d", ms.Type, sig.Type)
+	}
+
+	for _, sid := range ms.Signer {
+		if sid == id {
+			return xerrors.Errorf("signer exist")
+		}
 	}
 
 	switch ms.Type {
@@ -64,6 +70,23 @@ func (ms *MultiSignature) Add(id uint64, sig Signature) error {
 	}
 
 	return nil
+}
+
+func (ms *MultiSignature) SanityCheck() bool {
+	tmpMap := make(map[uint64]struct{}, len(ms.Signer))
+	for _, sid := range ms.Signer {
+		_, ok := tmpMap[sid]
+		if ok {
+			return false
+		} else {
+			tmpMap[sid] = struct{}{}
+		}
+	}
+	return true
+}
+
+func (ms *MultiSignature) Len() int {
+	return len(ms.Signer)
 }
 
 func (ms *MultiSignature) Serialize() ([]byte, error) {

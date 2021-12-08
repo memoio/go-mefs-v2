@@ -1,10 +1,13 @@
 package keeper
 
 import (
+	"encoding/binary"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 func (k *KeeperNode) updatePay() {
@@ -12,6 +15,14 @@ func (k *KeeperNode) updatePay() {
 	defer ticker.Stop()
 
 	latest := k.PushPool.GetChalEpoch(k.ctx)
+
+	key := store.NewKey(pb.MetaType_ConfirmPayKey)
+	val, err := k.MetaStore().Get(key)
+	if err == nil && len(val) >= 8 {
+		latest = binary.BigEndian.Uint64(val)
+	}
+
+	buf := make([]byte, 8)
 
 	for {
 		select {
@@ -42,7 +53,10 @@ func (k *KeeperNode) updatePay() {
 				}
 
 				for _, pid := range pros {
-					pi := k.PushPool.GetPostIncomeAt(k.ctx, uid, pid, payEpoch)
+					pi, err := k.PushPool.GetPostIncomeAt(k.ctx, uid, pid, payEpoch)
+					if err != nil {
+						continue
+					}
 					if pi == nil || pi.Value == nil || pi.Penalty == nil {
 						continue
 					}
@@ -73,6 +87,8 @@ func (k *KeeperNode) updatePay() {
 
 				k.pushMsg(msg)
 			}
+			binary.BigEndian.PutUint64(buf, latest)
+			k.MetaStore().Put(key, buf)
 		}
 	}
 }
