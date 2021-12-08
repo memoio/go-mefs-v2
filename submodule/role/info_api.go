@@ -194,33 +194,33 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 	}
 }
 
-func (rm *RoleMgr) SanityCheck(msg *tx.SignedMessage) bool {
+func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (bool, error) {
 	rm.RLock()
 	ri, ok := rm.infos[msg.From]
 	rm.RUnlock()
 	if !ok {
-		return false
+		return false, xerrors.Errorf("not found")
 	}
 
 	switch msg.Method {
 	case tx.UpdateChalEpoch, tx.PostIncome:
 		// verift tx.From keeper
 		if ri.Type != pb.RoleInfo_Keeper {
-			return false
+			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_Keeper, ri.Type)
 		}
 	case tx.CreateFs, tx.CreateBucket, tx.DataPreOrder, tx.DataOrder:
 		// verify tx.From user
 		if ri.Type != pb.RoleInfo_User {
-			return false
+			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_User, ri.Type)
 		}
 	case tx.SegmentProof:
 		// verify tx.From provider
 		if ri.Type != pb.RoleInfo_Provider {
-			return false
+			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_Provider, ri.Type)
 		}
 	case tx.DataTxErr:
-		return false
+		return false, xerrors.Errorf("unsupported type")
 	}
 
-	return true
+	return true, nil
 }

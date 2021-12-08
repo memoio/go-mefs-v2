@@ -1,6 +1,8 @@
 package challenge
 
 import (
+	"context"
+
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
@@ -18,7 +20,7 @@ func (s *SegMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 			if err != nil {
 				continue
 			}
-			s.segStore.Delete(sid)
+			s.DeleteSegment(context.TODO(), sid)
 		}
 	}
 }

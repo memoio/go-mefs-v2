@@ -87,6 +87,7 @@ type IRole interface {
 	RoleGet(context.Context, uint64) (*pb.RoleInfo, error)
 	RoleGetRelated(context.Context, pb.RoleInfo_Type) ([]uint64, error)
 
+	RoleSanityCheck(context.Context, *tx.SignedMessage) (bool, error)
 	RoleSign(context.Context, uint64, []byte, types.SigType) (types.Signature, error)
 	RoleVerify(context.Context, uint64, []byte, types.Signature) (bool, error)
 	RoleVerifyMulti(context.Context, []byte, types.MultiSignature) (bool, error)

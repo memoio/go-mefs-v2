@@ -48,7 +48,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl)
 
-	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, segStore, bn.PushPool)
+	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, ids, bn.PushPool)
 
 	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.PushPool)
 

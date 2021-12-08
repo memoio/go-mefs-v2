@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
@@ -388,23 +389,31 @@ func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.Block, error) {
 	return tb, sp.AddTxBlock(tb)
 }
 
-func (sp *SyncPool) AddTxMsg(ctx context.Context, tb *tx.SignedMessage) error {
-	mid := tb.Hash()
-
+func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
+	mid := msg.Hash()
 	ok, err := sp.HasTxMsg(mid)
 	if err != nil || !ok {
-		ok, err = sp.RoleVerify(ctx, tb.From, mid.Bytes(), tb.Signature)
+		valid, err := sp.RoleSanityCheck(ctx, msg)
 		if err != nil {
-			logger.Debug("add tx msg:", tb.From, mid, err)
+			return err
+		}
+
+		if !valid {
+			return xerrors.Errorf("msg is invalid")
+		}
+
+		ok, err := sp.RoleVerify(ctx, msg.From, mid.Bytes(), msg.Signature)
+		if err != nil {
+			logger.Debug("add tx msg:", msg.From, mid, err)
 			return err
 		}
 
 		if !ok {
-			logger.Debug("add tx msg:", tb.From, mid, ErrInvalidSign)
+			logger.Debug("add tx msg:", msg.From, mid, ErrInvalidSign)
 			return ErrInvalidSign
 		}
 
-		return sp.PutTxMsg(tb)
+		return sp.PutTxMsg(msg)
 	}
 	return nil
 }

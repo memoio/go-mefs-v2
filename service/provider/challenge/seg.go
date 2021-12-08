@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
@@ -27,8 +28,10 @@ type SegMgr struct {
 
 	*txPool.PushPool
 
-	ds       store.KVStore
-	segStore segment.SegmentStore
+	api.IDataService
+
+	ds store.KVStore
+	//segStore segment.SegmentStore
 
 	ctx context.Context
 
@@ -59,15 +62,15 @@ type segInfo struct {
 	chalTime time.Time
 }
 
-func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, ss segment.SegmentStore, pp *txPool.PushPool) *SegMgr {
+func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDataService, pp *txPool.PushPool) *SegMgr {
 	s := &SegMgr{
-		PushPool: pp,
-		ctx:      ctx,
-		localID:  localID,
-		ds:       ds,
-		segStore: ss,
-		users:    make([]uint64, 0, 128),
-		sInfo:    make(map[uint64]*segInfo),
+		PushPool:     pp,
+		IDataService: is,
+		ctx:          ctx,
+		localID:      localID,
+		ds:           ds,
+		users:        make([]uint64, 0, 128),
+		sInfo:        make(map[uint64]*segInfo),
 
 		chalChan: make(chan *chal, 8),
 	}
@@ -305,7 +308,7 @@ func (s *SegMgr) challenge(userID uint64) {
 				for j := seg.Start; j < seg.Start+seg.Length; j++ {
 					sid.SetStripeID(j)
 					sid.SetChunkID(seg.ChunkID)
-					segm, err := s.segStore.Get(sid)
+					segm, err := s.GetSegmentFromLocal(context.TODO(), sid)
 					if err != nil {
 						logger.Debug("challenge not have chunk for stripe: ", userID, sid.ShortString())
 						continue
@@ -370,7 +373,7 @@ func (s *SegMgr) challenge(userID uint64) {
 						sid.SetStripeID(j)
 						sid.SetChunkID(seg.ChunkID)
 
-						segm, err := s.segStore.Get(sid)
+						segm, err := s.GetSegmentFromLocal(context.TODO(), sid)
 						if err != nil {
 							logger.Debug("challenge not have chunk for stripe: ", userID, sid.ShortString())
 							continue

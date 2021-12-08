@@ -9,6 +9,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/address"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -37,6 +38,7 @@ type CommonStruct struct {
 		RoleSign        func(context.Context, uint64, []byte, types.SigType) (types.Signature, error) `perm:"write"`
 		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)          `perm:"read"`
 		RoleVerifyMulti func(context.Context, []byte, types.MultiSignature) (bool, error)             `perm:"read"`
+		RoleSanityCheck func(context.Context, *tx.SignedMessage) (bool, error)                        `perm:"read"`
 
 		GetRoot   func(context.Context) types.MsgID `perm:"read"`
 		GetHeight func(context.Context) uint64      `perm:"read"`
@@ -131,6 +133,10 @@ func (s *CommonStruct) RoleVerify(ctx context.Context, id uint64, msg []byte, si
 
 func (s *CommonStruct) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.MultiSignature) (bool, error) {
 	return s.Internal.RoleVerifyMulti(ctx, msg, sig)
+}
+
+func (s *CommonStruct) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (bool, error) {
+	return s.Internal.RoleSanityCheck(ctx, msg)
 }
 
 func (s *CommonStruct) GetRoot(ctx context.Context) types.MsgID {

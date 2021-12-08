@@ -17,11 +17,6 @@ import (
 
 var logger = logging.Logger("data-service")
 
-var (
-	ErrData = xerrors.New("err data")
-	ErrSend = xerrors.New("send fails")
-)
-
 type dataService struct {
 	api.INetService // net for send
 
@@ -50,13 +45,13 @@ func (d *dataService) API() *dataAPI {
 
 func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment) error {
 	logger.Debug("put segment to local: ", seg.SegmentID())
-	d.cache.Add(seg.SegmentID().String(), seg)
+	d.cache.Add(seg.SegmentID(), seg)
 	return d.segStore.Put(seg)
 }
 
 func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
 	logger.Debug("get segment from local: ", sid)
-	val, has := d.cache.Get(sid.String())
+	val, has := d.cache.Get(sid)
 	if has {
 		return val.(segment.Segment), nil
 	}
@@ -76,7 +71,7 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return ErrSend
+		return xerrors.Errorf("send fails")
 	}
 
 	return nil
@@ -100,11 +95,9 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 		return seg, nil
 	}
 
-	// get from remote
-
 	from, err := d.GetSegmentLocation(ctx, sid)
-	if err == nil {
-		return seg, nil
+	if err != nil {
+		return seg, err
 	}
 
 	return d.GetSegmentRemote(ctx, sid, from, nil)
@@ -118,7 +111,7 @@ func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.Segmen
 	}
 
 	if len(val) < 8 {
-		return 0, ErrData
+		return 0, xerrors.Errorf("location is wrong")
 	}
 
 	return binary.BigEndian.Uint64(val), nil
@@ -135,7 +128,7 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 	}
 
 	if resp.Header.Type == pb.NetMessage_Err {
-		return nil, ErrData
+		return nil, xerrors.Errorf("get segment from %d fails", from)
 	}
 
 	bs := new(segment.BaseSegment)
@@ -145,10 +138,10 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 	}
 
 	if !bytes.Equal(sid.Bytes(), bs.SegmentID().Bytes()) {
-		return nil, ErrData
+		return nil, xerrors.Errorf("segment is not required, expected %s, got %s", sid, bs.SegmentID())
 	}
 
-	d.cache.Add(bs.SegmentID().String(), bs)
+	d.cache.Add(bs.SegmentID(), bs)
 
 	// save to local? or after valid it?
 
@@ -156,6 +149,6 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 }
 
 func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) error {
-	d.cache.Remove(sid.String())
+	d.cache.Remove(sid)
 	return d.segStore.Delete(sid)
 }
