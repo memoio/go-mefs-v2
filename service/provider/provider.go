@@ -85,6 +85,8 @@ func (p *ProviderNode) Start() error {
 	p.PushPool.RegisterAddUserFunc(p.chalSeg.AddUser)
 	p.PushPool.RegisterDelSegFunc(p.chalSeg.RemoveSeg)
 
+	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
+
 	// wait for sync
 	p.PushPool.Start()
 	for {
@@ -104,7 +106,6 @@ func (p *ProviderNode) Start() error {
 
 	p.chalSeg.Start()
 
-	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
 	logger.Info("start provider for: ", p.RoleID())
 	return nil
 }

@@ -117,6 +117,10 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		return xerrors.Errorf("wrong paras price")
 	}
 
+	if or.End-or.Start < build.OrderDuration {
+		return xerrors.Errorf("order duration %d is short than %d", or.End-or.Start, build.OrderDuration)
+	}
+
 	if msg.From != or.UserID {
 		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
 	}
@@ -261,6 +265,10 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 
 	if msg.From != or.UserID {
 		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
+	}
+
+	if or.End-or.Start < build.OrderDuration {
+		return xerrors.Errorf("order duration %d is short than %d", or.End-or.Start, build.OrderDuration)
 	}
 
 	// todo: verify sign

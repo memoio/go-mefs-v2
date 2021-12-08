@@ -7,21 +7,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zeebo/blake3"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
-	"github.com/zeebo/blake3"
 )
-
-var logger = logging.Logger("pro-challenge")
 
 type SegMgr struct {
 	sync.RWMutex
@@ -31,7 +28,6 @@ type SegMgr struct {
 	api.IDataService
 
 	ds store.KVStore
-	//segStore segment.SegmentStore
 
 	ctx context.Context
 
@@ -44,22 +40,6 @@ type SegMgr struct {
 	sInfo map[uint64]*segInfo // key: userID
 
 	chalChan chan *chal
-}
-
-type chal struct {
-	userID  uint64
-	epoch   uint64
-	errCode uint16
-}
-
-type segInfo struct {
-	userID uint64
-	fsID   []byte
-	pk     pdpcommon.PublicKey
-
-	nextChal uint64
-	wait     bool
-	chalTime time.Time
 }
 
 func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDataService, pp *txPool.PushPool) *SegMgr {
@@ -150,7 +130,7 @@ func (s *SegMgr) regularChallenge() {
 		case <-s.ctx.Done():
 			return
 		case ch := <-s.chalChan:
-			si := s.loadFs(ch.userID, true)
+			si := s.loadFs(ch.userID, false)
 			if ch.errCode != 0 {
 				si.chalTime = time.Now()
 				si.wait = false

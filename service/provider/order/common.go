@@ -11,5 +11,5 @@ var logger = logging.Logger("porder")
 var (
 	ErrDataSign = xerrors.New("wrong data content")
 	ErrState    = xerrors.New("wrong state")
-	ErrService  = xerrors.New("not ready")
+	ErrService  = xerrors.New("order service not ready")
 )

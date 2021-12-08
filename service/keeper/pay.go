@@ -11,7 +11,7 @@ import (
 )
 
 func (k *KeeperNode) updatePay() {
-	ticker := time.NewTicker(2 * time.Minute)
+	ticker := time.NewTicker(3 * time.Minute)
 	defer ticker.Stop()
 
 	latest := k.PushPool.GetChalEpoch(k.ctx)
