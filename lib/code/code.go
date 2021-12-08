@@ -296,17 +296,10 @@ func (d *DataCoder) VerifyChunk(name segment.SegmentID, data []byte) (bool, erro
 		return false, ErrDataLength
 	}
 
-	d.dv.Reset()
-	if name != nil {
-		seg := data[d.prefixSize : d.prefixSize+int(d.SegSize)]
-		tag := data[d.prefixSize+int(d.SegSize) : d.prefixSize+int(d.SegSize)+d.tagSize]
-		err := d.dv.Add(name.Bytes(), seg, tag)
-		if err != nil {
-			return false, err
-		}
-	}
+	seg := data[d.prefixSize : d.prefixSize+int(d.SegSize)]
+	tag := data[d.prefixSize+int(d.SegSize) : d.prefixSize+int(d.SegSize)+d.tagSize]
 
-	return d.dv.Result()
+	return d.blsKey.VerifyTag(name.Bytes(), seg, tag)
 }
 
 func (d *DataCoder) Recover(name segment.SegmentID, stripe [][]byte) error {

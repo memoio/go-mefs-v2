@@ -49,14 +49,14 @@ func (d *dataService) API() *dataAPI {
 }
 
 func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment) error {
-	logger.Debug("put segment to local:", seg.SegmentID().String())
-	d.cache.Add(seg.SegmentID(), seg)
+	logger.Debug("put segment to local: ", seg.SegmentID())
+	d.cache.Add(seg.SegmentID().String(), seg)
 	return d.segStore.Put(seg)
 }
 
 func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
-	logger.Debug("get segment from local:", sid.String())
-	val, has := d.cache.Get(sid)
+	logger.Debug("get segment from local: ", sid)
+	val, has := d.cache.Get(sid.String())
 	if has {
 		return val.(segment.Segment), nil
 	}
@@ -101,7 +101,7 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 	}
 
 	// get from remote
-	key := store.NewKey(pb.MetaType_SegLocationKey, sid.String())
+	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
 	val, err := d.ds.Get(key)
 	if err != nil {
 		return nil, err
@@ -120,6 +120,7 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 
 // GetSegmentFrom get segmemnt over network
 func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error) {
+	logger.Debug("get segment from remote: ", sid, from)
 	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), nil)
 	if err != nil {
 		return nil, err
@@ -139,7 +140,7 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 		return nil, ErrData
 	}
 
-	d.cache.Add(bs.SegmentID(), bs)
+	d.cache.Add(bs.SegmentID().String(), bs)
 
 	// save to local? or after valid it?
 
@@ -147,6 +148,6 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 }
 
 func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) error {
-	d.cache.Remove(sid)
+	d.cache.Remove(sid.String())
 	return d.segStore.Delete(sid)
 }

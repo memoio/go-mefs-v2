@@ -3,22 +3,14 @@ package pdpcommon
 import "golang.org/x/xerrors"
 
 var (
-	ErrSplitSegmentToAtoms = xerrors.New("invalid segment")
-	ErrKeyIsNil            = xerrors.New("the key is nil")
-	ErrSetString           = xerrors.New("SetString is not true")
-	ErrSetBigInt           = xerrors.New("SetBigInt is not true")
-	ErrSetToBigInt         = xerrors.New("SetString (for big.Int) is not true")
-
-	ErrInvalidSettings       = xerrors.New("setting is invalid")
-	ErrNumOutOfRange         = xerrors.New("numOfAtoms is out of range")
-	ErrDeserializeFailed     = xerrors.New("deserialize failed")
-	ErrChalOutOfRange        = xerrors.New("numOfAtoms is out of chal range")
-	ErrSegmentSize           = xerrors.New("the size of the segment is wrong")
-	ErrGenTag                = xerrors.New("GenTag failed")
-	ErrOffsetIsNegative      = xerrors.New("offset is negative")
-	ErrProofVerifyInProvider = xerrors.New("proof is wrong")
-	ErrVersionUnmatch        = xerrors.New("version unmatch")
-	ErrVerifyFailed          = xerrors.New("verification failed")
+	ErrInvalidElem       = xerrors.New("invalid elem or zero")
+	ErrKeyIsNil          = xerrors.New("the key is nil")
+	ErrInvalidSettings   = xerrors.New("setting is invalid")
+	ErrNumOutOfRange     = xerrors.New("numOfAtoms is out of range")
+	ErrDeserializeFailed = xerrors.New("deserialize failed")
+	ErrSegmentSize       = xerrors.New("the size of the segment is wrong")
+	ErrVersionUnmatch    = xerrors.New("version unmatch")
+	ErrVerifyFailed      = xerrors.New("verification failed")
 )
 
 // Tag constants

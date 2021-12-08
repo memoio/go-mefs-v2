@@ -8,7 +8,7 @@ import (
 // -------------------- proof related routines ------------------- //
 func splitSegmentToAtoms(data []byte, typ int) ([]Fr, error) {
 	if len(data) == 0 {
-		return nil, pdpcommon.ErrSplitSegmentToAtoms
+		return nil, pdpcommon.ErrSegmentSize
 	}
 
 	if typ > 32 || typ <= 0 {

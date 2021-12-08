@@ -17,8 +17,6 @@ import (
 
 var logger = logging.Logger("netApp")
 
-var ErrTimeOut = xerrors.New("send time out")
-
 // wrap net direct send and pubsub
 
 var _ api.INetService = (*netServiceAPI)(nil)
@@ -28,13 +26,14 @@ type netServiceAPI struct {
 }
 
 func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value, sig []byte) (*pb.NetMessage, error) {
-	ctx, cancle := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancle := context.WithTimeout(ctx, 3*time.Second)
 	defer cancle()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ErrTimeOut
+			logger.Warn("found no network id for roleID: ", id)
+			return nil, ctx.Err()
 		default:
 			c.RLock()
 			pid, ok := c.idMap[id]
@@ -111,5 +110,5 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 		return resp.GetData().GetMsgInfo(), nil
 	}
 
-	return nil, ErrTimeOut
+	return nil, xerrors.New("fetch time out")
 }

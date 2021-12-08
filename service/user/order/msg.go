@@ -191,7 +191,7 @@ func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
 			sid.SetStripeID(j)
 			sid.SetChunkID(seg.ChunkID)
-			key := store.NewKey(pb.MetaType_SegLocationKey, sid.String())
+			key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
 			// add location map
 			m.ds.Put(key, val)
 			// delete from local

@@ -2,6 +2,7 @@ package segment
 
 import (
 	"encoding/binary"
+	"strconv"
 
 	"github.com/mr-tron/base58/base58"
 	"golang.org/x/xerrors"
@@ -57,19 +58,22 @@ func (bm *BaseSegmentID) Bytes() []byte {
 	return res
 }
 
-// ToString 将SegmentID结构体转换成字符串格式，进行传输
-func (bm *BaseSegmentID) String() string {
+// ToString used in trans
+func (bm *BaseSegmentID) ToString() string {
 	return base58.Encode(bm.buf)
 }
 
-// 不包含fsID
+// used in print or output
+func (bm *BaseSegmentID) String() string {
+	return base58.Encode(bm.GetFsID()) + "_" + strconv.FormatUint(bm.GetBucketID(), 10) + "_" + strconv.FormatUint(bm.GetStripeID(), 10) + "_" + strconv.FormatUint(uint64(bm.GetChunkID()), 10)
+}
+
 func (bm *BaseSegmentID) ShortBytes() []byte {
 	return bm.buf[FSID_LEN:SEGMENTID_LEN]
 }
 
-// 不包含fsID
 func (bm *BaseSegmentID) ShortString() string {
-	return string(bm.ShortBytes())
+	return strconv.FormatUint(bm.GetBucketID(), 10) + "_" + strconv.FormatUint(bm.GetStripeID(), 10) + "_" + strconv.FormatUint(uint64(bm.GetChunkID()), 10)
 }
 
 func NewSegmentID(fid []byte, bid, sid uint64, cid uint32) (SegmentID, error) {

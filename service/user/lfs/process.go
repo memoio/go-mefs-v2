@@ -6,11 +6,13 @@ import (
 	"encoding/binary"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
@@ -157,7 +159,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			encodedData, err := dp.coder.Encode(dp.segID, buf)
 			if err != nil {
-				logger.Warn("encode data error:", dp.segID.String(), err)
+				logger.Warn("encode data error:", dp.segID, err)
 				return err
 			}
 
@@ -171,12 +173,12 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 				err := dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
 				if err != nil {
-					logger.Warn("Process data error:", dp.segID.String(), err)
+					logger.Warn("Process data error:", dp.segID, err)
 				}
 
 				err = l.om.PutSegmentToLocal(ctx, seg)
 				if err != nil {
-					logger.Warn("Process data error:", dp.segID.String(), err)
+					logger.Warn("Process data error:", dp.segID, err)
 					return err
 				}
 			}
@@ -276,40 +278,86 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *bucket, object *object, start, length int, w io.Writer) error {
 
 	sizeReceived := 0
-	sucCount := 0
 
-	segID, err := segment.NewSegmentID(l.fsID, bucket.BucketID, 0, 0)
-	if err != nil {
-		return err
-	}
-
+	// todo: parallel download stripe
 	breakFlag := false
 	for !breakFlag {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
-			sucCount = 0
 			stripeID := start / dp.stripeSize
 
 			logger.Debug("download object: ", object.BucketID, object.ObjectID, stripeID)
 
-			segID.SetStripeID(uint64(stripeID))
+			// add parallel chunks download
+			// release when get chunk fails or get datacount chunk succcess
+			sm := semaphore.NewWeighted(int64(dp.dataCount))
+			var wg sync.WaitGroup
+			sucCnt := int32(0)
+			failCnt := int32(0)
+
 			stripe := make([][]byte, dp.dataCount+dp.parityCount)
 			for i := 0; i < dp.dataCount+dp.parityCount; i++ {
-				if sucCount >= dp.dataCount {
+				//logger.Debug("download segment: ", bucket.BucketID, uint64(stripeID), uint32(i))
+				err := sm.Acquire(ctx, 1)
+				if err != nil {
+					return err
+				}
+
+				// fails too many, no need to download
+				if atomic.LoadInt32(&failCnt) > int32(dp.parityCount) {
+					logger.Errorf("download chunk failed too much")
 					break
 				}
 
-				segID.SetChunkID(uint32(i))
-				seg, err := l.om.GetSegment(ctx, segID)
-				if err != nil {
-					logger.Debug("get seg error:", err)
-					continue
+				// enough, no need to download
+				if atomic.LoadInt32(&sucCnt) >= int32(dp.dataCount) {
+					break
 				}
 
-				stripe[i] = seg.Data()
-				sucCount++
+				wg.Add(1)
+				go func(chunkID int) {
+					defer wg.Done()
+
+					segID, err := segment.NewSegmentID(l.fsID, bucket.BucketID, uint64(stripeID), uint32(chunkID))
+					if err != nil {
+						atomic.AddInt32(&failCnt, 1)
+						sm.Release(1)
+						return
+					}
+
+					seg, err := l.om.GetSegment(ctx, segID)
+					if err != nil {
+						atomic.AddInt32(&failCnt, 1)
+						sm.Release(1)
+						logger.Warn("get seg fail: ", segID, err)
+						return
+					}
+
+					// verify seg
+					ok, err := dp.coder.VerifyChunk(segID, seg.Data())
+					if err != nil || !ok {
+						atomic.AddInt32(&failCnt, 1)
+						sm.Release(1)
+						logger.Warn("seg is wrong: ", chunkID, segID, err)
+						return
+					}
+
+					logger.Debug("download success: ", chunkID, segID)
+					stripe[chunkID] = seg.Data()
+					atomic.AddInt32(&sucCnt, 1)
+
+					// download dataCount; release resource to break
+					if atomic.LoadInt32(&sucCnt) >= int32(dp.dataCount) {
+						sm.Release(1)
+					}
+				}(i)
+			}
+			wg.Wait()
+
+			if sucCnt < int32(dp.dataCount) {
+				logger.Debugf("not get enough chunks, expected %d, got %d", dp.dataCount, sucCnt)
 			}
 
 			res, err := dp.coder.Decode(nil, stripe)
