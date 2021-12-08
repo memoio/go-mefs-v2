@@ -110,6 +110,11 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
+	case tx.SegmentFault:
+		err := s.canRemoveSeg(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	case tx.UpdateChalEpoch:
 		err := s.canUpdateChalEpoch(msg)
 		if err != nil {

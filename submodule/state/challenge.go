@@ -144,9 +144,11 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 				return err
 			}
 			price.Set(sf.Price)
+			price.Sub(price, sf.DelPrice)
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
 			totalSize += sf.Size
+			totalSize -= sf.DelSize
 			chal.Add(sf.AccFr)
 		}
 	}
@@ -174,9 +176,11 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 				orderDur = of.End - chalStart
 			}
 			price.Set(of.Price)
+			price.Sub(price, of.DelPrice)
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
 			totalSize += of.Size
+			totalSize -= of.DelSize
 			chal.Add(of.AccFr)
 		}
 	}
@@ -374,9 +378,11 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 			}
 
 			price.Set(sf.Price)
+			price.Sub(price, sf.DelPrice)
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
 			totalSize += sf.Size
+			totalSize -= sf.DelSize
 			chal.Add(sf.AccFr)
 		}
 	}
@@ -408,9 +414,11 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 			}
 
 			price.Set(of.Price)
+			price.Sub(price, of.Price)
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
 			totalSize += of.Size
+			totalSize -= of.DelSize
 			chal.Add(of.AccFr)
 		}
 	}

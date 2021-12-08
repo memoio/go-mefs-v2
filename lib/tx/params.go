@@ -91,3 +91,19 @@ func (pip *PostIncomeParams) Serialize() ([]byte, error) {
 func (pip *PostIncomeParams) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, pip)
 }
+
+type SegRemoveParas struct {
+	UserID   uint64
+	ProID    uint64
+	Nonce    uint64
+	SeqNum   uint32
+	Segments types.AggSegsQueue
+}
+
+func (srp *SegRemoveParas) Serialize() ([]byte, error) {
+	return cbor.Marshal(srp)
+}
+
+func (srp *SegRemoveParas) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, srp)
+}

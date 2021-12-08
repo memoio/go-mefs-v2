@@ -83,6 +83,7 @@ func (p *ProviderNode) Start() error {
 	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
 
 	p.PushPool.RegisterAddUserFunc(p.chalSeg.AddUser)
+	p.PushPool.RegisterDelSegFunc(p.chalSeg.RemoveSeg)
 
 	// wait for sync
 	p.PushPool.Start()

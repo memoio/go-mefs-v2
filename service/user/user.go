@@ -63,6 +63,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 	}
 
 	un.RegisterAddSeqFunc(om.AddOrderSeq)
+	un.RegisterDelSegFunc(om.RemoveSeg)
 
 	return un, nil
 }

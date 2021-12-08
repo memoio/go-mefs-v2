@@ -50,6 +50,7 @@ type StateMgr struct {
 	handleAddUP   HandleAddUPFunc
 	handleAddPay  HandleAddPayFunc
 	handleAddSeq  HandleAddSeqFunc
+	handleDelSeg  HandleDelSegFunc
 }
 
 func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
@@ -103,6 +104,12 @@ func (s *StateMgr) RegisterAddUPFunc(h HandleAddUPFunc) {
 func (s *StateMgr) RegisterAddSeqFunc(h HandleAddSeqFunc) {
 	s.Lock()
 	s.handleAddSeq = h
+	s.Unlock()
+}
+
+func (s *StateMgr) RegisterDelSegFunc(h HandleDelSegFunc) {
+	s.Lock()
+	s.handleDelSeg = h
 	s.Unlock()
 }
 
@@ -280,6 +287,11 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 		}
 	case tx.DataOrder:
 		err := s.addSeq(msg)
+		if err != nil {
+			return s.root, err
+		}
+	case tx.SegmentFault:
+		err := s.removeSeg(msg)
 		if err != nil {
 			return s.root, err
 		}

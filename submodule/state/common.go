@@ -12,6 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -26,6 +27,7 @@ type HandleAddUserFunc func(userID uint64)
 type HandleAddUPFunc func(userID, proID uint64)
 type HandleAddPayFunc func(userID, proID, epoch uint64, pay, penaly *big.Int)
 type HandleAddSeqFunc func(types.OrderSeq)
+type HandleDelSegFunc func(*tx.SegRemoveParas)
 
 // todo: add msg fee here
 type roleInfo struct {
@@ -67,8 +69,10 @@ type orderKey struct {
 
 type orderFull struct {
 	types.SignedOrder
-	SeqNum uint32
-	AccFr  []byte
+	SeqNum   uint32
+	AccFr    []byte
+	DelSize  uint64
+	DelPrice *big.Int
 }
 
 func (of *orderFull) Serialize() ([]byte, error) {
@@ -81,7 +85,10 @@ func (of *orderFull) Deserialize(b []byte) error {
 
 type seqFull struct {
 	types.OrderSeq
-	AccFr []byte
+	AccFr    []byte
+	DelSegs  types.AggSegsQueue
+	DelSize  uint64
+	DelPrice *big.Int
 }
 
 func (sf *seqFull) Serialize() ([]byte, error) {

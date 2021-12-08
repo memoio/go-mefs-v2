@@ -175,6 +175,7 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	of := &orderFull{
 		SignedOrder: *or,
 		SeqNum:      oinfo.ns.SeqNum,
+		DelPrice:    big.NewInt(0),
 		AccFr:       bls.FrToBytes(&oinfo.accFr),
 	}
 	data, err := of.Serialize()
@@ -441,12 +442,19 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 
 	// save order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, oinfo.base.Nonce)
-	of := &orderFull{
-		SignedOrder: *oinfo.base,
-		SeqNum:      oinfo.ns.SeqNum,
-		AccFr:       bls.FrToBytes(&oinfo.accFr),
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return err
 	}
-	data, err := of.Serialize()
+	of := new(orderFull)
+	err = of.Deserialize(data)
+	if err != nil {
+		return err
+	}
+	of.SignedOrder = *oinfo.base
+	of.SeqNum = oinfo.ns.SeqNum
+	of.AccFr = bls.FrToBytes(&oinfo.accFr)
+	data, err = of.Serialize()
 	if err != nil {
 		return err
 	}
@@ -459,6 +467,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 	sf := &seqFull{
 		OrderSeq: so.OrderSeq,
+		DelPrice: big.NewInt(0),
 		AccFr:    bls.FrToBytes(&oinfo.accFr),
 	}
 	data, err = sf.Serialize()
@@ -620,6 +629,185 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 	oinfo.base.Price.Set(so.Price)
 	oinfo.base.Usign = so.UserSig
 	oinfo.base.Psign = so.ProSig
+
+	return nil
+}
+
+func (s *StateMgr) removeSeg(msg *tx.Message) error {
+	so := new(tx.SegRemoveParas)
+	err := so.Deserialize(msg.Params)
+	if err != nil {
+		return err
+	}
+
+	if msg.From != so.ProID {
+		return xerrors.Errorf("wrong pro expected %d, got %d", msg.From, so.ProID)
+	}
+
+	uinfo, ok := s.sInfo[so.UserID]
+	if !ok {
+		uinfo, err = s.loadUser(so.UserID)
+		if err != nil {
+			return err
+		}
+		s.sInfo[so.UserID] = uinfo
+	}
+
+	// load order seq
+	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return err
+	}
+	of := new(orderFull)
+	err = of.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	skey := store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
+	data, err = s.ds.Get(skey)
+	if err != nil {
+		return err
+	}
+	sf := new(seqFull)
+	err = sf.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	var HWi, accFr bls.Fr
+	size := uint64(0)
+	for _, lseg := range so.Segments {
+		has := false
+		for _, seg := range sf.Segments {
+			if seg.BucketID != lseg.BucketID {
+				continue
+			}
+			if seg.ChunkID != lseg.ChunkID {
+				continue
+			}
+			if seg.Start > lseg.Start {
+				continue
+			}
+			if seg.Start+seg.Length < lseg.Start+lseg.Length {
+				continue
+			}
+			has = true
+		}
+		if !has {
+			return xerrors.Errorf("seg is not found in seq: %d, %d, %d, %d", lseg.BucketID, lseg.Start, lseg.Length, lseg.ChunkID)
+		}
+
+		for i := lseg.Start; i < lseg.Start+lseg.Length; i++ {
+			sid := segment.CreateSegmentID(uinfo.fsID, lseg.BucketID, i, lseg.ChunkID)
+			h := blake3.Sum256(sid)
+			bls.FrFromBytes(&HWi, h[:])
+			bls.FrAddMod(&accFr, &accFr, &HWi)
+		}
+		size += (lseg.Length * build.DefaultSegSize)
+		sf.DelSegs.Push(lseg)
+	}
+
+	price := big.NewInt(int64(size))
+	price.Mul(price, of.SegPrice)
+
+	if sf.DelPrice == nil {
+		sf.DelPrice = new(big.Int).Set(price)
+	} else {
+		sf.DelPrice.Add(sf.DelPrice, price)
+	}
+	sf.DelSize += size
+
+	if of.DelPrice == nil {
+		of.DelPrice = new(big.Int).Set(price)
+	} else {
+		of.DelPrice.Add(of.DelPrice, price)
+	}
+	of.DelSize += size
+
+	// save order
+	bls.FrFromBytes(&HWi, sf.AccFr)
+	bls.FrSubMod(&HWi, &HWi, &accFr)
+	sf.AccFr = bls.FrToBytes(&HWi)
+	data, err = sf.Serialize()
+	if err != nil {
+		return err
+	}
+	s.ds.Put(skey, data)
+
+	// save seq
+	bls.FrFromBytes(&HWi, of.AccFr)
+	bls.FrSubMod(&HWi, &HWi, &accFr)
+	of.AccFr = bls.FrToBytes(&HWi)
+	data, err = of.Serialize()
+	if err != nil {
+		return err
+	}
+	s.ds.Put(key, data)
+
+	if s.handleDelSeg != nil {
+		s.handleDelSeg(so)
+	}
+
+	return nil
+}
+
+func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
+	so := new(tx.SegRemoveParas)
+	err := so.Deserialize(msg.Params)
+	if err != nil {
+		return err
+	}
+
+	if msg.From != so.ProID {
+		return xerrors.Errorf("wrong pro expected %d, got %d", msg.From, so.ProID)
+	}
+
+	// load order seq
+	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return err
+	}
+	of := new(orderFull)
+	err = of.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	skey := store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
+	data, err = s.ds.Get(skey)
+	if err != nil {
+		return err
+	}
+	sf := new(seqFull)
+	err = sf.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	for _, lseg := range so.Segments {
+		has := false
+		for _, seg := range sf.Segments {
+			if seg.BucketID != lseg.BucketID {
+				continue
+			}
+			if seg.ChunkID != lseg.ChunkID {
+				continue
+			}
+			if seg.Start > lseg.Start {
+				continue
+			}
+			if seg.Start+seg.Length < lseg.Start+lseg.Length {
+				continue
+			}
+			has = true
+		}
+		if !has {
+			return xerrors.Errorf("seg is not found in seq: %d, %d, %d, %d", lseg.BucketID, lseg.Start, lseg.Length, lseg.ChunkID)
+		}
+	}
 
 	return nil
 }

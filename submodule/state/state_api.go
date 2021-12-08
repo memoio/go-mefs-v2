@@ -286,6 +286,8 @@ func (s *StateMgr) GetOrder(userID, proID, nonce uint64) (*types.SignedOrder, []
 	if err == nil {
 		err = of.Deserialize(data)
 		if err == nil {
+			of.Size -= of.DelSize
+			of.Price.Sub(of.Price, of.DelPrice)
 			return &of.SignedOrder, of.AccFr, of.SeqNum, nil
 		}
 	}
@@ -300,6 +302,8 @@ func (s *StateMgr) GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*typ
 	if err == nil {
 		err = sf.Deserialize(data)
 		if err == nil {
+			sf.Size -= sf.DelSize
+			sf.Price.Sub(sf.Price, sf.DelPrice)
 			return &sf.OrderSeq, sf.AccFr, nil
 		}
 	}

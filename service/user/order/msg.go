@@ -199,3 +199,21 @@ func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
 		}
 	}
 }
+
+func (m *OrderMgr) RemoveSeg(srp *tx.SegRemoveParas) {
+	if srp.UserID != m.localID {
+		return
+	}
+
+	for _, seg := range srp.Segments {
+		for i := seg.Start; i < seg.Start+seg.Length; i++ {
+			sid, err := segment.NewSegmentID(m.fsID, seg.BucketID, i, seg.ChunkID)
+			if err != nil {
+				continue
+			}
+
+			key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+			m.ds.Delete(key)
+		}
+	}
+}
