@@ -11,9 +11,9 @@ import (
 
 func GetPassWord() (string, error) {
 	var password string
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	go func() {
+		defer cancel()
 		fmt.Printf("Please input your password (at least 8): ")
 		pd, err := gopass.GetPasswdMasked()
 		if err != nil {

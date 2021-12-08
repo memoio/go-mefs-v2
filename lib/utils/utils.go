@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"reflect"
 	"time"
 
@@ -88,4 +89,18 @@ func LeftPadBytes(slice []byte, l int) []byte {
 	copy(padded[l-len(slice):], slice)
 
 	return padded
+}
+
+func GetDirSize(path string) (uint64, error) {
+	var size uint64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += uint64(info.Size())
+		}
+		return nil
+	})
+	return size, err
 }

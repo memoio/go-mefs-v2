@@ -21,6 +21,11 @@ var InitCmd = &cli.Command{
 	Name:  "init",
 	Usage: "Initialize a memoriae repo",
 	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "setPass",
+			Usage: "set password using input",
+			Value: false,
+		},
 		&cli.StringFlag{
 			Name:  "password",
 			Usage: "set password for access private key",
@@ -30,6 +35,18 @@ var InitCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		logger.Info("Initializing memoriae node")
 
+		pw := cctx.String("password")
+		setpass := cctx.Bool("setPass")
+		if setpass {
+			npw, err := minit.GetPassWord()
+			if err != nil {
+				if len(npw) > 0 && len(npw) < 8 {
+					return xerrors.Errorf("password length should be at least 8")
+				}
+			}
+
+			pw = npw
+		}
 		logger.Info("Checking if repo exists")
 
 		repoDir := cctx.String(FlagNodeRepo)
@@ -56,9 +73,7 @@ var InitCmd = &cli.Command{
 		rType := cctx.String(FlagRoleType)
 		rep.Config().Identity.Role = rType
 
-		password := cctx.String("password")
-
-		if err := minit.Create(cctx.Context, rep, password); err != nil {
+		if err := minit.Create(cctx.Context, rep, pw); err != nil {
 			logger.Errorf("Error initializing node %s", err)
 			return err
 		}
