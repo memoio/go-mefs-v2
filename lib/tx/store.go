@@ -99,10 +99,7 @@ func (ts *TxStoreImpl) GetTxMsg(mid types.MsgID) (*SignedMessage, error) {
 }
 
 func (ts *TxStoreImpl) PutTxMsg(sm *SignedMessage) error {
-	mid, err := sm.Hash()
-	if err != nil {
-		return err
-	}
+	mid := sm.Hash()
 
 	ok := ts.msgCache.Contains(mid)
 	if ok {
@@ -155,10 +152,7 @@ func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*Block, error) {
 }
 
 func (ts *TxStoreImpl) PutTxBlock(tb *Block) error {
-	bid, err := tb.Hash()
-	if err != nil {
-		return err
-	}
+	bid := tb.Hash()
 
 	ok := ts.blkCache.Contains(bid)
 	if ok {

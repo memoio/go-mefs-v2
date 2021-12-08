@@ -65,10 +65,7 @@ func (mp *InPool) sync() {
 			logger.Debug("process block done")
 			return
 		case m := <-mp.msgChan:
-			id, err := m.Hash()
-			if err != nil {
-				continue
-			}
+			id := m.Hash()
 
 			logger.Debug("add tx message: ", id, m.From, m.Nonce, m.Method)
 
@@ -96,10 +93,7 @@ func (mp *InPool) sync() {
 				continue
 			}
 
-			id, err := tb.Hash()
-			if err != nil {
-				continue
-			}
+			id := tb.Hash()
 
 			sig, err := mp.RoleSign(mp.ctx, mp.localID, id.Bytes(), types.SigSecp256k1)
 			if err != nil {

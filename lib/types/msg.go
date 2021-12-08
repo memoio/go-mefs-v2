@@ -28,12 +28,12 @@ func init() {
 
 type MsgID struct{ str string }
 
-var Undef = MsgID{}
+var MsgIDUndef = MsgID{}
 
 func NewMsgID(data []byte) MsgID {
 	res, err := mh.Sum(data, MsgIDHashCode, MsgIDHashLen)
 	if err != nil {
-		return Undef
+		return MsgIDUndef
 	}
 
 	return MsgID{string(res)}
@@ -87,7 +87,7 @@ func (m MsgID) MarshalBinary() ([]byte, error) {
 func FromString(s string) (MsgID, error) {
 	b, err := base58.Decode(s)
 	if err != nil {
-		return Undef, err
+		return MsgIDUndef, err
 	}
 
 	return FromBytes(b)
@@ -96,7 +96,7 @@ func FromString(s string) (MsgID, error) {
 func FromHexString(s string) (MsgID, error) {
 	b, err := hex.DecodeString(s)
 	if err != nil {
-		return Undef, err
+		return MsgIDUndef, err
 	}
 
 	return FromBytes(b)
@@ -105,11 +105,11 @@ func FromHexString(s string) (MsgID, error) {
 func FromBytes(b []byte) (MsgID, error) {
 	dh, err := mh.Decode(b)
 	if err != nil {
-		return Undef, err
+		return MsgIDUndef, err
 	}
 
 	if dh.Code != MsgIDHashCode {
-		return Undef, ErrMsgCode
+		return MsgIDUndef, ErrMsgCode
 	}
 
 	return MsgID{string(b)}, nil

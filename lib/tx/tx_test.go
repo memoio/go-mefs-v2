@@ -16,10 +16,7 @@ func TestMessage(t *testing.T) {
 
 	sm.To = 10
 
-	id, err := sm.Hash()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := sm.Hash()
 
 	priv, _ := signature.GenerateKey(types.Secp256k1)
 	sign, _ := priv.Sign(id.Bytes())
@@ -42,7 +39,7 @@ func TestMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	nid, _ := nsm.Hash()
+	nid := nsm.Hash()
 
 	ok, err := priv.GetPublic().Verify(nid.Bytes(), nsm.Signature.Data)
 	if err != nil {
@@ -62,10 +59,7 @@ func TestBlock(t *testing.T) {
 	b.BlockHeader.PrevID = types.NewMsgID([]byte("test"))
 	b.MultiSignature.Type = types.SigBLS
 
-	id, err := b.Hash()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := b.Hash()
 
 	priv, _ := signature.GenerateKey(types.BLS)
 	sign, _ := priv.Sign(id.Bytes())
@@ -75,7 +69,7 @@ func TestBlock(t *testing.T) {
 		Type: types.SigBLS,
 	}
 
-	err = b.MultiSignature.Add(0, sig)
+	err := b.MultiSignature.Add(0, sig)
 	if err != nil {
 		t.Fatal("add fail")
 	}
@@ -85,10 +79,7 @@ func TestBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bid, err := b.BlockHeader.Hash()
-	if err != nil {
-		t.Fatal(err)
-	}
+	bid := b.BlockHeader.Hash()
 
 	nb := new(Block)
 	err = nb.Deserialize(bbyte)
@@ -96,7 +87,7 @@ func TestBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	nid, _ := nb.Hash()
+	nid := nb.Hash()
 
 	ok, err := priv.GetPublic().Verify(nid.Bytes(), nb.MultiSignature.Data)
 	if err != nil {

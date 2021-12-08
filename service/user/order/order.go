@@ -617,11 +617,8 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 
 		o.seq.Segments.Merge()
 
-		shash, err := o.seq.Hash()
-		if err != nil {
-			return err
-		}
-		ssig, err := m.RoleSign(m.ctx, m.localID, shash, types.SigSecp256k1)
+		shash := o.seq.Hash()
+		ssig, err := m.RoleSign(m.ctx, m.localID, shash.Bytes(), types.SigSecp256k1)
 		if err != nil {
 			return err
 		}
@@ -673,11 +670,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return ErrState
 	}
 
-	oHash, err := o.seq.Hash()
-	if err != nil {
-		return err
-	}
-	ok, _ := m.RoleVerify(m.ctx, o.pro, oHash, s.ProDataSig)
+	oHash := o.seq.Hash()
+	ok, _ := m.RoleVerify(m.ctx, o.pro, oHash.Bytes(), s.ProDataSig)
 	if !ok {
 		return ErrDataSign
 	}
@@ -698,7 +692,7 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	o.base.Size = o.seq.Size
 
 	// save order seq
-	err = saveOrderSeq(o, m.ds)
+	err := saveOrderSeq(o, m.ds)
 	if err != nil {
 		return err
 	}

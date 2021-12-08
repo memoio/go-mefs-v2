@@ -150,12 +150,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 
 	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Nonce, mes.Method)
 
-	mid, err := mes.Hash()
-	if err != nil {
-		pp.Unlock()
-		logger.Warn("add tx message to push pool: ", err)
-		return mid, err
-	}
+	mid := mes.Hash()
 
 	// sign
 	sig, err := pp.RoleSign(pp.ctx, pp.localID, mid.Bytes(), types.SigSecp256k1)
@@ -176,11 +171,8 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 
 func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage) (types.MsgID, error) {
 	logger.Debug("add tx signed message to push pool: ", pp.ready)
-	mid, err := sm.Hash()
-	if err != nil {
-		logger.Warn("add tx signed message to push pool: ", err)
-		return mid, err
-	}
+
+	mid := sm.Hash()
 
 	pp.Lock()
 	lp, ok := pp.pending[sm.From]
@@ -202,7 +194,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 
 	// store
 	if !ok {
-		err = pp.PutTxMsg(sm)
+		err := pp.PutTxMsg(sm)
 		if err != nil {
 			logger.Warn("add tx signed message to push pool: ", err)
 			return mid, err
@@ -223,7 +215,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	}
 
 	// push out immediately
-	err = pp.INetService.PublishTxMsg(pp.ctx, sm)
+	err := pp.INetService.PublishTxMsg(pp.ctx, sm)
 	if err != nil {
 		logger.Warn("add tx signed message to push pool: ", err)
 		return mid, err

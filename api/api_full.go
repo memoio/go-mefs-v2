@@ -113,8 +113,9 @@ type IDataService interface {
 	SendSegment(ctx context.Context, seg segment.Segment, to uint64) error
 	SendSegmentByID(ctx context.Context, sid segment.SegmentID, to uint64) error
 
+	GetSegmentLocation(ctx context.Context, sid segment.SegmentID) (uint64, error)
 	GetSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error)
-	GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error)
+	GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error)
 }
 
 type ILfsService interface {

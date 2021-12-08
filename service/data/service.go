@@ -101,27 +101,35 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 	}
 
 	// get from remote
+
+	from, err := d.GetSegmentLocation(ctx, sid)
+	if err == nil {
+		return seg, nil
+	}
+
+	return d.GetSegmentRemote(ctx, sid, from, nil)
+}
+
+func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.SegmentID) (uint64, error) {
 	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
 	val, err := d.ds.Get(key)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	if len(val) < 8 {
-		return nil, ErrData
+		return 0, ErrData
 	}
 
-	from := binary.BigEndian.Uint64(val)
-
-	return d.GetSegmentRemote(ctx, sid, from)
+	return binary.BigEndian.Uint64(val), nil
 }
 
 // todo: add readpay sign here
 
 // GetSegmentFrom get segmemnt over network
-func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error) {
+func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error) {
 	logger.Debug("get segment from remote: ", sid, from)
-	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), nil)
+	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), sig)
 	if err != nil {
 		return nil, err
 	}

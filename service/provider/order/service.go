@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"math/big"
 	"sync"
 	"time"
@@ -393,18 +392,12 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			or.seq.Segments.Merge()
 
 			// compare local and remote
-			rHash, err := os.Hash()
-			if err != nil {
-				return nil, err
-			}
-			lHash, err := or.seq.Hash()
-			if err != nil {
-				return nil, err
-			}
-			if !bytes.Equal(lHash[:], rHash[:]) {
+			rHash := os.Hash()
+			lHash := or.seq.Hash()
+			if !bytes.Equal(lHash.Bytes(), rHash.Bytes()) {
 				logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
 				logger.Debug("handle seq remote:", os.Segments.Len(), os)
-				logger.Debug("handle seq md5:", hex.EncodeToString(lHash[:]), " and ", hex.EncodeToString(rHash[:]))
+				logger.Debug("handle seq md5:", lHash.String(), " and ", rHash.String())
 
 				// todo, load missing
 				if !or.seq.Segments.Equal(os.Segments) {
@@ -425,7 +418,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				//return nil, ErrDataSign
 			}
 
-			ok, err = m.RoleVerify(m.ctx, userID, lHash, os.UserDataSig)
+			ok, err = m.RoleVerify(m.ctx, userID, lHash.Bytes(), os.UserDataSig)
 			if err != nil {
 				return nil, err
 			}
@@ -433,7 +426,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				return nil, ErrDataSign
 			}
 
-			ssig, err := m.RoleSign(m.ctx, m.localID, lHash, types.SigSecp256k1)
+			ssig, err := m.RoleSign(m.ctx, m.localID, lHash.Bytes(), types.SigSecp256k1)
 			if err != nil {
 				return nil, err
 			}

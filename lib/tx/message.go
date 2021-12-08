@@ -72,19 +72,19 @@ func (m *Message) Serialize() ([]byte, error) {
 }
 
 // get message hash for sign
-func (m *Message) Hash() (types.MsgID, error) {
+func (m *Message) Hash() types.MsgID {
 	res, err := m.Serialize()
 	if err != nil {
-		return types.Undef, err
+		return types.MsgIDUndef
 	}
 
-	return types.NewMsgID(res), nil
+	return types.NewMsgID(res)
 }
 
 func (m *Message) Deserialize(b []byte) (types.MsgID, error) {
 	err := cbor.Unmarshal(b, m)
 	if err != nil {
-		return types.Undef, err
+		return types.MsgIDUndef, err
 	}
 
 	return types.NewMsgID(b), nil

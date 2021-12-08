@@ -22,13 +22,13 @@ type RawHeader struct {
 	Time    time.Time   // block time, need?
 }
 
-func (rh *RawHeader) Hash() (types.MsgID, error) {
+func (rh *RawHeader) Hash() types.MsgID {
 	res, err := rh.Serialize()
 	if err != nil {
-		return types.Undef, err
+		return types.MsgIDUndef
 	}
 
-	return types.NewMsgID(res), nil
+	return types.NewMsgID(res)
 }
 
 func (rh *RawHeader) Serialize() ([]byte, error) {
@@ -53,13 +53,13 @@ type BlockHeader struct {
 	Root       types.MsgID
 }
 
-func (bh *BlockHeader) Hash() (types.MsgID, error) {
+func (bh *BlockHeader) Hash() types.MsgID {
 	res, err := bh.Serialize()
 	if err != nil {
-		return types.Undef, err
+		return types.MsgIDUndef
 	}
 
-	return types.NewMsgID(res), nil
+	return types.NewMsgID(res)
 }
 
 func (bh *BlockHeader) Serialize() ([]byte, error) {

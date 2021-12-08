@@ -26,13 +26,13 @@ type EpochParams struct {
 	Prev  types.MsgID // hash pre
 }
 
-func (ep *EpochParams) Hash() (types.MsgID, error) {
+func (ep *EpochParams) Hash() types.MsgID {
 	res, err := ep.Serialize()
 	if err != nil {
-		return types.MsgID{}, err
+		return types.MsgIDUndef
 	}
 
-	return types.NewMsgID(res), nil
+	return types.NewMsgID(res)
 }
 
 func (ep *EpochParams) Serialize() ([]byte, error) {

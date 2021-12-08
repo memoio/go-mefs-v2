@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/xerrors"
 
@@ -55,15 +54,13 @@ type OrderBase struct {
 }
 
 // for sign on data chain
-func (b *OrderBase) Hash() ([]byte, error) {
+func (b *OrderBase) Hash() MsgID {
 	buf, err := cbor.Marshal(b)
 	if err != nil {
-		return nil, err
+		return MsgIDUndef
 	}
 
-	h := blake3.Sum256(buf)
-
-	return h[:], nil
+	return NewMsgID(buf)
 }
 
 func (b *OrderBase) Serialize() ([]byte, error) {
@@ -129,14 +126,13 @@ type SignedOrderSeq struct {
 }
 
 // for sign on data chain
-func (os *SignedOrderSeq) Hash() ([]byte, error) {
-	data, err := cbor.Marshal(os.OrderSeq)
+func (os *SignedOrderSeq) Hash() MsgID {
+	buf, err := cbor.Marshal(os.OrderSeq)
 	if err != nil {
-		return nil, err
+		return MsgIDUndef
 	}
 
-	h := blake3.Sum256(data)
-	return h[:], nil
+	return NewMsgID(buf)
 }
 
 func (os *SignedOrderSeq) Serialize() ([]byte, error) {

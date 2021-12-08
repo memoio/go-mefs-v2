@@ -31,10 +31,7 @@ func (k *KeeperNode) updateChalEpoch() {
 					Sig: types.NewMultiSignature(types.SigSecp256k1),
 				}
 
-				h, err := ep.Hash()
-				if err != nil {
-					continue
-				}
+				h := ep.Hash()
 
 				sig, err := k.RoleSign(k.ctx, k.RoleID(), h.Bytes(), types.SigSecp256k1)
 				if err != nil {

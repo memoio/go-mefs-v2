@@ -329,10 +329,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, so.UserID)
 	}
 
-	sHash, err := so.Hash()
-	if err != nil {
-		return err
-	}
+	sHash := so.Hash()
 
 	// todo: verify sign
 	uri, ok := s.rInfo[so.UserID]
@@ -341,7 +338,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		s.rInfo[so.UserID] = uri
 	}
 
-	err = verify(uri.base, sHash, so.UserDataSig)
+	err = verify(uri.base, sHash.Bytes(), so.UserDataSig)
 	if err != nil {
 		return err
 	}
@@ -352,7 +349,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		s.rInfo[so.ProID] = pri
 	}
 
-	err = verify(pri.base, sHash, so.ProDataSig)
+	err = verify(pri.base, sHash.Bytes(), so.ProDataSig)
 	if err != nil {
 		return err
 	}
@@ -514,10 +511,7 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 	}
 
 	// todo: verify sign
-	sHash, err := so.Hash()
-	if err != nil {
-		return err
-	}
+	sHash := so.Hash()
 
 	// todo: verify sign
 	uri, ok := s.validateRInfo[so.UserID]
@@ -526,7 +520,7 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		s.validateRInfo[so.UserID] = uri
 	}
 
-	err = verify(uri.base, sHash, so.UserDataSig)
+	err = verify(uri.base, sHash.Bytes(), so.UserDataSig)
 	if err != nil {
 		return err
 	}
@@ -537,7 +531,7 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		s.validateRInfo[so.ProID] = pri
 	}
 
-	err = verify(pri.base, sHash, so.ProDataSig)
+	err = verify(pri.base, sHash.Bytes(), so.ProDataSig)
 	if err != nil {
 		return err
 	}

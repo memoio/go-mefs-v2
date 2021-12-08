@@ -326,10 +326,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 	}
 	sp.RUnlock()
 
-	bid, err := tb.Hash()
-	if err != nil {
-		return err
-	}
+	bid := tb.Hash()
 
 	has, _ := sp.HasTxBlock(bid)
 	if has {
@@ -338,7 +335,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 	}
 
 	// verify
-	ok, err = sp.RoleVerifyMulti(sp.ctx, bid.Bytes(), tb.MultiSignature)
+	ok, err := sp.RoleVerifyMulti(sp.ctx, bid.Bytes(), tb.MultiSignature)
 	if err != nil {
 		logger.Debug("add block: ", err)
 		return err
@@ -392,11 +389,7 @@ func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.Block, error) {
 }
 
 func (sp *SyncPool) AddTxMsg(ctx context.Context, tb *tx.SignedMessage) error {
-	mid, err := tb.Hash()
-	if err != nil {
-		logger.Debug("add tx msg:", tb.From, err)
-		return err
-	}
+	mid := tb.Hash()
 
 	ok, err := sp.HasTxMsg(mid)
 	if err != nil || !ok {
