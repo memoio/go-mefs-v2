@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/build"
+	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -107,6 +108,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	price := new(big.Int)
 	totalPrice := new(big.Int)
 	totalSize := uint64(0)
+	delSize := uint64(0)
 
 	// always challenge latest one
 	if ns.Nonce > 0 {
@@ -116,7 +118,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		if err != nil {
 			return err
 		}
-		of := new(orderFull)
+		of := new(types.OrderFull)
 		err = of.Deserialize(data)
 		if err != nil {
 			return err
@@ -132,24 +134,30 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 			orderDur = of.End - chalStart
 		}
 
-		if ns.SeqNum > 0 {
-			key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, ns.SeqNum-1)
+		for i := uint32(0); i < ns.SeqNum; i++ {
+			key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
 				return err
 			}
-			sf := new(seqFull)
+			sf := new(types.SeqFull)
 			err = sf.Deserialize(data)
 			if err != nil {
 				return err
 			}
-			price.Set(sf.Price)
-			price.Sub(price, sf.DelPrice)
+
+			// calc del price and size
+			price.Set(sf.DelPart.Price)
 			price.Mul(price, big.NewInt(orderDur))
-			totalPrice.Add(totalPrice, price)
-			totalSize += sf.Size
-			totalSize -= sf.DelSize
-			chal.Add(sf.AccFr)
+			totalPrice.Sub(totalPrice, price)
+			delSize += sf.DelPart.Size
+			chal.Add(bls.SubFr(sf.AccFr, sf.DelPart.AccFr))
+
+			if i == ns.SeqNum-1 {
+				totalSize += sf.Size
+				totalSize -= delSize
+				totalPrice.Add(totalPrice, sf.Price)
+			}
 		}
 	}
 
@@ -161,7 +169,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 			if err != nil {
 				return err
 			}
-			of := new(orderFull)
+			of := new(types.OrderFull)
 			err = of.Deserialize(data)
 			if err != nil {
 				return err
@@ -175,13 +183,15 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 			} else if of.Start <= chalStart && of.End <= chalEnd {
 				orderDur = of.End - chalStart
 			}
+
 			price.Set(of.Price)
-			price.Sub(price, of.DelPrice)
+			price.Sub(price, of.DelPart.Price)
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
 			totalSize += of.Size
-			totalSize -= of.DelSize
-			chal.Add(of.AccFr)
+			totalSize -= of.DelPart.Size
+
+			chal.Add(bls.SubFr(of.AccFr, of.DelPart.AccFr))
 		}
 	}
 
@@ -206,7 +216,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 
 	oinfo.income.Value.Add(oinfo.income.Value, totalPrice)
 
-	logger.Debugf("apply challenge proof: %d %d %d %d %d %d %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice)
+	logger.Debugf("apply challenge proof: user %d, pro %d, epoch %d, order nonce %d, seqnum %d, size %d, price %d, total income %d, penalty %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice, oinfo.income.Value, oinfo.income.Penalty)
 
 	// save proof result
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID, scp.Epoch)
@@ -217,7 +227,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	binary.BigEndian.PutUint64(buf, oinfo.prove)
 	s.ds.Put(key, buf)
 
-	// save posincome
+	// save postincome
 	data, err = oinfo.income.Serialize()
 	if err != nil {
 		return err
@@ -235,7 +245,6 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
-
 	s.ds.Put(key, data)
 
 	// keeper handle callback income
@@ -339,7 +348,9 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	price := new(big.Int)
 	totalPrice := new(big.Int)
 	totalSize := uint64(0)
+	delSize := uint64(0)
 
+	// always challenge latest one
 	if ns.Nonce > 0 {
 		// load order
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce-1)
@@ -347,7 +358,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		if err != nil {
 			return err
 		}
-		of := new(orderFull)
+		of := new(types.OrderFull)
 		err = of.Deserialize(data)
 		if err != nil {
 			return err
@@ -357,71 +368,73 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 			return xerrors.Errorf("chal order all expired")
 		} else if of.Start <= chalStart && of.End >= chalEnd {
 			orderDur = chalDur
-		} else if of.Start <= chalStart && of.End <= chalEnd {
-			orderDur = of.End - chalStart
 		} else if of.Start >= chalStart && of.End >= chalEnd {
 			orderDur = chalEnd - of.Start
-		} else if of.Start >= chalStart && of.End <= chalEnd {
-			orderDur = of.End - of.Start
+		} else if of.Start <= chalStart && of.End <= chalEnd {
+			orderDur = of.End - chalStart
 		}
 
-		if ns.SeqNum > 0 {
-			key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, ns.SeqNum-1)
+		for i := uint32(0); i < ns.SeqNum; i++ {
+			key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
 				return err
 			}
-			sf := new(seqFull)
+			sf := new(types.SeqFull)
 			err = sf.Deserialize(data)
 			if err != nil {
 				return err
 			}
 
-			price.Set(sf.Price)
-			price.Sub(price, sf.DelPrice)
+			// calc del price and size
+			price.Set(sf.DelPart.Price)
 			price.Mul(price, big.NewInt(orderDur))
-			totalPrice.Add(totalPrice, price)
-			totalSize += sf.Size
-			totalSize -= sf.DelSize
-			chal.Add(sf.AccFr)
+			totalPrice.Sub(totalPrice, price)
+			delSize += sf.DelPart.Size
+			chal.Add(bls.SubFr(sf.AccFr, sf.DelPart.AccFr))
+
+			if i == ns.SeqNum-1 {
+				totalSize += sf.Size
+				totalPrice.Add(totalPrice, sf.Price)
+			}
 		}
 	}
 
 	if ns.Nonce > 1 {
-		// todo: choose some un-expire orders from [scp.OrderStart, ns.Nonce-1)
+		// todo: choose some from [0, ns.Nonce-1)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
 				return err
 			}
-			of := new(orderFull)
+			of := new(types.OrderFull)
 			err = of.Deserialize(data)
 			if err != nil {
 				return err
 			}
-
 			if of.Start >= chalEnd || of.End <= chalStart {
 				return xerrors.Errorf("chal order expired at %d", i)
 			} else if of.Start <= chalStart && of.End >= chalEnd {
 				orderDur = chalDur
-			} else if of.Start <= chalStart && of.End <= chalEnd {
-				orderDur = of.End - chalStart
 			} else if of.Start >= chalStart && of.End >= chalEnd {
 				orderDur = chalEnd - of.Start
-			} else if of.Start >= chalStart && of.End <= chalEnd {
-				orderDur = of.End - of.Start
+			} else if of.Start <= chalStart && of.End <= chalEnd {
+				orderDur = of.End - chalStart
 			}
 
 			price.Set(of.Price)
-			price.Sub(price, of.Price)
+			price.Sub(price, of.DelPart.Price)
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
+			delSize += of.DelPart.Size
 			totalSize += of.Size
-			totalSize -= of.DelSize
-			chal.Add(of.AccFr)
+
+			chal.Add(bls.SubFr(of.AccFr, of.DelPart.AccFr))
 		}
 	}
+
+	totalSize -= delSize
 
 	if totalSize != scp.Size {
 		return xerrors.Errorf("wrong challenge proof: %d %d %d %d %d, size expected: %d, got %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, scp.Size)

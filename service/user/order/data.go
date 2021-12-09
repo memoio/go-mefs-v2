@@ -23,6 +23,8 @@ type lastProsPerBucket struct {
 	deleted  []uint64
 }
 
+// todo: change pro when quotation price is too high
+
 func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
 	logger.Info("register order for bucket: ", bucketID, nextOpID)
 

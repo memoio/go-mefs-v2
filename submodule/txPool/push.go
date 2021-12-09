@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -132,7 +134,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 	pp.Lock()
 	if !pp.ready {
 		pp.Unlock()
-		return types.MsgID{}, ErrNotReady
+		return types.MsgID{}, xerrors.Errorf("push pool is not ready")
 	}
 
 	lp, ok := pp.pending[mes.From]

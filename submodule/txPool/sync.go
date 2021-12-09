@@ -314,7 +314,7 @@ func (sp *SyncPool) GetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.Ms
 func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 	logger.Debug("add block: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 	if tb.Height < sp.nextHeight {
-		return ErrLowHeight
+		return xerrors.Errorf("height expected %d, got %d", sp.nextHeight, tb.Height)
 	}
 
 	sp.SetReady()
@@ -331,19 +331,17 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 
 	has, _ := sp.HasTxBlock(bid)
 	if has {
-		logger.Debug("add block has: ")
+		logger.Debug("add tx block, already have")
 		return nil
 	}
 
 	// verify
 	ok, err := sp.RoleVerifyMulti(sp.ctx, bid.Bytes(), tb.MultiSignature)
 	if err != nil {
-		logger.Debug("add block: ", err)
 		return err
 	}
 	if !ok {
-		logger.Debug("add block invalid sign")
-		return ErrInvalidSign
+		return xerrors.Errorf("%s block at height %d sign is invalid", bid, tb.Height)
 	}
 
 	// store local
@@ -409,8 +407,7 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
 		}
 
 		if !ok {
-			logger.Debug("add tx msg:", msg.From, mid, ErrInvalidSign)
-			return ErrInvalidSign
+			return xerrors.Errorf("%d %d tx msg %s sign invalid", msg.From, msg.Nonce, mid)
 		}
 
 		return sp.PutTxMsg(msg)

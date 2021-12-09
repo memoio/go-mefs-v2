@@ -82,7 +82,7 @@ func (p *ProviderNode) Start() error {
 	p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
 	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
 
-	p.PushPool.RegisterAddUserFunc(p.chalSeg.AddUser)
+	p.PushPool.RegisterAddUPFunc(p.chalSeg.AddUP)
 	p.PushPool.RegisterDelSegFunc(p.chalSeg.RemoveSeg)
 
 	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))

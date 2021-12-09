@@ -51,7 +51,7 @@ func TestAggSegs(t *testing.T) {
 
 	sort.Sort(asq)
 
-	t.Log("has:", asq.Has(0, 0), asq.Has(0, 8), asq.Has(0, 13), asq.Has(0, 25))
+	t.Log("has:", asq.Has(0, 0, 0), asq.Has(0, 8, 0), asq.Has(0, 13, 0), asq.Has(0, 25, 0))
 
 	asq.Merge()
 

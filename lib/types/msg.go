@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"hash"
@@ -49,6 +50,10 @@ func (m MsgID) String() string {
 
 func (m MsgID) Hex() string {
 	return hex.EncodeToString(m.Bytes())
+}
+
+func (m MsgID) Equal(old MsgID) bool {
+	return bytes.Equal(m.Bytes(), old.Bytes())
 }
 
 // json encode and decode

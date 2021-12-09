@@ -62,6 +62,7 @@ type OrderFull struct {
 
 	pro       uint64
 	availTime int64 // last connect time
+	quoretry  int   // todo: retry > 10; change pro?
 
 	nonce  uint64 // next nonce
 	seqNum uint32 // next seq
@@ -100,9 +101,10 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		ctx: m.ctx,
 		ds:  m.ds,
 
-		localID: m.localID,
-		fsID:    m.fsID,
-		pro:     id,
+		localID:  m.localID,
+		fsID:     m.fsID,
+		pro:      id,
+		quoretry: 1, // set to 0 when get desired quotation
 
 		availTime: time.Now().Unix() - 300,
 

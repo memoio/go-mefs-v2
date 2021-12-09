@@ -182,8 +182,15 @@ func (m *OrderMgr) runSched() {
 
 		// handle order state
 		case quo := <-m.quoChan:
+
 			of, ok := m.orders[quo.ProID]
 			if ok {
+				if quo.SegPrice.Cmp(m.segPrice) > 0 {
+					of.quoretry += 1
+					continue
+				}
+
+				of.quoretry = 0
 				of.availTime = time.Now().Unix()
 				err := m.createOrder(of, quo)
 				if err != nil {

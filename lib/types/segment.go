@@ -47,7 +47,7 @@ func (asq AggSegsQueue) Swap(i, j int) {
 }
 
 //  after sort
-func (asq AggSegsQueue) Has(bucketID, stripeID uint64) bool {
+func (asq AggSegsQueue) Has(bucketID, stripeID uint64, chunkID uint32) bool {
 	for _, as := range asq {
 		if as.BucketID > bucketID {
 			break
@@ -55,7 +55,7 @@ func (asq AggSegsQueue) Has(bucketID, stripeID uint64) bool {
 			if as.Start > stripeID {
 				break
 			} else {
-				if as.Start <= stripeID && as.Start+as.Length > stripeID {
+				if as.Start <= stripeID && as.Start+as.Length > stripeID && as.ChunkID == chunkID {
 					return true
 				}
 			}

@@ -49,9 +49,16 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 		od:    new(types.OrderDuration),
 	}
 
-	// load proof
-	key := store.NewKey(pb.MetaType_ST_SegProofKey, userID, proID)
+	// load pay
+	key := store.NewKey(pb.MetaType_ST_SegPayKey, userID, proID)
 	data, err := s.ds.Get(key)
+	if err == nil {
+		oinfo.income.Deserialize(data)
+	}
+
+	// load proof
+	key = store.NewKey(pb.MetaType_ST_SegProofKey, userID, proID)
+	data, err = s.ds.Get(key)
 	if err == nil && len(data) >= 8 {
 		oinfo.prove = binary.BigEndian.Uint64(data[:8])
 	}
@@ -67,13 +74,6 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 		return oinfo
 	}
 
-	// load pay
-	key = store.NewKey(pb.MetaType_ST_SegPayKey, userID, proID)
-	data, err = s.ds.Get(key)
-	if err == nil {
-		oinfo.income.Deserialize(data)
-	}
-
 	// load order durations
 	key = store.NewKey(pb.MetaType_ST_OrderDurationKey, userID, proID)
 	data, err = s.ds.Get(key)
@@ -87,7 +87,7 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	if err != nil {
 		return oinfo
 	}
-	of := new(orderFull)
+	of := new(types.OrderFull)
 	err = of.Deserialize(data)
 	if err != nil {
 		return oinfo
@@ -176,11 +176,14 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 
 	// save order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID, or.Nonce)
-	of := &orderFull{
+	of := &types.OrderFull{
 		SignedOrder: *or,
 		SeqNum:      oinfo.ns.SeqNum,
-		DelPrice:    big.NewInt(0),
-		AccFr:       bls.FrToBytes(&oinfo.accFr),
+		AccFr:       bls.FrToBytes(&bls.ZERO),
+		DelPart: types.OrderDelPart{
+			AccFr: bls.FrToBytes(&bls.ZERO),
+			Price: big.NewInt(0),
+		},
 	}
 	data, err := of.Serialize()
 	if err != nil {
@@ -234,11 +237,19 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], or.UserID)
 		s.ds.Put(key, buf)
-	}
 
-	// callback for user-pro relation
-	if s.handleAddUP != nil {
-		s.handleAddUP(okey.userID, okey.proID)
+		// save posincome
+		key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
+		data, err = oinfo.income.Serialize()
+		if err != nil {
+			return err
+		}
+		s.ds.Put(key, data)
+
+		// callback for user-pro relation
+		if s.handleAddUP != nil {
+			s.handleAddUP(okey.userID, okey.proID)
+		}
 	}
 
 	return nil
@@ -430,19 +441,20 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		}
 	}
 
-	var HWi bls.Fr
+	var accFr, HWi bls.Fr
 	for _, seg := range so.Segments {
 		for i := seg.Start; i < seg.Start+seg.Length; i++ {
 			// calculate fr
 			sid := segment.CreateSegmentID(uinfo.fsID, seg.BucketID, i, seg.ChunkID)
 			h := blake3.Sum256(sid)
 			bls.FrFromBytes(&HWi, h[:])
-			bls.FrAddMod(&oinfo.accFr, &oinfo.accFr, &HWi)
+			bls.FrAddMod(&accFr, &accFr, &HWi)
 		}
 	}
 
-	// validate size and price
+	// add
 	oinfo.ns.SeqNum++
+	bls.FrAddMod(&oinfo.accFr, &oinfo.accFr, &accFr)
 	oinfo.base.Size = so.Size
 	oinfo.base.Price.Set(so.Price)
 	oinfo.base.Usign = so.UserSig
@@ -454,7 +466,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	of := new(orderFull)
+	of := new(types.OrderFull)
 	err = of.Deserialize(data)
 	if err != nil {
 		return err
@@ -473,10 +485,13 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 
 	// save seq
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	sf := &seqFull{
+	sf := &types.SeqFull{
 		OrderSeq: so.OrderSeq,
-		DelPrice: big.NewInt(0),
-		AccFr:    bls.FrToBytes(&oinfo.accFr),
+		AccFr:    bls.FrToBytes(&accFr),
+		DelPart: types.OrderDelPart{
+			AccFr: bls.FrToBytes(&bls.ZERO),
+			Price: big.NewInt(0),
+		},
 	}
 	data, err = sf.Serialize()
 	if err != nil {
@@ -620,17 +635,6 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		}
 	}
 
-	var HWi bls.Fr
-	for _, seg := range so.Segments {
-		for i := seg.Start; i < seg.Start+seg.Length; i++ {
-			// calculate fr
-			sid := segment.CreateSegmentID(uinfo.fsID, seg.BucketID, i, seg.ChunkID)
-			h := blake3.Sum256(sid)
-			bls.FrFromBytes(&HWi, h[:])
-			bls.FrAddMod(&oinfo.accFr, &oinfo.accFr, &HWi)
-		}
-	}
-
 	// validate size and price
 	oinfo.ns.SeqNum++
 	oinfo.base.Size = so.Size
@@ -652,6 +656,17 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		return xerrors.Errorf("wrong pro expected %d, got %d", msg.From, so.ProID)
 	}
 
+	okey := orderKey{
+		userID: so.UserID,
+		proID:  so.ProID,
+	}
+
+	oinfo, ok := s.oInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(okey.userID, okey.proID)
+		s.oInfo[okey] = oinfo
+	}
+
 	uinfo, ok := s.sInfo[so.UserID]
 	if !ok {
 		uinfo, err = s.loadUser(so.UserID)
@@ -667,18 +682,28 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	of := new(orderFull)
+	of := new(types.OrderFull)
 	err = of.Deserialize(data)
 	if err != nil {
 		return err
 	}
 
-	skey := store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	data, err = s.ds.Get(skey)
+	stime := build.BaseTime + int64(s.ceInfo.previous.Slot*build.SlotDuration)
+	if stime > of.End {
+		return xerrors.Errorf("wrong time expected before %d, got %d at nonce %d", of.End, stime, so.Nonce)
+	}
+
+	etime := build.BaseTime + int64(s.ceInfo.current.Slot*build.SlotDuration)
+	if etime < of.Start {
+		return xerrors.Errorf("wrong time expected after %d, got %d at nonce %d", of.Start, etime, so.Nonce)
+	}
+
+	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
+	data, err = s.ds.Get(key)
 	if err != nil {
 		return err
 	}
-	sf := new(seqFull)
+	sf := new(types.SeqFull)
 	err = sf.Deserialize(data)
 	if err != nil {
 		return err
@@ -687,27 +712,10 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	var HWi, accFr bls.Fr
 	size := uint64(0)
 	for _, lseg := range so.Segments {
-		has := false
-		for _, seg := range sf.Segments {
-			if seg.BucketID != lseg.BucketID {
-				continue
-			}
-			if seg.ChunkID != lseg.ChunkID {
-				continue
-			}
-			if seg.Start > lseg.Start {
-				continue
-			}
-			if seg.Start+seg.Length < lseg.Start+lseg.Length {
-				continue
-			}
-			has = true
-		}
-		if !has {
-			return xerrors.Errorf("seg is not found in seq: %d, %d, %d, %d", lseg.BucketID, lseg.Start, lseg.Length, lseg.ChunkID)
-		}
-
 		for i := lseg.Start; i < lseg.Start+lseg.Length; i++ {
+			if !sf.Segments.Has(lseg.BucketID, i, lseg.ChunkID) {
+				return xerrors.Errorf("seg %d_%d_%d is not found in seq", lseg.BucketID, i, lseg.ChunkID)
+			}
 			sid := segment.CreateSegmentID(uinfo.fsID, lseg.BucketID, i, lseg.ChunkID)
 			h := blake3.Sum256(sid)
 			bls.FrFromBytes(&HWi, h[:])
@@ -720,35 +728,42 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	price := big.NewInt(int64(size))
 	price.Mul(price, of.SegPrice)
 
-	if sf.DelPrice == nil {
-		sf.DelPrice = new(big.Int).Set(price)
-	} else {
-		sf.DelPrice.Add(sf.DelPrice, price)
-	}
-	sf.DelSize += size
-
-	if of.DelPrice == nil {
-		of.DelPrice = new(big.Int).Set(price)
-	} else {
-		of.DelPrice.Add(of.DelPrice, price)
-	}
-	of.DelSize += size
+	penalty := new(big.Int).Mul(price, big.NewInt(of.End-stime))
+	oinfo.income.Penalty.Add(oinfo.income.Penalty, penalty)
 
 	// save order
-	bls.FrFromBytes(&HWi, sf.AccFr)
-	bls.FrSubMod(&HWi, &HWi, &accFr)
-	sf.AccFr = bls.FrToBytes(&HWi)
+	of.DelPart.Price.Add(of.DelPart.Price, price)
+	of.DelPart.Size += size
+	bls.FrFromBytes(&HWi, of.DelPart.AccFr)
+	bls.FrAddMod(&HWi, &HWi, &accFr)
+	of.DelPart.AccFr = bls.FrToBytes(&HWi)
+
+	data, err = of.Serialize()
+	if err != nil {
+		return err
+	}
+	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
+	s.ds.Put(key, data)
+
+	// save seq
+	sf.DelPart.Price.Add(sf.DelPart.Price, price)
+	sf.DelPart.Size += size
+	bls.FrFromBytes(&HWi, sf.DelPart.AccFr)
+	bls.FrAddMod(&HWi, &HWi, &accFr)
+	sf.DelPart.AccFr = bls.FrToBytes(&HWi)
+
+	sf.DelSegs.Merge()
+
 	data, err = sf.Serialize()
 	if err != nil {
 		return err
 	}
-	s.ds.Put(skey, data)
+	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
+	s.ds.Put(key, data)
 
-	// save seq
-	bls.FrFromBytes(&HWi, of.AccFr)
-	bls.FrSubMod(&HWi, &HWi, &accFr)
-	of.AccFr = bls.FrToBytes(&HWi)
-	data, err = of.Serialize()
+	// save post income
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, so.UserID, so.ProID)
+	data, err = oinfo.income.Serialize()
 	if err != nil {
 		return err
 	}
@@ -772,48 +787,45 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 		return xerrors.Errorf("wrong pro expected %d, got %d", msg.From, so.ProID)
 	}
 
-	// load order seq
+	// load order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
 	data, err := s.ds.Get(key)
 	if err != nil {
 		return err
 	}
-	of := new(orderFull)
+	of := new(types.OrderFull)
 	err = of.Deserialize(data)
 	if err != nil {
 		return err
 	}
 
-	skey := store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	data, err = s.ds.Get(skey)
+	stime := build.BaseTime + int64(s.validateCeInfo.previous.Slot*build.SlotDuration)
+	if stime > of.End {
+		return xerrors.Errorf("wrong time expected before %d, got %d at nonce %d", of.End, stime, so.Nonce)
+	}
+
+	etime := build.BaseTime + int64(s.validateCeInfo.current.Slot*build.SlotDuration)
+	if etime < of.Start {
+		return xerrors.Errorf("wrong time expected after %d, got %d at nonce %d", of.Start, etime, so.Nonce)
+	}
+
+	// load order seq
+	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
+	data, err = s.ds.Get(key)
 	if err != nil {
 		return err
 	}
-	sf := new(seqFull)
+	sf := new(types.SeqFull)
 	err = sf.Deserialize(data)
 	if err != nil {
 		return err
 	}
 
 	for _, lseg := range so.Segments {
-		has := false
-		for _, seg := range sf.Segments {
-			if seg.BucketID != lseg.BucketID {
-				continue
+		for i := lseg.Start; i < lseg.Start+lseg.Length; i++ {
+			if !sf.Segments.Has(lseg.BucketID, i, lseg.ChunkID) {
+				return xerrors.Errorf("seg %d_%d_%d is not found in seq", lseg.BucketID, i, lseg.ChunkID)
 			}
-			if seg.ChunkID != lseg.ChunkID {
-				continue
-			}
-			if seg.Start > lseg.Start {
-				continue
-			}
-			if seg.Start+seg.Length < lseg.Start+lseg.Length {
-				continue
-			}
-			has = true
-		}
-		if !has {
-			return xerrors.Errorf("seg is not found in seq: %d, %d, %d, %d", lseg.BucketID, lseg.Start, lseg.Length, lseg.ChunkID)
 		}
 	}
 

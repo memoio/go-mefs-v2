@@ -279,36 +279,32 @@ func (s *StateMgr) GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq 
 	return ns
 }
 
-func (s *StateMgr) GetOrder(userID, proID, nonce uint64) (*types.SignedOrder, []byte, uint32, error) {
-	of := new(orderFull)
+func (s *StateMgr) GetOrder(userID, proID, nonce uint64) (*types.OrderFull, error) {
+	of := new(types.OrderFull)
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, nonce)
 	data, err := s.ds.Get(key)
 	if err == nil {
 		err = of.Deserialize(data)
 		if err == nil {
-			of.Size -= of.DelSize
-			of.Price.Sub(of.Price, of.DelPrice)
-			return &of.SignedOrder, of.AccFr, of.SeqNum, nil
+			return of, nil
 		}
 	}
 
-	return nil, nil, 0, xerrors.Errorf("not found order: %d, %d, %d", userID, proID, nonce)
+	return nil, xerrors.Errorf("not found order: %d, %d, %d", userID, proID, nonce)
 }
 
-func (s *StateMgr) GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.OrderSeq, []byte, error) {
-	sf := new(seqFull)
+func (s *StateMgr) GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.SeqFull, error) {
+	sf := new(types.SeqFull)
 	key := store.NewKey(pb.MetaType_ST_OrderSeqKey, userID, proID, nonce, seqNum)
 	data, err := s.ds.Get(key)
 	if err == nil {
 		err = sf.Deserialize(data)
 		if err == nil {
-			sf.Size -= sf.DelSize
-			sf.Price.Sub(sf.Price, sf.DelPrice)
-			return &sf.OrderSeq, sf.AccFr, nil
+			return sf, nil
 		}
 	}
 
-	return nil, nil, xerrors.Errorf("not found order seq:%d, %d, %d, %d ", userID, proID, nonce, seqNum)
+	return nil, xerrors.Errorf("not found order seq:%d, %d, %d, %d ", userID, proID, nonce, seqNum)
 }
 
 func (s *StateMgr) GetOrderDuration(userID, proID uint64) *types.OrderDuration {

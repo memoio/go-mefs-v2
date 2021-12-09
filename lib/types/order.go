@@ -143,6 +143,42 @@ func (os *SignedOrderSeq) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, os)
 }
 
+type OrderDelPart struct {
+	AccFr []byte
+	Size  uint64
+	Price *big.Int
+}
+
+type OrderFull struct {
+	SignedOrder
+	SeqNum  uint32
+	AccFr   []byte
+	DelPart OrderDelPart
+}
+
+func (of *OrderFull) Serialize() ([]byte, error) {
+	return cbor.Marshal(of)
+}
+
+func (of *OrderFull) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, of)
+}
+
+type SeqFull struct {
+	OrderSeq
+	AccFr   []byte
+	DelPart OrderDelPart
+	DelSegs AggSegsQueue
+}
+
+func (sf *SeqFull) Serialize() ([]byte, error) {
+	return cbor.Marshal(sf)
+}
+
+func (sf *SeqFull) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, sf)
+}
+
 // for quick filter expired
 type OrderDuration struct {
 	Start []int64

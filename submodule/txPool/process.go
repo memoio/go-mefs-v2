@@ -139,13 +139,12 @@ func (mp *InPool) sync() {
 func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	nonce := mp.SyncPool.GetNonce(mp.ctx, m.From)
 	if m.Nonce < nonce {
-		logger.Debug("add tx msg fails: ", ErrLowNonce)
-		return ErrLowNonce
+		return xerrors.Errorf("nonce expected no less than %d, got %d", nonce, m.Nonce)
 	}
 
 	err := mp.SyncPool.AddTxMsg(mp.ctx, m)
 	if err != nil {
-		logger.Debug("add tx msg fails: ", ErrLowNonce)
+		logger.Debug("add tx msg fails: ", err)
 		return err
 	}
 
@@ -163,7 +162,7 @@ func (mp *InPool) createBlock() (*tx.Block, error) {
 	// synced; should get from state
 	lh, rh := mp.GetSyncHeight(mp.ctx)
 	if lh < rh {
-		return nil, ErrLowNonce
+		return nil, xerrors.Errorf("sync height expected %d, got %d", rh, lh)
 	}
 
 	bid, err := mp.GetTxBlockByHeight(rh - 1)

@@ -63,3 +63,40 @@ func (s *SegMgr) pushMessage(msg *tx.Message, epoch uint64) {
 
 	}(mid)
 }
+
+func (s *SegMgr) pushAndWaitMessage(msg *tx.Message) error {
+	ctx, cancle := context.WithTimeout(s.ctx, 10*time.Minute)
+	defer cancle()
+
+	var mid types.MsgID
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			id, err := s.PushMessage(s.ctx, msg)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			mid = id
+		}
+		break
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			st, err := s.GetTxMsgStatus(ctx, mid)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+			return nil
+		}
+	}
+}

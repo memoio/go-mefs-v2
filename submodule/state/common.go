@@ -67,38 +67,6 @@ type orderKey struct {
 	proID  uint64
 }
 
-type orderFull struct {
-	types.SignedOrder
-	SeqNum   uint32
-	AccFr    []byte
-	DelSize  uint64
-	DelPrice *big.Int
-}
-
-func (of *orderFull) Serialize() ([]byte, error) {
-	return cbor.Marshal(of)
-}
-
-func (of *orderFull) Deserialize(b []byte) error {
-	return cbor.Unmarshal(b, of)
-}
-
-type seqFull struct {
-	types.OrderSeq
-	AccFr    []byte
-	DelSegs  types.AggSegsQueue
-	DelSize  uint64
-	DelPrice *big.Int
-}
-
-func (sf *seqFull) Serialize() ([]byte, error) {
-	return cbor.Marshal(sf)
-}
-
-func (sf *seqFull) Deserialize(b []byte) error {
-	return cbor.Unmarshal(b, sf)
-}
-
 type orderInfo struct {
 	prove  uint64 // next prove epoch
 	income *types.PostIncome

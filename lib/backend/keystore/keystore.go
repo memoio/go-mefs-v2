@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/memoio/go-mefs-v2/lib/types"
 	"golang.org/x/xerrors"
+
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 var _ types.KeyStore = (*keyRepo)(nil)

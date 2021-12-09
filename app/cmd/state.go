@@ -85,7 +85,7 @@ var statePayCmd = &cli.Command{
 			if err != nil {
 				continue
 			}
-			fmt.Println("pay info: ", nid.ID, uid, pi.Value, pi.Sign.Signer)
+			fmt.Println("pay info: ", nid.ID, uid, pi.Value, pi.Penalty, pi.Sign.Signer)
 		}
 
 		return nil

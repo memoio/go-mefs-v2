@@ -58,6 +58,15 @@ func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.Segme
 	return d.segStore.Get(sid)
 }
 
+func (d *dataService) HasSegment(ctx context.Context, sid segment.SegmentID) (bool, error) {
+	logger.Debug("has segment from local: ", sid)
+	has := d.cache.Contains(sid)
+	if has {
+		return true, nil
+	}
+	return d.segStore.Has(sid)
+}
+
 // SendSegment over network
 func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to uint64) error {
 	// send to remote
