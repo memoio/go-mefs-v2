@@ -245,7 +245,7 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	logger.Debug("chal duration: ", chalStart, chalEnd)
+	logger.Debug("chal duration: ", chalStart, chalEnd, ns.Nonce, ns.SeqNum)
 
 	orderDur := int64(0)
 	price := new(big.Int)
@@ -263,101 +263,105 @@ func (s *SegMgr) challenge(userID uint64) {
 			return
 		}
 
-		if so.Start >= chalEnd || so.End <= chalStart {
-			logger.Debug("chal order all expired: ", userID, si.nextChal)
-			return
-		}
-
-		if so.Start <= chalStart && so.End >= chalEnd {
-			orderDur = chalDur
-		} else if so.Start <= chalStart && so.End <= chalEnd {
-			orderDur = so.End - chalStart
-		} else if so.Start >= chalStart && so.End >= chalEnd {
-			orderDur = chalEnd - so.Start
-		} else if so.Start >= chalStart && so.End <= chalEnd {
-			orderDur = so.End - so.Start
-		}
-
-		for i := uint32(0); i < ns.SeqNum; i++ {
-			sf, err := s.GetOrderSeq(userID, s.localID, ns.Nonce-1, i)
-			if err != nil {
-				logger.Debug("chal get order seq fails: ", userID, ns.Nonce-1, i, err)
+		if so.Start >= chalEnd {
+			logger.Debug("not challenge latest one, duo to time is not up")
+		} else {
+			if so.End <= chalStart {
+				logger.Debug("chal order all expired: ", userID, si.nextChal, ns.Nonce-1)
 				return
 			}
 
-			// calc del price and size
-			price.Set(sf.DelPart.Price)
-			price.Mul(price, big.NewInt(orderDur))
-			totalPrice.Sub(totalPrice, price)
-			delSize += sf.DelPart.Size
-			pchal.Add(bls.SubFr(sf.AccFr, sf.DelPart.AccFr))
-
-			if i == ns.SeqNum-1 {
-				totalSize += sf.Size
-				totalPrice.Add(totalPrice, sf.Price)
+			if so.Start <= chalStart && so.End >= chalEnd {
+				orderDur = chalDur
+			} else if so.Start <= chalStart && so.End <= chalEnd {
+				orderDur = so.End - chalStart
+			} else if so.Start >= chalStart && so.End >= chalEnd {
+				orderDur = chalEnd - so.Start
+			} else if so.Start >= chalStart && so.End <= chalEnd {
+				orderDur = so.End - so.Start
 			}
 
-			var fault types.AggSegsQueue
-			for _, seg := range sf.Segments {
-				sid.SetBucketID(seg.BucketID)
-				for j := seg.Start; j < seg.Start+seg.Length; j++ {
-					if sf.DelSegs.Has(seg.BucketID, j, seg.ChunkID) {
-						logger.Debug("skip fault seg: ", seg.BucketID, j, seg.ChunkID)
-						continue
-					}
-
-					sid.SetStripeID(j)
-					sid.SetChunkID(seg.ChunkID)
-					segm, err := s.GetSegmentFromLocal(context.TODO(), sid)
-					if err != nil {
-						logger.Debug("challenge not have chunk for stripe: ", userID, sid)
-						fault.Push(&types.AggSegs{
-							BucketID: seg.BucketID,
-							Start:    j,
-							Length:   1,
-							ChunkID:  seg.ChunkID,
-						})
-						continue
-					}
-
-					segData, _ := segm.Content()
-					segTag, _ := segm.Tags()
-
-					err = pf.Add(sid.Bytes(), segData, segTag[0])
-					if err != nil {
-						logger.Debug("challenge add to proof: ", userID, sid.ShortString(), err)
-						return
-					}
-					cnt++
-				}
-			}
-
-			if fault.Len() > 0 {
-				srp := &tx.SegRemoveParas{
-					UserID:   si.userID,
-					ProID:    s.localID,
-					Nonce:    ns.Nonce - 1,
-					SeqNum:   i,
-					Segments: fault,
-				}
-
-				data, err := srp.Serialize()
+			for i := uint32(0); i < ns.SeqNum; i++ {
+				sf, err := s.GetOrderSeq(userID, s.localID, ns.Nonce-1, i)
 				if err != nil {
+					logger.Debug("chal get order seq fails: ", userID, ns.Nonce-1, i, err)
 					return
 				}
 
-				msg := &tx.Message{
-					Version: 0,
-					From:    s.localID,
-					To:      si.userID,
-					Method:  tx.SegmentFault,
-					Params:  data,
+				// calc del price and size
+				price.Set(sf.DelPart.Price)
+				price.Mul(price, big.NewInt(orderDur))
+				totalPrice.Sub(totalPrice, price)
+				delSize += sf.DelPart.Size
+				pchal.Add(bls.SubFr(sf.AccFr, sf.DelPart.AccFr))
+
+				if i == ns.SeqNum-1 {
+					totalSize += sf.Size
+					totalPrice.Add(totalPrice, sf.Price)
 				}
-				err = s.pushAndWaitMessage(msg)
-				if err != nil {
-					logger.Debug("push remove seg msg fail: ", err)
+
+				var fault types.AggSegsQueue
+				for _, seg := range sf.Segments {
+					sid.SetBucketID(seg.BucketID)
+					for j := seg.Start; j < seg.Start+seg.Length; j++ {
+						if sf.DelSegs.Has(seg.BucketID, j, seg.ChunkID) {
+							logger.Debug("skip fault seg: ", seg.BucketID, j, seg.ChunkID)
+							continue
+						}
+
+						sid.SetStripeID(j)
+						sid.SetChunkID(seg.ChunkID)
+						segm, err := s.GetSegmentFromLocal(context.TODO(), sid)
+						if err != nil {
+							logger.Debug("challenge not have chunk for stripe: ", userID, sid)
+							fault.Push(&types.AggSegs{
+								BucketID: seg.BucketID,
+								Start:    j,
+								Length:   1,
+								ChunkID:  seg.ChunkID,
+							})
+							continue
+						}
+
+						segData, _ := segm.Content()
+						segTag, _ := segm.Tags()
+
+						err = pf.Add(sid.Bytes(), segData, segTag[0])
+						if err != nil {
+							logger.Debug("challenge add to proof: ", userID, sid.ShortString(), err)
+							return
+						}
+						cnt++
+					}
 				}
-				return
+
+				if fault.Len() > 0 {
+					srp := &tx.SegRemoveParas{
+						UserID:   si.userID,
+						ProID:    s.localID,
+						Nonce:    ns.Nonce - 1,
+						SeqNum:   i,
+						Segments: fault,
+					}
+
+					data, err := srp.Serialize()
+					if err != nil {
+						return
+					}
+
+					msg := &tx.Message{
+						Version: 0,
+						From:    s.localID,
+						To:      si.userID,
+						Method:  tx.SegmentFault,
+						Params:  data,
+					}
+					err = s.pushAndWaitMessage(msg)
+					if err != nil {
+						logger.Debug("push remove seg msg fail: ", err)
+					}
+					return
+				}
 			}
 		}
 	}
@@ -371,7 +375,12 @@ func (s *SegMgr) challenge(userID uint64) {
 				return
 			}
 
-			if so.Start >= chalEnd || so.End <= chalStart {
+			if so.Start >= chalEnd {
+				logger.Debug("chal order not up: ", userID, si.nextChal, i, so)
+				continue
+			}
+
+			if so.End <= chalStart {
 				logger.Debug("chal order expired: ", userID, si.nextChal, i, so)
 				orderStart = i + 1
 				continue

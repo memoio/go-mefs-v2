@@ -34,6 +34,9 @@ func (s *StateMgr) newValidateRoot(b []byte) {
 }
 
 func (s *StateMgr) ValidateBlock(blk *tx.Block) (types.MsgID, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	// time valid?
 	if blk == nil {
 		return s.validateRoot, nil
@@ -63,13 +66,14 @@ func (s *StateMgr) ValidateBlock(blk *tx.Block) (types.MsgID, error) {
 }
 
 func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	if msg == nil {
 		return s.validateRoot, nil
 	}
 
 	logger.Debug("validate message:", msg.From, msg.Nonce, msg.Method, s.validateRoot)
-	s.Lock()
-	defer s.Unlock()
 
 	ri, ok := s.validateRInfo[msg.From]
 	if !ok {

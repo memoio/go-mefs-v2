@@ -66,14 +66,12 @@ func (s *StateMgr) GetChalEpochInfo(ctx context.Context) *types.ChalEpoch {
 }
 
 func (s *StateMgr) GetChalEpochInfoAt(ctx context.Context, epoch uint64) (*types.ChalEpoch, error) {
-	ce := new(types.ChalEpoch)
-
 	s.RLock()
+	defer s.RUnlock()
+	ce := new(types.ChalEpoch)
 	if epoch >= s.ceInfo.epoch {
-		s.RUnlock()
-		return ce, nil
+		return ce, xerrors.Errorf("epoch expected lower than %d, got %d", s.ceInfo.epoch, epoch)
 	}
-	s.RUnlock()
 
 	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, epoch)
 	data, err := s.ds.Get(key)
@@ -90,13 +88,12 @@ func (s *StateMgr) GetChalEpochInfoAt(ctx context.Context, epoch uint64) (*types
 
 func (s *StateMgr) GetNonce(ctx context.Context, roleID uint64) uint64 {
 	s.RLock()
+	defer s.RUnlock()
 
 	ri, ok := s.rInfo[roleID]
 	if ok {
-		s.RUnlock()
 		return ri.val.Nonce
 	}
-	s.RUnlock()
 
 	rv := s.loadVal(roleID)
 
@@ -104,6 +101,9 @@ func (s *StateMgr) GetNonce(ctx context.Context, roleID uint64) uint64 {
 }
 
 func (s *StateMgr) GetProsForUser(ctx context.Context, userID uint64) []uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
 	key := store.NewKey(pb.MetaType_ST_ProsKey, userID)
 	data, err := s.ds.Get(key)
 	if err != nil {
@@ -119,6 +119,9 @@ func (s *StateMgr) GetProsForUser(ctx context.Context, userID uint64) []uint64 {
 }
 
 func (s *StateMgr) GetUsersForPro(ctx context.Context, proID uint64) []uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
 	key := store.NewKey(pb.MetaType_ST_UsersKey, proID)
 	data, err := s.ds.Get(key)
 	if err != nil {
@@ -134,6 +137,9 @@ func (s *StateMgr) GetUsersForPro(ctx context.Context, proID uint64) []uint64 {
 }
 
 func (s *StateMgr) GetAllUsers(ctx context.Context) []uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
 	key := store.NewKey(pb.MetaType_ST_UsersKey)
 	data, err := s.ds.Get(key)
 	if err != nil {
@@ -149,6 +155,9 @@ func (s *StateMgr) GetAllUsers(ctx context.Context) []uint64 {
 }
 
 func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
+	s.RLock()
+	defer s.RUnlock()
+
 	pri := new(pb.RoleInfo)
 	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, userID)
 	data, err := s.ds.Get(key)
@@ -165,6 +174,9 @@ func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
 }
 
 func (s *StateMgr) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
+	s.RLock()
+	defer s.RUnlock()
+
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
 	data, err := s.ds.Get(key)
 	if err != nil {
@@ -175,6 +187,9 @@ func (s *StateMgr) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommo
 }
 
 func (s *StateMgr) GetBucket(ctx context.Context, userID uint64) uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
 	key := store.NewKey(pb.MetaType_ST_BucketOptKey, userID)
 	data, err := s.ds.Get(key)
 	if err == nil && len(data) >= 8 {
@@ -185,8 +200,10 @@ func (s *StateMgr) GetBucket(ctx context.Context, userID uint64) uint64 {
 }
 
 func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
-	proved := false
 	s.RLock()
+	defer s.RUnlock()
+
+	proved := false
 	okey := orderKey{
 		userID: userID,
 		proID:  proID,
@@ -197,10 +214,8 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 		if oinfo.prove > epoch {
 			proved = true
 		}
-		s.RUnlock()
 		return proved
 	}
-	s.RUnlock()
 
 	key := store.NewKey(pb.MetaType_ST_SegProofKey, userID, proID)
 	data, err := s.ds.Get(key)
@@ -214,6 +229,9 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 }
 
 func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) *types.PostIncome {
+	s.RLock()
+	defer s.RUnlock()
+
 	pi := new(types.PostIncome)
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, userID, proID)
 	data, err := s.ds.Get(key)
@@ -228,6 +246,9 @@ func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) *typ
 }
 
 func (s *StateMgr) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.SignedPostIncome, error) {
+	s.RLock()
+	defer s.RUnlock()
+
 	spi := new(types.SignedPostIncome)
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, userID, proID, epoch)
 	data, err := s.ds.Get(key)
@@ -242,6 +263,9 @@ func (s *StateMgr) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uin
 }
 
 func (s *StateMgr) GetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
+	s.RLock()
+	defer s.RUnlock()
+
 	ns := new(types.NonceSeq)
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID)
 	data, err := s.ds.Get(key)
@@ -256,6 +280,9 @@ func (s *StateMgr) GetOrderState(ctx context.Context, userID, proID uint64) *typ
 }
 
 func (s *StateMgr) GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq {
+	s.RLock()
+	defer s.RUnlock()
+
 	ns := new(types.NonceSeq)
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID, epoch)
 	data, err := s.ds.Get(key)
@@ -280,10 +307,13 @@ func (s *StateMgr) GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq 
 }
 
 func (s *StateMgr) GetOrder(userID, proID, nonce uint64) (*types.OrderFull, error) {
+	s.RLock()
+	defer s.RUnlock()
+
 	of := new(types.OrderFull)
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, nonce)
 	data, err := s.ds.Get(key)
-	if err == nil {
+	if err == nil && len(data) > 0 {
 		err = of.Deserialize(data)
 		if err == nil {
 			return of, nil
@@ -294,6 +324,9 @@ func (s *StateMgr) GetOrder(userID, proID, nonce uint64) (*types.OrderFull, erro
 }
 
 func (s *StateMgr) GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.SeqFull, error) {
+	s.RLock()
+	defer s.RUnlock()
+
 	sf := new(types.SeqFull)
 	key := store.NewKey(pb.MetaType_ST_OrderSeqKey, userID, proID, nonce, seqNum)
 	data, err := s.ds.Get(key)
@@ -308,6 +341,9 @@ func (s *StateMgr) GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*typ
 }
 
 func (s *StateMgr) GetOrderDuration(userID, proID uint64) *types.OrderDuration {
+	s.RLock()
+	defer s.RUnlock()
+
 	sf := new(types.OrderDuration)
 	key := store.NewKey(pb.MetaType_ST_OrderDurationKey, userID, proID)
 	data, err := s.ds.Get(key)

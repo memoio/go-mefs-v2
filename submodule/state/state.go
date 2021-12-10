@@ -188,6 +188,9 @@ func (s *StateMgr) newRoot(b []byte) {
 }
 
 func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	if blk == nil {
 		// todo: commmit for apply all changes
 		return s.root, nil
