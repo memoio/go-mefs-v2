@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/binary"
 	"math/big"
 
 	"github.com/bits-and-blooms/bitset"
@@ -17,10 +18,6 @@ import (
 )
 
 var logger = logging.Logger("state")
-
-var (
-	beginRoot = types.NewMsgID([]byte("state"))
-)
 
 type HanderAddRoleFunc func(roleID uint64, typ pb.RoleInfo_Type)
 type HandleAddUserFunc func(userID uint64)
@@ -54,11 +51,13 @@ type chalEpochInfo struct {
 	previous *types.ChalEpoch
 }
 
-func newChalEpoch() *types.ChalEpoch {
+func newChalEpoch(groupID uint64) *types.ChalEpoch {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, groupID)
 	return &types.ChalEpoch{
 		Epoch: 0,
 		Slot:  0,
-		Seed:  types.NewMsgID([]byte("chalepoch")),
+		Seed:  types.NewMsgID(buf),
 	}
 }
 

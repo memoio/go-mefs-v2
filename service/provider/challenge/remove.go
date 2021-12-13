@@ -12,7 +12,7 @@ func (s *SegMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 		return
 	}
 
-	si := s.loadFs(srp.UserID, false)
+	si := s.loadFs(srp.UserID)
 
 	for _, seg := range srp.Segments {
 		for i := seg.Start; i < seg.Start+seg.Length; i++ {

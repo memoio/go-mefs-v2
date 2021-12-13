@@ -31,10 +31,12 @@ enum MetaType {
 	ST_OrderSeqKey = 27;        // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
 	ST_SegProofKey = 28;        // key: x/userID/proID/epoch; val: proof
 	ST_SegPayKey = 29;          // key: x/userID/proID; val: payinfo 
+	ST_OrderDurationKey = 30;   // key: x/userID/proID/epoch; val: proof
 
-	ST_OrderDurationKey = 32;   // key: x/userID/proID/epoch; val: proof
-	ST_UsersKey = 33;           // key: x/roleID; val: users
-	ST_ProsKey = 34;            // key: x/roleID; val: pros
+	ST_KeepersKey = 31;         // key: x; val: keepers
+	ST_UsersKey = 32;           // key: x/roleID; val: users
+	ST_ProsKey = 33;            // key: x/roleID; val: pros  
+	
 	
 	ST_RootKey = 35;          // key: x; val: root of state	
 	ST_BlockHeightKey = 36;   // key: x; val: height
@@ -44,10 +46,11 @@ enum MetaType {
 
 	// data meta
 	SegLocationKey = 40;     // key: x/segID; val: proID; on user
-	Chal_UsersKey = 41;      // key: x; val: users
 	Chal_ProofKey = 42;      // key: x/userID; val: proof
 	Chal_BucketInfoKey = 43; // key: x/userID/bucketID; val: BucketInfo
 	ConfirmPayKey = 44;      // key: x; val: epoch
+	Chal_UsersKey = 45;      // key: x/roleID; val: users
+	Chal_ProsKey = 46;       // key: x/roleID; val: pros    
 
 	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState

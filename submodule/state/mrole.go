@@ -1,6 +1,8 @@
 package state
 
 import (
+	"encoding/binary"
+
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/xerrors"
 
@@ -85,6 +87,17 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 	err = s.ds.Put(key, msg.Params)
 	if err != nil {
 		return err
+	}
+
+	// save all keepers
+	if pri.Type == pb.RoleInfo_Keeper {
+		s.keepers = append(s.keepers, msg.From)
+		key = store.NewKey(pb.MetaType_ST_KeepersKey)
+		val, _ := s.ds.Get(key)
+		buf := make([]byte, len(val)+8)
+		copy(buf[:len(val)], val)
+		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
+		s.ds.Put(key, buf)
 	}
 
 	if s.handleAddRole != nil {

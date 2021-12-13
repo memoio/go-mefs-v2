@@ -42,9 +42,29 @@ func (k *KeeperNode) updatePay() {
 
 			payEpoch := latest - 2
 
-			users := k.PushPool.GetAllUsers(k.ctx)
+			key := store.NewKey(pb.MetaType_Chal_UsersKey)
+			data, err := k.MetaStore().Get(key)
+			if err != nil {
+				continue
+			}
+
+			users := make([]uint64, len(data)/8)
+			for i := 0; i < len(data)/8; i++ {
+				users[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
+			}
+
 			for _, uid := range users {
-				pros := k.PushPool.GetProsForUser(k.ctx, uid)
+				key := store.NewKey(pb.MetaType_Chal_ProsKey, uid)
+				data, err := k.MetaStore().Get(key)
+				if err != nil {
+					continue
+				}
+
+				pros := make([]uint64, len(data)/8)
+				for i := 0; i < len(data)/8; i++ {
+					pros[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
+				}
+
 				pip := &tx.PostIncomeParams{
 					Epoch:  payEpoch,
 					UserID: uid,
@@ -72,7 +92,7 @@ func (k *KeeperNode) updatePay() {
 					pip.Sig = append(pip.Sig, sig)
 				}
 
-				data, err := pip.Serialize()
+				data, err = pip.Serialize()
 				if err != nil {
 					continue
 				}

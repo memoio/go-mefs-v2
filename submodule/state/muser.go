@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"encoding/binary"
 
 	"golang.org/x/xerrors"
@@ -66,10 +67,14 @@ func (s *StateMgr) addUser(msg *tx.Message) error {
 		return err
 	}
 
-	if !pdp.Validate(pk, vk) {
+	if !bytes.Equal(vk.Hash(), pk.VerifyKey().Hash()) {
 		return xerrors.Errorf("publickey does not match verifykey")
 	}
-
+	/*
+		if !pdp.Validate(pk, vk) {
+			return xerrors.Errorf("publickey does not match verifykey")
+		}
+	*/
 	// verify vk
 	spu := &segPerUser{
 		userID:    msg.From,
@@ -87,7 +92,7 @@ func (s *StateMgr) addUser(msg *tx.Message) error {
 		return err
 	}
 
-	// save to all users
+	// save all users
 	key = store.NewKey(pb.MetaType_ST_UsersKey)
 	val, _ := s.ds.Get(key)
 	buf := make([]byte, len(val)+8)
@@ -128,9 +133,15 @@ func (s *StateMgr) canAddUser(msg *tx.Message) error {
 		return err
 	}
 
-	if !pdp.Validate(pk, vk) {
+	if !bytes.Equal(vk.Hash(), pk.VerifyKey().Hash()) {
 		return xerrors.Errorf("publickey does not match verifykey")
 	}
+
+	/*
+		if !pdp.Validate(pk, vk) {
+			return xerrors.Errorf("publickey does not match verifykey")
+		}
+	*/
 
 	// verify vk
 	spu := &segPerUser{

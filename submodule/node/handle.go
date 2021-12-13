@@ -13,12 +13,14 @@ import (
 	"github.com/zeebo/blake3"
 )
 
+// todo: remove it
 func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
 	logger.Debug("received pub message:", mes.From, mes.Nonce, mes.Method)
-	return n.SyncPool.AddTxMsg(ctx, mes)
+	//return n.SyncPool.AddTxMsg(ctx, mes)
+	return nil
 }
 
-func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.Block) error {
+func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.SignedBlock) error {
 	logger.Debug("received pub block:", blk.MinerID, blk.Height)
 	return n.SyncPool.AddTxBlock(blk)
 }

@@ -9,6 +9,9 @@ import (
 )
 
 func (s *StateMgr) reset() {
+	s.validateKeepers = make([]uint64, 0, len(s.keepers))
+	s.validateKeepers = append(s.validateKeepers, s.keepers...)
+
 	s.validateHeight = s.height
 	s.validateSlot = s.slot
 	s.validateRoot = s.root
@@ -33,16 +36,18 @@ func (s *StateMgr) newValidateRoot(b []byte) {
 	s.validateRoot = types.NewMsgID(res)
 }
 
-func (s *StateMgr) ValidateBlock(blk *tx.Block) (types.MsgID, error) {
+// only validate txs;
+// sign is not valid
+func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.Lock()
 	defer s.Unlock()
+
+	s.reset()
 
 	// time valid?
 	if blk == nil {
 		return s.validateRoot, nil
 	}
-
-	s.reset()
 
 	if blk.Height != s.validateHeight {
 		return s.validateRoot, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)

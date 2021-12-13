@@ -16,8 +16,8 @@ type Store interface {
 	HasTxMsg(mid types.MsgID) (bool, error)
 	GetTxMsgState(mid types.MsgID) (*MsgState, error)
 
-	GetTxBlock(bid types.MsgID) (*Block, error)
-	PutTxBlock(tb *Block) error
+	GetTxBlock(bid types.MsgID) (*SignedBlock, error)
+	PutTxBlock(tb *SignedBlock) error
 	HasTxBlock(bid types.MsgID) (bool, error)
 
 	GetTxBlockByHeight(ht uint64) (types.MsgID, error)
@@ -127,10 +127,10 @@ func (ts *TxStoreImpl) HasTxBlock(bid types.MsgID) (bool, error) {
 	return ts.ds.Has(key)
 }
 
-func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*Block, error) {
+func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*SignedBlock, error) {
 	val, ok := ts.blkCache.Get(bid)
 	if ok {
-		return val.(*Block), nil
+		return val.(*SignedBlock), nil
 	}
 
 	key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
@@ -140,7 +140,7 @@ func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*Block, error) {
 		return nil, err
 	}
 
-	tb := new(Block)
+	tb := new(SignedBlock)
 	err = tb.Deserialize(res)
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*Block, error) {
 	return tb, nil
 }
 
-func (ts *TxStoreImpl) PutTxBlock(tb *Block) error {
+func (ts *TxStoreImpl) PutTxBlock(tb *SignedBlock) error {
 	bid := tb.Hash()
 
 	ok := ts.blkCache.Contains(bid)
@@ -180,21 +180,9 @@ func (ts *TxStoreImpl) PutTxBlock(tb *Block) error {
 	if err != nil {
 		return err
 	}
+	for _, mes := range tb.Msgs {
 
-	// store msg state; for what?
-	for i, mes := range tb.Txs {
-		ms := &MsgState{
-			BlockID: bid,
-			Height:  tb.Height,
-			Status:  tb.Receipts[i],
-		}
-
-		msb, err := ms.Serialize()
-		if err != nil {
-			return err
-		}
-		key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mes.ID.String())
-		ts.ds.Put(key, msb)
+		ts.PutTxMsg(&mes)
 	}
 
 	return nil

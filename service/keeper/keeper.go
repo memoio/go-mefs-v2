@@ -54,6 +54,9 @@ func (k *KeeperNode) Start() error {
 	k.TxMsgHandle.Register(k.txMsgHandler)
 	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
+	k.StateMgr.RegisterAddUserFunc(k.AddUsers)
+	k.StateMgr.RegisterAddUPFunc(k.AddUP)
+
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
 
 	// wait for sync

@@ -4,21 +4,9 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
-
-// DecisionMaker decides 1. proposal 2. whether accepts a proposal
-// and applies proposal after view done
-type DecisionMaker interface {
-	// propose a proposal
-	Propose() []byte
-
-	// validate proposal
-	OnPropose([]byte) error
-
-	// apply proposal after consensus view done
-	Apply([]byte) error
-}
 
 type PaceMaker interface {
 	// return current view
@@ -37,29 +25,33 @@ type PaceMaker interface {
 	DoneB4Timeout()
 }
 
-type ProposalChain interface {
-	// retrieves a block given its hash. If it is not available locally, it will try to fetch the block
-	Get(types.MsgID) (*Proposal, bool)
+// DecisionMaker decides 1. proposal 2. whether accepts a proposal
+// and applies proposal after view done
+type DecisionMaker interface {
+	// propose a proposal
+	Propose() tx.MsgSet
 
-	// stores a block in the blockchain
-	Put(p *Proposal)
+	// validate proposal
+	OnPropose(tx.RawBlock) error
 
-	// Extends checks if the given block extends the branch of the target hash
-	Extends(block, target *Proposal) bool
-
-	// CurrentBlock return latest on-chain proposal
-	CurrentBlock() *Proposal
+	// apply proposal after consensus view done
+	Apply(tx.SignedBlock) error
 }
 
 type CommitteeManager interface {
+	GetMembers() []uint64
 	// get leader
 	GetLeader(view uint64) uint64
 
 	// quorum size
 	GetQuorumSize() int
+}
 
-	// the number of members in the committee
-	Size() int
+type State interface {
+	GetSyncStatus() bool
+	GetHeight() uint64
+	GetSlot() uint64
+	GetBlockRoot(uint64) types.MsgID
 }
 
 type HotStuffApplication interface {
@@ -70,14 +62,5 @@ type HotStuffApplication interface {
 
 	DecisionMaker
 
-	// pacemaker / proposal chain
-	CheckView(lastProposal []byte) error
-	CurrentState() (uint64, string, uint64)
-	View() uint64
-	GetViewN([]byte) uint64
-	GetHeight([]byte) uint64
-	InitQC() (uint64, []byte, []byte, []byte)
-
-	// synchronizer
-	Synchronize([]byte) error
+	State
 }

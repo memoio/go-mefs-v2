@@ -100,6 +100,68 @@ func (s *StateMgr) GetNonce(ctx context.Context, roleID uint64) uint64 {
 	return rv.Nonce
 }
 
+func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	pri := new(pb.RoleInfo)
+	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, userID)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return pri, err
+	}
+
+	err = proto.Unmarshal(data, pri)
+	if err != nil {
+		return pri, err
+	}
+
+	return pri, nil
+}
+
+func (s *StateMgr) GetThreshold(ctx context.Context) int {
+	s.RLock()
+	defer s.RUnlock()
+
+	thres := 2 * (len(s.keepers) + 1) / 3
+	if thres > s.threshold {
+		return thres
+	} else {
+		return s.threshold
+	}
+}
+
+func (s *StateMgr) GetAllKeepers(ctx context.Context) []uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_KeepersKey)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return nil
+	}
+
+	res := make([]uint64, len(data)/8)
+	for i := 0; i < len(data)/8; i++ {
+		res[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
+	}
+
+	return res
+}
+
+func (s *StateMgr) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return pdp.DeserializePublicKey(data)
+}
+
 func (s *StateMgr) GetProsForUser(ctx context.Context, userID uint64) []uint64 {
 	s.RLock()
 	defer s.RUnlock()
@@ -152,38 +214,6 @@ func (s *StateMgr) GetAllUsers(ctx context.Context) []uint64 {
 	}
 
 	return res
-}
-
-func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
-	s.RLock()
-	defer s.RUnlock()
-
-	pri := new(pb.RoleInfo)
-	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, userID)
-	data, err := s.ds.Get(key)
-	if err != nil {
-		return pri, err
-	}
-
-	err = proto.Unmarshal(data, pri)
-	if err != nil {
-		return pri, err
-	}
-
-	return pri, nil
-}
-
-func (s *StateMgr) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
-	s.RLock()
-	defer s.RUnlock()
-
-	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
-	data, err := s.ds.Get(key)
-	if err != nil {
-		return nil, err
-	}
-
-	return pdp.DeserializePublicKey(data)
 }
 
 func (s *StateMgr) GetBucket(ctx context.Context, userID uint64) uint64 {

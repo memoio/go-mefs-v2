@@ -54,9 +54,9 @@ func TestMessage(t *testing.T) {
 }
 
 func TestBlock(t *testing.T) {
-	b := new(Block)
-	b.BlockHeader.MinerID = 100
-	b.BlockHeader.PrevID = types.NewMsgID([]byte("test"))
+	b := new(SignedBlock)
+	b.RawHeader.MinerID = 100
+	b.RawHeader.PrevID = types.NewMsgID([]byte("test"))
 	b.MultiSignature.Type = types.SigBLS
 
 	id := b.Hash()
@@ -79,9 +79,9 @@ func TestBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bid := b.BlockHeader.Hash()
+	bid := b.RawHeader.Hash()
 
-	nb := new(Block)
+	nb := new(SignedBlock)
 	err = nb.Deserialize(bbyte)
 	if err != nil {
 		t.Fatal(err)

@@ -19,10 +19,9 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/state"
 )
 
-type SyncedBlock struct {
-	blk      *tx.Block
-	msg      []*tx.Message
-	msgCount int
+type msgDone struct {
+	height uint64
+	msgs   []tx.MessageDigest
 }
 
 type SyncPool struct {
@@ -41,16 +40,16 @@ type SyncPool struct {
 	nextHeight   uint64 // next synced
 	remoteHeight uint64 // next remote
 
-	blks  map[uint64]*SyncedBlock // key: height
-	nonce map[uint64]uint64       // key: roleID
+	blks  map[uint64]*tx.SignedBlock // key: height
+	nonce map[uint64]uint64          // key: roleID
 
 	ready bool
 
 	msgDone chan *tx.MessageDigest
 	inPush  bool
 
-	msgChan   chan *tx.Message
-	blkDone   chan *tx.BlockHeader
+	msgChan   chan *tx.SignedMessage
+	blkDone   chan *msgDone
 	inProcess bool
 }
 
@@ -71,11 +70,11 @@ func NewSyncPool(ctx context.Context, roleID uint64, st *state.StateMgr, ds stor
 		remoteHeight: 0,
 
 		nonce: make(map[uint64]uint64),
-		blks:  make(map[uint64]*SyncedBlock),
+		blks:  make(map[uint64]*tx.SignedBlock),
 
-		msgChan: make(chan *tx.Message, 128),
+		msgChan: make(chan *tx.SignedMessage, 128),
 		msgDone: make(chan *tx.MessageDigest, 16),
-		blkDone: make(chan *tx.BlockHeader, 8),
+		blkDone: make(chan *msgDone, 8),
 	}
 
 	sp.load()
@@ -111,7 +110,7 @@ func (sp *SyncPool) load() {
 }
 
 func (sp *SyncPool) syncBlock() {
-	tc := time.NewTicker(5 * time.Second)
+	tc := time.NewTicker(1 * time.Second)
 	defer tc.Stop()
 
 	for {
@@ -151,14 +150,8 @@ func (sp *SyncPool) syncBlock() {
 					}
 				}
 
-				sb := &SyncedBlock{
-					blk:      blk,
-					msg:      make([]*tx.Message, len(blk.Txs)),
-					msgCount: 0,
-				}
-
 				sp.Lock()
-				sp.blks[i] = sb
+				sp.blks[i] = blk
 				sp.Unlock()
 			}
 		}
@@ -168,34 +161,6 @@ func (sp *SyncPool) syncBlock() {
 			rh = sp.nextHeight + 128
 		}
 
-		logger.Debug("regular get block msg:", sp.nextHeight, rh, sp.remoteHeight)
-
-		for i := sp.nextHeight; i < rh; i++ {
-			sp.RLock()
-			sb, ok := sp.blks[i]
-			sp.RUnlock()
-			if ok {
-				// sync all msg of one block
-				for j, tx := range sb.blk.Txs {
-					if sb.msg[j] != nil {
-						continue
-					}
-					sm, err := sp.GetTxMsg(tx.ID)
-					if err != nil {
-						// for test
-						go sp.getRoleInfoRemote(tx.From)
-						// get from remote
-						sm, err = sp.getTxMsgRemote(tx.ID)
-						if err != nil {
-							continue
-						}
-					}
-					sb.msg[j] = &sm.Message
-					sb.msgCount++
-				}
-			}
-		}
-
 		logger.Debug("regular process block:", sp.nextHeight, rh, sp.remoteHeight)
 
 		// process syncd blk
@@ -203,11 +168,6 @@ func (sp *SyncPool) syncBlock() {
 			sp.Lock()
 			sb, ok := sp.blks[i]
 			if ok {
-				if len(sb.blk.Txs) > sb.msgCount {
-					logger.Debug("before process block: ", len(sb.blk.Txs), sb.msgCount)
-					sp.Unlock()
-					break
-				}
 				err := sp.processTxBlock(sb)
 				if err != nil {
 					sp.Unlock()
@@ -232,65 +192,82 @@ func (sp *SyncPool) syncBlock() {
 	}
 }
 
-func (sp *SyncPool) processTxBlock(sb *SyncedBlock) error {
-	logger.Debug("process block:", sb.blk.Height)
+func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
+	bid := sb.Hash()
+	logger.Debug("process block: ", sb.Height, bid)
 	oRoot, err := sp.AppleyMsg(nil, nil)
 	if err != nil {
 		return err
 	}
 
-	if !bytes.Equal(oRoot.Bytes(), sb.blk.ParentRoot.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.blk.ParentRoot)
+	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
+		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
 
-	newRoot, err := sp.ApplyBlock(sb.blk)
+	newRoot, err := sp.ApplyBlock(sb)
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i < sb.msgCount; i++ {
-		tx := sb.blk.Txs[i]
+	mds := &msgDone{
+		height: sb.Height,
+		msgs:   make([]tx.MessageDigest, 0, len(sb.Msgs)),
+	}
 
-		nextNonce, ok := sp.nonce[tx.From]
+	for i, msg := range sb.Msgs {
+		nextNonce, ok := sp.nonce[msg.From]
 		if !ok {
-			nextNonce = sp.GetNonce(sp.ctx, tx.From)
+			nextNonce = sp.GetNonce(sp.ctx, msg.From)
 		}
 
-		if nextNonce != tx.Nonce {
-			logger.Debug("has wrong nonce: ", tx.From, tx.Nonce, nextNonce)
+		if nextNonce != msg.Nonce {
+			logger.Debug("has wrong nonce: ", msg.From, msg.Nonce, nextNonce)
 		}
 
-		sp.nonce[tx.From] = tx.Nonce + 1
+		sp.nonce[msg.From] = msg.Nonce + 1
 
 		// apply message
-		newRoot, err = sp.AppleyMsg(sb.msg[i], &sb.blk.Receipts[i])
+		newRoot, err = sp.AppleyMsg(&msg.Message, &sb.Receipts[i])
 		if err != nil {
 			// should not; todo
 			logger.Error("fail to apply message: ", err, newRoot)
 		}
 
-		if tx.From == sp.localID {
+		ms := &tx.MsgState{
+			BlockID: bid,
+			Height:  sb.Height,
+			Status:  sb.Receipts[i],
+		}
+
+		msb, err := ms.Serialize()
+		if err != nil {
+			return err
+		}
+
+		key := store.NewKey(pb.MetaType_Tx_MessageStateKey, msg.Hash().String())
+		sp.ds.Put(key, msb)
+
+		md := tx.MessageDigest{
+			ID:    msg.Hash(),
+			From:  msg.From,
+			Nonce: msg.Nonce,
+		}
+
+		mds.msgs = append(mds.msgs, md)
+
+		if msg.From == sp.localID {
 			if sp.inPush {
-				sp.msgDone <- &tx
+				sp.msgDone <- &md
 			}
 		}
 	}
 
-	if !bytes.Equal(newRoot.Bytes(), sb.blk.Root.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.blk.Root)
-	}
-
-	newRoot, err = sp.ApplyBlock(nil)
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(newRoot.Bytes(), sb.blk.Root.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.blk.Root)
+	if !bytes.Equal(newRoot.Bytes(), sb.Root.Bytes()) {
+		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.Root)
 	}
 
 	if sp.inProcess {
-		sp.blkDone <- &sb.blk.BlockHeader
+		sp.blkDone <- mds
 	}
 
 	return nil
@@ -311,7 +288,7 @@ func (sp *SyncPool) GetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.Ms
 	return sp.Store.GetTxMsgState(mid)
 }
 
-func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
+func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	logger.Debug("add block: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 	if tb.Height < sp.nextHeight {
 		return xerrors.Errorf("height expected %d, got %d", sp.nextHeight, tb.Height)
@@ -344,6 +321,18 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 		return xerrors.Errorf("%s block at height %d sign is invalid", bid, tb.Height)
 	}
 
+	// verify all msg
+	for _, msg := range tb.Msgs {
+		ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return xerrors.Errorf("%s block at height %d msg %d sign is invalid", bid, tb.Height, msg.From)
+		}
+	}
+
 	// store local
 	err = sp.PutTxBlock(tb)
 	if err != nil {
@@ -353,13 +342,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 
 	sp.Lock()
 	if tb.Height >= sp.nextHeight {
-		sb := &SyncedBlock{
-			blk:      tb,
-			msg:      make([]*tx.Message, len(tb.Txs)),
-			msgCount: 0,
-		}
-
-		sp.blks[tb.Height] = sb
+		sp.blks[tb.Height] = tb
 	}
 
 	if tb.Height >= sp.remoteHeight {
@@ -371,14 +354,14 @@ func (sp *SyncPool) AddTxBlock(tb *tx.Block) error {
 }
 
 // over network
-func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.Block, error) {
+func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.SignedBlock, error) {
 	// fetch it over network
 	key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
 	res, err := sp.INetService.Fetch(sp.ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	tb := new(tx.Block)
+	tb := new(tx.SignedBlock)
 	err = tb.Deserialize(res)
 	if err != nil {
 		return nil, err

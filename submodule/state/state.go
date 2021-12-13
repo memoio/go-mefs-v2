@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -24,26 +25,26 @@ type StateMgr struct {
 	// need a different store
 	ds store.KVStore
 
-	users     []uint64
-	providers []uint64
-
 	msgNum uint16 // applied msg number of current height
 	height uint64 // next block height
 	slot   uint64 // logical time
 
-	ceInfo *chalEpochInfo
-	root   types.MsgID // for verify
-	oInfo  map[orderKey]*orderInfo
-	sInfo  map[uint64]*segPerUser // key: userID
-	rInfo  map[uint64]*roleInfo
+	keepers   []uint64
+	threshold int
+	ceInfo    *chalEpochInfo
+	root      types.MsgID // for verify
+	oInfo     map[orderKey]*orderInfo
+	sInfo     map[uint64]*segPerUser // key: userID
+	rInfo     map[uint64]*roleInfo
 
-	validateHeight uint64 // next block height
-	validateSlot   uint64 // logical time
-	validateCeInfo *chalEpochInfo
-	validateRoot   types.MsgID
-	validateOInfo  map[orderKey]*orderInfo
-	validateSInfo  map[uint64]*segPerUser
-	validateRInfo  map[uint64]*roleInfo
+	validateKeepers []uint64
+	validateHeight  uint64 // next block height
+	validateSlot    uint64 // logical time
+	validateCeInfo  *chalEpochInfo
+	validateRoot    types.MsgID
+	validateOInfo   map[orderKey]*orderInfo
+	validateSInfo   map[uint64]*segPerUser
+	validateRInfo   map[uint64]*roleInfo
 
 	handleAddRole HanderAddRoleFunc
 	handleAddUser HandleAddUserFunc
@@ -53,19 +54,22 @@ type StateMgr struct {
 	handleDelSeg  HandleDelSegFunc
 }
 
-func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
+func NewStateMgr(groupID uint64, ds store.KVStore, ir api.IRole) *StateMgr {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, groupID)
+
 	s := &StateMgr{
 		IRole:        ir,
 		ds:           ds,
 		height:       0,
-		users:        make([]uint64, 0, 16),
-		providers:    make([]uint64, 0, 16),
-		root:         beginRoot,
-		validateRoot: beginRoot,
+		threshold:    build.Threshold,
+		keepers:      make([]uint64, 0, 16),
+		root:         types.NewMsgID(buf),
+		validateRoot: types.NewMsgID(buf),
 		ceInfo: &chalEpochInfo{
 			epoch:    0,
-			current:  newChalEpoch(),
-			previous: newChalEpoch(),
+			current:  newChalEpoch(groupID),
+			previous: newChalEpoch(groupID),
 		},
 		oInfo: make(map[orderKey]*orderInfo),
 		sInfo: make(map[uint64]*segPerUser),
@@ -73,8 +77,8 @@ func NewStateMgr(ds store.KVStore, ir api.IRole) *StateMgr {
 
 		validateCeInfo: &chalEpochInfo{
 			epoch:    0,
-			current:  newChalEpoch(),
-			previous: newChalEpoch(),
+			current:  newChalEpoch(groupID),
+			previous: newChalEpoch(groupID),
 		},
 	}
 
@@ -125,10 +129,17 @@ func (s *StateMgr) API() *stateAPI {
 
 func (s *StateMgr) load() {
 	// load keepers
+	key := store.NewKey(pb.MetaType_ST_KeepersKey)
+	val, err := s.ds.Get(key)
+	if err == nil && len(val) >= 0 {
+		for i := 0; i < len(val)/8; i++ {
+			s.keepers = append(s.keepers, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+		}
+	}
 
 	// load block height, epoch and uncompleted msgs
-	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	val, err := s.ds.Get(key)
+	key = store.NewKey(pb.MetaType_ST_BlockHeightKey)
+	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 18 {
 		s.height = binary.BigEndian.Uint64(val[:8])
 		s.slot = binary.BigEndian.Uint64(val[8:16])
@@ -187,13 +198,18 @@ func (s *StateMgr) newRoot(b []byte) {
 	s.ds.Put(key, s.root.Bytes())
 }
 
-func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
+// block 0 is special: only accept addKeeper; and msg len >= threshold
+func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	if blk == nil {
 		// todo: commmit for apply all changes
 		return s.root, nil
+	}
+
+	if blk.Len() > s.threshold {
+		return s.root, xerrors.Errorf("blk sign not enough")
 	}
 
 	// todo: create new transcation
@@ -213,7 +229,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.Block) (types.MsgID, error) {
 
 	s.height++
 	s.slot = blk.Slot
-	s.msgNum = uint16(len(blk.Txs))
+	s.msgNum = uint16(len(blk.Msgs))
 
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 	buf := make([]byte, 18)

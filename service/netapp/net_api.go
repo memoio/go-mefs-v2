@@ -66,7 +66,7 @@ func (c *NetServiceImpl) PublishTxMsg(ctx context.Context, msg *tx.SignedMessage
 	return c.msgTopic.Publish(ctx, data)
 }
 
-func (c *NetServiceImpl) PublishTxBlock(ctx context.Context, msg *tx.Block) error {
+func (c *NetServiceImpl) PublishTxBlock(ctx context.Context, msg *tx.SignedBlock) error {
 	data, _ := msg.Serialize()
 	return c.blockTopic.Publish(ctx, data)
 }

@@ -102,7 +102,7 @@ type INetService interface {
 
 	// broadcast using pubsub
 	PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error
-	PublishTxBlock(ctx context.Context, msg *tx.Block) error
+	PublishTxBlock(ctx context.Context, msg *tx.SignedBlock) error
 	PublishEvent(ctx context.Context, msg *pb.EventMessage) error
 }
 
@@ -158,6 +158,8 @@ type IState interface {
 
 	GetNonce(context.Context, uint64) uint64
 
+	GetAllKeepers(context.Context) []uint64
+
 	GetUsersForPro(context.Context, uint64) []uint64
 	GetProsForUser(context.Context, uint64) []uint64
 	GetAllUsers(context.Context) []uint64
@@ -178,4 +180,10 @@ type IState interface {
 
 		GetOrderDuration(userID, proID uint64) *types.OrderDuration
 	*/
+}
+
+type IStateState interface {
+	GetUsersForPro(context.Context, uint64) []uint64
+	GetProsForUser(context.Context, uint64) []uint64
+	GetAllUsers(context.Context) []uint64
 }

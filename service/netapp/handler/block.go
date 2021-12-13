@@ -13,11 +13,11 @@ var (
 	ErrNoHandle = xerrors.New("no handle")
 )
 
-type HandlerBlockFunc func(context.Context, *tx.Block) error
+type HandlerBlockFunc func(context.Context, *tx.SignedBlock) error
 
 // TxMsgHandle is used for handle received msg from pubsub
 type BlockHandle interface {
-	Handle(context.Context, *tx.Block) error
+	Handle(context.Context, *tx.SignedBlock) error
 	Register(h HandlerBlockFunc)
 	Close()
 }
@@ -38,7 +38,7 @@ func NewBlockHandle() *BlockImpl {
 	return i
 }
 
-func (i *BlockImpl) Handle(ctx context.Context, mes *tx.Block) error {
+func (i *BlockImpl) Handle(ctx context.Context, mes *tx.SignedBlock) error {
 	i.RLock()
 	defer i.RUnlock()
 
@@ -64,6 +64,6 @@ func (i *BlockImpl) Close() {
 	i.close = true
 }
 
-func defaultBlockHandler(ctx context.Context, msg *tx.Block) error {
+func defaultBlockHandler(ctx context.Context, msg *tx.SignedBlock) error {
 	return nil
 }

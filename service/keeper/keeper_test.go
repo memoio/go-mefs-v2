@@ -64,7 +64,7 @@ func TestKeeperNode(t *testing.T) {
 		sm.From = 10
 		bn2.PublishTxMsg(ctx, sm)
 
-		blk := new(tx.Block)
+		blk := new(tx.SignedBlock)
 		blk.Height = 1000
 		bn2.PublishTxBlock(ctx, blk)
 

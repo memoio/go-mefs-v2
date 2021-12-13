@@ -6,8 +6,10 @@ import (
 	"log"
 	"time"
 
+	"github.com/memoio/go-mefs-v2/build"
+	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
 	bcommon "github.com/memoio/go-mefs-v2/submodule/consensus/common"
 	"golang.org/x/xerrors"
 )
@@ -15,78 +17,48 @@ import (
 // timeout will be moved to pacemaker, but clearview etc. will be opened for pacemaker
 type HotstuffProtocolManager struct {
 	localID uint64
-	ds      store.KVStore
 
-	// record
-	lastProposal []byte // last applied
-	lockedQC     types.MultiSignature
-	prepareQC    types.MultiSignature
-
-	views map[types.MsgID]*view
-
-	curView types.MsgID
+	curView *view
 
 	// process
 	app bcommon.HotStuffApplication
 }
 
-func NewHotstuffProtocolManager(a bcommon.HotStuffApplication, localID uint64) *HotstuffProtocolManager {
+func NewHotstuffProtocolManager(localID uint64, a bcommon.HotStuffApplication) *HotstuffProtocolManager {
 	manager := &HotstuffProtocolManager{
-		app:   a,
-		views: make(map[types.MsgID]*view),
+		localID: localID,
+		app:     a,
+		curView: &view{
+			header: tx.RawHeader{
+				Version: 1,
+			},
+		},
 	}
 
 	return manager
 }
 
-func (hsm *HotstuffProtocolManager) handleMessage(msg *bcommon.HotstuffMessage) error {
-	// verify data first
-	ptype, ok := phaseMap[msg.Type]
-	if ok {
-		ok, err := hsm.app.RoleVerify(context.TODO(), msg.From, bcommon.CalcHash(msg.Data.Proposal, ptype).Bytes(), msg.Data.Sig)
-		if err != nil || !ok {
-			return err
-		}
-	}
-
-	ptype, ok = preMap[msg.Type]
-	if ok {
-		proposal := bcommon.Proposal{
-			Header:  msg.Data.Header,
-			Content: msg.Data.Content,
-		}
-		switch ptype {
-		// content is nil at phase new
-		case bcommon.PhaseNew:
-			proposal.Content = nil
-		}
-
-		ok, err := hsm.app.RoleVerifyMulti(context.TODO(), bcommon.CalcHash(proposal, ptype).Bytes(), msg.Quorum)
-		if err != nil || !ok {
-			return err
-		}
-	}
-
+func (hsm *HotstuffProtocolManager) handleMessage(msg *hs.HotstuffMessage) error {
 	switch msg.Type {
-	case bcommon.MsgNewView:
+	case hs.MsgNewView:
 		return hsm.handleNewViewVoteMsg(msg)
 
-	case bcommon.MsgPrepare:
+	case hs.MsgPrepare:
 		return hsm.handlePrepareMsg(msg)
-	case bcommon.MsgVotePrepare:
+	case hs.MsgVotePrepare:
 		return hsm.handlePrepareVoteMsg(msg)
 
-	case bcommon.MsgPreCommit:
+	case hs.MsgPreCommit:
 		return hsm.handlePreCommitMsg(msg)
-	case bcommon.MsgVotePreCommit:
+	case hs.MsgVotePreCommit:
 		return hsm.handlePreCommitVoteMsg(msg)
 
-	case bcommon.MsgCommit:
+	case hs.MsgCommit:
 		return hsm.handleCommitMsg(msg)
-	case bcommon.MsgVoteCommit:
+	case hs.MsgVoteCommit:
 		return hsm.handleCommitVoteMsg(msg)
 
-	case bcommon.MsgDecide:
+	case hs.MsgDecide:
 		return hsm.handleDecideMsg(msg)
 
 	default:
@@ -95,36 +67,12 @@ func (hsm *HotstuffProtocolManager) handleMessage(msg *bcommon.HotstuffMessage) 
 	}
 }
 
-var phaseMap map[bcommon.MsgType]bcommon.PhaseState
-var preMap map[bcommon.MsgType]bcommon.PhaseState
-
-func init() {
-	phaseMap = make(map[bcommon.MsgType]bcommon.PhaseState)
-	preMap = make(map[bcommon.MsgType]bcommon.PhaseState)
-
-	phaseMap[bcommon.MsgNewView] = bcommon.PhaseNew
-	phaseMap[bcommon.MsgPrepare] = bcommon.PhasePrepare
-	phaseMap[bcommon.MsgPreCommit] = bcommon.PhasePreCommit
-	phaseMap[bcommon.MsgCommit] = bcommon.PhaseCommit
-
-	phaseMap[bcommon.MsgVotePrepare] = bcommon.PhasePrepare
-	phaseMap[bcommon.MsgVotePreCommit] = bcommon.PhasePreCommit
-	phaseMap[bcommon.MsgVoteCommit] = bcommon.PhaseCommit
-
-	// validate its pre qc
-	preMap[bcommon.MsgPrepare] = bcommon.PhaseNew
-	preMap[bcommon.MsgPreCommit] = bcommon.PhasePrepare
-	preMap[bcommon.MsgCommit] = bcommon.PhasePreCommit
-	preMap[bcommon.MsgDecide] = bcommon.PhaseCommit
-}
-
 type view struct {
-	header  bcommon.Header
-	content []byte
+	header tx.RawHeader
+	txs    tx.MsgSet
 
-	phase bcommon.PhaseState
+	phase hs.PhaseState
 
-	// only leader use this field
 	highQuorum      types.MultiSignature // hash(MsgNewView, Header)
 	prepareQuorum   types.MultiSignature // hash(MsgPrepare, Header, Cmd)
 	preCommitQuorum types.MultiSignature // hash(MsgPreCommit, Proposer Header, Cmd)
@@ -133,106 +81,233 @@ type view struct {
 	createdAt time.Time
 }
 
-func (hsm *HotstuffProtocolManager) newView() *view {
-	// get current view number, block height, leader
-	header := bcommon.Header{
-		// base on parent msgID,
+func (hsm *HotstuffProtocolManager) checkView(msg *hs.HotstuffMessage) error {
+	if msg == nil {
+		return xerrors.Errorf("msg is nil")
 	}
 
-	v, ok := hsm.views[header.Hash()]
-	if ok {
-		// redo ?
-		return v
+	slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
+	if msg.Data.Slot < slot {
+		return xerrors.Errorf("msg from past views")
 	}
 
-	v = &view{
-		header:    header,
-		phase:     bcommon.PhasePrepare,
-		createdAt: time.Now(),
+	if hsm.curView != nil {
+		if hsm.curView.header.Slot != slot {
+			err := hsm.newView()
+			if err != nil {
+				return err
+			}
+		}
 
-		highQuorum:      types.NewMultiSignature(types.SigBLS),
-		prepareQuorum:   types.NewMultiSignature(types.SigBLS),
-		preCommitQuorum: types.NewMultiSignature(types.SigBLS),
-		commitQuorum:    types.NewMultiSignature(types.SigBLS),
+		if !hsm.curView.header.Hash().Equal(msg.Data.RawHeader.Hash()) {
+			return xerrors.Errorf("view not match")
+		}
 	}
 
-	log.Println("create new view", "leader", v.header.Leader, "viewID", v.header.Hash())
+	pType := hs.PhaseDecide
+	switch msg.Type {
+	case hs.MsgPrepare:
+		pType = hs.PhaseNew
+	case hs.MsgPreCommit:
+		pType = hs.PhasePrepare
+	case hs.MsgCommit:
+		pType = hs.PhasePreCommit
+	case hs.MsgDecide:
+		pType = hs.PhaseCommit
+	}
 
-	return v
+	// verify multisign
+	if pType != hs.PhaseDecide {
+		proposal := tx.RawBlock{
+			RawHeader: msg.Data.RawHeader,
+			MsgSet:    tx.MsgSet{},
+		}
+		var h []byte
+
+		switch pType {
+		// content is nil at phase new
+		case hs.PhaseNew:
+			h = hs.CalcHash(proposal, pType).Bytes()
+		case hs.PhasePrepare:
+			proposal.MsgSet = msg.Data.MsgSet
+			h = hs.CalcHash(proposal, pType).Bytes()
+		case hs.PhasePreCommit:
+			proposal.MsgSet = hsm.curView.txs
+			h = hs.CalcHash(proposal, pType).Bytes()
+		case hs.PhaseCommit:
+			proposal.MsgSet = hsm.curView.txs
+			h = hs.CalcHash(proposal, pType).Bytes()
+		}
+
+		ok, err := hsm.app.RoleVerifyMulti(context.TODO(), h, msg.Quorum)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return xerrors.Errorf("sign is invalid")
+		}
+	}
+
+	pType = hs.PhaseDecide
+	switch msg.Type {
+	case hs.MsgNewView:
+		pType = hs.PhaseNew
+	case hs.MsgPrepare, hs.MsgVotePrepare:
+		pType = hs.PhasePrepare
+	case hs.MsgPreCommit, hs.MsgVotePreCommit:
+		pType = hs.PhasePreCommit
+	case hs.MsgCommit, hs.MsgVoteCommit:
+		pType = hs.PhaseCommit
+	}
+
+	// verify data
+	if pType != hs.PhaseDecide {
+		ok, err := hsm.app.RoleVerify(context.TODO(), msg.From, hs.CalcHash(msg.Data, pType).Bytes(), msg.Sig)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return xerrors.Errorf("sign is invalid")
+		}
+	}
+
+	return xerrors.Errorf("empty curView")
+}
+
+func (hsm *HotstuffProtocolManager) newView() error {
+	slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
+
+	// handle last one;
+	if hsm.curView.header.Slot < slot {
+		if hsm.curView.phase != hs.PhaseFinal && hsm.curView.commitQuorum.Len() > hsm.app.GetQuorumSize() {
+			sb := tx.SignedBlock{
+				RawBlock: tx.RawBlock{
+					RawHeader: hsm.curView.header,
+					MsgSet:    hsm.curView.txs,
+				},
+				MultiSignature: hsm.curView.commitQuorum,
+			}
+
+			// apply last one
+			err := hsm.app.Apply(sb)
+			if err != nil {
+				return err
+			}
+			hsm.curView.phase = hs.PhaseFinal
+		}
+	} else if hsm.curView.header.Slot == slot {
+		return nil
+	} else {
+		// time not syncd?
+		return xerrors.Errorf("something badly happens, may be not syned")
+	}
+
+	// reset
+	hsm.curView.highQuorum = types.NewMultiSignature(types.SigBLS)
+	hsm.curView.prepareQuorum = types.NewMultiSignature(types.SigBLS)
+	hsm.curView.preCommitQuorum = types.NewMultiSignature(types.SigBLS)
+	hsm.curView.commitQuorum = types.NewMultiSignature(types.SigBLS)
+
+	hsm.curView.phase = hs.PhaseNew
+
+	hsm.curView.createdAt = time.Now()
+
+	// get newest state: block height, leader, parent
+	syned := hsm.app.GetSyncStatus()
+	if !syned {
+		return xerrors.Errorf("not sync")
+	}
+
+	ht := hsm.app.GetHeight()
+	bid := hsm.app.GetBlockRoot(ht - 1)
+	pslot := hsm.app.GetSlot()
+
+	slot = uint64(hsm.curView.createdAt.Unix()-build.BaseTime) / build.SlotDuration
+	if slot <= pslot {
+		return xerrors.Errorf("slot time not up")
+	}
+
+	hsm.curView.header = tx.RawHeader{
+		Version: 1,
+		Slot:    uint64(hsm.curView.createdAt.Unix()-build.BaseTime) / build.SlotDuration,
+		Height:  ht,
+		MinerID: hsm.app.GetLeader(slot),
+		PrevID:  bid,
+	}
+
+	log.Println("create new view", "leader", hsm.curView.header.MinerID, "view slot", hsm.curView.header.Slot)
+
+	return nil
 }
 
 // when time is up, enter into new view
 // replicas send to leader
 func (hsm *HotstuffProtocolManager) NewView() error {
-
-	v := hsm.newView()
-
-	if v.header.Leader == hsm.localID {
-		return nil
-	}
-
-	v.phase = bcommon.PhaseNew
-
-	// replica send out to leader
-	sp := bcommon.SignedProposal{
-		Proposal: bcommon.Proposal{
-			Header: v.header,
-		},
-	}
-
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, bcommon.CalcHash(sp.Proposal, v.phase).Bytes(), types.SigBLS)
+	err := hsm.newView()
 	if err != nil {
 		return err
 	}
 
-	sp.Sig = sig
-
-	hm := &bcommon.HotstuffMessage{
-		From: hsm.localID,
-		Type: bcommon.MsgNewView,
-		Data: sp,
+	if hsm.curView.header.MinerID == hsm.localID {
+		return nil
 	}
 
-	err = v.highQuorum.Add(hsm.localID, sig)
+	hsm.curView.phase = hs.PhaseNew
+
+	// replica send out to leader
+	sp := tx.RawBlock{
+		RawHeader: hsm.curView.header,
+		MsgSet:    tx.MsgSet{},
+	}
+
+	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
+	if err != nil {
+		return err
+	}
+
+	hm := &hs.HotstuffMessage{
+		From: hsm.localID,
+		Type: hs.MsgNewView,
+		Data: sp,
+		Sig:  sig,
+	}
+
+	err = hsm.curView.highQuorum.Add(hsm.localID, sig)
 	if err != nil {
 		return err
 	}
 
 	// todo: send hm message out
-	hm.Type = bcommon.MsgNewView
+	hm.Type = hs.MsgNewView
 
 	return nil
 }
 
 // leader handle new view msg from replicas
-func (hsm *HotstuffProtocolManager) handleNewViewVoteMsg(msg *bcommon.HotstuffMessage) error {
-	log.Println("handleNewViewMsg got new view message", "from", msg.From, "viewId", msg.Data.Proposal.Header.Hash())
+func (hsm *HotstuffProtocolManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage) error {
+	log.Println("handleNewViewMsg got new view message", "from", msg.From, "view", msg.Data.RawHeader)
 
 	// not handle it
-	if hsm.localID != msg.Data.Leader {
+	if hsm.localID != msg.Data.MinerID {
 		return nil
 	}
 
-	// todo: fast sanity check on datalast (avoid to create useless view)
-
-	v, exist := hsm.views[msg.Data.Proposal.Header.Hash()]
-	if !exist {
-		v = hsm.newView()
-		if !v.header.Hash().Equal(msg.Data.Proposal.Header.Hash()) {
-			return xerrors.Errorf("view not match")
-		}
-		hsm.views[v.header.Hash()] = v
-	}
-
-	v.phase = bcommon.PhaseNew
-
-	err := v.highQuorum.Add(msg.From, msg.Data.Sig)
+	err := hsm.checkView(msg)
 	if err != nil {
 		return err
 	}
 
-	if v.highQuorum.Len() >= hsm.app.GetQuorumSize() {
-		hsm.curView = v.header.Hash()
+	if hsm.curView.phase != hs.PhaseNew {
+		return xerrors.Errorf("phase state wrong")
+	}
+
+	err = hsm.curView.highQuorum.Add(msg.From, msg.Sig)
+	if err != nil {
+		return err
+	}
+
+	if hsm.curView.highQuorum.Len() >= hsm.app.GetQuorumSize() {
 		return hsm.tryPropose()
 	}
 
@@ -241,82 +316,73 @@ func (hsm *HotstuffProtocolManager) handleNewViewVoteMsg(msg *bcommon.HotstuffMe
 
 // lead send prepare msg
 func (hsm *HotstuffProtocolManager) tryPropose() error {
-	v, ok := hsm.views[hsm.curView]
-	if !ok {
-		return xerrors.Errorf("no view")
-	}
-
-	if v.phase != bcommon.PhaseNew {
+	if hsm.curView.phase != hs.PhaseNew {
 		return xerrors.Errorf("phase state error")
 	}
 
-	v.phase = bcommon.PhasePrepare
+	hsm.curView.phase = hs.PhasePrepare
 
-	// ensure previous proposals have been executed
+	hsm.curView.txs = hsm.app.Propose()
 
-	proposal := hsm.app.Propose()
-
-	v.content = proposal
-
-	sp := bcommon.SignedProposal{
-		Proposal: bcommon.Proposal{
-			Header:  v.header,
-			Content: v.content,
-		},
+	sp := tx.RawBlock{
+		RawHeader: hsm.curView.header,
+		MsgSet:    hsm.curView.txs,
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, bcommon.CalcHash(sp.Proposal, v.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
 	if err != nil {
 		return err
 	}
 
-	sp.Sig = sig
-
-	hm := &bcommon.HotstuffMessage{
+	hm := &hs.HotstuffMessage{
 		From:   hsm.localID,
-		Type:   bcommon.MsgPrepare,
+		Type:   hs.MsgPrepare,
 		Data:   sp,
-		Quorum: v.highQuorum,
+		Sig:    sig,
+		Quorum: hsm.curView.highQuorum,
 	}
 
 	// todo: send hm message out
-	hm.Type = bcommon.MsgPrepare
+	hm.Type = hs.MsgPrepare
 
 	return nil
 }
 
 // replica response prepare msg
-func (hsm *HotstuffProtocolManager) handlePrepareMsg(msg *bcommon.HotstuffMessage) error {
-	v, exist := hsm.views[msg.Data.Proposal.Header.Hash()]
-	if !exist {
-		v = hsm.newView()
-		if !v.header.Hash().Equal(msg.Data.Proposal.Header.Hash()) {
-			return xerrors.Errorf("view not match")
-		}
-		hsm.views[v.header.Hash()] = v
+func (hsm *HotstuffProtocolManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
+	// leader not handle it
+	if hsm.localID == msg.Data.MinerID {
+		return nil
 	}
 
-	v.phase = bcommon.PhasePrepare
+	err := hsm.checkView(msg)
+	if err != nil {
+		return err
+	}
 
-	v.highQuorum = msg.Quorum
+	if hsm.curView.phase != hs.PhaseNew {
+		return xerrors.Errorf("phase state wrong")
+	}
 
 	// validate propose
-	err := hsm.app.OnPropose(msg.Data.Content)
+	err = hsm.app.OnPropose(msg.Data)
 	if err != nil {
 		return err
 	}
 
-	v.phase = bcommon.PhasePrepare
-	v.content = msg.Data.Content
+	hsm.curView.phase = hs.PhasePrepare
+	hsm.curView.highQuorum = msg.Quorum
+
+	hsm.curView.txs = msg.Data.MsgSet
 
 	msg.From = hsm.localID
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, bcommon.CalcHash(msg.Data.Proposal, v.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data, hsm.curView.phase).Bytes(), types.SigBLS)
 	if err != nil {
 		return err
 	}
-	msg.Data.Sig = sig
+	msg.Sig = sig
 	msg.Quorum = types.NewMultiSignature(types.SigBLS)
-	msg.Type = bcommon.MsgVotePrepare
+	msg.Type = hs.MsgVotePrepare
 
 	// send to leader
 
@@ -325,23 +391,26 @@ func (hsm *HotstuffProtocolManager) handlePrepareMsg(msg *bcommon.HotstuffMessag
 
 // leader handle prepare response
 // leader send precommit
-func (hsm *HotstuffProtocolManager) handlePrepareVoteMsg(msg *bcommon.HotstuffMessage) error {
-	v, exist := hsm.views[msg.Data.Proposal.Header.Hash()]
-	if !exist {
-		v = hsm.newView()
-		if !v.header.Hash().Equal(msg.Data.Proposal.Header.Hash()) {
-			return xerrors.Errorf("view not match")
-		}
-		hsm.views[v.header.Hash()] = v
+func (hsm *HotstuffProtocolManager) handlePrepareVoteMsg(msg *hs.HotstuffMessage) error {
+	if hsm.localID != msg.Data.MinerID {
+		return nil
 	}
 
-	err := v.prepareQuorum.Add(msg.From, msg.Data.Sig)
+	err := hsm.checkView(msg)
 	if err != nil {
 		return err
 	}
 
-	if v.prepareQuorum.Len() >= hsm.app.GetQuorumSize() {
-		hsm.prepareQC = v.prepareQuorum
+	if hsm.curView.phase != hs.PhasePrepare {
+		return xerrors.Errorf("phase state wrong")
+	}
+
+	err = hsm.curView.prepareQuorum.Add(msg.From, msg.Sig)
+	if err != nil {
+		return err
+	}
+
+	if hsm.curView.prepareQuorum.Len() >= hsm.app.GetQuorumSize() {
 		return hsm.tryPreCommit()
 	}
 
@@ -350,67 +419,63 @@ func (hsm *HotstuffProtocolManager) handlePrepareVoteMsg(msg *bcommon.HotstuffMe
 
 // leader send precommit message
 func (hsm *HotstuffProtocolManager) tryPreCommit() error {
-	v, ok := hsm.views[hsm.curView]
-	if !ok {
-		return xerrors.Errorf("no view")
-	}
-
-	if v.phase != bcommon.PhasePrepare {
+	if hsm.curView.phase != hs.PhasePrepare {
 		return xerrors.Errorf("phase state error")
 	}
 
-	v.phase = bcommon.PhasePreCommit
+	hsm.curView.phase = hs.PhasePreCommit
 
-	sp := bcommon.SignedProposal{
-		Proposal: bcommon.Proposal{
-			Header:  v.header,
-			Content: v.content,
-		},
+	sp := tx.RawBlock{
+		RawHeader: hsm.curView.header,
+		MsgSet:    hsm.curView.txs,
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, bcommon.CalcHash(sp.Proposal, v.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
 	if err != nil {
 		return err
 	}
 
-	sp.Sig = sig
+	hsm.curView.preCommitQuorum.Add(hsm.localID, sig)
 
-	hm := &bcommon.HotstuffMessage{
+	hm := &hs.HotstuffMessage{
 		From:   hsm.localID,
-		Type:   bcommon.MsgPreCommit,
+		Type:   hs.MsgPreCommit,
 		Data:   sp,
-		Quorum: v.prepareQuorum,
+		Sig:    sig,
+		Quorum: hsm.curView.prepareQuorum,
 	}
 
 	// todo: send hm message out
-	hm.Type = bcommon.MsgPreCommit
+	hm.Type = hs.MsgPreCommit
 
 	return nil
 }
 
 // replica handle precommit message
-func (hsm *HotstuffProtocolManager) handlePreCommitMsg(msg *bcommon.HotstuffMessage) error {
-	v, exist := hsm.views[msg.Data.Proposal.Header.Hash()]
-	if !exist {
-		v = hsm.newView()
-		if !v.header.Hash().Equal(msg.Data.Proposal.Header.Hash()) {
-			return xerrors.Errorf("view not match")
-		}
-		hsm.views[v.header.Hash()] = v
+func (hsm *HotstuffProtocolManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
+	if hsm.localID == msg.Data.MinerID {
+		return nil
 	}
 
-	v.prepareQuorum = msg.Quorum
-
-	v.phase = bcommon.PhasePreCommit
-
-	msg.From = hsm.localID
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, bcommon.CalcHash(msg.Data.Proposal, v.phase).Bytes(), types.SigBLS)
+	err := hsm.checkView(msg)
 	if err != nil {
 		return err
 	}
-	msg.Data.Sig = sig
+
+	if hsm.curView.phase != hs.PhasePrepare {
+		return xerrors.Errorf("phase state wrong")
+	}
+
+	hsm.curView.phase = hs.PhasePreCommit
+
+	msg.From = hsm.localID
+	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data, hsm.curView.phase).Bytes(), types.SigBLS)
+	if err != nil {
+		return err
+	}
+	msg.Sig = sig
 	msg.Quorum = types.NewMultiSignature(types.SigBLS)
-	msg.Type = bcommon.MsgVotePreCommit
+	msg.Type = hs.MsgVotePreCommit
 
 	// send to leader
 
@@ -418,22 +483,26 @@ func (hsm *HotstuffProtocolManager) handlePreCommitMsg(msg *bcommon.HotstuffMess
 }
 
 // leader handle precommit response
-func (hsm *HotstuffProtocolManager) handlePreCommitVoteMsg(msg *bcommon.HotstuffMessage) error {
-	v, exist := hsm.views[msg.Data.Proposal.Header.Hash()]
-	if !exist {
-		v = hsm.newView()
-		if !v.header.Hash().Equal(msg.Data.Proposal.Header.Hash()) {
-			return xerrors.Errorf("view not match")
-		}
-		hsm.views[v.header.Hash()] = v
+func (hsm *HotstuffProtocolManager) handlePreCommitVoteMsg(msg *hs.HotstuffMessage) error {
+	if hsm.localID != msg.Data.MinerID {
+		return nil
 	}
 
-	err := v.preCommitQuorum.Add(msg.From, msg.Data.Sig)
+	err := hsm.checkView(msg)
 	if err != nil {
 		return err
 	}
 
-	if v.preCommitQuorum.Len() >= hsm.app.GetQuorumSize() {
+	if hsm.curView.phase != hs.PhasePreCommit {
+		return xerrors.Errorf("phase state wrong")
+	}
+
+	err = hsm.curView.preCommitQuorum.Add(msg.From, msg.Sig)
+	if err != nil {
+		return err
+	}
+
+	if hsm.curView.preCommitQuorum.Len() >= hsm.app.GetQuorumSize() {
 		return hsm.tryCommit()
 	}
 	return nil
@@ -441,88 +510,88 @@ func (hsm *HotstuffProtocolManager) handlePreCommitVoteMsg(msg *bcommon.Hotstuff
 
 // leader send commit
 func (hsm *HotstuffProtocolManager) tryCommit() error {
-	v, ok := hsm.views[hsm.curView]
-	if !ok {
-		return xerrors.Errorf("no view")
-	}
-
-	if v.phase != bcommon.PhasePreCommit {
+	if hsm.curView.phase != hs.PhasePreCommit {
 		return xerrors.Errorf("phase state error")
 	}
 
-	v.phase = bcommon.PhaseCommit
+	hsm.curView.phase = hs.PhaseCommit
 
-	sp := bcommon.SignedProposal{
-		Proposal: bcommon.Proposal{
-			Header:  v.header,
-			Content: v.content,
-		},
+	sp := tx.RawBlock{
+		RawHeader: hsm.curView.header,
+		MsgSet:    hsm.curView.txs,
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, bcommon.CalcHash(sp.Proposal, v.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
 	if err != nil {
 		return err
 	}
 
-	sp.Sig = sig
-
-	hm := &bcommon.HotstuffMessage{
+	hm := &hs.HotstuffMessage{
 		From:   hsm.localID,
-		Type:   bcommon.MsgCommit,
+		Type:   hs.MsgCommit,
 		Data:   sp,
-		Quorum: v.preCommitQuorum,
+		Sig:    sig,
+		Quorum: hsm.curView.preCommitQuorum,
 	}
 
 	// todo: send hm message out
-	hm.Type = bcommon.MsgCommit
+	hm.Type = hs.MsgCommit
 
 	return nil
 }
 
 // replica handle commit message
-func (hsm *HotstuffProtocolManager) handleCommitMsg(msg *bcommon.HotstuffMessage) error {
-	v, exist := hsm.views[msg.Data.Proposal.Header.Hash()]
-	if !exist {
-		v = hsm.newView()
-		if !v.header.Hash().Equal(msg.Data.Proposal.Header.Hash()) {
-			return xerrors.Errorf("view not match")
-		}
-		hsm.views[v.header.Hash()] = v
+func (hsm *HotstuffProtocolManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
+	if hsm.localID == msg.Data.MinerID {
+		return nil
 	}
-	v.phase = bcommon.PhaseCommit
 
-	v.prepareQuorum = msg.Quorum
-
-	msg.From = hsm.localID
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, bcommon.CalcHash(msg.Data.Proposal, v.phase).Bytes(), types.SigBLS)
+	err := hsm.checkView(msg)
 	if err != nil {
 		return err
 	}
-	msg.Data.Sig = sig
+
+	if hsm.curView.phase != hs.PhasePreCommit {
+		return xerrors.Errorf("phase state wrong")
+	}
+
+	hsm.curView.phase = hs.PhaseCommit
+
+	hsm.curView.prepareQuorum = msg.Quorum
+
+	msg.From = hsm.localID
+	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data, hsm.curView.phase).Bytes(), types.SigBLS)
+	if err != nil {
+		return err
+	}
+	msg.Sig = sig
 	msg.Quorum = types.NewMultiSignature(types.SigBLS)
-	msg.Type = bcommon.MsgVoteCommit
+	msg.Type = hs.MsgVoteCommit
 
 	return nil
 }
 
 // leader handle commit response
-func (hsm *HotstuffProtocolManager) handleCommitVoteMsg(msg *bcommon.HotstuffMessage) error {
-	v, exist := hsm.views[msg.Data.Proposal.Header.Hash()]
-	if !exist {
-		v = hsm.newView()
-		if !v.header.Hash().Equal(msg.Data.Proposal.Header.Hash()) {
-			return xerrors.Errorf("view not match")
-		}
-		hsm.views[v.header.Hash()] = v
+func (hsm *HotstuffProtocolManager) handleCommitVoteMsg(msg *hs.HotstuffMessage) error {
+	if hsm.localID != msg.Data.MinerID {
+		return nil
 	}
 
-	err := v.commitQuorum.Add(msg.From, msg.Data.Sig)
+	err := hsm.checkView(msg)
 	if err != nil {
 		return err
 	}
 
-	if v.commitQuorum.Len() >= hsm.app.GetQuorumSize() {
-		hsm.lockedQC = v.commitQuorum
+	if hsm.curView.phase != hs.PhaseCommit {
+		return xerrors.Errorf("phase state wrong")
+	}
+
+	err = hsm.curView.commitQuorum.Add(msg.From, msg.Sig)
+	if err != nil {
+		return err
+	}
+
+	if hsm.curView.commitQuorum.Len() >= hsm.app.GetQuorumSize() {
 		return hsm.tryDecide()
 	}
 	return nil
@@ -530,69 +599,82 @@ func (hsm *HotstuffProtocolManager) handleCommitVoteMsg(msg *bcommon.HotstuffMes
 
 // leader sends decide message
 func (hsm *HotstuffProtocolManager) tryDecide() error {
-	v, ok := hsm.views[hsm.curView]
-	if !ok {
-		return xerrors.Errorf("no view")
+	if hsm.curView.phase != hs.PhaseCommit {
+		return xerrors.Errorf("phase state error")
 	}
 
-	v.phase = bcommon.PhaseDecide
+	hsm.curView.phase = hs.PhaseDecide
 
-	sp := bcommon.SignedProposal{
-		Proposal: bcommon.Proposal{
-			Header:  v.header,
-			Content: v.content,
-		},
+	sp := tx.RawBlock{
+		RawHeader: hsm.curView.header,
+		MsgSet:    hsm.curView.txs,
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, bcommon.CalcHash(sp.Proposal, v.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
 	if err != nil {
 		return err
 	}
 
-	sp.Sig = sig
-
-	hm := &bcommon.HotstuffMessage{
+	hm := &hs.HotstuffMessage{
 		From:   hsm.localID,
-		Type:   bcommon.MsgDecide,
+		Type:   hs.MsgDecide,
 		Data:   sp,
-		Quorum: v.commitQuorum,
+		Sig:    sig,
+		Quorum: hsm.curView.commitQuorum,
 	}
 
 	// todo: send hm message out
-	hm.Type = bcommon.MsgDecide
+	hm.Type = hs.MsgDecide
 
 	// apply
-	err = hsm.app.Apply(v.content)
+	sb := tx.SignedBlock{
+		RawBlock:       sp,
+		MultiSignature: hsm.curView.commitQuorum,
+	}
+
+	err = hsm.app.Apply(sb)
 	if err != nil {
 		return err
 	}
 
-	v.phase = bcommon.PhaseFinal
+	hsm.curView.phase = hs.PhaseFinal
 
 	return nil
 }
 
 // replica handle decide message
-func (hsm *HotstuffProtocolManager) handleDecideMsg(msg *bcommon.HotstuffMessage) error {
-	v, exist := hsm.views[msg.Data.Proposal.Header.Hash()]
-	if !exist {
-		v = hsm.newView()
-		if !v.header.Hash().Equal(msg.Data.Proposal.Header.Hash()) {
-			return xerrors.Errorf("view not match")
-		}
-		hsm.views[v.header.Hash()] = v
+func (hsm *HotstuffProtocolManager) handleDecideMsg(msg *hs.HotstuffMessage) error {
+	if hsm.localID == msg.Data.MinerID {
+		return nil
 	}
 
-	v.phase = bcommon.PhaseDecide
-
-	v.commitQuorum = msg.Quorum
-
-	err := hsm.app.Apply(v.content)
+	err := hsm.checkView(msg)
 	if err != nil {
 		return err
 	}
 
-	v.phase = bcommon.PhaseFinal
+	if hsm.curView.phase != hs.PhaseCommit {
+		return xerrors.Errorf("phase state wrong")
+	}
+
+	hsm.curView.phase = hs.PhaseDecide
+
+	hsm.curView.commitQuorum = msg.Quorum
+
+	sb := tx.SignedBlock{
+		RawBlock: tx.RawBlock{
+			RawHeader: hsm.curView.header,
+			MsgSet:    hsm.curView.txs,
+		},
+		MultiSignature: hsm.curView.commitQuorum,
+	}
+
+	err = hsm.app.Apply(sb)
+	if err != nil {
+		return err
+	}
+
+	hsm.curView.phase = hs.PhaseFinal
 
 	return nil
 }

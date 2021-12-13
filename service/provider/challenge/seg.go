@@ -73,28 +73,26 @@ func (s *SegMgr) load() {
 
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		s.loadFs(pid, false)
+		s.loadFs(pid)
 	}
-}
-
-func (s *SegMgr) save() error {
-	buf := make([]byte, 8*len(s.users))
-	for i, pid := range s.users {
-		binary.BigEndian.PutUint64(buf[8*i:8*(i+1)], pid)
-	}
-
-	key := store.NewKey(pb.MetaType_Chal_UsersKey)
-	return s.ds.Put(key, buf)
 }
 
 func (s *SegMgr) AddUP(userID, proID uint64) {
 	if proID != s.localID {
 		return
 	}
-	go s.loadFs(userID, true)
+
+	key := store.NewKey(pb.MetaType_Chal_UsersKey, proID)
+	val, _ := s.ds.Get(key)
+	buf := make([]byte, len(val)+8)
+	copy(buf[:len(val)], val)
+	binary.BigEndian.PutUint64(buf[len(val):len(val)+8], userID)
+	s.ds.Put(key, buf)
+
+	go s.loadFs(userID)
 }
 
-func (s *SegMgr) loadFs(userID uint64, save bool) *segInfo {
+func (s *SegMgr) loadFs(userID uint64) *segInfo {
 	si, ok := s.sInfo[userID]
 	if !ok {
 		pk, err := s.GetPDPPublicKey(s.ctx, userID)
@@ -112,10 +110,6 @@ func (s *SegMgr) loadFs(userID uint64, save bool) *segInfo {
 
 		s.users = append(s.users, userID)
 		s.sInfo[userID] = si
-
-		if save {
-			s.save()
-		}
 	}
 
 	return si
@@ -134,7 +128,7 @@ func (s *SegMgr) regularChallenge() {
 		case <-s.ctx.Done():
 			return
 		case ch := <-s.chalChan:
-			si := s.loadFs(ch.userID, false)
+			si := s.loadFs(ch.userID)
 			if ch.errCode != 0 {
 				si.chalTime = time.Now()
 				si.wait = false
@@ -175,7 +169,7 @@ func (s *SegMgr) challenge(userID uint64) {
 		logger.Debug("not challenge at epoch: ", userID, s.epoch)
 		return
 	}
-	si := s.loadFs(userID, false)
+	si := s.loadFs(userID)
 	if si.nextChal > s.eInfo.Epoch {
 		logger.Debug("challenged at: ", userID, s.eInfo.Epoch)
 		return

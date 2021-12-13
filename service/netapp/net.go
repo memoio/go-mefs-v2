@@ -296,7 +296,7 @@ func (c *NetServiceImpl) handleIncomingBlock(ctx context.Context) {
 			if c.netID != from {
 				// handle it
 				// umarshal pmsg data
-				sm := new(tx.Block)
+				sm := new(tx.SignedBlock)
 				err := sm.Deserialize(received.GetData())
 				if err == nil {
 					c.BlockHandle.Handle(ctx, sm)

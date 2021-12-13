@@ -213,7 +213,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	}
 
 	if pp.inProcess {
-		pp.msgChan <- &sm.Message
+		pp.msgChan <- sm
 	}
 
 	// push out immediately
