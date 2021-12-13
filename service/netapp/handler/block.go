@@ -15,7 +15,7 @@ var (
 
 type HandlerBlockFunc func(context.Context, *tx.SignedBlock) error
 
-// TxMsgHandle is used for handle received msg from pubsub
+// BlockHandle is used for handle received tx block from pubsub
 type BlockHandle interface {
 	Handle(context.Context, *tx.SignedBlock) error
 	Register(h HandlerBlockFunc)

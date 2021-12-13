@@ -37,7 +37,7 @@ func (s *StateMgr) newValidateRoot(b []byte) {
 }
 
 // only validate txs;
-// sign is not valid
+// sign is valid outside; only valid sign len here
 func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.Lock()
 	defer s.Unlock()

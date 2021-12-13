@@ -51,41 +51,9 @@ func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
 
 func (mp *InPool) Start() {
 	go mp.sync()
-	go mp.mineBlock()
 
 	// enable inprocess callback
 	mp.SyncPool.inProcess = true
-}
-
-func (mp *InPool) mineBlock() {
-	tc := time.NewTicker(1 * time.Second)
-	defer tc.Stop()
-
-	for {
-		select {
-		case <-mp.ctx.Done():
-			logger.Debug("mine block done")
-			return
-		case <-tc.C:
-			tb, err := mp.createBlock()
-			if err != nil {
-				logger.Debug("create block err: ", err)
-				continue
-			}
-
-			logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))
-
-			err = mp.OnPropose(tb)
-			if err != nil {
-				logger.Debug("create block err: ", err)
-				continue
-			}
-
-			mp.OnViewDone(tb)
-
-			mp.INetService.PublishTxBlock(mp.ctx, tb)
-		}
-	}
 }
 
 func (mp *InPool) sync() {
@@ -158,37 +126,6 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	return nil
 }
 
-func (mp *InPool) createBlock() (*tx.SignedBlock, error) {
-	mp.Lock()
-	defer mp.Unlock()
-
-	trh, err := mp.CreateBlockHeader()
-	if err != nil {
-		return nil, err
-	}
-
-	if trh.MinerID == mp.localID {
-		// check epoch > latest epoch
-		nbh := &tx.SignedBlock{
-			RawBlock: tx.RawBlock{
-				RawHeader: trh,
-				MsgSet:    mp.Propose(trh),
-			},
-			MultiSignature: types.NewMultiSignature(types.SigSecp256k1),
-		}
-
-		sig, err := mp.RoleSign(mp.ctx, mp.localID, nbh.Hash().Bytes(), types.SigSecp256k1)
-		if err != nil {
-			return nil, err
-		}
-
-		nbh.MultiSignature.Add(mp.localID, sig)
-
-		return nbh, nil
-	}
-	return nil, xerrors.Errorf("miner is not mine")
-}
-
 func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	nrh := tx.RawHeader{
 		Version: 1,
@@ -212,7 +149,7 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 		return nrh, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, appliedSlot)
 	}
 
-	logger.Debugf("create block at height %d, slot: %d", rh, slot)
+	logger.Debugf("create block header at height %d, slot: %d", rh, slot)
 
 	bid, err := mp.GetTxBlockByHeight(rh - 1)
 	if err != nil {
@@ -222,18 +159,15 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	nrh.Height = rh
 	nrh.Slot = slot
 	nrh.PrevID = bid
-
-	mems := mp.GetAllKeepers(mp.ctx)
-	if len(mems) > 0 {
-		nrh.MinerID = mems[slot%uint64(len(mems))]
-	} else {
-		nrh.MinerID = mp.localID
-	}
+	nrh.MinerID = mp.GetLeader(slot)
 
 	return nrh, nil
 }
 
 func (mp *InPool) Propose(rh tx.RawHeader) tx.MsgSet {
+	mp.Lock()
+	defer mp.Unlock()
+
 	logger.Debugf("create block propose at height %d", rh.Height)
 	msgSet := tx.MsgSet{
 		Msgs: make([]tx.SignedMessage, 0, 16),
@@ -267,7 +201,6 @@ func (mp *InPool) Propose(rh tx.RawHeader) tx.MsgSet {
 				tr := tx.Receipt{
 					Err: 0,
 				}
-				logger.Debugf("create block propose valid msg at height %d", sb.Height)
 				nroot, err := mp.ValidateMsg(&m.Message)
 				if err != nil {
 					logger.Debug("block message invalid:", m.From, m.Nonce, err)
@@ -305,7 +238,6 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 	}
 
 	for i, sm := range sb.Msgs {
-		logger.Debugf("create block OnPropose valid msg at height %d", sb.Height)
 		// apply message
 		newRoot, err = mp.ValidateMsg(&sm.Message)
 		if err != nil {
@@ -332,4 +264,22 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 func (mp *InPool) OnViewDone(sb *tx.SignedBlock) error {
 	logger.Debugf("create block OnViewDone at height %d", sb.Height)
 	return mp.SyncPool.AddTxBlock(sb)
+}
+
+func (mp *InPool) GetMembers() []uint64 {
+	return mp.GetAllKeepers(mp.ctx)
+}
+
+func (mp *InPool) GetLeader(slot uint64) uint64 {
+	mems := mp.GetAllKeepers(mp.ctx)
+	if len(mems) > 0 {
+		return mems[slot%uint64(len(mems))]
+	} else {
+		return mp.localID
+	}
+}
+
+// quorum size
+func (mp *InPool) GetQuorumSize() int {
+	return mp.GetThreshold(mp.ctx)
 }

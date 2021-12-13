@@ -10,6 +10,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/api"
+	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -67,8 +68,19 @@ func (c *NetServiceImpl) PublishTxMsg(ctx context.Context, msg *tx.SignedMessage
 }
 
 func (c *NetServiceImpl) PublishTxBlock(ctx context.Context, msg *tx.SignedBlock) error {
-	data, _ := msg.Serialize()
+	data, err := msg.Serialize()
+	if err != nil {
+		return err
+	}
 	return c.blockTopic.Publish(ctx, data)
+}
+
+func (c *NetServiceImpl) PublishHsMsg(ctx context.Context, msg *hs.HotstuffMessage) error {
+	data, err := msg.Serialize()
+	if err != nil {
+		return err
+	}
+	return c.hsTopic.Publish(ctx, data)
 }
 
 func (c *NetServiceImpl) PublishEvent(ctx context.Context, msg *pb.EventMessage) error {

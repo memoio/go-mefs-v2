@@ -6,28 +6,40 @@ import (
 	"log"
 	"time"
 
+	"golang.org/x/xerrors"
+
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	bcommon "github.com/memoio/go-mefs-v2/submodule/consensus/common"
-	"golang.org/x/xerrors"
 )
 
-// timeout will be moved to pacemaker, but clearview etc. will be opened for pacemaker
-type HotstuffProtocolManager struct {
+var logger = logging.Logger("hotstuff")
+
+type HotstuffManager struct {
+	api.IRole
+	api.INetService
+
+	ctx context.Context
+
 	localID uint64
 
 	curView *view
 
 	// process
-	app bcommon.HotStuffApplication
+	app bcommon.ConsensusApp
 }
 
-func NewHotstuffProtocolManager(localID uint64, a bcommon.HotStuffApplication) *HotstuffProtocolManager {
-	manager := &HotstuffProtocolManager{
-		localID: localID,
-		app:     a,
+func NewHotstuffManager(ctx context.Context, localID uint64, ir api.IRole, in api.INetService, a bcommon.ConsensusApp) *HotstuffManager {
+	m := &HotstuffManager{
+		IRole:       ir,
+		INetService: in,
+		ctx:         ctx,
+		localID:     localID,
+		app:         a,
 		curView: &view{
 			header: tx.RawHeader{
 				Version: 1,
@@ -35,10 +47,28 @@ func NewHotstuffProtocolManager(localID uint64, a bcommon.HotStuffApplication) *
 		},
 	}
 
-	return manager
+	return m
 }
 
-func (hsm *HotstuffProtocolManager) handleMessage(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) MineBlock() {
+	tc := time.NewTicker(1 * time.Second)
+	defer tc.Stop()
+
+	for {
+		select {
+		case <-hsm.ctx.Done():
+			logger.Debug("mine block done")
+			return
+		case <-tc.C:
+			err := hsm.NewView()
+			if err != nil {
+				logger.Debug("create block: ", err)
+			}
+		}
+	}
+}
+
+func (hsm *HotstuffManager) HandleMessage(ctx context.Context, msg *hs.HotstuffMessage) error {
 	switch msg.Type {
 	case hs.MsgNewView:
 		return hsm.handleNewViewVoteMsg(msg)
@@ -81,7 +111,7 @@ type view struct {
 	createdAt time.Time
 }
 
-func (hsm *HotstuffProtocolManager) checkView(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) checkView(msg *hs.HotstuffMessage) error {
 	if msg == nil {
 		return xerrors.Errorf("msg is nil")
 	}
@@ -127,19 +157,19 @@ func (hsm *HotstuffProtocolManager) checkView(msg *hs.HotstuffMessage) error {
 		switch pType {
 		// content is nil at phase new
 		case hs.PhaseNew:
-			h = hs.CalcHash(proposal, pType).Bytes()
+			h = hs.CalcHash(proposal.Hash().Bytes(), pType)
 		case hs.PhasePrepare:
 			proposal.MsgSet = msg.Data.MsgSet
-			h = hs.CalcHash(proposal, pType).Bytes()
+			h = hs.CalcHash(proposal.Hash().Bytes(), pType)
 		case hs.PhasePreCommit:
 			proposal.MsgSet = hsm.curView.txs
-			h = hs.CalcHash(proposal, pType).Bytes()
+			h = hs.CalcHash(proposal.Hash().Bytes(), pType)
 		case hs.PhaseCommit:
 			proposal.MsgSet = hsm.curView.txs
-			h = hs.CalcHash(proposal, pType).Bytes()
+			h = hs.CalcHash(proposal.Hash().Bytes(), pType)
 		}
 
-		ok, err := hsm.app.RoleVerifyMulti(context.TODO(), h, msg.Quorum)
+		ok, err := hsm.RoleVerifyMulti(context.TODO(), h, msg.Quorum)
 		if err != nil {
 			return err
 		}
@@ -163,7 +193,7 @@ func (hsm *HotstuffProtocolManager) checkView(msg *hs.HotstuffMessage) error {
 
 	// verify data
 	if pType != hs.PhaseDecide {
-		ok, err := hsm.app.RoleVerify(context.TODO(), msg.From, hs.CalcHash(msg.Data, pType).Bytes(), msg.Sig)
+		ok, err := hsm.RoleVerify(context.TODO(), msg.From, hs.CalcHash(msg.Data.Hash().Bytes(), pType), msg.Sig)
 		if err != nil {
 			return err
 		}
@@ -175,13 +205,13 @@ func (hsm *HotstuffProtocolManager) checkView(msg *hs.HotstuffMessage) error {
 	return xerrors.Errorf("empty curView")
 }
 
-func (hsm *HotstuffProtocolManager) newView() error {
+func (hsm *HotstuffManager) newView() error {
 	slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
 
 	// handle last one;
 	if hsm.curView.header.Slot < slot {
 		if hsm.curView.phase != hs.PhaseFinal && hsm.curView.commitQuorum.Len() > hsm.app.GetQuorumSize() {
-			sb := tx.SignedBlock{
+			sb := &tx.SignedBlock{
 				RawBlock: tx.RawBlock{
 					RawHeader: hsm.curView.header,
 					MsgSet:    hsm.curView.txs,
@@ -190,7 +220,7 @@ func (hsm *HotstuffProtocolManager) newView() error {
 			}
 
 			// apply last one
-			err := hsm.app.Apply(sb)
+			err := hsm.app.OnViewDone(sb)
 			if err != nil {
 				return err
 			}
@@ -214,27 +244,12 @@ func (hsm *HotstuffProtocolManager) newView() error {
 	hsm.curView.createdAt = time.Now()
 
 	// get newest state: block height, leader, parent
-	syned := hsm.app.GetSyncStatus()
-	if !syned {
-		return xerrors.Errorf("not sync")
+	rh, err := hsm.app.CreateBlockHeader()
+	if err != nil {
+		return err
 	}
 
-	ht := hsm.app.GetHeight()
-	bid := hsm.app.GetBlockRoot(ht - 1)
-	pslot := hsm.app.GetSlot()
-
-	slot = uint64(hsm.curView.createdAt.Unix()-build.BaseTime) / build.SlotDuration
-	if slot <= pslot {
-		return xerrors.Errorf("slot time not up")
-	}
-
-	hsm.curView.header = tx.RawHeader{
-		Version: 1,
-		Slot:    uint64(hsm.curView.createdAt.Unix()-build.BaseTime) / build.SlotDuration,
-		Height:  ht,
-		MinerID: hsm.app.GetLeader(slot),
-		PrevID:  bid,
-	}
+	hsm.curView.header = rh
 
 	log.Println("create new view", "leader", hsm.curView.header.MinerID, "view slot", hsm.curView.header.Slot)
 
@@ -243,7 +258,7 @@ func (hsm *HotstuffProtocolManager) newView() error {
 
 // when time is up, enter into new view
 // replicas send to leader
-func (hsm *HotstuffProtocolManager) NewView() error {
+func (hsm *HotstuffManager) NewView() error {
 	err := hsm.newView()
 	if err != nil {
 		return err
@@ -261,7 +276,7 @@ func (hsm *HotstuffProtocolManager) NewView() error {
 		MsgSet:    tx.MsgSet{},
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
 		return err
 	}
@@ -279,13 +294,13 @@ func (hsm *HotstuffProtocolManager) NewView() error {
 	}
 
 	// todo: send hm message out
-	hm.Type = hs.MsgNewView
+	hsm.PublishHsMsg(hsm.ctx, hm)
 
 	return nil
 }
 
 // leader handle new view msg from replicas
-func (hsm *HotstuffProtocolManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage) error {
 	log.Println("handleNewViewMsg got new view message", "from", msg.From, "view", msg.Data.RawHeader)
 
 	// not handle it
@@ -315,21 +330,21 @@ func (hsm *HotstuffProtocolManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage
 }
 
 // lead send prepare msg
-func (hsm *HotstuffProtocolManager) tryPropose() error {
+func (hsm *HotstuffManager) tryPropose() error {
 	if hsm.curView.phase != hs.PhaseNew {
 		return xerrors.Errorf("phase state error")
 	}
 
 	hsm.curView.phase = hs.PhasePrepare
 
-	hsm.curView.txs = hsm.app.Propose()
+	hsm.curView.txs = hsm.app.Propose(hsm.curView.header)
 
 	sp := tx.RawBlock{
 		RawHeader: hsm.curView.header,
 		MsgSet:    hsm.curView.txs,
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
 		return err
 	}
@@ -343,13 +358,13 @@ func (hsm *HotstuffProtocolManager) tryPropose() error {
 	}
 
 	// todo: send hm message out
-	hm.Type = hs.MsgPrepare
+	hsm.PublishHsMsg(hsm.ctx, hm)
 
 	return nil
 }
 
 // replica response prepare msg
-func (hsm *HotstuffProtocolManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 	// leader not handle it
 	if hsm.localID == msg.Data.MinerID {
 		return nil
@@ -365,7 +380,10 @@ func (hsm *HotstuffProtocolManager) handlePrepareMsg(msg *hs.HotstuffMessage) er
 	}
 
 	// validate propose
-	err = hsm.app.OnPropose(msg.Data)
+	sb := &tx.SignedBlock{
+		RawBlock: msg.Data,
+	}
+	err = hsm.app.OnPropose(sb)
 	if err != nil {
 		return err
 	}
@@ -376,7 +394,7 @@ func (hsm *HotstuffProtocolManager) handlePrepareMsg(msg *hs.HotstuffMessage) er
 	hsm.curView.txs = msg.Data.MsgSet
 
 	msg.From = hsm.localID
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data, hsm.curView.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
 		return err
 	}
@@ -385,13 +403,14 @@ func (hsm *HotstuffProtocolManager) handlePrepareMsg(msg *hs.HotstuffMessage) er
 	msg.Type = hs.MsgVotePrepare
 
 	// send to leader
+	hsm.PublishHsMsg(hsm.ctx, msg)
 
 	return nil
 }
 
 // leader handle prepare response
 // leader send precommit
-func (hsm *HotstuffProtocolManager) handlePrepareVoteMsg(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) handlePrepareVoteMsg(msg *hs.HotstuffMessage) error {
 	if hsm.localID != msg.Data.MinerID {
 		return nil
 	}
@@ -418,7 +437,7 @@ func (hsm *HotstuffProtocolManager) handlePrepareVoteMsg(msg *hs.HotstuffMessage
 }
 
 // leader send precommit message
-func (hsm *HotstuffProtocolManager) tryPreCommit() error {
+func (hsm *HotstuffManager) tryPreCommit() error {
 	if hsm.curView.phase != hs.PhasePrepare {
 		return xerrors.Errorf("phase state error")
 	}
@@ -430,7 +449,7 @@ func (hsm *HotstuffProtocolManager) tryPreCommit() error {
 		MsgSet:    hsm.curView.txs,
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
 		return err
 	}
@@ -446,13 +465,13 @@ func (hsm *HotstuffProtocolManager) tryPreCommit() error {
 	}
 
 	// todo: send hm message out
-	hm.Type = hs.MsgPreCommit
+	hsm.PublishHsMsg(hsm.ctx, hm)
 
 	return nil
 }
 
 // replica handle precommit message
-func (hsm *HotstuffProtocolManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
 	if hsm.localID == msg.Data.MinerID {
 		return nil
 	}
@@ -469,7 +488,7 @@ func (hsm *HotstuffProtocolManager) handlePreCommitMsg(msg *hs.HotstuffMessage) 
 	hsm.curView.phase = hs.PhasePreCommit
 
 	msg.From = hsm.localID
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data, hsm.curView.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
 		return err
 	}
@@ -478,12 +497,13 @@ func (hsm *HotstuffProtocolManager) handlePreCommitMsg(msg *hs.HotstuffMessage) 
 	msg.Type = hs.MsgVotePreCommit
 
 	// send to leader
+	hsm.PublishHsMsg(hsm.ctx, msg)
 
 	return nil
 }
 
 // leader handle precommit response
-func (hsm *HotstuffProtocolManager) handlePreCommitVoteMsg(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) handlePreCommitVoteMsg(msg *hs.HotstuffMessage) error {
 	if hsm.localID != msg.Data.MinerID {
 		return nil
 	}
@@ -509,7 +529,7 @@ func (hsm *HotstuffProtocolManager) handlePreCommitVoteMsg(msg *hs.HotstuffMessa
 }
 
 // leader send commit
-func (hsm *HotstuffProtocolManager) tryCommit() error {
+func (hsm *HotstuffManager) tryCommit() error {
 	if hsm.curView.phase != hs.PhasePreCommit {
 		return xerrors.Errorf("phase state error")
 	}
@@ -521,7 +541,7 @@ func (hsm *HotstuffProtocolManager) tryCommit() error {
 		MsgSet:    hsm.curView.txs,
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
 		return err
 	}
@@ -535,13 +555,13 @@ func (hsm *HotstuffProtocolManager) tryCommit() error {
 	}
 
 	// todo: send hm message out
-	hm.Type = hs.MsgCommit
+	hsm.PublishHsMsg(hsm.ctx, hm)
 
 	return nil
 }
 
 // replica handle commit message
-func (hsm *HotstuffProtocolManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
 	if hsm.localID == msg.Data.MinerID {
 		return nil
 	}
@@ -560,7 +580,7 @@ func (hsm *HotstuffProtocolManager) handleCommitMsg(msg *hs.HotstuffMessage) err
 	hsm.curView.prepareQuorum = msg.Quorum
 
 	msg.From = hsm.localID
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data, hsm.curView.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
 		return err
 	}
@@ -568,11 +588,13 @@ func (hsm *HotstuffProtocolManager) handleCommitMsg(msg *hs.HotstuffMessage) err
 	msg.Quorum = types.NewMultiSignature(types.SigBLS)
 	msg.Type = hs.MsgVoteCommit
 
+	hsm.PublishHsMsg(hsm.ctx, msg)
+
 	return nil
 }
 
 // leader handle commit response
-func (hsm *HotstuffProtocolManager) handleCommitVoteMsg(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) handleCommitVoteMsg(msg *hs.HotstuffMessage) error {
 	if hsm.localID != msg.Data.MinerID {
 		return nil
 	}
@@ -598,7 +620,7 @@ func (hsm *HotstuffProtocolManager) handleCommitVoteMsg(msg *hs.HotstuffMessage)
 }
 
 // leader sends decide message
-func (hsm *HotstuffProtocolManager) tryDecide() error {
+func (hsm *HotstuffManager) tryDecide() error {
 	if hsm.curView.phase != hs.PhaseCommit {
 		return xerrors.Errorf("phase state error")
 	}
@@ -610,7 +632,7 @@ func (hsm *HotstuffProtocolManager) tryDecide() error {
 		MsgSet:    hsm.curView.txs,
 	}
 
-	sig, err := hsm.app.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp, hsm.curView.phase).Bytes(), types.SigBLS)
+	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
 		return err
 	}
@@ -624,26 +646,29 @@ func (hsm *HotstuffProtocolManager) tryDecide() error {
 	}
 
 	// todo: send hm message out
-	hm.Type = hs.MsgDecide
+	hsm.PublishHsMsg(hsm.ctx, hm)
 
 	// apply
-	sb := tx.SignedBlock{
+	sb := &tx.SignedBlock{
 		RawBlock:       sp,
 		MultiSignature: hsm.curView.commitQuorum,
 	}
 
-	err = hsm.app.Apply(sb)
+	err = hsm.app.OnViewDone(sb)
 	if err != nil {
 		return err
 	}
 
 	hsm.curView.phase = hs.PhaseFinal
 
+	// leader publish out, replica need?
+	hsm.INetService.PublishTxBlock(hsm.ctx, sb)
+
 	return nil
 }
 
 // replica handle decide message
-func (hsm *HotstuffProtocolManager) handleDecideMsg(msg *hs.HotstuffMessage) error {
+func (hsm *HotstuffManager) handleDecideMsg(msg *hs.HotstuffMessage) error {
 	if hsm.localID == msg.Data.MinerID {
 		return nil
 	}
@@ -661,7 +686,7 @@ func (hsm *HotstuffProtocolManager) handleDecideMsg(msg *hs.HotstuffMessage) err
 
 	hsm.curView.commitQuorum = msg.Quorum
 
-	sb := tx.SignedBlock{
+	sb := &tx.SignedBlock{
 		RawBlock: tx.RawBlock{
 			RawHeader: hsm.curView.header,
 			MsgSet:    hsm.curView.txs,
@@ -669,7 +694,7 @@ func (hsm *HotstuffProtocolManager) handleDecideMsg(msg *hs.HotstuffMessage) err
 		MultiSignature: hsm.curView.commitQuorum,
 	}
 
-	err = hsm.app.Apply(sb)
+	err = hsm.app.OnViewDone(sb)
 	if err != nil {
 		return err
 	}

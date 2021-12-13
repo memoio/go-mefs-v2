@@ -11,6 +11,7 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
 	"github.com/memoio/go-mefs-v2/build"
+	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -26,6 +27,7 @@ type NetServiceImpl struct {
 	handler.TxMsgHandle // handle pubsub tx msg
 	handler.EventHandle // handle pubsub event msg
 	handler.BlockHandle
+	handler.HsMsgHandle
 
 	ctx    context.Context
 	roleID uint64  // local node id
@@ -43,6 +45,7 @@ type NetServiceImpl struct {
 	eventTopic *pubsub.Topic // used to find peerID depends on roleID
 	msgTopic   *pubsub.Topic
 	blockTopic *pubsub.Topic
+	hsTopic    *pubsub.Topic
 
 	related []uint64
 }
@@ -51,6 +54,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 	ph := handler.NewTxMsgHandle()
 	peh := handler.NewEventHandle()
 	bh := handler.NewBlockHandle()
+	hh := handler.NewHsMsgHandle()
 
 	gs, err := generic.New(ctx, ns)
 	if err != nil {
@@ -72,11 +76,17 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		return nil, err
 	}
 
+	hTopic, err := ns.Pubsub.Join(build.HSMsgTopic(ns.NetworkName))
+	if err != nil {
+		return nil, err
+	}
+
 	core := &NetServiceImpl{
 		GenericService: gs,
 		TxMsgHandle:    ph,
 		EventHandle:    peh,
 		BlockHandle:    bh,
+		HsMsgHandle:    hh,
 		ctx:            ctx,
 		roleID:         roleID,
 		netID:          ns.NetID(ctx),
@@ -89,6 +99,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		eventTopic:     eTopic,
 		msgTopic:       mTopic,
 		blockTopic:     bTopic,
+		hsTopic:        hTopic,
 	}
 
 	// register for find peer
@@ -300,6 +311,34 @@ func (c *NetServiceImpl) handleIncomingBlock(ctx context.Context) {
 				err := sm.Deserialize(received.GetData())
 				if err == nil {
 					c.BlockHandle.Handle(ctx, sm)
+				}
+			}
+		}
+	}()
+}
+
+func (c *NetServiceImpl) handleIncomingHSMsg(ctx context.Context) {
+	sub, err := c.hsTopic.Subscribe()
+	if err != nil {
+		return
+	}
+
+	go func() {
+		for {
+			received, err := sub.Next(ctx)
+			if err != nil {
+				return
+			}
+
+			from := received.GetFrom()
+
+			if c.netID != from {
+				// handle it
+				// umarshal pmsg data
+				sm := new(hs.HotstuffMessage)
+				err := sm.Deserialize(received.GetData())
+				if err == nil {
+					c.HsMsgHandle.Handle(ctx, sm)
 				}
 			}
 		}

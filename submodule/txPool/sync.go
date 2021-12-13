@@ -12,6 +12,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
+	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -313,7 +314,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	}
 
 	// verify
-	ok, err := sp.RoleVerifyMulti(sp.ctx, bid.Bytes(), tb.MultiSignature)
+	ok, err := sp.RoleVerifyMulti(sp.ctx, hs.CalcHash(bid.Bytes(), hs.PhaseCommit), tb.MultiSignature)
 	if err != nil {
 		return err
 	}

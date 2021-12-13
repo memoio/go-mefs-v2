@@ -61,11 +61,10 @@ func (h *HotstuffMessage) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, h)
 }
 
-func CalcHash(p tx.RawBlock, phase PhaseState) types.MsgID {
-	h := p.Hash()
-	buf := make([]byte, 2+len(h.Bytes()))
+func CalcHash(h []byte, phase PhaseState) []byte {
+	buf := make([]byte, 2+len(h))
 	binary.BigEndian.PutUint16(buf[:2], uint16(phase))
-	copy(buf[2:], h.Bytes())
+	copy(buf[2:], h)
 
-	return types.NewMsgID(buf)
+	return types.NewMsgID(buf).Bytes()
 }

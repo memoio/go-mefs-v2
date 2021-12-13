@@ -6,8 +6,12 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	bcommon "github.com/memoio/go-mefs-v2/submodule/consensus/common"
+	"github.com/memoio/go-mefs-v2/submodule/consensus/hotstuff"
+	"github.com/memoio/go-mefs-v2/submodule/consensus/poa"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
@@ -24,6 +28,8 @@ type KeeperNode struct {
 	ctx context.Context
 
 	inp *txPool.InPool
+
+	bc bcommon.ConsensusMgr
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
@@ -38,6 +44,15 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		BaseNode: bn,
 		ctx:      ctx,
 		inp:      inp,
+	}
+
+	if build.Threshold == 1 {
+		kn.bc = poa.NewPoAManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
+	} else {
+		hm := hotstuff.NewHotstuffManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
+
+		kn.bc = hm
+		kn.HsMsgHandle.Register(hm.HandleMessage)
 	}
 
 	return kn, nil
@@ -77,6 +92,8 @@ func (k *KeeperNode) Start() error {
 	}
 
 	k.inp.Start()
+
+	go k.bc.MineBlock()
 
 	err := k.Register()
 	if err != nil {

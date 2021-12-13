@@ -12,6 +12,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -104,6 +105,7 @@ type INetService interface {
 	PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error
 	PublishTxBlock(ctx context.Context, msg *tx.SignedBlock) error
 	PublishEvent(ctx context.Context, msg *pb.EventMessage) error
+	PublishHsMsg(ctx context.Context, msg *hs.HotstuffMessage) error
 }
 
 type IDataService interface {
