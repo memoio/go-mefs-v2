@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"golang.org/x/xerrors"
@@ -204,6 +205,16 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 					if m.Method != tx.AddRole {
 						break
 					}
+
+					ri, err := mp.RoleGet(mp.ctx, m.From)
+					if err != nil {
+						break
+					}
+
+					if ri.Type != pb.RoleInfo_Keeper {
+						break
+					}
+
 					// validate message
 					tr := tx.Receipt{
 						Err: 0,
@@ -311,9 +322,17 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 	return nil
 }
 
-func (mp *InPool) OnViewDone(sb *tx.SignedBlock) error {
-	logger.Debugf("create block OnViewDone at height %d", sb.Height)
-	return mp.SyncPool.AddTxBlock(sb)
+func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
+	logger.Debugf("create block OnViewDone at height %d", tb.Height)
+	if tb.Height == 0 || tb.MinerID == mp.localID {
+		mp.INetService.PublishTxBlock(mp.ctx, tb)
+	}
+
+	if tb.MinerID == mp.localID {
+		logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))
+	}
+
+	return mp.SyncPool.AddTxBlock(tb)
 }
 
 func (mp *InPool) GetMembers() []uint64 {

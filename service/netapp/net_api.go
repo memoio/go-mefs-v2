@@ -80,6 +80,7 @@ func (c *NetServiceImpl) PublishHsMsg(ctx context.Context, msg *hs.HotstuffMessa
 	if err != nil {
 		return err
 	}
+
 	return c.hsTopic.Publish(ctx, data)
 }
 

@@ -100,8 +100,6 @@ func (m *PoAManager) MineBlock() {
 				continue
 			}
 
-			logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))
-
 			m.INetService.PublishTxBlock(m.ctx, tb)
 		}
 	}

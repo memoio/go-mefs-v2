@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"sync"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
@@ -247,6 +248,20 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 		if len(sset) < thr {
 			return s.root, xerrors.Errorf("not have enough valid signer, expected at least %d got %d", thr, len(sset))
+		}
+	} else {
+		for _, msg := range blk.MsgSet.Msgs {
+			if msg.Method != tx.AddRole {
+				return s.root, xerrors.Errorf("have invalid message at block zero")
+			}
+			pri := new(pb.RoleInfo)
+			err := proto.Unmarshal(msg.Params, pri)
+			if err != nil {
+				return s.root, xerrors.Errorf("have invalid message at block zero %w", err)
+			}
+			if pri.Type != pb.RoleInfo_Keeper {
+				return s.root, xerrors.Errorf("have invalid message at block zero")
+			}
 		}
 	}
 

@@ -109,6 +109,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 	go core.handleIncomingEvent(ctx)
 	go core.handleIncomingMessage(ctx)
 	go core.handleIncomingBlock(ctx)
+	go core.handleIncomingHSMsg(ctx)
 
 	go core.regularPeerFind(ctx)
 

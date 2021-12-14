@@ -78,10 +78,10 @@ func (m *MsgID) UnmarshalJSON(b []byte) error {
 // for cbor
 func (m *MsgID) UnmarshalBinary(data []byte) error {
 	id, err := FromBytes(data)
-	if err != nil {
-		return err
+	if err == nil {
+		*m = id
 	}
-	*m = id
+
 	return nil
 }
 

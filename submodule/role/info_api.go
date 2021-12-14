@@ -165,9 +165,6 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 	case types.SigBLS:
 		apub := make([][]byte, len(sig.Signer))
 		for i, id := range sig.Signer {
-			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
-				return false, xerrors.Errorf("sign size wrong")
-			}
 			addr, err := rm.GetPubKey(id, types.BLS)
 			if err != nil {
 				return false, err

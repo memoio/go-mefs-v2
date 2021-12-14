@@ -25,7 +25,8 @@ const (
 type PhaseState uint16
 
 const (
-	PhaseNew PhaseState = iota
+	PhaseInit PhaseState = iota
+	PhaseNew
 	PhasePrepare
 	PhasePreCommit
 	PhaseCommit

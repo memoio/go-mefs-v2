@@ -20,5 +20,5 @@ func GetGroupID(roleID uint64) uint64 {
 }
 
 func GetThreshold(groupID uint64) int {
-	return 1
+	return 7
 }
