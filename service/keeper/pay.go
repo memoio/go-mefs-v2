@@ -11,7 +11,7 @@ import (
 )
 
 func (k *KeeperNode) updatePay() {
-	ticker := time.NewTicker(3 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	latest := k.PushPool.GetChalEpoch(k.ctx)
@@ -48,6 +48,7 @@ func (k *KeeperNode) updatePay() {
 			key := store.NewKey(pb.MetaType_Chal_UsersKey)
 			data, err := k.MetaStore().Get(key)
 			if err != nil {
+				logger.Debugf("pay no users at epoch %d", payEpoch)
 				continue
 			}
 
@@ -60,6 +61,7 @@ func (k *KeeperNode) updatePay() {
 				key := store.NewKey(pb.MetaType_Chal_ProsKey, uid)
 				data, err := k.MetaStore().Get(key)
 				if err != nil {
+					logger.Debugf("pay no pros for user %d at epoch %d", uid, payEpoch)
 					continue
 				}
 
@@ -78,7 +80,7 @@ func (k *KeeperNode) updatePay() {
 				for _, pid := range pros {
 					pi, err := k.PushPool.GetPostIncomeAt(k.ctx, uid, pid, payEpoch)
 					if err != nil {
-						logger.Debugf("not have post income for %d %d at epoch %d", uid, pid, payEpoch)
+						logger.Debugf("pay not have post income for %d %d at epoch %d", uid, pid, payEpoch)
 						continue
 					}
 					if pi == nil || pi.Value == nil || pi.Penalty == nil {
@@ -96,6 +98,7 @@ func (k *KeeperNode) updatePay() {
 				}
 
 				if len(pip.Pros) == 0 {
+					logger.Debugf("pay not have positive post income for %d %d at epoch %d", uid, pros, payEpoch)
 					continue
 				}
 
@@ -113,8 +116,9 @@ func (k *KeeperNode) updatePay() {
 				}
 
 				k.pushMsg(msg)
-				logger.Debugf("pay for user %d at epoch pro %d ", pip.UserID, payEpoch, pip.Pros)
+				logger.Debugf("pay for user %d at epoch %d pro %d ", pip.UserID, payEpoch, pip.Pros)
 			}
+			key = store.NewKey(pb.MetaType_ConfirmPayKey)
 			binary.BigEndian.PutUint64(buf, latest)
 			k.MetaStore().Put(key, buf)
 		}

@@ -164,7 +164,7 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	return nrh, nil
 }
 
-func (mp *InPool) Propose(rh tx.RawHeader) tx.MsgSet {
+func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	mp.RLock()
 	defer mp.RUnlock()
 
@@ -176,7 +176,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) tx.MsgSet {
 	// reset
 	oldRoot, err := mp.ValidateBlock(nil)
 	if err != nil {
-		return msgSet
+		return msgSet, err
 	}
 
 	sb := &tx.SignedBlock{
@@ -187,13 +187,50 @@ func (mp *InPool) Propose(rh tx.RawHeader) tx.MsgSet {
 
 	newRoot, err := mp.ValidateBlock(sb)
 	if err != nil {
-		return msgSet
+		return msgSet, err
 	}
 
 	msgSet.ParentRoot = oldRoot
 	msgSet.Root = newRoot
 
 	// todo: block 0 is special
+	if sb.Height == 0 {
+		cnt := 0
+		for from, ms := range mp.pending {
+			nc := mp.GetNonce(mp.ctx, from)
+			for i := nc; ; i++ {
+				m, ok := ms.info[i]
+				if ok {
+					if m.Method != tx.AddRole {
+						break
+					}
+					// validate message
+					tr := tx.Receipt{
+						Err: 0,
+					}
+					nroot, err := mp.ValidateMsg(&m.Message)
+					if err != nil {
+						logger.Debug("block message invalid:", m.From, m.Nonce, err)
+						tr.Err = 1
+						tr.Extra = []byte(err.Error())
+					} else {
+						cnt++
+					}
+
+					msgSet.Root = nroot
+
+					msgSet.Msgs = append(msgSet.Msgs, *m)
+					msgSet.Receipts = append(msgSet.Receipts, tr)
+				} else {
+					break
+				}
+			}
+		}
+		if cnt < mp.GetQuorumSize() {
+			return msgSet, xerrors.Errorf("not have enough keepers")
+		}
+		return msgSet, nil
+	}
 
 	for from, ms := range mp.pending {
 		nc := mp.GetNonce(mp.ctx, from)
@@ -221,7 +258,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) tx.MsgSet {
 		}
 	}
 
-	return msgSet
+	return msgSet, nil
 }
 
 func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {

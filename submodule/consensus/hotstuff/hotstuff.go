@@ -337,7 +337,12 @@ func (hsm *HotstuffManager) tryPropose() error {
 
 	hsm.curView.phase = hs.PhasePrepare
 
-	hsm.curView.txs = hsm.app.Propose(hsm.curView.header)
+	txs, err := hsm.app.Propose(hsm.curView.header)
+	if err != nil {
+		return err
+	}
+
+	hsm.curView.txs = txs
 
 	sp := tx.RawBlock{
 		RawHeader: hsm.curView.header,

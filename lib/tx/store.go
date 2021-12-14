@@ -181,7 +181,6 @@ func (ts *TxStoreImpl) PutTxBlock(tb *SignedBlock) error {
 		return err
 	}
 	for _, mes := range tb.Msgs {
-
 		ts.PutTxMsg(&mes)
 	}
 

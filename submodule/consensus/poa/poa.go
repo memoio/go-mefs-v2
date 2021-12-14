@@ -65,8 +65,11 @@ func (m *PoAManager) MineBlock() {
 			}
 
 			if trh.MinerID == m.localID {
-				tb.MsgSet = m.app.Propose(trh)
-
+				txs, err := m.app.Propose(trh)
+				if err != nil {
+					continue
+				}
+				tb.MsgSet = txs
 			}
 
 			logger.Debugf("create block propose cost %d", time.Since(nt))

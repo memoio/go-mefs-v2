@@ -17,8 +17,6 @@ import (
 
 var logger = logging.Logger("roleinfo")
 
-var ErrNotFound = xerrors.New("roleinfo not found")
-
 var _ api.IRole = &roleAPI{}
 
 type roleAPI struct {
@@ -33,7 +31,7 @@ func (rm *RoleMgr) RoleSelf(ctx context.Context) (*pb.RoleInfo, error) {
 	if ok {
 		return ri, nil
 	}
-	return nil, ErrNotFound
+	return nil, xerrors.Errorf("%d roleinfo not found", rm.roleID)
 }
 
 func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64) (*pb.RoleInfo, error) {
@@ -43,7 +41,7 @@ func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64) (*pb.RoleInfo, error)
 	if ok {
 		return ri, nil
 	}
-	return nil, ErrNotFound
+	return nil, xerrors.Errorf("%d roleinfo not found", id)
 }
 
 func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {
@@ -73,7 +71,7 @@ func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]
 
 		return out, nil
 	default:
-		return nil, ErrNotFound
+		return nil, xerrors.Errorf("roleinfo not supported for type %d", typ)
 	}
 }
 
@@ -105,7 +103,7 @@ func (rm *RoleMgr) RoleSign(ctx context.Context, id uint64, msg []byte, typ type
 		}
 		ts.Data = sig
 	default:
-		return ts, ErrNotFound
+		return ts, xerrors.Errorf("sign type %d not supported", typ)
 	}
 
 	return ts, nil
@@ -127,12 +125,11 @@ func (rm *RoleMgr) RoleVerify(ctx context.Context, id uint64, msg []byte, sig ty
 		}
 		pubByte = addr.Bytes()
 	default:
-		return false, ErrNotFound
+		return false, xerrors.Errorf("sign type %d not supported", sig.Type)
 	}
 
 	if len(pubByte) == 0 {
-		logger.Warn("local has no pubkey for:", id)
-		return false, ErrNotFound
+		return false, xerrors.Errorf("local has no pubkey for: %d", id)
 	}
 
 	ok, err := signature.Verify(pubByte, msg, sig.Data)
@@ -148,7 +145,7 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 	case types.SigSecp256k1:
 		for i, id := range sig.Signer {
 			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
-				return false, ErrNotFound
+				return false, xerrors.Errorf("sign size wrong")
 			}
 			addr, err := rm.GetPubKey(id, types.Secp256k1)
 			if err != nil {
@@ -169,7 +166,7 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 		apub := make([][]byte, len(sig.Signer))
 		for i, id := range sig.Signer {
 			if len(sig.Data) < (i+1)*secp256k1.SignatureSize {
-				return false, ErrNotFound
+				return false, xerrors.Errorf("sign size wrong")
 			}
 			addr, err := rm.GetPubKey(id, types.BLS)
 			if err != nil {
@@ -190,7 +187,7 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 		return ok, nil
 
 	default:
-		return false, ErrNotFound
+		return false, xerrors.Errorf("sign type %d not supported", sig.Type)
 	}
 }
 

@@ -323,6 +323,9 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	// verify
 	ok, err := sp.RoleVerifyMulti(sp.ctx, hs.CalcHash(bid.Bytes(), hs.PhaseCommit), tb.MultiSignature)
 	if err != nil {
+		for _, signer := range tb.Signer {
+			go sp.getRoleInfoRemote(signer)
+		}
 		return err
 	}
 	if !ok {
@@ -333,6 +336,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	for _, msg := range tb.Msgs {
 		ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
 		if err != nil {
+			go sp.getRoleInfoRemote(msg.From)
 			return err
 		}
 

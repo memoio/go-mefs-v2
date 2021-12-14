@@ -16,7 +16,7 @@ type PaceMaker interface {
 // and applies proposal after view done
 type DecisionMaker interface {
 	// propose a proposal
-	Propose(tx.RawHeader) tx.MsgSet
+	Propose(tx.RawHeader) (tx.MsgSet, error)
 
 	// validate proposal
 	OnPropose(*tx.SignedBlock) error
