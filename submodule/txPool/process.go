@@ -130,6 +130,7 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	nrh := tx.RawHeader{
 		Version: 1,
+		GroupID: mp.groupID,
 	}
 
 	// synced; should get from state

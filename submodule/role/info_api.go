@@ -141,6 +141,11 @@ func (rm *RoleMgr) RoleVerify(ctx context.Context, id uint64, msg []byte, sig ty
 }
 
 func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.MultiSignature) (bool, error) {
+	err := sig.SanityCheck()
+	if err != nil {
+		return false, err
+	}
+
 	switch sig.Type {
 	case types.SigSecp256k1:
 		for i, id := range sig.Signer {

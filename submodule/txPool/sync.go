@@ -17,6 +17,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/state"
 )
 
@@ -38,6 +39,7 @@ type SyncPool struct {
 	ds  store.KVStore
 
 	localID      uint64
+	groupID      uint64
 	nextHeight   uint64 // next synced
 	remoteHeight uint64 // next remote
 
@@ -55,7 +57,7 @@ type SyncPool struct {
 }
 
 // sync
-func NewSyncPool(ctx context.Context, roleID uint64, st *state.StateMgr, ds store.KVStore, ts tx.Store, ir api.IRole, ins api.INetService) *SyncPool {
+func NewSyncPool(ctx context.Context, roleID, groupID uint64, st *state.StateMgr, ds store.KVStore, ts tx.Store, ir api.IRole, ins api.INetService) *SyncPool {
 	sp := &SyncPool{
 		INetService: ins,
 		IRole:       ir,
@@ -67,6 +69,7 @@ func NewSyncPool(ctx context.Context, roleID uint64, st *state.StateMgr, ds stor
 		ctx: ctx,
 
 		localID:      roleID,
+		groupID:      groupID,
 		nextHeight:   0,
 		remoteHeight: 0,
 
@@ -128,8 +131,8 @@ func (sp *SyncPool) syncBlock() {
 
 		logger.Debug("regular get block:", sp.nextHeight, sp.remoteHeight)
 
-		// from end -> begin
-		// sync all block head
+		// sync all block from end -> begin
+		// todo: use prevID to find
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
 			sp.RLock()
 			_, ok := sp.blks[i]
@@ -320,9 +323,19 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 		return nil
 	}
 
+	if tb.GroupID != sp.groupID {
+		return xerrors.Errorf("wrong block, group expected %d, got %d", sp.groupID, tb.GroupID)
+	}
+
+	// verify signaturs len >= threshold
+	if tb.Height > 0 && tb.Len() < settle.GetThreshold(sp.groupID) {
+		return xerrors.Errorf("block has not enough signers")
+	}
+
 	// verify
 	ok, err := sp.RoleVerifyMulti(sp.ctx, hs.CalcHash(bid.Bytes(), hs.PhaseCommit), tb.MultiSignature)
 	if err != nil {
+		// for test
 		for _, signer := range tb.Signer {
 			go sp.getRoleInfoRemote(signer)
 		}
@@ -336,6 +349,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	for _, msg := range tb.Msgs {
 		ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
 		if err != nil {
+			// for test
 			go sp.getRoleInfoRemote(msg.From)
 			return err
 		}

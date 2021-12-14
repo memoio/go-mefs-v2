@@ -7,6 +7,7 @@ import (
 
 type RawHeader struct {
 	Version uint32
+	GroupID uint64
 	Height  uint64
 	Slot    uint64 // consensus epoch; logic time
 	MinerID uint64

@@ -212,11 +212,6 @@ func (ts *TxStoreImpl) GetTxBlockByHeight(ht uint64) (types.MsgID, error) {
 }
 
 func (ts *TxStoreImpl) PutTxBlockHeight(ht uint64, bid types.MsgID) error {
-	ok := ts.htCache.Contains(ht)
-	if ok {
-		return nil
-	}
-
 	key := store.NewKey(pb.MetaType_Tx_BlockHeightKey, ht)
 
 	err := ts.ds.Put(key, bid.Bytes())

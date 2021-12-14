@@ -72,17 +72,17 @@ func (ms *MultiSignature) Add(id uint64, sig Signature) error {
 	return nil
 }
 
-func (ms *MultiSignature) SanityCheck() bool {
+func (ms *MultiSignature) SanityCheck() error {
 	tmpMap := make(map[uint64]struct{}, len(ms.Signer))
 	for _, sid := range ms.Signer {
 		_, ok := tmpMap[sid]
 		if ok {
-			return false
+			return xerrors.Errorf("duplicate signers")
 		} else {
 			tmpMap[sid] = struct{}{}
 		}
 	}
-	return true
+	return nil
 }
 
 func (ms *MultiSignature) Len() int {

@@ -232,7 +232,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	// use a different state store
 	stDB := state.NewStateMgr(gid, nd.StateStore(), rm)
 
-	sp := txPool.NewSyncPool(ctx, id, stDB, nd.MetaStore(), txs, rm, cs)
+	sp := txPool.NewSyncPool(ctx, id, gid, stDB, nd.MetaStore(), txs, rm, cs)
 
 	nd.PushPool = txPool.NewPushPool(ctx, sp)
 
