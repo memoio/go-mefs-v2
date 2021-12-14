@@ -20,6 +20,11 @@ func TestAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	tmap := make(map[uint64]struct{}, 5)
+	t.Log(len(tmap))
+	tmap[1] = struct{}{}
+	t.Log(len(tmap))
+
 	ks, err := keystore.NewKeyRepo(p)
 	if err != nil {
 		t.Fatal(err)

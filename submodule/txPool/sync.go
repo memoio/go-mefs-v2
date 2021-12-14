@@ -20,7 +20,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/state"
 )
 
-type msgDone struct {
+type blkDigest struct {
 	height uint64
 	msgs   []tx.MessageDigest
 }
@@ -50,7 +50,7 @@ type SyncPool struct {
 	inPush  bool
 
 	msgChan   chan *tx.SignedMessage
-	blkDone   chan *msgDone
+	blkDone   chan *blkDigest
 	inProcess bool
 }
 
@@ -75,7 +75,7 @@ func NewSyncPool(ctx context.Context, roleID uint64, st *state.StateMgr, ds stor
 
 		msgChan: make(chan *tx.SignedMessage, 128),
 		msgDone: make(chan *tx.MessageDigest, 16),
-		blkDone: make(chan *msgDone, 8),
+		blkDone: make(chan *blkDigest, 8),
 	}
 
 	sp.load()
@@ -171,6 +171,11 @@ func (sp *SyncPool) syncBlock() {
 			if ok {
 				err := sp.processTxBlock(sb)
 				if err != nil {
+					// clear all block above sp.nextHeight
+					for j := i; j < sp.remoteHeight; j++ {
+						delete(sp.blks, j)
+					}
+					sp.remoteHeight = i
 					sp.Unlock()
 					logger.Debug(err)
 					break
@@ -207,10 +212,11 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 
 	newRoot, err := sp.ApplyBlock(sb)
 	if err != nil {
+		logger.Debug("apply block fail: ", err)
 		return err
 	}
 
-	mds := &msgDone{
+	mds := &blkDigest{
 		height: sb.Height,
 		msgs:   make([]tx.MessageDigest, 0, len(sb.Msgs)),
 	}
@@ -231,7 +237,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		newRoot, err = sp.AppleyMsg(&msg.Message, &sb.Receipts[i])
 		if err != nil {
 			// should not; todo
-			logger.Error("fail to apply message: ", err, newRoot)
+			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
 		}
 
 		ms := &tx.MsgState{
@@ -271,6 +277,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		sp.blkDone <- mds
 	}
 
+	logger.Debug("process block done: ", sb.Height, bid)
 	return nil
 }
 

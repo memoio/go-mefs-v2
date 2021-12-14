@@ -8,11 +8,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 )
 
 // key: pb.MetaType_ST_RootKey; val: root []byte
@@ -37,14 +37,13 @@ type StateMgr struct {
 	sInfo     map[uint64]*segPerUser // key: userID
 	rInfo     map[uint64]*roleInfo
 
-	validateKeepers []uint64
-	validateHeight  uint64 // next block height
-	validateSlot    uint64 // logical time
-	validateCeInfo  *chalEpochInfo
-	validateRoot    types.MsgID
-	validateOInfo   map[orderKey]*orderInfo
-	validateSInfo   map[uint64]*segPerUser
-	validateRInfo   map[uint64]*roleInfo
+	validateHeight uint64 // next block height
+	validateSlot   uint64 // logical time
+	validateCeInfo *chalEpochInfo
+	validateRoot   types.MsgID
+	validateOInfo  map[orderKey]*orderInfo
+	validateSInfo  map[uint64]*segPerUser
+	validateRInfo  map[uint64]*roleInfo
 
 	handleAddRole HanderAddRoleFunc
 	handleAddUser HandleAddUserFunc
@@ -58,11 +57,13 @@ func NewStateMgr(groupID uint64, ds store.KVStore, ir api.IRole) *StateMgr {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, groupID)
 
+	thre := settle.GetThreshold(groupID)
+
 	s := &StateMgr{
 		IRole:        ir,
 		ds:           ds,
 		height:       0,
-		threshold:    build.Threshold,
+		threshold:    thre,
 		keepers:      make([]uint64, 0, 16),
 		root:         types.NewMsgID(buf),
 		validateRoot: types.NewMsgID(buf),
@@ -198,6 +199,15 @@ func (s *StateMgr) newRoot(b []byte) {
 	s.ds.Put(key, s.root.Bytes())
 }
 
+func (s *StateMgr) getThreshold() int {
+	thres := 2 * (len(s.keepers) + 1) / 3
+	if thres > s.threshold {
+		return thres
+	} else {
+		return s.threshold
+	}
+}
+
 // block 0 is special: only accept addKeeper; and msg len >= threshold
 func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.Lock()
@@ -208,10 +218,6 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, nil
 	}
 
-	if blk.Len() > s.threshold {
-		return s.root, xerrors.Errorf("blk sign not enough")
-	}
-
 	// todo: create new transcation
 
 	if blk.Height != s.height {
@@ -220,6 +226,28 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	if blk.Slot <= s.slot {
 		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.slot)
+	}
+
+	if blk.Height > 0 {
+		// verify sign
+		thr := s.getThreshold()
+		if blk.Len() < thr {
+			return s.root, xerrors.Errorf("not have enough signer, expected at least %d got %d", thr, blk.Len())
+		}
+
+		sset := make(map[uint64]struct{}, blk.Len())
+		for _, signer := range blk.Signer {
+			for _, kid := range s.keepers {
+				if signer == kid {
+					sset[signer] = struct{}{}
+					break
+				}
+			}
+		}
+
+		if len(sset) < thr {
+			return s.root, xerrors.Errorf("not have enough valid signer, expected at least %d got %d", thr, len(sset))
+		}
 	}
 
 	b, err := blk.RawHeader.Serialize()

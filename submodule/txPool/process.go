@@ -34,7 +34,7 @@ type InPool struct {
 
 	msgChan chan *tx.SignedMessage
 
-	blkDone chan *msgDone
+	blkDone chan *blkDigest
 }
 
 func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
@@ -80,7 +80,7 @@ func (mp *InPool) sync() {
 			ms.info[m.Nonce] = m
 			mp.Unlock()
 		case bh := <-mp.blkDone:
-			logger.Debug("process new block:", bh.height)
+			logger.Debug("process new block after:", bh.height)
 
 			mp.Lock()
 			for _, md := range bh.msgs {
@@ -165,8 +165,8 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 }
 
 func (mp *InPool) Propose(rh tx.RawHeader) tx.MsgSet {
-	mp.Lock()
-	defer mp.Unlock()
+	mp.RLock()
+	defer mp.RUnlock()
 
 	logger.Debugf("create block propose at height %d", rh.Height)
 	msgSet := tx.MsgSet{
@@ -192,6 +192,9 @@ func (mp *InPool) Propose(rh tx.RawHeader) tx.MsgSet {
 
 	msgSet.ParentRoot = oldRoot
 	msgSet.Root = newRoot
+
+	// todo: block 0 is special
+
 	for from, ms := range mp.pending {
 		nc := mp.GetNonce(mp.ctx, from)
 		for i := nc; ; i++ {
@@ -238,7 +241,17 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 	}
 
 	for i, sm := range sb.Msgs {
-		// apply message
+		// validate msg sign
+		ok, err := mp.RoleVerify(mp.ctx, sm.From, sm.Hash().Bytes(), sm.Signature)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return xerrors.Errorf("invalid sign for: %d, %d %d", sm.From, sm.Nonce, sm.Method)
+		}
+
+		// validate message
 		newRoot, err = mp.ValidateMsg(&sm.Message)
 		if err != nil {
 			// should not; todo

@@ -55,6 +55,8 @@ func (m *PoAManager) MineBlock() {
 				continue
 			}
 
+			nt := time.Now()
+
 			tb := &tx.SignedBlock{
 				RawBlock: tx.RawBlock{
 					RawHeader: trh,
@@ -65,6 +67,19 @@ func (m *PoAManager) MineBlock() {
 			if trh.MinerID == m.localID {
 				tb.MsgSet = m.app.Propose(trh)
 
+			}
+
+			logger.Debugf("create block propose cost %d", time.Since(nt))
+
+			err = m.app.OnPropose(tb)
+			if err != nil {
+				logger.Debug("create block OnPropose: ", err)
+				continue
+			}
+
+			logger.Debugf("create block OnPropose cost %d", time.Since(nt))
+
+			if trh.MinerID == m.localID {
 				sig, err := m.RoleSign(m.ctx, m.localID, hs.CalcHash(tb.Hash().Bytes(), hs.PhaseCommit), types.SigSecp256k1)
 				if err != nil {
 					logger.Debug("create block signed invalid: ", err)
@@ -74,19 +89,15 @@ func (m *PoAManager) MineBlock() {
 				tb.MultiSignature.Add(m.localID, sig)
 			}
 
-			logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))
-
-			err = m.app.OnPropose(tb)
-			if err != nil {
-				logger.Debug("create block OnPropose: ", err)
-				continue
-			}
+			logger.Debugf("create block sign cost %d", time.Since(nt))
 
 			err = m.app.OnViewDone(tb)
 			if err != nil {
 				logger.Debug("create block OnViewDone: ", err)
 				continue
 			}
+
+			logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))
 
 			m.INetService.PublishTxBlock(m.ctx, tb)
 		}

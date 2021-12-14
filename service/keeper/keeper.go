@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	bcommon "github.com/memoio/go-mefs-v2/submodule/consensus/common"
 	"github.com/memoio/go-mefs-v2/submodule/consensus/hotstuff"
 	"github.com/memoio/go-mefs-v2/submodule/consensus/poa"
@@ -46,7 +46,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		inp:      inp,
 	}
 
-	if build.Threshold == 1 {
+	if settle.GetThreshold(bn.GroupID()) == 1 {
 		kn.bc = poa.NewPoAManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
 	} else {
 		hm := hotstuff.NewHotstuffManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)

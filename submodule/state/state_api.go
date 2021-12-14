@@ -123,12 +123,7 @@ func (s *StateMgr) GetThreshold(ctx context.Context) int {
 	s.RLock()
 	defer s.RUnlock()
 
-	thres := 2 * (len(s.keepers) + 1) / 3
-	if thres > s.threshold {
-		return thres
-	} else {
-		return s.threshold
-	}
+	return s.getThreshold()
 }
 
 func (s *StateMgr) GetAllKeepers(ctx context.Context) []uint64 {

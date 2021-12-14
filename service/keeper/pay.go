@@ -27,6 +27,7 @@ func (k *KeeperNode) updatePay() {
 	for {
 		select {
 		case <-k.ctx.Done():
+			logger.Warn("pay context done ", k.ctx.Err())
 			return
 		case <-ticker.C:
 			cur := k.PushPool.GetChalEpoch(k.ctx)
@@ -41,6 +42,8 @@ func (k *KeeperNode) updatePay() {
 			}
 
 			payEpoch := latest - 2
+
+			logger.Debugf("pay at epoch %d", payEpoch)
 
 			key := store.NewKey(pb.MetaType_Chal_UsersKey)
 			data, err := k.MetaStore().Get(key)
@@ -75,6 +78,7 @@ func (k *KeeperNode) updatePay() {
 				for _, pid := range pros {
 					pi, err := k.PushPool.GetPostIncomeAt(k.ctx, uid, pid, payEpoch)
 					if err != nil {
+						logger.Debugf("not have post income for %d %d at epoch %d", uid, pid, payEpoch)
 						continue
 					}
 					if pi == nil || pi.Value == nil || pi.Penalty == nil {
@@ -87,9 +91,12 @@ func (k *KeeperNode) updatePay() {
 					if err != nil {
 						continue
 					}
-
 					pip.Pros = append(pip.Pros, pid)
 					pip.Sig = append(pip.Sig, sig)
+				}
+
+				if len(pip.Pros) == 0 {
+					continue
 				}
 
 				data, err = pip.Serialize()
@@ -106,6 +113,7 @@ func (k *KeeperNode) updatePay() {
 				}
 
 				k.pushMsg(msg)
+				logger.Debugf("pay for user %d at epoch pro %d ", pip.UserID, payEpoch, pip.Pros)
 			}
 			binary.BigEndian.PutUint64(buf, latest)
 			k.MetaStore().Put(key, buf)

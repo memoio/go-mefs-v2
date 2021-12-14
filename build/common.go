@@ -10,7 +10,6 @@ const (
 	DefaultChalDuration = 20         // slot
 	SlotDuration        = 30         // seconds
 	OrderDuration       = 1 * 86400  // 1 days
-	Threshold           = 3
 )
 
 var (

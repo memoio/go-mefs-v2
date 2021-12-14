@@ -46,7 +46,7 @@ var statePostIncomeCmd = &cli.Command{
 
 		for _, uid := range users {
 			pi := napi.GetPostIncome(cctx.Context, uid, nid.ID)
-			fmt.Println("post income: ", nid.ID, uid, types.FormatWei(pi.Value))
+			fmt.Printf("post income: proID %d, userID %d, income: %s \n", nid.ID, uid, types.FormatWei(pi.Value))
 		}
 
 		return nil
@@ -87,7 +87,7 @@ var statePayCmd = &cli.Command{
 				continue
 			}
 
-			fmt.Printf("pay info: pro %d, user %d, income %s, penalty %s, signer: %d ", nid.ID, uid, types.FormatWei(pi.Value), types.FormatWei(pi.Penalty), pi.Sign.Signer)
+			fmt.Printf("pay info: pro %d, user %d, income %s, penalty %s, signer: %d \n", nid.ID, uid, types.FormatWei(pi.Value), types.FormatWei(pi.Penalty), pi.Sign.Signer)
 		}
 
 		return nil

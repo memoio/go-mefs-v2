@@ -9,9 +9,6 @@ import (
 )
 
 func (s *StateMgr) reset() {
-	s.validateKeepers = make([]uint64, 0, len(s.keepers))
-	s.validateKeepers = append(s.validateKeepers, s.keepers...)
-
 	s.validateHeight = s.height
 	s.validateSlot = s.slot
 	s.validateRoot = s.root
@@ -54,7 +51,7 @@ func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	}
 
 	if blk.Slot <= s.validateSlot {
-		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.validateSlot)
+		return s.validateRoot, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.validateSlot)
 	}
 
 	b, err := blk.RawHeader.Serialize()
@@ -68,6 +65,49 @@ func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.newValidateRoot(b)
 
 	return s.validateRoot, nil
+}
+
+func (s *StateMgr) ValidateSignedBlock(blk *tx.SignedBlock) error {
+	s.Lock()
+	defer s.Unlock()
+
+	s.reset()
+
+	// time valid?
+	if blk == nil {
+		return xerrors.Errorf("blk is nil")
+	}
+
+	if blk.Height != s.validateHeight {
+		return xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
+	}
+
+	if blk.Slot <= s.validateSlot {
+		return xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.validateSlot)
+	}
+
+	// verify sign
+	thr := s.getThreshold()
+	if blk.Len() < thr {
+		return xerrors.Errorf("not have enough signer, expected at least %d got %d", thr, blk.Len())
+	}
+
+	sset := make(map[uint64]struct{}, blk.Len())
+
+	for _, signer := range blk.Signer {
+		for _, kid := range s.keepers {
+			if signer == kid {
+				sset[signer] = struct{}{}
+				break
+			}
+		}
+	}
+
+	if len(sset) < thr {
+		return xerrors.Errorf("not have enough valid signer, expected at least %d got %d", thr, len(sset))
+	}
+
+	return nil
 }
 
 func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {

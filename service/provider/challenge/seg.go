@@ -65,7 +65,7 @@ func (s *SegMgr) Start() {
 }
 
 func (s *SegMgr) load() {
-	key := store.NewKey(pb.MetaType_Chal_UsersKey)
+	key := store.NewKey(pb.MetaType_Chal_UsersKey, s.localID)
 	val, err := s.ds.Get(key)
 	if err != nil {
 		return

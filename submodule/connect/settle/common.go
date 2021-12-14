@@ -18,3 +18,7 @@ func GetRoleID(addr address.Address) (uint64, error) {
 func GetGroupID(roleID uint64) uint64 {
 	return 1
 }
+
+func GetThreshold(groupID uint64) int {
+	return 1
+}
