@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -103,4 +104,53 @@ func GetDirSize(path string) (uint64, error) {
 		return nil
 	})
 	return size, err
+}
+
+const (
+	KiB = 1024
+	MiB = 1048576
+	GiB = 1073741824
+	TiB = 1099511627776
+
+	KB = 1e3
+	MB = 1e6
+	GB = 1e9
+	TB = 1e12
+
+	//SHOWTIME 用于输出给使用者
+	SHOWTIME = "2006-01-02 Mon 15:04:05 MST"
+)
+
+// FormatBytes convert bytes to human readable string. Like 2 MiB, 64.2 KiB, 52 B
+func FormatBytes(i int64) (result string) {
+	switch {
+	case i >= TiB:
+		result = fmt.Sprintf("%.02f TiB", float64(i)/TiB)
+	case i >= GiB:
+		result = fmt.Sprintf("%.02f GiB", float64(i)/GiB)
+	case i >= MiB:
+		result = fmt.Sprintf("%.02f MiB", float64(i)/MiB)
+	case i >= KiB:
+		result = fmt.Sprintf("%.02f KiB", float64(i)/KiB)
+	default:
+		result = fmt.Sprintf("%d B", i)
+	}
+	return
+}
+
+// FormatBytesDec Convert bytes to base-10 human readable string. Like 2 MB, 64.2 KB, 52 B
+func FormatBytesDec(i int64) (result string) {
+	switch {
+	case i >= TB:
+		result = fmt.Sprintf("%.02f TB", float64(i)/TB)
+	case i >= GB:
+		result = fmt.Sprintf("%.02f GB", float64(i)/GB)
+	case i >= MB:
+		result = fmt.Sprintf("%.02f MB", float64(i)/MB)
+	case i >= KB:
+		result = fmt.Sprintf("%.02f KB", float64(i)/KB)
+	default:
+		result = fmt.Sprintf("%d B", i)
+	}
+	return
 }
