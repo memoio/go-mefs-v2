@@ -22,6 +22,7 @@ import (
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
@@ -79,7 +80,7 @@ func (n *BaseNode) Start() error {
 
 	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
 
-	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
+	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedFullAPI(n)))
 
 	// wait for sync
 	n.PushPool.Start()

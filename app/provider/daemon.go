@@ -4,7 +4,6 @@ import (
 	_ "net/http/pprof"
 	"strings"
 
-	mprome "github.com/ipfs/go-metrics-prometheus"
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
@@ -45,12 +44,6 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonFunc(cctx *cli.Context) (_err error) {
-	err := mprome.Inject()
-	if err != nil {
-		logger.Errorf("Injecting prometheus handler for metrics failed with message: %s", err)
-		return err
-	}
-
 	logger.Info("Initializing daemon...")
 
 	minit.PrintVersion()

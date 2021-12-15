@@ -5,18 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"go.opencensus.io/stats"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
-	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
-
-type mesWithID struct {
-	mid types.MsgID
-	mes *tx.Message
-}
 
 // add: when >= nonce
 type msgSet struct {
@@ -114,6 +110,8 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 		return xerrors.Errorf("nonce expected no less than %d, got %d", nonce, m.Nonce)
 	}
 
+	stats.Record(ctx, metrics.TxMessageReceived.M(1))
+
 	err := mp.SyncPool.AddTxMsg(mp.ctx, m)
 	if err != nil {
 		logger.Debug("add tx msg fails: ", err)
@@ -121,6 +119,7 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	}
 
 	// need valid its content with settle chain
+	stats.Record(ctx, metrics.TxMessageSuccess.M(1))
 
 	mp.msgChan <- m
 
@@ -328,6 +327,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 	logger.Debugf("create block OnViewDone at height %d", tb.Height)
 	if tb.Height >= 0 || tb.MinerID == mp.localID {
+		stats.Record(mp.ctx, metrics.TxBlockPublished.M(1))
 		mp.INetService.PublishTxBlock(mp.ctx, tb)
 	}
 

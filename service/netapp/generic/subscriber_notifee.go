@@ -56,7 +56,10 @@ func (nn *subscriberNotifee) Disconnected(n network.Network, v network.Conn) {
 	ms.OnDisconnect(service.Context(), p)
 }
 
-func (nn *subscriberNotifee) Connected(n network.Network, v network.Conn)  {}
+func (nn *subscriberNotifee) Connected(n network.Network, v network.Conn) {
+	nn.service.ns.PeerMgr.AddPeer(v.RemotePeer())
+}
+
 func (nn *subscriberNotifee) OpenedStream(network.Network, network.Stream) {}
 func (nn *subscriberNotifee) ClosedStream(network.Network, network.Stream) {}
 func (nn *subscriberNotifee) Listen(network.Network, ma.Multiaddr)         {}

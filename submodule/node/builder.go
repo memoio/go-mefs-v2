@@ -20,6 +20,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
 	"github.com/memoio/go-mefs-v2/submodule/state"
@@ -244,7 +245,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.httpHandle.Handle("/rpc/v0", nd.RPCServer)
 	nd.httpHandle.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
-	nd.httpHandle.Handle("/debug/metrics", exporter())
+	nd.httpHandle.Handle("/debug/metrics", metrics.Exporter())
 	nd.httpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	return nd, nil

@@ -142,6 +142,10 @@ func initFSRepo(dir string, cfg *config.Config) error {
 }
 
 func (r *FSRepo) loadFromDisk() error {
+	if err := r.removeAPIFile(); err != nil {
+		logger.Warnf("fail to remove api: w%", err)
+	}
+
 	if err := r.loadConfig(); err != nil {
 		return xerrors.Errorf("failed to load config file %w", err)
 	}

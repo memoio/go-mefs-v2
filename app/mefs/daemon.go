@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
 	_ "net/http/pprof"
 	"strings"
 
-	mprome "github.com/ipfs/go-metrics-prometheus"
 	"github.com/urfave/cli/v2"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/tag"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -44,13 +49,16 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonFunc(cctx *cli.Context) (_err error) {
-	err := mprome.Inject()
-	if err != nil {
-		logger.Errorf("Injecting prometheus handler for metrics failed with message: %s", err)
-		return err
-	}
-
 	logger.Info("Initializing daemon...")
+
+	view.Register(metrics.DefaultViews...)
+
+	// record version
+	ctx, _ := tag.New(context.Background(),
+		tag.Insert(metrics.Version, build.BuildVersion),
+		tag.Insert(metrics.Commit, build.CurrentCommit),
+	)
+	stats.Record(ctx, metrics.MemoInfo.M(1))
 
 	minit.PrintVersion()
 
@@ -101,7 +109,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		password := cctx.String("password")
 		opts = append(opts, basenode.SetPassword(password))
 
-		node, err = basenode.New(cctx.Context, opts...)
+		node, err = basenode.New(ctx, opts...)
 		if err != nil {
 			return err
 		}

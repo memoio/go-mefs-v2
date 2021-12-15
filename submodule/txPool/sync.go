@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"go.opencensus.io/stats"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -18,6 +19,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/state"
 )
 
@@ -202,6 +204,9 @@ func (sp *SyncPool) syncBlock() {
 }
 
 func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
+	done := metrics.Timer(sp.ctx, metrics.TxBlockApply)
+	defer done()
+
 	bid := sb.Hash()
 	logger.Debug("process block: ", sb.Height, bid)
 	oRoot, err := sp.AppleyMsg(nil, nil)
@@ -238,11 +243,13 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		sp.nonce[msg.From] = msg.Nonce + 1
 
 		// apply message
+		msgDone := metrics.Timer(sp.ctx, metrics.TxMessageApply)
 		newRoot, err = sp.AppleyMsg(&msg.Message, &sb.Receipts[i])
 		if err != nil {
 			// should not; todo
 			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
 		}
+		msgDone()
 
 		ms := &tx.MsgState{
 			BlockID: bid,
@@ -324,6 +331,8 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 		logger.Debug("add tx block, already have")
 		return nil
 	}
+
+	stats.Record(sp.ctx, metrics.TxBlockReceived.M(1))
 
 	if tb.GroupID != sp.groupID {
 		return xerrors.Errorf("wrong block, group expected %d, got %d", sp.groupID, tb.GroupID)
