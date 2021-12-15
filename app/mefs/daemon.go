@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"github.com/urfave/cli/v2"
+	"go.opencensus.io/plugin/runmetrics"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
@@ -50,6 +52,14 @@ var DaemonCmd = &cli.Command{
 
 func daemonFunc(cctx *cli.Context) (_err error) {
 	logger.Info("Initializing daemon...")
+
+	err := runmetrics.Enable(runmetrics.RunMetricOptions{
+		EnableCPU:    true,
+		EnableMemory: true,
+	})
+	if err != nil {
+		return xerrors.Errorf("enabling runtime metrics: %w", err)
+	}
 
 	view.Register(metrics.DefaultViews...)
 
