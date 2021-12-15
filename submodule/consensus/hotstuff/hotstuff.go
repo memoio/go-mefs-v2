@@ -201,7 +201,7 @@ func (hsm *HotstuffManager) checkView(msg *hs.HotstuffMessage) error {
 
 		ok, err := hsm.RoleVerifyMulti(context.TODO(), h, msg.Quorum)
 		if err != nil {
-			return err
+			return xerrors.Errorf("checkView %d quorum sign is invalid %w", pType, err)
 		}
 
 		if !ok {
@@ -225,7 +225,7 @@ func (hsm *HotstuffManager) checkView(msg *hs.HotstuffMessage) error {
 	if pType != hs.PhaseDecide {
 		ok, err := hsm.RoleVerify(context.TODO(), msg.From, hs.CalcHash(msg.Data.Hash().Bytes(), pType), msg.Sig)
 		if err != nil {
-			return err
+			return xerrors.Errorf("checkView sign is invalid %w", err)
 		}
 		if !ok {
 			return xerrors.Errorf("checkView sign is invalid")
@@ -269,6 +269,7 @@ func (hsm *HotstuffManager) newView() error {
 	hsm.curView.prepareQuorum = types.NewMultiSignature(types.SigBLS)
 	hsm.curView.preCommitQuorum = types.NewMultiSignature(types.SigBLS)
 	hsm.curView.commitQuorum = types.NewMultiSignature(types.SigBLS)
+	hsm.curView.txs = tx.MsgSet{}
 
 	hsm.curView.createdAt = time.Now()
 
@@ -504,7 +505,7 @@ func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 	}
 
 	if hsm.curView.phase != hs.PhaseNew {
-		return xerrors.Errorf("phase state wrong")
+		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhaseNew, hsm.curView.phase)
 	}
 
 	// validate propose
@@ -549,7 +550,7 @@ func (hsm *HotstuffManager) handlePrepareVoteMsg(msg *hs.HotstuffMessage) error 
 	}
 
 	if hsm.curView.phase != hs.PhasePrepare {
-		return xerrors.Errorf("phase state wrong")
+		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhasePrepare, hsm.curView.phase)
 	}
 
 	err = hsm.curView.prepareQuorum.Add(msg.From, msg.Sig)
@@ -618,7 +619,7 @@ func (hsm *HotstuffManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
 	}
 
 	if hsm.curView.phase != hs.PhasePrepare {
-		return xerrors.Errorf("phase state wrong")
+		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhasePrepare, hsm.curView.phase)
 	}
 
 	hsm.curView.phase = hs.PhasePreCommit
@@ -650,7 +651,7 @@ func (hsm *HotstuffManager) handlePreCommitVoteMsg(msg *hs.HotstuffMessage) erro
 	}
 
 	if hsm.curView.phase != hs.PhasePreCommit {
-		return xerrors.Errorf("phase state wrong")
+		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhasePreCommit, hsm.curView.phase)
 	}
 
 	err = hsm.curView.preCommitQuorum.Add(msg.From, msg.Sig)
@@ -714,7 +715,7 @@ func (hsm *HotstuffManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
 	}
 
 	if hsm.curView.phase != hs.PhasePreCommit {
-		return xerrors.Errorf("phase state wrong")
+		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhasePreCommit, hsm.curView.phase)
 	}
 
 	hsm.curView.phase = hs.PhaseCommit
@@ -747,7 +748,7 @@ func (hsm *HotstuffManager) handleCommitVoteMsg(msg *hs.HotstuffMessage) error {
 	}
 
 	if hsm.curView.phase != hs.PhaseCommit {
-		return xerrors.Errorf("phase state wrong")
+		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhaseCommit, hsm.curView.phase)
 	}
 
 	err = hsm.curView.commitQuorum.Add(msg.From, msg.Sig)
@@ -825,7 +826,7 @@ func (hsm *HotstuffManager) handleDecideMsg(msg *hs.HotstuffMessage) error {
 	}
 
 	if hsm.curView.phase != hs.PhaseCommit {
-		return xerrors.Errorf("phase state wrong")
+		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhaseCommit, hsm.curView.phase)
 	}
 
 	hsm.curView.phase = hs.PhaseDecide

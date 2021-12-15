@@ -325,7 +325,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 
 func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 	logger.Debugf("create block OnViewDone at height %d", tb.Height)
-	if tb.Height == 0 || tb.MinerID == mp.localID {
+	if tb.Height >= 0 || tb.MinerID == mp.localID {
 		mp.INetService.PublishTxBlock(mp.ctx, tb)
 	}
 
