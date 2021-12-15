@@ -112,10 +112,6 @@ func (k *KeySet) VerifyTag(indice, segment, tag []byte) (bool, error) {
 		return false, err
 	}
 
-	if bls.G1IsZero(&delta) {
-		return false, pdpcommon.ErrInvalidElem
-	}
-
 	var ProdHWi, ProdHWimu G1
 	var HWi Fr
 	if len(indice) != 32 {
@@ -163,10 +159,6 @@ func (k *PublicKey) VerifyTag(index, segment, tag []byte, typ int) (bool, error)
 	err := bls.G1Deserialize(&delta, tag)
 	if err != nil {
 		return false, err
-	}
-
-	if bls.G1IsZero(&delta) {
-		return false, pdpcommon.ErrInvalidElem
 	}
 
 	atoms, err := splitSegmentToAtoms(segment, typ)
@@ -231,10 +223,6 @@ func (pk *PublicKey) GenProof(chal pdpcommon.Challenge, segment, tag []byte, typ
 		return nil, err
 	}
 
-	if bls.G1IsZero(&delta) {
-		return nil, pdpcommon.ErrInvalidElem
-	}
-
 	var t, kappa G1
 	bls.G1Mul(&t, &pk.Phi, &pk_r)
 	bls.G1Sub(&kappa, &delta, &t)
@@ -254,14 +242,6 @@ func (vk *VerifyKey) VerifyProof(chal pdpcommon.Challenge, proof pdpcommon.Proof
 	pf, ok := proof.(*Proof)
 	if !ok {
 		return false, pdpcommon.ErrVersionUnmatch
-	}
-
-	if bls.G1IsZero(&pf.Psi) {
-		return false, pdpcommon.ErrInvalidElem
-	}
-
-	if bls.G1IsZero(&pf.Kappa) {
-		return false, pdpcommon.ErrInvalidElem
 	}
 
 	var ProdHWi G1
@@ -475,10 +455,6 @@ func (dv *DataVerifier) Result() (bool, error) {
 		bls.G1Mul(&muProd, &(GenG1), &power)
 	} else {
 		bls.G1MulVec(&muProd, dv.pk.ElemAlphas, dv.sums)
-	}
-
-	if bls.G1IsZero(&dv.delta) {
-		return false, pdpcommon.ErrInvalidElem
 	}
 
 	var ProdHWimu G1
