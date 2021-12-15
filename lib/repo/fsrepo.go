@@ -420,10 +420,6 @@ func (r *FSRepo) SetAPIAddr(maddr string) error {
 
 	_, err = f.WriteString(maddr)
 	if err != nil {
-		// If we encounter an error writing to the API file,
-		// delete the API file. The error encountered while
-		// deleting the API file will be returned (if one
-		// exists) instead of the write-error.
 		if err := r.removeAPIFile(); err != nil {
 			return xerrors.Errorf("failed to remove API file %w", err)
 		}

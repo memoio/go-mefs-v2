@@ -8,6 +8,8 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -577,7 +579,7 @@ func (o *OrderFull) addSeg(sj *types.SegJob) error {
 	o.Lock()
 	if o.inStop {
 		o.Unlock()
-		return ErrState
+		return xerrors.Errorf("%d is stop", o.pro)
 	}
 
 	bjob, ok := o.jobs[sj.BucketID]

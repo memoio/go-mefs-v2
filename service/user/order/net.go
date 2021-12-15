@@ -2,9 +2,11 @@ package order
 
 import (
 	"github.com/fxamacker/cbor/v2"
+	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/zeebo/blake3"
 )
 
 func (m *OrderMgr) connect(proID uint64) error {
@@ -34,20 +36,20 @@ func (m *OrderMgr) getQuotation(proID uint64) error {
 
 	if resp.GetHeader().GetFrom() != proID {
 		logger.Debug("fail get new quotation from: ", proID)
-		return ErrState
+		return xerrors.Errorf("wrong quotation from expected %d, got %d", proID, resp.GetHeader().GetFrom())
 	}
 
 	quo := new(types.Quotation)
 	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), quo)
 	if err != nil {
-		logger.Debug("fail get new quotation from: ", proID)
+		logger.Debug("fail get new quotation from: ", proID, err)
 		return err
 	}
 
 	sig := new(types.Signature)
 	err = sig.Deserialize(resp.GetData().GetSign())
 	if err != nil {
-		logger.Debug("fail get new quotation from: ", proID)
+		logger.Debug("fail get new quotation from: ", proID, err)
 		return err
 	}
 

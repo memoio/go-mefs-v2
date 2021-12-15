@@ -86,6 +86,10 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		config.Net.Addresses = changed
 	}
 
+	if apiAddr := cctx.String(apiAddrKwd); apiAddr != "" {
+		config.API.Address = apiAddr
+	}
+
 	rep.ReplaceConfig(config)
 
 	var node minit.Node

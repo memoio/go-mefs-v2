@@ -1,16 +1,16 @@
 package txPool
 
 import (
-	"bytes"
 	"context"
 	"sync"
 	"time"
+
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"golang.org/x/xerrors"
 )
 
 type mesWithID struct {
@@ -280,8 +280,9 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		return err
 	}
 
-	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+	if !oRoot.Equal(sb.ParentRoot) {
+		logger.Warnf("OnPropose has wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+		return xerrors.Errorf("OnPropose wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
 
 	newRoot, err := mp.ValidateBlock(sb)
@@ -316,8 +317,9 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		}
 	}
 
-	if !bytes.Equal(newRoot.Bytes(), sb.Root.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.Root)
+	// todo: should handle this
+	if !newRoot.Equal(sb.Root) {
+		logger.Warnf("OnPropose has wrong state, got: %s, expected: %s", newRoot, sb.Root)
 	}
 
 	return nil

@@ -320,7 +320,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 	o.RLock()
 	if o.inStop {
 		o.RUnlock()
-		return ErrState
+		return xerrors.Errorf("%d is stop", o.pro)
 	}
 	o.RUnlock()
 

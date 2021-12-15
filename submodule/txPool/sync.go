@@ -210,7 +210,8 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 	}
 
 	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+		logger.Warnf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+		return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
 
 	newRoot, err := sp.ApplyBlock(sb)
@@ -272,8 +273,9 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		}
 	}
 
+	// todo: fix this
 	if !bytes.Equal(newRoot.Bytes(), sb.Root.Bytes()) {
-		logger.Warnf("local has wrong state, got: %s, expected: %s", newRoot, sb.Root)
+		logger.Warnf("apply has wrong state, got: %s, expected: %s", newRoot, sb.Root)
 	}
 
 	if sp.inProcess {

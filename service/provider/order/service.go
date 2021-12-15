@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -105,7 +107,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	}
 
 	if or.base == nil || or.seq == nil {
-		return ErrState
+		return xerrors.Errorf("no order base and seq")
 	}
 
 	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
