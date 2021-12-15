@@ -279,7 +279,4 @@ func (s *UserNodeStruct) ShowBucketStorage(ctx context.Context, bucketName strin
 
 type KeeperNodeStruct struct {
 	CommonStruct
-
-	Internal struct {
-	}
 }

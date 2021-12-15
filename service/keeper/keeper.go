@@ -12,6 +12,7 @@ import (
 	bcommon "github.com/memoio/go-mefs-v2/submodule/consensus/common"
 	"github.com/memoio/go-mefs-v2/submodule/consensus/hotstuff"
 	"github.com/memoio/go-mefs-v2/submodule/consensus/poa"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
@@ -72,7 +73,7 @@ func (k *KeeperNode) Start() error {
 	k.StateMgr.RegisterAddUserFunc(k.AddUsers)
 	k.StateMgr.RegisterAddUPFunc(k.AddUP)
 
-	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(k))
+	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
 
 	// wait for sync
 	k.PushPool.Start()

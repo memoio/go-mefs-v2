@@ -12,6 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/service/data"
 	"github.com/memoio/go-mefs-v2/service/user/lfs"
 	uorder "github.com/memoio/go-mefs-v2/service/user/order"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -79,7 +80,7 @@ func (u *UserNode) Start() error {
 	u.TxMsgHandle.Register(u.BaseNode.TxMsgHandler)
 	u.BlockHandle.Register(u.BaseNode.TxBlockHandler)
 
-	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(u))
+	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))
 
 	// wait for sync
 	u.PushPool.Start()

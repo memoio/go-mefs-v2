@@ -37,6 +37,10 @@ type ProviderNode interface {
 	FullNode
 }
 
+type KeeperNode interface {
+	FullNode
+}
+
 // json api auth and verify
 type IAuth interface {
 	AuthVerify(context.Context, string) ([]auth.Permission, error)

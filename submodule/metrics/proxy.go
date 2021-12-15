@@ -8,8 +8,30 @@ import (
 	"go.opencensus.io/tag"
 )
 
+// for measure api latency
 func MetricedFullAPI(a api.FullNode) api.FullNode {
 	var out api.FullNodeStruct
+	proxy(a, &out.Internal)
+	proxy(a, &out.CommonStruct.Internal)
+	return &out
+}
+
+func MetricedUserAPI(a api.UserNode) api.UserNode {
+	var out api.UserNodeStruct
+	proxy(a, &out.Internal)
+	proxy(a, &out.CommonStruct.Internal)
+	return &out
+}
+
+func MetricedProviderAPI(a api.ProviderNode) api.ProviderNode {
+	var out api.ProviderNodeStruct
+	proxy(a, &out.Internal)
+	proxy(a, &out.CommonStruct.Internal)
+	return &out
+}
+
+func MetricedKeeperAPI(a api.KeeperNode) api.KeeperNode {
+	var out api.KeeperNodeStruct
 	proxy(a, &out.Internal)
 	proxy(a, &out.CommonStruct.Internal)
 	return &out

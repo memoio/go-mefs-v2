@@ -12,6 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/service/data"
 	pchal "github.com/memoio/go-mefs-v2/service/provider/challenge"
 	porder "github.com/memoio/go-mefs-v2/service/provider/order"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -85,7 +86,7 @@ func (p *ProviderNode) Start() error {
 	p.PushPool.RegisterAddUPFunc(p.chalSeg.AddUP)
 	p.PushPool.RegisterDelSegFunc(p.chalSeg.RemoveSeg)
 
-	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(p))
+	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(metrics.MetricedProviderAPI(p)))
 
 	// wait for sync
 	p.PushPool.Start()
