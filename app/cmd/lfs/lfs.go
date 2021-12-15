@@ -1,13 +1,58 @@
 package lfscmd
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/code"
+	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
+	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
 )
+
+const (
+	bucketNameKwd  = "bucketname"
+	policyKwd      = "policy"
+	dataCountKwd   = "datacount"
+	parityCountKwd = "paritycount"
+)
+
+func FormatPolicy(policy uint32) string {
+	if policy == code.RsPolicy {
+		return "erasure code"
+	} else if policy == code.MulPolicy {
+		return "multi replica"
+
+	}
+	return "unknown"
+}
+
+func FormatBucketInfo(bucket *types.BucketInfo) string {
+	return fmt.Sprintf(
+		`Name: %s
+BucketID: %d
+CTime: %s
+MTime: %s
+ObjectCount: %d
+Policy: %s
+DataCount: %d
+ParityCount: %d
+Used: %s`,
+		ansi.Color(bucket.Name, "green"),
+		bucket.BucketID,
+		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(bucket.MTime), 0).Format(utils.SHOWTIME),
+		bucket.NextObjectID,
+		FormatPolicy(bucket.Policy),
+		bucket.DataCount,
+		bucket.ParityCount,
+		utils.FormatBytes(int64(bucket.UsedBytes)),
+	)
+}
 
 var LfsCmd = &cli.Command{
 	Name:  "lfs",
@@ -19,7 +64,7 @@ var LfsCmd = &cli.Command{
 		putObjectCmd,
 		headObjectCmd,
 		getObjectCmd,
-		listObjectCmd,
+		listObjectsCmd,
 	},
 }
 
@@ -28,8 +73,27 @@ var createBucketCmd = &cli.Command{
 	Usage: "create bucket",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
+		},
+		&cli.UintFlag{
+			Name:    policyKwd,
+			Aliases: []string{"pl"},
+			Usage:   "erasure code(1) or multi-replica(2)",
+			Value:   code.RsPolicy,
+		},
+		&cli.UintFlag{
+			Name:    dataCountKwd,
+			Aliases: []string{"dc"},
+			Usage:   "data count",
+			Value:   3,
+		},
+		&cli.UintFlag{
+			Name:    parityCountKwd,
+			Aliases: []string{"pc"},
+			Usage:   "parity count",
+			Value:   2,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -46,14 +110,22 @@ var createBucketCmd = &cli.Command{
 		defer closer()
 
 		bucketName := cctx.String("bucket")
+		if bucketName == "" {
+			return errors.New("bucketname is nil")
+		}
 
-		bi, err := napi.CreateBucket(cctx.Context, bucketName, code.DefaultBucketOptions())
+		opts := code.DefaultBucketOptions()
+		opts.Policy = uint32(cctx.Uint(policyKwd))
+		opts.DataCount = uint32(cctx.Uint(dataCountKwd))
+		opts.ParityCount = uint32(cctx.Uint(parityCountKwd))
+
+		bi, err := napi.CreateBucket(cctx.Context, bucketName, opts)
 		if err != nil {
 			return err
 		}
 
 		fmt.Println("create bucket: ", bi.BucketID, bi.Name)
-
+		fmt.Println(FormatBucketInfo(bi))
 		return nil
 	},
 }
@@ -101,8 +173,9 @@ var headBucketCmd = &cli.Command{
 	Usage: "head bucket info",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 	},
 	Action: func(cctx *cli.Context) error {

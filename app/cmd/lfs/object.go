@@ -5,21 +5,46 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
+	"github.com/mgutz/ansi"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 )
 
-var listObjectCmd = &cli.Command{
-	Name:  "listObject",
-	Usage: "list object",
+func FormatObjectInfo(object *types.ObjectInfo) string {
+	return fmt.Sprintf(
+		`Name: %s
+BucketID: %d
+ObjectId: %d
+Etag: %s
+CTime: %s
+MTime: %s
+Size: %s
+enc:%s`,
+		ansi.Color(object.Name, "green"),
+		object.BucketID,
+		object.ObjectID,
+		hex.EncodeToString(object.Etag),
+		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
+		utils.FormatBytes(int64(object.Length)),
+		object.Encryption,
+	)
+}
+
+var listObjectsCmd = &cli.Command{
+	Name:  "listObjects",
+	Usage: "list objects",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -56,12 +81,14 @@ var putObjectCmd = &cli.Command{
 	Usage: "put object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 		&cli.StringFlag{
-			Name:  "object",
-			Usage: "objectName",
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
 		},
 		&cli.StringFlag{
 			Name:  "path",
@@ -114,12 +141,14 @@ var headObjectCmd = &cli.Command{
 	Usage: "head object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 		&cli.StringFlag{
-			Name:  "object",
-			Usage: "objectName",
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -158,12 +187,14 @@ var getObjectCmd = &cli.Command{
 	Usage: "get object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 		&cli.StringFlag{
-			Name:  "object",
-			Usage: "objectName",
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
 		},
 		&cli.StringFlag{
 			Name:  "path",
