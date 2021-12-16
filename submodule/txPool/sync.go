@@ -210,16 +210,21 @@ func (sp *SyncPool) syncBlock() {
 			err = sp.processTxBlock(sb)
 			if err != nil {
 				// clear all block above sp.nextHeight
+				sp.Lock()
 				for j := i; j < sp.remoteHeight; j++ {
 					delete(sp.blks, j)
 				}
 				sp.remoteHeight = i
+				sp.Unlock()
 				logger.Debug(err)
 				break
 			}
-			delete(sp.blks, i)
 
+			sp.Lock()
+			delete(sp.blks, i)
 			sp.nextHeight++
+			sp.Unlock()
+			stats.Record(sp.ctx, metrics.TxBlockSyncdHeight.M(int64(sp.nextHeight)))
 		}
 
 		sp.Lock()
@@ -410,6 +415,8 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 		sp.remoteHeight = tb.Height + 1
 	}
 	sp.Unlock()
+
+	stats.Record(sp.ctx, metrics.TxBlockRemoteHeight.M(int64(sp.remoteHeight)))
 
 	return nil
 }

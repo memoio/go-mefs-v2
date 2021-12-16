@@ -26,7 +26,7 @@ CTime: %s
 MTime: %s
 Size: %s
 State: %s
-enc:%s`,
+Enc: %s`,
 		ansi.Color(object.Name, "green"),
 		object.BucketID,
 		object.ObjectID,
