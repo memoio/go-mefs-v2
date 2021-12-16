@@ -25,6 +25,7 @@ Etag: %s
 CTime: %s
 MTime: %s
 Size: %s
+State: %s
 enc:%s`,
 		ansi.Color(object.Name, "green"),
 		object.BucketID,
@@ -33,6 +34,7 @@ enc:%s`,
 		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
 		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
 		utils.FormatBytes(int64(object.Length)),
+		object.State,
 		object.Encryption,
 	)
 }
@@ -68,8 +70,10 @@ var listObjectsCmd = &cli.Command{
 			return err
 		}
 
+		fmt.Println("List objects: ")
 		for _, oi := range loi {
-			fmt.Println("list object: ", oi.ObjectID, oi.Name, oi)
+			fmt.Printf("\n")
+			fmt.Println(FormatObjectInfo(oi))
 		}
 
 		return nil
@@ -130,7 +134,8 @@ var putObjectCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("put object: ", oi.State)
+		fmt.Println("Put object: ")
+		fmt.Println(FormatObjectInfo(oi))
 
 		return nil
 	},
@@ -172,7 +177,8 @@ var headObjectCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("head object: ", oi, oi.Length, oi.Mtime, oi.State, hex.EncodeToString(oi.Etag))
+		fmt.Println("Head object: ")
+		fmt.Println(FormatObjectInfo(oi))
 
 		for i, part := range oi.Parts {
 			fmt.Println("part: ", i, part)
