@@ -131,7 +131,7 @@ var createBucketCmd = &cli.Command{
 }
 
 var listBucketsCmd = &cli.Command{
-	Name:  "listBucket",
+	Name:  "listBuckets",
 	Usage: "list buckets",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -159,9 +159,10 @@ var listBucketsCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("list buckets: ")
+		fmt.Println("List buckets: ")
 		for _, bi := range bs {
-			fmt.Println(bi.BucketID, bi.Name, bi.DataCount, bi)
+			fmt.Printf("\n")
+			fmt.Println(FormatBucketInfo(bi))
 		}
 
 		return nil
@@ -198,7 +199,8 @@ var headBucketCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("create bucket: ", bi.BucketID, bi.Name, bi)
+		fmt.Println("Head bucket: ")
+		fmt.Println(FormatBucketInfo(bi))
 
 		return nil
 	},
