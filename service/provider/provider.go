@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/address"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/service/data"
 	pchal "github.com/memoio/go-mefs-v2/service/provider/challenge"
 	porder "github.com/memoio/go-mefs-v2/service/provider/order"
+	"github.com/memoio/go-mefs-v2/submodule/connect/readpay"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
@@ -31,6 +33,8 @@ type ProviderNode struct {
 
 	chalSeg *pchal.SegMgr
 
+	rp *readpay.ReceivePay
+
 	ctx context.Context
 }
 
@@ -47,11 +51,25 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 		return nil, err
 	}
 
-	ids := data.New(ds, segStore, bn.NetServiceImpl)
+	pri, err := bn.RoleMgr.RoleSelf(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	localAddr, err := address.NewAddress(pri.ChainVerifyKey)
+	if err != nil {
+		return nil, err
+	}
+
+	sp := readpay.NewSender(localAddr, bn.LocalWallet, ds)
+
+	ids := data.New(ds, segStore, bn.NetServiceImpl, bn.RoleMgr, sp)
 
 	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, ids, bn.PushPool)
 
 	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.PushPool)
+
+	rp := readpay.NewReceivePay(localAddr, ds)
 
 	pn := &ProviderNode{
 		BaseNode:     bn,
@@ -59,6 +77,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 		ctx:          ctx,
 		pom:          por,
 		chalSeg:      sm,
+		rp:           rp,
 	}
 
 	return pn, nil

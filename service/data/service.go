@@ -4,33 +4,43 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"math/big"
 
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/address"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/connect/readpay"
 )
 
 var logger = logging.Logger("data-service")
 
 type dataService struct {
 	api.INetService // net for send
+	api.IRole
 
 	ds       store.KVStore
 	segStore segment.SegmentStore
 
 	cache *lru.ARCCache
+
+	is readpay.ISender
 }
 
-func New(ds store.KVStore, ss segment.SegmentStore, is api.INetService) *dataService {
+func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.IRole, is readpay.ISender) *dataService {
 	cache, _ := lru.NewARC(1024)
 
 	d := &dataService{
-		INetService: is,
+		INetService: ins,
+		IRole:       ir,
+		is:          is,
 		ds:          ds,
 		segStore:    ss,
 		cache:       cache,
@@ -109,7 +119,25 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 		return seg, err
 	}
 
-	return d.GetSegmentRemote(ctx, sid, from, nil)
+	pri, err := d.RoleGet(context.TODO(), from)
+	if err != nil {
+		return seg, err
+	}
+
+	fromAddr, err := address.NewAddress(pri.ChainVerifyKey)
+	if err != nil {
+		return seg, err
+	}
+
+	readPrice := big.NewInt(types.DefaultReadPrice)
+	readPrice.Mul(readPrice, big.NewInt(build.DefaultSegSize))
+
+	sig, err := d.is.Pay(fromAddr, readPrice)
+	if err != nil {
+		return seg, err
+	}
+
+	return d.GetSegmentRemote(ctx, sid, from, sig)
 }
 
 func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.SegmentID) (uint64, error) {

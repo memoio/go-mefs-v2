@@ -2,11 +2,14 @@ package provider
 
 import (
 	"context"
+	"math/big"
 
 	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/submodule/connect/readpay"
 	"github.com/zeebo/blake3"
 )
 
@@ -19,6 +22,23 @@ func (p *ProviderNode) handleGetSeg(ctx context.Context, pid peer.ID, mes *pb.Ne
 			From:    p.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
+	}
+
+	pc := new(readpay.Paycheck)
+	err := pc.Deserialize(mes.GetData().Sign)
+	if err != nil {
+		logger.Debug("readpay fail:", err)
+		resp.Header.Type = pb.NetMessage_Err
+		return resp, nil
+	}
+
+	readPrice := big.NewInt(types.DefaultReadPrice)
+	readPrice.Mul(readPrice, big.NewInt(build.DefaultSegSize))
+	err = p.rp.Verify(pc, readPrice)
+	if err != nil {
+		logger.Debug("readpay fail:", err)
+		resp.Header.Type = pb.NetMessage_Err
+		return resp, nil
 	}
 
 	segID, err := segment.FromBytes(mes.GetData().GetMsgInfo())

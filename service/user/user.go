@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/address"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/service/data"
 	"github.com/memoio/go-mefs-v2/service/user/lfs"
 	uorder "github.com/memoio/go-mefs-v2/service/user/order"
+	"github.com/memoio/go-mefs-v2/submodule/connect/readpay"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
@@ -48,7 +50,19 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
-	ids := data.New(ds, segStore, bn.NetServiceImpl)
+	pri, err := bn.RoleMgr.RoleSelf(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	localAddr, err := address.NewAddress(pri.ChainVerifyKey)
+	if err != nil {
+		return nil, err
+	}
+
+	sp := readpay.NewSender(localAddr, bn.LocalWallet, ds)
+
+	ids := data.New(ds, segStore, bn.NetServiceImpl, bn.RoleMgr, sp)
 
 	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PushPool, bn.RoleMgr, bn.NetServiceImpl, ids)
 

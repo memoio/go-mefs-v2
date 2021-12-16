@@ -103,10 +103,7 @@ func (w *LocalWallet) WalletNew(ctx context.Context, kt types.KeyType) (address.
 
 	// for eth short addr
 	if kt == types.Secp256k1 {
-		addrByte, err := utils.ToEthAddress(cbyte)
-		if err != nil {
-			return address.Undef, err
-		}
+		addrByte := utils.ToEthAddress(cbyte)
 
 		eaddr, err := address.NewAddress(addrByte)
 		if err != nil {

@@ -1,4 +1,4 @@
-package paths
+package utils
 
 import (
 	"os"
@@ -27,7 +27,7 @@ func GetRepoPath(override string) (string, error) {
 }
 
 func GetMefsPath() (string, error) {
-	mefsPath := "~/.memo"
+	mefsPath := defaultRepoDir
 	if os.Getenv("MEFS_PATH") != "" { //获取环境变量
 		mefsPath = os.Getenv("MEFS_PATH")
 	}

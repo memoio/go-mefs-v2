@@ -9,34 +9,20 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/mitchellh/go-homedir"
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/xerrors"
 )
-
-func GetMefsPath() (string, error) {
-	mefsPath := "~/.memo"
-	if os.Getenv("MEFS_PATH") != "" { //获取环境变量
-		mefsPath = os.Getenv("MEFS_PATH")
-	}
-	mefsPath, err := homedir.Expand(mefsPath)
-	if err != nil {
-		return "", err
-	}
-	return mefsPath, nil
-}
 
 // ToEthAddress returns an address using the SECP256K1 protocol.
 // pubkey is 65 bytes
-func ToEthAddress(pubkey []byte) ([]byte, error) {
-	if len(pubkey) != 65 {
-		return nil, xerrors.New("length should be 65")
+func ToEthAddress(pubkey []byte) []byte {
+	if len(pubkey) == 65 {
+		d := sha3.NewLegacyKeccak256()
+		d.Write(pubkey[1:])
+		payload := d.Sum(nil)
+		return payload[12:]
 	}
 
-	d := sha3.NewLegacyKeccak256()
-	d.Write(pubkey[1:])
-	payload := d.Sum(nil)
-	return payload[12:], nil
+	return pubkey
 }
 
 func UintToBytes(v interface{}) []byte {

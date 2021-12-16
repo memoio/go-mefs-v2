@@ -43,11 +43,11 @@ const (
 	Memo2Dollar float64 = 0.01
 
 	// DefaultReadPrice is read price 0.00002 $/GB(0.25 rmb-0.5rmb/GB in aliyun oss)
-	DefaultReadPrice = 2e6 // weiDollar per Byte
+	DefaultReadPrice = 2_000_000 // weiDollar per Byte
 	// DefaultStorePrice is stored price 3$/TB*Month (33 rmb/TB*Month in aliyun oss)
 	DefaultStorePrice = 1 // weiDollar per Byte*second
 	// ProviderDeposit is provider deposit price, 3 dollar/TB
-	ProviderDeposit = 3e6 // weiDollar per Byte
+	ProviderDeposit = 3_000_000 // weiDollar per Byte
 	// KeeperDeposit is keeper deposit； 0.01 dollar for now
 	KeeperDeposit = Token
 )

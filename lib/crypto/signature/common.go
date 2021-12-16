@@ -85,14 +85,7 @@ func Verify(pubBytes []byte, data, sig []byte) (bool, error) {
 			return false, err
 		}
 
-		eaddr, err := utils.ToEthAddress(rePub)
-		if err != nil {
-			return false, err
-		}
-
-		if bytes.Equal(pubBytes, eaddr) {
-			return true, nil
-		}
+		return bytes.Equal(pubBytes, utils.ToEthAddress(rePub)), nil
 	default:
 		pk, err := ParsePubByte(pubBytes)
 		if err != nil {
@@ -101,5 +94,4 @@ func Verify(pubBytes []byte, data, sig []byte) (bool, error) {
 
 		return pk.Verify(data, sig)
 	}
-	return false, nil
 }
