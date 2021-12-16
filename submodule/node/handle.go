@@ -9,8 +9,6 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
-	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/zeebo/blake3"
 )
 
 // todo: remove it
@@ -47,21 +45,24 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 		return resp, nil
 	}
 
-	msg := blake3.Sum256(val)
-	sig, err := n.RoleSign(n.ctx, n.RoleID(), msg[:], types.SigSecp256k1)
-	if err != nil {
-		resp.Header.Type = pb.NetMessage_Err
-		return resp, nil
-	}
+	/*
+		msg := blake3.Sum256(val)
+		sig, err := n.RoleSign(n.ctx, n.RoleID(), msg[:], types.SigSecp256k1)
+		if err != nil {
+			resp.Header.Type = pb.NetMessage_Err
+			return resp, nil
+		}
 
-	sigByte, err := sig.Serialize()
-	if err != nil {
-		resp.Header.Type = pb.NetMessage_Err
-		return resp, nil
-	}
+		sigByte, err := sig.Serialize()
+		if err != nil {
+			resp.Header.Type = pb.NetMessage_Err
+			return resp, nil
+		}
+		resp.Data.Sign = sigByte
+	*/
 
 	resp.Data.MsgInfo = val
-	resp.Data.Sign = sigByte
+
 	return resp, nil
 }
 

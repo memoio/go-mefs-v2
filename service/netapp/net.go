@@ -35,6 +35,8 @@ type NetServiceImpl struct {
 
 	ds store.KVStore
 
+	lastFetch peer.ID
+
 	idMap map[uint64]peer.ID
 	wants map[uint64]time.Time
 

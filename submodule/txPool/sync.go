@@ -45,8 +45,8 @@ type SyncPool struct {
 	nextHeight   uint64 // next synced
 	remoteHeight uint64 // next remote
 
-	blks  map[uint64]*tx.SignedBlock // key: height
-	nonce map[uint64]uint64          // key: roleID
+	blks  map[uint64]types.MsgID // key: height
+	nonce map[uint64]uint64      // key: roleID
 
 	ready bool
 
@@ -76,7 +76,7 @@ func NewSyncPool(ctx context.Context, roleID, groupID uint64, st *state.StateMgr
 		remoteHeight: 0,
 
 		nonce: make(map[uint64]uint64),
-		blks:  make(map[uint64]*tx.SignedBlock),
+		blks:  make(map[uint64]types.MsgID),
 
 		msgChan: make(chan *tx.SignedMessage, 128),
 		msgDone: make(chan *tx.MessageDigest, 16),
@@ -137,27 +137,42 @@ func (sp *SyncPool) syncBlock() {
 		// todo: use prevID to find
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
 			sp.RLock()
-			_, ok := sp.blks[i]
+			bid, ok := sp.blks[i]
 			sp.RUnlock()
 			if !ok {
 				// sync block from remote
-				bid, err := sp.GetTxBlockByHeight(i)
+				nbid, err := sp.GetTxBlockByHeight(i)
 				if err != nil {
 					logger.Debug("get block height fail: ", i, err)
-					continue
+					time.Sleep(5 * time.Second)
+					break
 				}
-
-				blk, err := sp.GetTxBlock(bid)
-				if err != nil {
-					blk, err = sp.GetTxBlockRemote(bid)
-					if err != nil {
-						logger.Debug("get block remote fail: ", i, bid, err)
+				bid = nbid
+			} else {
+				if i > 0 && i > sp.nextHeight {
+					sp.RLock()
+					// previous one exist, skip get?
+					_, ok = sp.blks[i-1]
+					sp.RUnlock()
+					if ok {
 						continue
 					}
 				}
+			}
 
+			blk, err := sp.GetTxBlock(bid)
+			if err != nil {
+				_, err := sp.GetTxBlockRemote(bid)
+				if err != nil {
+					logger.Debug("get block remote fail: ", i, bid, err)
+					continue
+				}
+			} else {
 				sp.Lock()
-				sp.blks[i] = blk
+				sp.blks[blk.Height] = bid
+				if blk.Height > 0 {
+					sp.blks[blk.Height-1] = blk.PrevID
+				}
 				sp.Unlock()
 			}
 		}
@@ -171,28 +186,40 @@ func (sp *SyncPool) syncBlock() {
 
 		// process syncd blk
 		for i := sp.nextHeight; i < rh; i++ {
-			sp.Lock()
-			sb, ok := sp.blks[i]
-			if ok {
-				err := sp.processTxBlock(sb)
-				if err != nil {
-					// clear all block above sp.nextHeight
-					for j := i; j < sp.remoteHeight; j++ {
-						delete(sp.blks, j)
-					}
-					sp.remoteHeight = i
-					sp.Unlock()
-					logger.Debug(err)
-					break
-				}
-				delete(sp.blks, i)
-			} else {
+			sp.RLock()
+			bid, ok := sp.blks[i]
+			sp.RUnlock()
+
+			if !ok {
 				logger.Debug("before process block, not have")
-				sp.Unlock()
 				break
 			}
+
+			sb, err := sp.GetTxBlock(bid)
+			if err != nil {
+				logger.Debugf("get tx block %d %s fail: %w", i, bid, err)
+				break
+			}
+
+			if sb.Height != i {
+				logger.Debugf("get tx block %d %s height not equal %d", i, bid, sb.Height)
+				delete(sp.blks, i)
+				break
+			}
+
+			err = sp.processTxBlock(sb)
+			if err != nil {
+				// clear all block above sp.nextHeight
+				for j := i; j < sp.remoteHeight; j++ {
+					delete(sp.blks, j)
+				}
+				sp.remoteHeight = i
+				logger.Debug(err)
+				break
+			}
+			delete(sp.blks, i)
+
 			sp.nextHeight++
-			sp.Unlock()
 		}
 
 		sp.Lock()
@@ -215,7 +242,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 	}
 
 	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
-		logger.Warnf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+		logger.Warnf("apply wrong state at height %d, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
 		return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
 
@@ -316,14 +343,6 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 
 	sp.SetReady()
 
-	sp.RLock()
-	_, ok := sp.blks[tb.Height]
-	if ok {
-		sp.RUnlock()
-		return nil
-	}
-	sp.RUnlock()
-
 	bid := tb.Hash()
 
 	has, _ := sp.HasTxBlock(bid)
@@ -377,9 +396,14 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 		return err
 	}
 
+	logger.Debug("add block: ", tb.Height, sp.nextHeight, sp.remoteHeight)
+
 	sp.Lock()
 	if tb.Height >= sp.nextHeight {
-		sp.blks[tb.Height] = tb
+		sp.blks[tb.Height] = bid
+		if tb.Height > 0 {
+			sp.blks[tb.Height-1] = tb.PrevID
+		}
 	}
 
 	if tb.Height >= sp.remoteHeight {

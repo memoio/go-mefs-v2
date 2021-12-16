@@ -154,11 +154,6 @@ func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*SignedBlock, error) {
 func (ts *TxStoreImpl) PutTxBlock(tb *SignedBlock) error {
 	bid := tb.Hash()
 
-	ok := ts.blkCache.Contains(bid)
-	if ok {
-		return nil
-	}
-
 	ts.blkCache.Add(bid, tb)
 	key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
 	sbyte, err := tb.Serialize()

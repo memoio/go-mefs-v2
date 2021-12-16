@@ -102,6 +102,14 @@ func disorder(array []peer.AddrInfo) {
 
 // fetch
 func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) {
+	if c.lastFetch.Validate() == nil {
+		resp, err := c.GenericService.SendNetRequest(ctx, c.lastFetch, c.roleID, pb.NetMessage_Get, key, nil)
+		if err == nil && resp.GetHeader().GetType() != pb.NetMessage_Err {
+			logger.Debug("receive data from last good: ", c.lastFetch.Pretty(), string(key))
+			return resp.GetData().GetMsgInfo(), nil
+		}
+	}
+
 	// iter over connected peers
 	pinfos, err := c.ns.NetPeers(ctx)
 	if err != nil {
@@ -119,6 +127,8 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 		if resp.GetHeader().GetType() == pb.NetMessage_Err {
 			continue
 		}
+
+		c.lastFetch = pi.ID
 
 		return resp.GetData().GetMsgInfo(), nil
 	}

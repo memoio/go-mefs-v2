@@ -11,7 +11,7 @@ const MemoPathVar = "MEFS_PATH"
 const defaultRepoDir = "~/.memo"
 
 // GetRepoPath returns the path of the repo from a potential override
-// string, the MEFS_PATH environment variable and a default of ~/.memo/repo.
+// string, the MEFS_PATH environment variable and a default of ~/.memo.
 func GetRepoPath(override string) (string, error) {
 	// override is first precedence
 	if override != "" {
@@ -27,13 +27,5 @@ func GetRepoPath(override string) (string, error) {
 }
 
 func GetMefsPath() (string, error) {
-	mefsPath := defaultRepoDir
-	if os.Getenv("MEFS_PATH") != "" { //获取环境变量
-		mefsPath = os.Getenv("MEFS_PATH")
-	}
-	mefsPath, err := homedir.Expand(mefsPath)
-	if err != nil {
-		return "", err
-	}
-	return mefsPath, nil
+	return GetRepoPath("")
 }
