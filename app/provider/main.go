@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	"github.com/memoio/go-mefs-v2/app/minit"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
 
@@ -38,6 +39,11 @@ func main() {
 				Name:  cmd.FlagRoleType,
 				Value: "provider",
 				Usage: "set role type.",
+			},
+			&cli.StringFlag{
+				Name:  minit.EnvEnableProfiling,
+				Value: "enable",
+				Usage: "enable cpu profile",
 			},
 		},
 

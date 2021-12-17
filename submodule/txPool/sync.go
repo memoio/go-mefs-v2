@@ -116,7 +116,7 @@ func (sp *SyncPool) load() {
 }
 
 func (sp *SyncPool) syncBlock() {
-	tc := time.NewTicker(1 * time.Second)
+	tc := time.NewTicker(3 * time.Second)
 	defer tc.Stop()
 
 	for {
