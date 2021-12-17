@@ -50,8 +50,9 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		s.oInfo[okey] = oinfo
 	}
 
+	// todo: add penalty if oinfo.prove < scp.Epoch?
 	if oinfo.prove > scp.Epoch {
-		return xerrors.Errorf("challeng proof submitted or missed at %d", scp.Epoch)
+		return xerrors.Errorf("challenge proof submitted or missed at %d", scp.Epoch)
 	}
 
 	buf := make([]byte, 8+len(s.ceInfo.current.Seed.Bytes()))
@@ -298,7 +299,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	}
 
 	if oinfo.prove > scp.Epoch {
-		return xerrors.Errorf("challeng proof submitted or missed at %d", scp.Epoch)
+		return xerrors.Errorf("challenge proof submitted or missed at %d", scp.Epoch)
 	}
 
 	buf := make([]byte, 8+len(s.validateCeInfo.current.Seed.Bytes()))

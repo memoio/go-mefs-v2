@@ -80,6 +80,7 @@ func (k *KeeperNode) updatePay() {
 				for _, pid := range pros {
 					pi, err := k.PushPool.GetPostIncomeAt(k.ctx, uid, pid, payEpoch)
 					if err != nil {
+						// todo: add penalty here?
 						logger.Debugf("pay not have post income for %d %d at epoch %d", uid, pid, payEpoch)
 						continue
 					}

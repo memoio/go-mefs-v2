@@ -174,6 +174,8 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 		Msgs: make([]tx.SignedMessage, 0, 16),
 	}
 
+	nt := time.Now()
+
 	// reset
 	oldRoot, err := mp.ValidateBlock(nil)
 	if err != nil {
@@ -243,11 +245,18 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 		return msgSet, nil
 	}
 
+	// block size should be less than 1MiB
+	msgCnt := 0
+	rLen := 0
 	for from, ms := range mp.pending {
 		nc := mp.GetNonce(mp.ctx, from)
 		for i := nc; ; i++ {
 			m, ok := ms.info[i]
 			if ok {
+				if rLen+len(m.Params) > 1000_000 {
+					break
+				}
+
 				// validate message
 				tr := tx.Receipt{
 					Err: 0,
@@ -263,11 +272,27 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 
 				msgSet.Msgs = append(msgSet.Msgs, *m)
 				msgSet.Receipts = append(msgSet.Receipts, tr)
+				msgCnt++
+				rLen += len(m.Params)
+
+				if time.Since(nt).Seconds() > 10 {
+					break
+				}
 			} else {
 				break
 			}
 		}
+
+		if rLen > 1000_000 {
+			break
+		}
+
+		if time.Since(nt).Seconds() > 10 {
+			break
+		}
 	}
+
+	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d", rh.Height, msgCnt, rLen)
 
 	return msgSet, nil
 }
@@ -326,10 +351,9 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 
 func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 	logger.Debugf("create block OnViewDone at height %d", tb.Height)
-	if tb.Height >= 0 || tb.MinerID == mp.localID {
-		stats.Record(mp.ctx, metrics.TxBlockPublished.M(1))
-		mp.INetService.PublishTxBlock(mp.ctx, tb)
-	}
+
+	stats.Record(mp.ctx, metrics.TxBlockPublished.M(1))
+	mp.INetService.PublishTxBlock(mp.ctx, tb)
 
 	if tb.MinerID == mp.localID {
 		logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))

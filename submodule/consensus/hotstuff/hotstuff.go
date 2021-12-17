@@ -382,8 +382,11 @@ func (hsm *HotstuffManager) NewView() error {
 			Sig:  sig,
 		}
 
-		// todo: send hm message out
-		hsm.PublishHsMsg(hsm.ctx, hm)
+		// send hm message out
+		err = hsm.PublishHsMsg(hsm.ctx, hm)
+		if err != nil {
+			logger.Debugf("publish msg err %w", err)
+		}
 	}
 
 	return nil
@@ -482,8 +485,12 @@ func (hsm *HotstuffManager) tryPropose() error {
 		Quorum: hsm.curView.highQuorum,
 	}
 
-	// todo: send hm message out
-	hsm.PublishHsMsg(hsm.ctx, hm)
+	logger.Debugf("leader propose publish %d, %d, %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
+
+	err = hsm.PublishHsMsg(hsm.ctx, hm)
+	if err != nil {
+		logger.Debugf("publish msg err %w", err)
+	}
 
 	return nil
 }
@@ -532,7 +539,10 @@ func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 	msg.Type = hs.MsgVotePrepare
 
 	// send to leader
-	hsm.PublishHsMsg(hsm.ctx, msg)
+	err = hsm.PublishHsMsg(hsm.ctx, msg)
+	if err != nil {
+		logger.Debugf("publish msg err %w", err)
+	}
 
 	return nil
 }
@@ -597,8 +607,10 @@ func (hsm *HotstuffManager) tryPreCommit() error {
 		Quorum: hsm.curView.prepareQuorum,
 	}
 
-	// todo: send hm message out
-	hsm.PublishHsMsg(hsm.ctx, hm)
+	err = hsm.PublishHsMsg(hsm.ctx, hm)
+	if err != nil {
+		logger.Debugf("publish msg err %w", err)
+	}
 
 	return nil
 }
@@ -636,7 +648,10 @@ func (hsm *HotstuffManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
 	msg.Type = hs.MsgVotePreCommit
 
 	// send to leader
-	hsm.PublishHsMsg(hsm.ctx, msg)
+	err = hsm.PublishHsMsg(hsm.ctx, msg)
+	if err != nil {
+		logger.Debugf("publish msg err %w", err)
+	}
 
 	return nil
 }
@@ -699,8 +714,10 @@ func (hsm *HotstuffManager) tryCommit() error {
 		Quorum: hsm.curView.preCommitQuorum,
 	}
 
-	// todo: send hm message out
-	hsm.PublishHsMsg(hsm.ctx, hm)
+	err = hsm.PublishHsMsg(hsm.ctx, hm)
+	if err != nil {
+		logger.Debugf("publish msg err %w", err)
+	}
 
 	return nil
 }
@@ -733,7 +750,10 @@ func (hsm *HotstuffManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
 	msg.Quorum = types.NewMultiSignature(types.SigBLS)
 	msg.Type = hs.MsgVoteCommit
 
-	hsm.PublishHsMsg(hsm.ctx, msg)
+	err = hsm.PublishHsMsg(hsm.ctx, msg)
+	if err != nil {
+		logger.Debugf("publish msg err %w", err)
+	}
 
 	return nil
 }
@@ -794,8 +814,11 @@ func (hsm *HotstuffManager) tryDecide() error {
 		Quorum: hsm.curView.commitQuorum,
 	}
 
-	// todo: send hm message out
-	hsm.PublishHsMsg(hsm.ctx, hm)
+	// send hm message out
+	err = hsm.PublishHsMsg(hsm.ctx, hm)
+	if err != nil {
+		logger.Debugf("publish msg err %w", err)
+	}
 
 	// apply
 	sb := &tx.SignedBlock{

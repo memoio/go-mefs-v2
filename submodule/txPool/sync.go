@@ -401,7 +401,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 		return err
 	}
 
-	logger.Debug("add block: ", tb.Height, sp.nextHeight, sp.remoteHeight)
+	logger.Debug("add block ok: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 
 	sp.Lock()
 	if tb.Height >= sp.nextHeight {
