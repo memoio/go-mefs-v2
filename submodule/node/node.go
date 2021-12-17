@@ -82,18 +82,16 @@ func (n *BaseNode) Start() error {
 
 	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedFullAPI(n)))
 
-	go func() {
-		// wait for sync
-		n.PushPool.Start()
-		for {
-			if n.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				time.Sleep(5 * time.Second)
-			}
+	// wait for sync
+	n.PushPool.Start()
+	for {
+		if n.PushPool.Ready() {
+			break
+		} else {
+			logger.Debug("wait for sync")
+			time.Sleep(5 * time.Second)
 		}
-	}()
+	}
 
 	logger.Info("start base node")
 

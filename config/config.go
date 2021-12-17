@@ -91,7 +91,9 @@ type BootstrapConfig struct {
 // TODO: provide bootstrap node addresses
 func newDefaultBootstrapConfig() BootstrapConfig {
 	return BootstrapConfig{
-		Addresses: []string{},
+		Addresses: []string{
+			"/ip4/192.168.1.46/tcp/7000/p2p/12D3KooW9wHS4bYiTRGMMZrzKcSXE92ZTMVhHcbTDaqHvDPDivgT",
+		},
 	}
 }
 

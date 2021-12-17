@@ -25,7 +25,6 @@ import (
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/utils/net"
-	"github.com/memoio/go-mefs-v2/lib/utils/storeutil"
 )
 
 // NetworkSubmodule enhances the `Node` with networking capabilities.
@@ -74,12 +73,6 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 	libP2pOpts = append(libP2pOpts, makeSmuxTransportOption())
 	libP2pOpts = append(libP2pOpts, Security(true, false))
 
-	ds := config.Repo().MetaStore()
-	nds, err := storeutil.NewDatastore("dht", ds)
-	if err != nil {
-		return nil, err
-	}
-
 	// set up host
 	rawHost, err := libp2p.New(
 		ctx,
@@ -99,7 +92,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 	}
 
 	dhtopts := []dht.Option{dht.Mode(dht.ModeAutoServer),
-		dht.Datastore(nds),
+		dht.Datastore(config.Repo().DhtStore()),
 		dht.Validator(validator),
 		dht.ProtocolPrefix(build.MemoriaeDHT(networkName)),
 		dht.QueryFilter(dht.PublicQueryFilter),

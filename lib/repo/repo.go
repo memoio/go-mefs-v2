@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"github.com/ipfs/go-datastore"
+
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -14,6 +16,8 @@ type Repo interface {
 	MetaStore() store.KVStore   // store meta
 	StateStore() store.KVStore  // store state meta
 	FileStore() store.FileStore // store data files
+
+	DhtStore() datastore.Batching // for dht
 
 	SetAPIAddr(maddr string) error
 	APIAddr() (string, error)

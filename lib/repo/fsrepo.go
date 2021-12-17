@@ -17,8 +17,11 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 
+	"github.com/ipfs/go-datastore"
+	levelds "github.com/ipfs/go-ds-leveldb"
 	lockfile "github.com/ipfs/go-fs-lock"
 	"github.com/mitchellh/go-homedir"
+	ldbopts "github.com/syndtr/goleveldb/leveldb/opt"
 	"golang.org/x/xerrors"
 )
 
@@ -58,6 +61,8 @@ type FSRepo struct {
 	metaDs  store.KVStore
 	stateDs store.KVStore
 	fileDs  store.FileStore
+
+	dhtDs datastore.Batching
 
 	// lockfile is the file system lock to prevent others from opening the same repo.
 	lockfile io.Closer
@@ -154,6 +159,10 @@ func (r *FSRepo) loadFromDisk() error {
 		return xerrors.Errorf("failed to open keystore %w", err)
 	}
 
+	if err := r.openDhtStore(); err != nil {
+		return xerrors.Errorf("failed to open dht datastore %w", err)
+	}
+
 	if err := r.openMetaStore(); err != nil {
 		return xerrors.Errorf("failed to open meta store %w", err)
 	}
@@ -210,6 +219,10 @@ func (r *FSRepo) FileStore() store.FileStore {
 	return r.fileDs
 }
 
+func (r *FSRepo) DhtStore() datastore.Batching {
+	return r.dhtDs
+}
+
 // Close closes the repo.
 func (r *FSRepo) Close() error {
 	if err := r.metaDs.Close(); err != nil {
@@ -222,6 +235,10 @@ func (r *FSRepo) Close() error {
 
 	if err := r.keyDs.Close(); err != nil {
 		return xerrors.Errorf("failed to close datastore %w", err)
+	}
+
+	if err := r.dhtDs.Close(); err != nil {
+		return xerrors.Errorf("failed to close dht datastore %w", err)
 	}
 
 	if err := r.fileDs.Close(); err != nil {
@@ -331,6 +348,24 @@ func (r *FSRepo) openFileStore() error {
 	}
 
 	r.fileDs = ds
+
+	return nil
+}
+
+func (r *FSRepo) openDhtStore() error {
+	mpath := path.Join(r.path, "dht")
+
+	ds, err := levelds.NewDatastore(mpath, &levelds.Options{
+		Compression: ldbopts.NoCompression,
+		NoSync:      false,
+		Strict:      ldbopts.StrictAll,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	r.dhtDs = ds
 
 	return nil
 }

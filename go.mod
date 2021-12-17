@@ -23,6 +23,7 @@ require (
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
 	github.com/ipfs/go-cid v0.1.0 // indirect
 	github.com/ipfs/go-datastore v0.4.6
+	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-fs-lock v0.0.7
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
@@ -51,6 +52,7 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sakeven/RbTree v0.0.0-20190505104653-18ee3093df2f
 	github.com/stretchr/testify v1.7.0
+	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/zeebo/blake3 v0.2.1
 	go.opencensus.io v0.23.0

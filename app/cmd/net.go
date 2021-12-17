@@ -17,6 +17,7 @@ var NetCmd = &cli.Command{
 		netInfoCmd,
 		netConnectCmd,
 		netPeersCmd,
+		findpeerCmd,
 	},
 }
 
