@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
@@ -31,6 +32,18 @@ type CommonStruct struct {
 		WalletImport func(context.Context, *types.KeyInfo) (address.Address, error) `perm:"write"`
 
 		NetAddrInfo func(context.Context) (peer.AddrInfo, error) `perm:"write"`
+
+		NetConnectedness func(context.Context, peer.ID) (network.Connectedness, error) `perm:"write"`
+
+		NetConnect func(context.Context, peer.AddrInfo) error `perm:"write"`
+
+		NetDisconnect func(context.Context, peer.ID) error `perm:"write"`
+
+		NetFindPeer func(context.Context, peer.ID) (peer.AddrInfo, error) `perm:"write"`
+
+		NetPeerInfo func(context.Context, peer.ID) (*ExtendedPeerInfo, error) `perm:"write"`
+
+		NetPeers func(context.Context) ([]peer.AddrInfo, error) `perm:"write"`
 
 		RoleSelf        func(context.Context) (*pb.RoleInfo, error)                                   `perm:"read"`
 		RoleGet         func(context.Context, uint64) (*pb.RoleInfo, error)                           `perm:"read"`
@@ -110,6 +123,30 @@ func (s *CommonStruct) WalletImport(ctx context.Context, ki *types.KeyInfo) (add
 
 func (s *CommonStruct) NetAddrInfo(ctx context.Context) (peer.AddrInfo, error) {
 	return s.Internal.NetAddrInfo(ctx)
+}
+
+func (s *CommonStruct) NetConnectedness(ctx context.Context, p peer.ID) (network.Connectedness, error) {
+	return s.Internal.NetConnectedness(ctx, p)
+}
+
+func (s *CommonStruct) NetConnect(ctx context.Context, p peer.AddrInfo) error {
+	return s.Internal.NetConnect(ctx, p)
+}
+
+func (s *CommonStruct) NetDisconnect(ctx context.Context, p peer.ID) error {
+	return s.Internal.NetDisconnect(ctx, p)
+}
+
+func (s *CommonStruct) NetFindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
+	return s.Internal.NetFindPeer(ctx, p)
+}
+
+func (s *CommonStruct) NetPeerInfo(ctx context.Context, p peer.ID) (*ExtendedPeerInfo, error) {
+	return s.Internal.NetPeerInfo(ctx, p)
+}
+
+func (s *CommonStruct) NetPeers(ctx context.Context) ([]peer.AddrInfo, error) {
+	return s.Internal.NetPeers(ctx)
 }
 
 func (s *CommonStruct) RoleSelf(ctx context.Context) (*pb.RoleInfo, error) {

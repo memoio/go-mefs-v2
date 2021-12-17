@@ -22,7 +22,7 @@ func (dh *discoveryHandler) HandlePeerFound(p peer.AddrInfo) {
 		return
 	}
 
-	logger.Info("connecting to discovered peer: ", p)
+	logger.Debug("connecting to discovered peer: ", p)
 	ctx, cancel := context.WithTimeout(dh.ctx, discoveryConnTimeout)
 	defer cancel()
 
@@ -40,7 +40,7 @@ func DiscoveryHandler(ctx context.Context, host host.Host) *discoveryHandler {
 
 func SetupDiscovery(ctx context.Context, host host.Host, handler *discoveryHandler) (discovery.Service, error) {
 	mdnsInterval := 5
-	service, err := discovery.NewMdnsService(ctx, host, time.Duration(mdnsInterval)*time.Second, discovery.ServiceTag)
+	service, err := discovery.NewMdnsService(ctx, host, time.Duration(mdnsInterval)*time.Second, "mefs-discovery")
 	if err != nil {
 		logger.Error("mdns error: ", err)
 		return service, nil

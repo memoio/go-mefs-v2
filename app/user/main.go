@@ -20,6 +20,7 @@ func main() {
 		cmd.AuthCmd,
 		cmd.WalletCmd,
 		cmd.RoleCmd,
+		cmd.NetCmd,
 		lfscmd.LfsCmd,
 	}
 

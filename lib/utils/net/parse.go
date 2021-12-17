@@ -13,9 +13,9 @@ import (
 
 // ParseAddresses is a function that takes in a slice of string peer addresses
 // (multiaddr + peerid) and returns a slice of properly constructed peers
-func ParseAddresses(ctx context.Context, addrs []string) ([]peer.AddrInfo, error) {
+func ParseAddresses(addrs []string) ([]peer.AddrInfo, error) {
 	// resolve addresses
-	maddrs, err := resolveAddresses(ctx, addrs)
+	maddrs, err := resolveAddresses(addrs)
 	if err != nil {
 		return nil, err
 	}
@@ -28,8 +28,8 @@ const (
 )
 
 // resolveAddresses resolves addresses parallelly
-func resolveAddresses(ctx context.Context, addrs []string) ([]ma.Multiaddr, error) {
-	ctx, cancel := context.WithTimeout(ctx, dnsResolveTimeout)
+func resolveAddresses(addrs []string) ([]ma.Multiaddr, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), dnsResolveTimeout)
 	defer cancel()
 
 	var maddrs []ma.Multiaddr

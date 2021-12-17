@@ -93,7 +93,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 
 	// setup dht
 	validator := blankValidator{}
-	bootNodes, err := net.ParseAddresses(ctx, config.Repo().Config().Bootstrap.Addresses)
+	bootNodes, err := net.ParseAddresses(config.Repo().Config().Bootstrap.Addresses)
 	if err != nil {
 		return nil, err
 	}

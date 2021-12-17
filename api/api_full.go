@@ -5,10 +5,8 @@ import (
 	"io"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
-	"github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
@@ -25,6 +23,7 @@ type FullNode interface {
 	IWallet
 	IRole
 	IState
+	INetwork
 }
 
 type UserNode interface {
@@ -81,10 +80,10 @@ type INetwork interface {
 	NetPeers(context.Context) ([]peer.AddrInfo, error)
 
 	// status; add more
-	NetAutoNatStatus(context.Context) (NatInfo, error)
-	NetBandwidthStats(ctx context.Context) (metrics.Stats, error)
-	NetBandwidthStatsByPeer(ctx context.Context) (map[string]metrics.Stats, error)
-	NetBandwidthStatsByProtocol(ctx context.Context) (map[protocol.ID]metrics.Stats, error)
+	//NetAutoNatStatus(context.Context) (NatInfo, error)
+	//NetBandwidthStats(ctx context.Context) (metrics.Stats, error)
+	//NetBandwidthStatsByPeer(ctx context.Context) (map[string]metrics.Stats, error)
+	//NetBandwidthStatsByProtocol(ctx context.Context) (map[protocol.ID]metrics.Stats, error)
 }
 
 type IRole interface {
