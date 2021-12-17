@@ -95,8 +95,9 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 		dht.Datastore(config.Repo().DhtStore()),
 		dht.Validator(validator),
 		dht.ProtocolPrefix(build.MemoriaeDHT(networkName)),
-		dht.QueryFilter(dht.PublicQueryFilter),
-		dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
+		// uncomment these in mainnet
+		//dht.QueryFilter(dht.PublicQueryFilter),
+		//dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
 		dht.BootstrapPeers(bootNodes...),
 		dht.DisableProviders(),
 		dht.DisableValues(),
