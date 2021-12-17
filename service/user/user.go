@@ -96,25 +96,27 @@ func (u *UserNode) Start() error {
 
 	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))
 
-	// wait for sync
-	u.PushPool.Start()
-	for {
-		if u.PushPool.Ready() {
-			break
-		} else {
-			logger.Debug("wait for sync")
-			time.Sleep(5 * time.Second)
+	go func() {
+		// wait for sync
+		u.PushPool.Start()
+		for {
+			if u.PushPool.Ready() {
+				break
+			} else {
+				logger.Debug("wait for sync")
+				time.Sleep(5 * time.Second)
+			}
 		}
-	}
 
-	// wait for register
-	err := u.Register()
-	if err != nil {
-		return err
-	}
+		// wait for register
+		err := u.Register()
+		if err != nil {
+			return
+		}
 
-	// start lfs service and its ordermgr service
-	u.LfsService.Start()
+		// start lfs service and its ordermgr service
+		u.LfsService.Start()
+	}()
 
 	logger.Info("start user for: ", u.RoleID())
 	return nil

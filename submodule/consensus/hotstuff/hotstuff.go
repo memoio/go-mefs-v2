@@ -136,7 +136,7 @@ func (hsm *HotstuffManager) checkView(msg *hs.HotstuffMessage) error {
 
 	slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
 	if msg.Data.Slot < slot {
-		return xerrors.Errorf("checkView msg from past views")
+		return xerrors.Errorf("checkView msg from past views, expected %d, got %d", slot, msg.Data.Slot)
 	}
 
 	// update view
@@ -624,6 +624,8 @@ func (hsm *HotstuffManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
 
 	hsm.curView.phase = hs.PhasePreCommit
 
+	hsm.curView.prepareQuorum = msg.Quorum
+
 	msg.From = hsm.localID
 	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
 	if err != nil {
@@ -673,7 +675,7 @@ func (hsm *HotstuffManager) tryCommit() error {
 		return xerrors.Errorf("phase state error")
 	}
 
-	logger.Debug("leader enter into commit %d %d %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
+	logger.Debugf("leader enter into commit %d %d %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
 
 	hsm.curView.phase = hs.PhaseCommit
 
@@ -720,7 +722,7 @@ func (hsm *HotstuffManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
 
 	hsm.curView.phase = hs.PhaseCommit
 
-	hsm.curView.prepareQuorum = msg.Quorum
+	hsm.curView.preCommitQuorum = msg.Quorum
 
 	msg.From = hsm.localID
 	sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(msg.Data.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
