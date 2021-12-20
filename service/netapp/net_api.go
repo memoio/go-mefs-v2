@@ -52,7 +52,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 
 				time.Sleep(1 * time.Second)
 			} else {
-				return c.GenericService.SendNetRequest(ctx, pid, c.roleID, typ, value, sig)
+				return c.GenericService.SendNetRequest(context.TODO(), pid, c.roleID, typ, value, sig)
 			}
 		}
 
