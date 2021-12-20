@@ -299,14 +299,16 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 
 func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 	logger.Debugf("create block OnPropose at height %d", sb.Height)
+
+	nt := time.Now()
 	oRoot, err := mp.ValidateBlock(nil)
 	if err != nil {
 		return err
 	}
 
 	if !oRoot.Equal(sb.ParentRoot) {
-		logger.Warnf("OnPropose has wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
-		return xerrors.Errorf("OnPropose wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+		logger.Warnf("OnPropose at %d has wrong state, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
+		return xerrors.Errorf("OnPropose at %d wrong state, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
 	}
 
 	newRoot, err := mp.ValidateBlock(sb)
@@ -318,6 +320,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		// validate msg sign
 		ok, err := mp.RoleVerify(mp.ctx, sm.From, sm.Hash().Bytes(), sm.Signature)
 		if err != nil {
+			logger.Warnf("OnPropose at %d has wrong message", sb.Height)
 			return err
 		}
 
@@ -343,8 +346,10 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 
 	// todo: should handle this
 	if !newRoot.Equal(sb.Root) {
-		logger.Warnf("OnPropose has wrong state, got: %s, expected: %s", newRoot, sb.Root)
+		logger.Warnf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 	}
+
+	logger.Debugf("create block OnPropose at height %d cost %d", sb.Height, time.Since(nt))
 
 	return nil
 }
