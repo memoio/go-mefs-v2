@@ -688,10 +688,7 @@ func (o *OrderFull) sendData() {
 			o.Unlock()
 
 			key := store.NewKey(pb.MetaType_OrderSeqKey, o.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
-			err = o.ds.Put(key, data)
-			if err != nil {
-				continue
-			}
+			o.ds.Put(key, data)
 
 			o.segDoneChan <- sj
 		}

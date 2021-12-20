@@ -128,11 +128,11 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		}
 
 		or.seq.Segments.Push(as)
+		or.seq.Segments.Merge()
+
 		// update size and price
 		or.seq.Price.Add(or.seq.Price, or.segPrice)
 		or.seq.Size += build.DefaultSegSize
-
-		or.seq.Segments.Merge()
 
 		data, err := or.seq.Serialize()
 		if err != nil {
