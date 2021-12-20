@@ -89,15 +89,15 @@ func (pp *PushPool) syncPush() {
 		time.Sleep(5 * time.Second)
 	}
 
-	pp.ready = true
-
 	pp.pending[pp.localID] = &pendingMsg{
 		nonce: pp.GetNonce(pp.ctx, pp.localID),
 		msg:   make(map[types.MsgID]*msgTo),
 	}
-	logger.Debug("pool is ready")
 
+	pp.ready = true
 	pp.inPush = true
+
+	logger.Debug("pool is ready")
 
 	for {
 		select {
