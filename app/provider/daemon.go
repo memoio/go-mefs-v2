@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	_ "net/http/pprof"
+	"os"
 	"strings"
 
+	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 	"go.opencensus.io/plugin/runmetrics"
 	"go.opencensus.io/stats"
@@ -24,6 +26,7 @@ import (
 const (
 	apiAddrKwd   = "api"
 	swarmPortKwd = "swarm-port"
+	dataPathKwd  = "data-path"
 )
 
 var DaemonCmd = &cli.Command{
@@ -44,6 +47,11 @@ var DaemonCmd = &cli.Command{
 			Name:  swarmPortKwd,
 			Usage: "set the swarm port to use",
 			Value: "7002",
+		},
+		&cli.StringFlag{
+			Name:  dataPathKwd,
+			Usage: "set the data path",
+			Value: "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -106,6 +114,16 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 
 	if apiAddr := cctx.String(apiAddrKwd); apiAddr != "" {
 		config.API.Address = apiAddr
+	}
+
+	if dataPath := cctx.String(dataPathKwd); dataPath != "" {
+		dp, err := homedir.Expand(dataPath)
+		if err == nil {
+			err = os.MkdirAll(dp, 0755)
+			if err == nil {
+				config.Data.DataPath = dp
+			}
+		}
 	}
 
 	rep.ReplaceConfig(config)
