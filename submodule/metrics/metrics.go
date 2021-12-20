@@ -31,13 +31,15 @@ var (
 	TxMessageApply     = stats.Float64("message/apply_total_ms", "Time spent applying block messages", stats.UnitMilliseconds)
 
 	// block
-	TxBlockSyncdHeight  = stats.Int64("block/synced_height", "Syned height of block", stats.UnitDimensionless)
-	TxBlockRemoteHeight = stats.Int64("block/remote_height", "Remote height of block", stats.UnitDimensionless)
-	TxBlockPublished    = stats.Int64("block/published", "Counter for total locally published blocks", stats.UnitDimensionless)
-	TxBlockReceived     = stats.Int64("block/received", "Counter for total received blocks", stats.UnitDimensionless)
-	TxBlockSuccess      = stats.Int64("block/success", "Counter for block validation successes", stats.UnitDimensionless)
-	TxBlockFailure      = stats.Int64("block/failure", "Counter for block validation failures", stats.UnitDimensionless)
-	TxBlockApply        = stats.Float64("block/apply_total_ms", "Time spent applying block", stats.UnitMilliseconds)
+	TxBlockSyncdHeight    = stats.Int64("block/synced_height", "Syned height of block", stats.UnitDimensionless)
+	TxBlockRemoteHeight   = stats.Int64("block/remote_height", "Remote height of block", stats.UnitDimensionless)
+	TxBlockPublished      = stats.Int64("block/published", "Counter for total locally published blocks", stats.UnitDimensionless)
+	TxBlockReceived       = stats.Int64("block/received", "Counter for total received blocks", stats.UnitDimensionless)
+	TxBlockSuccess        = stats.Int64("block/success", "Counter for block validation successes", stats.UnitDimensionless)
+	TxBlockFailure        = stats.Int64("block/failure", "Counter for block validation failures", stats.UnitDimensionless)
+	TxBlockApply          = stats.Float64("block/apply_total_ms", "Time spent applying block", stats.UnitMilliseconds)
+	TxBlockCreateExpected = stats.Int64("block/create_expected", "Counter for block create expected", stats.UnitDimensionless)
+	TxBlockCreateSuccess  = stats.Int64("block/create_success", "Counter for block create success", stats.UnitDimensionless)
 )
 
 var (
@@ -99,6 +101,14 @@ var (
 		Measure:     TxBlockApply,
 		Aggregation: defaultMillisecondsDistribution,
 	}
+	TxBlockCreateExpectedView = &view.View{
+		Measure:     TxBlockCreateExpected,
+		Aggregation: defaultMillisecondsDistribution,
+	}
+	TxBlockCreateSuccessView = &view.View{
+		Measure:     TxBlockCreateSuccess,
+		Aggregation: defaultMillisecondsDistribution,
+	}
 )
 
 var DefaultViews = func() []*view.View {
@@ -118,6 +128,8 @@ var DefaultViews = func() []*view.View {
 		TxBlockReceivedView,
 		TxBlockSuccessView,
 		TxBlockApplyView,
+		TxBlockCreateExpectedView,
+		TxBlockCreateSuccessView,
 	}
 	return views
 }()

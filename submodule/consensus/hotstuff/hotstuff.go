@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"go.opencensus.io/stats"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -14,6 +15,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	bcommon "github.com/memoio/go-mefs-v2/submodule/consensus/common"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 var logger = logging.Logger("hotstuff")
@@ -374,6 +376,7 @@ func (hsm *HotstuffManager) NewView() error {
 		if err != nil {
 			return err
 		}
+		stats.Record(hsm.ctx, metrics.TxBlockCreateExpected.M(1))
 	} else {
 		hm := &hs.HotstuffMessage{
 			From: hsm.localID,
@@ -425,6 +428,7 @@ func (hsm *HotstuffManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage) error 
 		if err != nil {
 			return err
 		}
+		stats.Record(hsm.ctx, metrics.TxBlockCreateExpected.M(1))
 	}
 
 	if hsm.curView.phase != hs.PhaseNew {
@@ -833,8 +837,7 @@ func (hsm *HotstuffManager) tryDecide() error {
 
 	hsm.curView.phase = hs.PhaseFinal
 
-	// leader publish out, replica need?
-	hsm.INetService.PublishTxBlock(hsm.ctx, sb)
+	stats.Record(hsm.ctx, metrics.TxBlockCreateSuccess.M(1))
 
 	return nil
 }
