@@ -9,7 +9,7 @@ require (
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/chrislusf/seaweedfs v0.0.0-20211012155459-7700bf62f0ce
 	github.com/dgraph-io/badger/v2 v2.2007.4
-	github.com/ethereum/go-ethereum v1.10.9
+	github.com/ethereum/go-ethereum v1.10.12
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gbrlsnchs/jwt/v3 v3.0.1
@@ -57,9 +57,12 @@ require (
 	github.com/zeebo/blake3 v0.2.1
 	go.opencensus.io v0.23.0
 	go.uber.org/zap v1.19.1
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	lukechampine.com/frand v1.4.2
+	memoContract v0.0.0-00010101000000-000000000000
 )
+
+replace memoContract => ../memo-go-contracts-v2

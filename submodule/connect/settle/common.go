@@ -3,7 +3,13 @@ package settle
 import (
 	"encoding/binary"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/memoio/go-mefs-v2/lib/address"
+)
+
+var (
+	roleAddr = common.HexToAddress("0x7a424f9aF3A69e19fe2A839Cf564d620B6C984d7")
 )
 
 // for test
