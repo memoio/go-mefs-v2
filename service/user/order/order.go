@@ -316,7 +316,7 @@ func saveSeqState(o *OrderFull, ds store.KVStore) error {
 
 // create a new order
 func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
-	logger.Debug("handle create order")
+	logger.Debug("handle create order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	o.RLock()
 	if o.inStop {
 		o.RUnlock()
@@ -389,7 +389,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 
 // confirm base when receive pro ack; init -> running
 func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
-	logger.Debug("handle run order")
+	logger.Debug("handle run order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Wait {
 		return ErrState
 	}
@@ -441,7 +441,7 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 
 // time up to close current order
 func (m *OrderMgr) closeOrder(o *OrderFull) error {
-	logger.Debug("handle close order")
+	logger.Debug("handle close order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
 	}
@@ -460,7 +460,7 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 
 // finish all seqs
 func (m *OrderMgr) doneOrder(o *OrderFull) error {
-	logger.Debug("handle done order")
+	logger.Debug("handle done order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	// order is closing
 	if o.base == nil || o.orderState != Order_Closing {
 		return ErrState
@@ -497,7 +497,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 }
 
 func (m *OrderMgr) stopOrder(o *OrderFull) {
-	logger.Debug("handle stop order")
+	logger.Debug("handle stop order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	o.Lock()
 	o.inStop = true
 	for _, bid := range o.buckets {
@@ -516,9 +516,9 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 
 // create a new orderseq for prepare
 func (m *OrderMgr) createSeq(o *OrderFull) error {
-	logger.Debug("handle create seq")
+	logger.Debug("handle create seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
-		return xerrors.Errorf("state: %d %d %w", o.orderState, o.seqState, ErrState)
+		return xerrors.Errorf("state: %d %d is not running", o.orderState, o.seqState)
 	}
 
 	if o.seqState == OrderSeq_Init {
@@ -573,7 +573,7 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 }
 
 func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
-	logger.Debug("handle send seq")
+	logger.Debug("handle send seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
 		return ErrState
 	}
@@ -596,7 +596,7 @@ func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 // time is up
 func (m *OrderMgr) commitSeq(o *OrderFull) error {
-	logger.Debug("handle commit seq")
+	logger.Debug("handle commit seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState == Order_Init || o.orderState == Order_Wait || o.orderState == Order_Done {
 		return ErrState
 	}
@@ -664,6 +664,7 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 
 // when recieve pro seq done ack; confirm -> done
 func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
+	logger.Debug("handle finish seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil {
 		return ErrState
 	}

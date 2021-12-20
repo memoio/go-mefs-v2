@@ -404,10 +404,11 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				// todo, load missing
 				if !or.seq.Segments.Equal(os.Segments) {
 					logger.Warn("segments are not equal, load or re-get missing")
-					or.seq.Segments = os.Segments
-					or.seq.Price = os.Price
-					or.seq.Size = os.Size
-					lHash = rHash
+					//or.seq.Segments = os.Segments
+					//or.seq.Price = os.Price
+					//or.seq.Size = os.Size
+					//lHash = rHash
+					return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
 				}
 			}
 
