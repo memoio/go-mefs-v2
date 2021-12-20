@@ -110,7 +110,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		return xerrors.Errorf("no order base and seq")
 	}
 
-	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle add data: ", or.nonce, or.seqNum, or.orderState, or.seqState)
 
 	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
 		id := seg.SegmentID().Bytes()
@@ -186,7 +186,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, ErrService
 	}
 
-	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle create order: ", or.nonce, or.seqNum, or.orderState, or.seqState)
 	if or.nonce == ob.Nonce {
 		// handle previous
 		if or.base != nil && or.orderState == Order_Ack {
@@ -304,7 +304,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, ErrService
 	}
 
-	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle create seq: ", or.nonce, or.seqNum, or.orderState, or.seqState)
 
 	if or.base == nil || or.orderState != Order_Ack {
 		return nil, ErrState
@@ -387,7 +387,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, ErrService
 	}
 
-	logger.Debug("handle: ", or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle finish seq: ", or.nonce, or.seqNum, or.orderState, or.seqState)
 
 	if or.seq != nil && or.seq.SeqNum == os.SeqNum {
 		if or.seqState == OrderSeq_Ack {
@@ -415,10 +415,11 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			ok, err := or.dv.Result()
 			if err != nil {
 				logger.Warn("data verify is wrong:", err)
+				return nil, err
 			}
 			if !ok {
 				logger.Warn("data verify is wrong")
-				//return nil, ErrDataSign
+				return nil, xerrors.Errorf("data verify is wrong")
 			}
 
 			ok, err = m.RoleVerify(m.ctx, userID, lHash.Bytes(), os.UserDataSig)

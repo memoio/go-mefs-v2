@@ -169,6 +169,8 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		return
 	}
 
+	logger.Infof("order bucket %d expected %d, got %d: ", lp.bucketID, lp.dc+lp.pc, cnt)
+
 	otherPros := make([]uint64, 0, lp.dc+lp.pc)
 
 	pros := make([]uint64, 0, len(m.pros))
@@ -668,9 +670,9 @@ func (o *OrderFull) sendData() {
 
 			o.Lock()
 
-			// o.seq.DataName = append(o.seq.DataName, sid.Bytes())
 			// update price and size
 			o.seq.Segments.Push(as)
+			o.seq.Segments.Merge()
 			o.seq.Price.Add(o.seq.Price, o.segPrice)
 			o.seq.Size += build.DefaultSegSize
 

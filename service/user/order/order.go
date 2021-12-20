@@ -611,9 +611,13 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 	}
 
 	if o.seqState == OrderSeq_Commit {
+		o.RLock()
 		if o.inflight {
+			o.RUnlock()
+			logger.Debug("order has running data", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 			return nil
 		}
+		o.RUnlock()
 
 		o.seqTime = time.Now().Unix()
 
@@ -636,7 +640,6 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 		o.seq.UserSig = osig
 
 		// save order seq
-		// save seq state
 		err = saveOrderSeq(o, m.ds)
 		if err != nil {
 			return err
