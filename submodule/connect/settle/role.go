@@ -121,6 +121,8 @@ func NewContractMgr(ctx context.Context, addr address.Address, hexSk string, typ
 	cm.roleID = rid
 	cm.groupID = gid
 
+	go cm.getAllAddrs()
+
 	return cm, nil
 }
 
