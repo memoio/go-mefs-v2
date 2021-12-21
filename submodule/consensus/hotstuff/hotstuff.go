@@ -515,6 +515,12 @@ func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 		return nil
 	}
 
+	// View is created in 'checkView' before 'NewView'.
+	if hsm.curView.phase == hs.PhaseInit {
+		// No need to sign and publish msg for view-change, only update the phase.
+		hsm.curView.phase = hs.PhaseNew
+	}
+
 	if hsm.curView.phase != hs.PhaseNew {
 		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhaseNew, hsm.curView.phase)
 	}
