@@ -654,11 +654,11 @@ func (o *OrderFull) sendData() {
 				o.inflight = false
 				i++
 				o.Unlock()
-				logger.Debug("send segment fail:", sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
+				logger.Debug("send segment fail:", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
 				continue
 			}
 
-			logger.Debug("send segment:", sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
+			logger.Debug("send segment:", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
 
 			o.availTime = time.Now().Unix()
 

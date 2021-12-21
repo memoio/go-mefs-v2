@@ -110,21 +110,25 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		return xerrors.Errorf("no order base and seq")
 	}
 
-	logger.Debug("handle add data: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
-
-	err := m.PutSegmentToLocal(m.ctx, seg)
-	if err != nil {
-		return err
-	}
+	logger.Debug("handle add data: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
 
 	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
+		if or.seq.Segments.Has(seg.SegmentID().GetBucketID(), seg.SegmentID().GetStripeID(), seg.SegmentID().GetChunkID()) {
+			logger.Debug("handle add data already: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
+			return nil
+		}
+
+		err := m.PutSegmentToLocal(m.ctx, seg)
+		if err != nil {
+			return err
+		}
+
 		id := seg.SegmentID().Bytes()
 		data, _ := seg.Content()
 		tags, _ := seg.Tags()
 
 		or.dv.Add(id, data, tags[0])
 
-		//or.seq.DataName = append(or.seq.DataName, id)
 		as := &types.AggSegs{
 			BucketID: seg.SegmentID().GetBucketID(),
 			Start:    seg.SegmentID().GetStripeID(),
@@ -139,7 +143,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		or.seq.Price.Add(or.seq.Price, or.segPrice)
 		or.seq.Size += build.DefaultSegSize
 
-		data, err := or.seq.Serialize()
+		data, err = or.seq.Serialize()
 		if err != nil {
 			return err
 		}

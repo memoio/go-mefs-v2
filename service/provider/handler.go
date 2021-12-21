@@ -113,7 +113,7 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 		Data: &pb.NetMessage_MsgData{},
 	}
 
-	// verify sig
+	// verify sig; need it for security
 	/*
 		sigFrom := new(types.Signature)
 		err := sigFrom.Deserialize(mes.GetData().GetSign())
