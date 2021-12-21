@@ -105,6 +105,13 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		m.Unlock()
 	}
 
+	or.Lock()
+	defer or.Unlock()
+
+	if !or.ready {
+		return ErrService
+	}
+
 	if or.base == nil || or.seq == nil {
 		return xerrors.Errorf("no order base and seq")
 	}
@@ -182,12 +189,14 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	m.RUnlock()
 	if !ok {
 		or = m.loadOrder(ob.UserID)
-		m.createOrder(or)
 
 		m.Lock()
 		m.orders[ob.UserID] = or
 		m.Unlock()
 	}
+
+	or.Lock()
+	defer or.Unlock()
 
 	if !or.ready {
 		go m.createOrder(or)
@@ -307,6 +316,9 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		m.Unlock()
 	}
 
+	or.Lock()
+	defer or.Unlock()
+
 	if !or.ready {
 		go m.createOrder(or)
 		return nil, ErrService
@@ -389,6 +401,9 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		m.orders[userID] = or
 		m.Unlock()
 	}
+
+	or.Lock()
+	defer or.Unlock()
 
 	if !or.ready {
 		go m.createOrder(or)

@@ -2,6 +2,7 @@ package order
 
 import (
 	"math/big"
+	"sync"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/build"
@@ -41,6 +42,7 @@ type SeqState struct {
 }
 
 type OrderFull struct {
+	sync.Mutex
 	userID uint64
 	fsID   []byte
 
@@ -61,25 +63,23 @@ type OrderFull struct {
 	ready bool
 }
 
-func (m *OrderMgr) createOrder(op *OrderFull) *OrderFull {
+func (m *OrderMgr) createOrder(op *OrderFull) {
 
 	pk, err := m.GetPDPPublicKey(m.ctx, op.userID)
 	if err != nil {
 		logger.Warn("create order bls pk err: ", err)
-		return op
+		return
 	}
 
 	op.dv, err = pdp.NewDataVerifier(pk, nil)
 	if err != nil {
 		logger.Warn("create order data verifier err: ", err)
-		return op
+		return
 	}
 
 	op.fsID = pk.VerifyKey().Hash()
 
 	op.ready = true
-
-	return op
 }
 
 func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
