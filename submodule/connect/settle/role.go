@@ -2,6 +2,7 @@ package settle
 
 import (
 	"context"
+	"log"
 	"math/big"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	callconts "memoContract/callcontracts"
 	iface "memoContract/interfaces"
+	"memoContract/test"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -30,13 +32,18 @@ type ContractMgr struct {
 	rAddr  common.Address // role contract address
 	tAddr  common.Address // token address
 	fsAddr common.Address // fs contract addr
+	ppAddr common.Address // pledge contract addr
 
 	// Role caller for user
-	rUser iface.RoleInfo
+	iRole iface.RoleInfo
+	iErc  iface.ERC20Info
+	ipp   iface.PledgePoolInfo
 }
 
-func NewContractMgr(ctx context.Context, addr address.Address, hexSk string, typ pb.RoleInfo_Type, gIndex uint64, ds store.KVStore) (*ContractMgr, error) {
+func NewContractMgr(ctx context.Context, addr address.Address, hexSk string, ds store.KVStore) (*ContractMgr, error) {
+	logger.Debug("create contract mgr")
 	// set endpoint
+	callconts.EndPoint = "http://119.147.213.220:8191"
 
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
@@ -46,56 +53,76 @@ func NewContractMgr(ctx context.Context, addr address.Address, hexSk string, typ
 
 	eAddr := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
 
-	rUser := callconts.NewR(eAddr, hexSk, txopts)
-
-	tokenAddr, err := rUser.RToken(roleAddr)
-	if err != nil {
-		return nil, err
+	val := QueryBalance(eAddr.String(), callconts.EndPoint)
+	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
+		TransferTo(big.NewInt(1_000_000_000_000_000_000), eAddr.String(), callconts.EndPoint, callconts.EndPoint)
 	}
+
+	iRole := callconts.NewR(eAddr, hexSk, txopts)
+	iERC := callconts.NewERC20(eAddr, hexSk, txopts)
+	ipp := callconts.NewPledgePool(eAddr, hexSk, txopts)
 
 	cm := &ContractMgr{
-		ctx:   ctx,
-		ds:    ds,
-		eAddr: eAddr,
-		rAddr: roleAddr,
-		tAddr: tokenAddr,
-		rUser: rUser,
+		ctx: ctx,
+		ds:  ds,
+
+		eAddr:  eAddr,
+		rAddr:  callconts.RoleAddr,
+		tAddr:  callconts.ERC20Addr,
+		ppAddr: callconts.PledgePoolAddr,
+
+		iRole: iRole,
+		iErc:  iERC,
+		ipp:   ipp,
 	}
 
-	_, _, _, rid, _, _, err := cm.rUser.GetRoleInfo(eAddr, eAddr)
+	return cm, nil
+}
+
+func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
+	logger.Debug("start contract mgr")
+	_, _, _, rid, _, _, err := cm.iRole.GetRoleInfo(cm.rAddr, cm.eAddr)
 	if err != nil {
-		return nil, err
+		return err
 	}
+
+	logger.Debug("get roleinfo: ", rid)
 
 	if rid == 0 {
 		// registerRole
 		err := cm.RegisterRole()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	_, _, _, rid, gid, _, err := cm.rUser.GetRoleInfo(eAddr, eAddr)
+	cm.roleID = rid
+
+	_, _, rType, rid, gid, _, err := cm.iRole.GetRoleInfo(cm.rAddr, cm.eAddr)
 	if err != nil {
-		return nil, err
+		return err
 	}
+
+	logger.Debug("get roleinfo: ", rid, gid, rType)
 
 	if rid == 0 {
-		return nil, xerrors.Errorf("register fails")
+		return xerrors.Errorf("register fails")
 	}
 
-	if gid == 0 {
+	if rType == 0 {
 		switch typ {
 		case pb.RoleInfo_Provider:
 			// provider: register,register; add to group
+
 			err = cm.RegisterProvider()
 			if err != nil {
-				return nil, err
+				logger.Debug("register fail: ", err)
+				return err
 			}
 
 			err = cm.AddProviderToGroup(gIndex)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 		case pb.RoleInfo_User:
@@ -103,19 +130,37 @@ func NewContractMgr(ctx context.Context, addr address.Address, hexSk string, typ
 			// get extra byte
 			err = cm.RegisterUser(gIndex, nil)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 		}
 	}
 
+	_, _, rType, rid, gid, _, err = cm.iRole.GetRoleInfo(cm.rAddr, cm.eAddr)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("get roleinfo: ", rid, gid, rType)
+
+	if gid == 0 {
+		switch typ {
+		case pb.RoleInfo_Provider:
+			// provider: register,register; add to group
+			err = cm.AddProviderToGroup(gIndex)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	if rid == 0 {
-		return nil, xerrors.Errorf("register group fails")
+		return xerrors.Errorf("register group fails")
 	}
 
 	err = cm.getGroupInfo(gid)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	cm.roleID = rid
@@ -123,7 +168,7 @@ func NewContractMgr(ctx context.Context, addr address.Address, hexSk string, typ
 
 	go cm.getAllAddrs()
 
-	return cm, nil
+	return nil
 }
 
 // get info
@@ -133,7 +178,7 @@ func (cm *ContractMgr) GetRoleInfo(addr address.Address) (*pb.RoleInfo, error) {
 }
 
 func (cm *ContractMgr) GetRoleInfoAt(rid uint64) (*pb.RoleInfo, error) {
-	gotAddr, err := cm.rUser.GetAddr(cm.eAddr, rid)
+	gotAddr, err := cm.iRole.GetAddr(cm.eAddr, rid)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +187,7 @@ func (cm *ContractMgr) GetRoleInfoAt(rid uint64) (*pb.RoleInfo, error) {
 }
 
 func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
-	_, _, rType, rid, gid, extra, err := cm.rUser.GetRoleInfo(eAddr, eAddr)
+	_, _, rType, rid, gid, extra, err := cm.iRole.GetRoleInfo(eAddr, eAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -178,23 +223,64 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 }
 
 func (cm *ContractMgr) RegisterRole() error {
-	return cm.rUser.Register(cm.rAddr, cm.eAddr, nil)
+	logger.Debug("contract mgr register")
+	return cm.iRole.Register(cm.rAddr, cm.eAddr, nil)
 }
 
 func (cm *ContractMgr) RegisterProvider() error {
-	return cm.rUser.RegisterProvider(cm.rAddr, cm.roleID, nil)
+	logger.Debug("register provider")
+
+	txopts := &callconts.TxOpts{
+		Nonce:    nil,
+		GasPrice: big.NewInt(callconts.DefaultGasPrice),
+		GasLimit: callconts.DefaultGasLimit,
+	}
+
+	bal, err := cm.iErc.BalanceOf(cm.tAddr, cm.eAddr)
+	if err != nil {
+		logger.Debug(err)
+		return err
+	}
+
+	logger.Debugf("erc20 balance is %d", bal)
+
+	pledgep, err := cm.iRole.PledgeP(cm.rAddr) // 申请Provider最少需质押的金额
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if bal.Cmp(pledgep) < 0 {
+		erc20 := callconts.NewERC20(callconts.AdminAddr, test.AdminSk, txopts)
+		erc20.Transfer(cm.tAddr, cm.eAddr, pledgep)
+	}
+
+	err = cm.ipp.Pledge(cm.ppAddr, cm.tAddr, cm.rAddr, cm.roleID, pledgep, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	logger.Debugf("pledge %d", pledgep)
+
+	return cm.iRole.RegisterProvider(cm.rAddr, cm.roleID, nil)
 }
 
 func (cm *ContractMgr) AddProviderToGroup(gIndex uint64) error {
-	return cm.rUser.AddProviderToGroup(cm.rAddr, cm.roleID, gIndex, nil)
+	gn, err := cm.iRole.GetGroupsNum(cm.rAddr)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("get group number: ", gn)
+
+	return cm.iRole.AddProviderToGroup(cm.rAddr, cm.roleID, gIndex, nil)
 }
 
 func (cm *ContractMgr) RegisterUser(gIndex uint64, extra []byte) error {
-	return cm.rUser.RegisterUser(cm.rAddr, cm.eAddr, cm.roleID, gIndex, cm.tIndex, extra, nil)
+	return cm.iRole.RegisterUser(cm.rAddr, cm.eAddr, cm.roleID, gIndex, cm.tIndex, extra, nil)
 }
 
 func (cm *ContractMgr) getGroupInfo(gIndex uint64) error {
-	_, _, _, level, _, _, fsAddr, err := cm.rUser.GetGroupInfo(cm.rAddr, gIndex)
+	_, _, _, level, _, _, fsAddr, err := cm.iRole.GetGroupInfo(cm.rAddr, gIndex)
 	if err != nil {
 		return err
 	}
@@ -222,18 +308,18 @@ func (cm *ContractMgr) getAllAddrs() {
 				continue
 			}
 
-			kcnt, err := cm.rUser.GetGKNum(cm.eAddr, cm.groupID)
+			kcnt, err := cm.iRole.GetGKNum(cm.eAddr, cm.groupID)
 			if err != nil {
 				continue
 			}
 			if kcnt > kCnt {
 				for i := kCnt; i <= kcnt; i++ {
-					kindex, err := cm.rUser.GetGroupK(cm.eAddr, cm.groupID, i)
+					kindex, err := cm.iRole.GetGroupK(cm.eAddr, cm.groupID, i)
 					if err != nil {
 						continue
 					}
 
-					gotAddr, err := cm.rUser.GetAddr(cm.eAddr, kindex)
+					gotAddr, err := cm.iRole.GetAddr(cm.eAddr, kindex)
 					if err != nil {
 						continue
 					}
@@ -266,18 +352,18 @@ func (cm *ContractMgr) getAllAddrs() {
 				kCnt = kcnt
 			}
 
-			ucnt, pcnt, err := cm.rUser.GetGUPNum(cm.eAddr, cm.groupID)
+			ucnt, pcnt, err := cm.iRole.GetGUPNum(cm.eAddr, cm.groupID)
 			if err != nil {
 				continue
 			}
 			if pcnt > pCnt {
 				for i := pCnt; i <= pcnt; i++ {
-					pindex, err := cm.rUser.GetGroupP(cm.eAddr, cm.groupID, i)
+					pindex, err := cm.iRole.GetGroupP(cm.eAddr, cm.groupID, i)
 					if err != nil {
 						continue
 					}
 
-					gotAddr, err := cm.rUser.GetAddr(cm.eAddr, pindex)
+					gotAddr, err := cm.iRole.GetAddr(cm.eAddr, pindex)
 					if err != nil {
 						continue
 					}
@@ -312,12 +398,12 @@ func (cm *ContractMgr) getAllAddrs() {
 
 			if ucnt > uCnt {
 				for i := uCnt; i <= ucnt; i++ {
-					pindex, err := cm.rUser.GetGroupU(cm.eAddr, cm.groupID, i)
+					pindex, err := cm.iRole.GetGroupU(cm.eAddr, cm.groupID, i)
 					if err != nil {
 						continue
 					}
 
-					gotAddr, err := cm.rUser.GetAddr(cm.eAddr, pindex)
+					gotAddr, err := cm.iRole.GetAddr(cm.eAddr, pindex)
 					if err != nil {
 						continue
 					}

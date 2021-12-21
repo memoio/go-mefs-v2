@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	_ "net/http/pprof"
 	"strings"
 
@@ -8,7 +9,10 @@ import (
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
+	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -85,6 +89,28 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 		config.API.Address = apiAddr
 	}
 
+	pwd := cctx.String("password")
+
+	laddr, err := address.NewFromString(config.Wallet.DefaultAddress)
+	if err != nil {
+		return err
+	}
+
+	ki, err := rep.KeyStore().Get(laddr.String(), pwd)
+	if err != nil {
+		return err
+	}
+
+	cm, err := settle.NewContractMgr(ctx, laddr, hex.EncodeToString(ki.SecretKey), rep.MetaStore())
+	if err != nil {
+		return err
+	}
+
+	err = cm.Start(pb.RoleInfo_Provider, 1)
+	if err != nil {
+		return err
+	}
+
 	rep.ReplaceConfig(config)
 
 	var node minit.Node
@@ -95,8 +121,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 
-		password := cctx.String("password")
-		opts = append(opts, basenode.SetPassword(password))
+		opts = append(opts, basenode.SetPassword(pwd))
 
 		node, err = basenode.New(ctx, opts...)
 		if err != nil {
