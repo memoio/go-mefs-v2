@@ -7,14 +7,23 @@ import (
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
+
+	"github.com/libp2p/go-libp2p-kad-dht/metrics"
 )
 
-var defaultMillisecondsDistribution = view.Distribution(0.01, 0.05, 0.1, 0.3, 0.6, 0.8, 1, 2, 3, 4, 5, 6, 8, 10, 13, 16, 20, 25, 30, 40, 50, 65, 80, 100, 130, 160, 200, 250, 300, 400, 500, 650, 800, 1000, 2000, 3000, 4000, 5000, 7500, 10000, 20000, 50000, 100000)
+var (
+	defaultBytesDistribution        = view.Distribution(1024, 2048, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864, 268435456, 1073741824, 4294967296)
+	defaultMillisecondsDistribution = view.Distribution(0.01, 0.05, 0.1, 0.3, 0.6, 0.8, 1, 2, 3, 4, 5, 6, 8, 10, 13, 16, 20, 25, 30, 40, 50, 65, 80, 100, 130, 160, 200, 250, 300, 400, 500, 650, 800, 1000, 2000, 3000, 4000, 5000, 7500, 10000, 20000, 50000, 100000)
+)
 
 var (
 	Version, _   = tag.NewKey("version")
 	Commit, _    = tag.NewKey("commit")
 	APIMethod, _ = tag.NewKey("api_method")
+
+	NetMessageType, _ = tag.NewKey("message_type")
+	NetPeerID, _      = tag.NewKey("peer_id")
+	NetInstanceID, _  = tag.NewKey("instance_id")
 )
 
 var (
@@ -40,6 +49,15 @@ var (
 	TxBlockApply          = stats.Float64("block/apply_total_ms", "Time spent applying block", stats.UnitMilliseconds)
 	TxBlockCreateExpected = stats.Int64("block/create_expected", "Counter for block create expected", stats.UnitDimensionless)
 	TxBlockCreateSuccess  = stats.Int64("block/create_success", "Counter for block create success", stats.UnitDimensionless)
+
+	NetReceivedMessages       = stats.Int64("net/received_messages", "Total number of messages received per RPC", stats.UnitDimensionless)
+	NetReceivedMessageErrors  = stats.Int64("net/received_message_errors", "Total number of errors for messages received per RPC", stats.UnitDimensionless)
+	NetReceivedBytes          = stats.Int64("net/received_bytes", "Total received bytes per RPC", stats.UnitBytes)
+	NetInboundRequestLatency  = stats.Float64("net/inbound_request_latency", "Latency per RPC", stats.UnitMilliseconds)
+	NetOutboundRequestLatency = stats.Float64("net/outbound_request_latency", "Latency per RPC", stats.UnitMilliseconds)
+	NetSentRequests           = stats.Int64("net/sent_requests", "Total number of requests sent per RPC", stats.UnitDimensionless)
+	NetSentRequestErrors      = stats.Int64("net/sent_request_errors", "Total number of errors for requests sent per RPC", stats.UnitDimensionless)
+	NetSentBytes              = stats.Int64("net/sent_bytes", "Total sent bytes per RPC", stats.UnitBytes)
 )
 
 var (
@@ -109,6 +127,47 @@ var (
 		Measure:     TxBlockCreateSuccess,
 		Aggregation: view.Count(),
 	}
+
+	NetReceivedMessagesView = &view.View{
+		Measure:     NetReceivedMessages,
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		Aggregation: view.Count(),
+	}
+	NetReceivedMessageErrorsView = &view.View{
+		Measure:     NetReceivedMessageErrors,
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		Aggregation: view.Count(),
+	}
+	NetReceivedBytesView = &view.View{
+		Measure:     NetReceivedBytes,
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		Aggregation: defaultBytesDistribution,
+	}
+	NetInboundRequestLatencyView = &view.View{
+		Measure:     NetInboundRequestLatency,
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		Aggregation: defaultMillisecondsDistribution,
+	}
+	NetOutboundRequestLatencyView = &view.View{
+		Measure:     NetOutboundRequestLatency,
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		Aggregation: defaultMillisecondsDistribution,
+	}
+	NetSentRequestsView = &view.View{
+		Measure:     NetSentRequests,
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		Aggregation: view.Count(),
+	}
+	NetSentRequestErrorsView = &view.View{
+		Measure:     NetSentRequestErrors,
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		Aggregation: view.Count(),
+	}
+	NetSentBytesView = &view.View{
+		Measure:     NetSentBytes,
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		Aggregation: defaultBytesDistribution,
+	}
 )
 
 var DefaultViews = func() []*view.View {
@@ -130,7 +189,18 @@ var DefaultViews = func() []*view.View {
 		TxBlockApplyView,
 		TxBlockCreateExpectedView,
 		TxBlockCreateSuccessView,
+
+		NetReceivedMessagesView,
+		NetReceivedMessageErrorsView,
+		NetReceivedBytesView,
+		NetInboundRequestLatencyView,
+		NetOutboundRequestLatencyView,
+		NetSentRequestsView,
+		NetSentRequestErrorsView,
+		NetSentBytesView,
 	}
+
+	views = append(views, metrics.DefaultViews...)
 	return views
 }()
 

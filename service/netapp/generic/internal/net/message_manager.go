@@ -13,11 +13,14 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-msgio"
 	"github.com/libp2p/go-msgio/protoio"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 var dhtReadMessageTimeout = 10 * time.Second
@@ -70,8 +73,14 @@ func (m *messageSenderImpl) OnDisconnect(ctx context.Context, p peer.ID) {
 }
 
 func (m *messageSenderImpl) SendRequest(ctx context.Context, p peer.ID, pmes *pb.NetMessage) (*pb.NetMessage, error) {
+	ctx, _ = tag.New(ctx, tag.Upsert(metrics.NetMessageType, pmes.GetHeader().GetType().String()))
+
 	ms, err := m.messageSenderForPeer(ctx, p)
 	if err != nil {
+		stats.Record(ctx,
+			metrics.NetSentRequests.M(1),
+			metrics.NetSentRequestErrors.M(1),
+		)
 		logger.Debugw("request failed to open message sender", "error", err, "to", p)
 		return nil, err
 	}
@@ -80,9 +89,19 @@ func (m *messageSenderImpl) SendRequest(ctx context.Context, p peer.ID, pmes *pb
 
 	rpmes, err := ms.SendRequest(ctx, pmes)
 	if err != nil {
+		stats.Record(ctx,
+			metrics.NetSentRequests.M(1),
+			metrics.NetSentRequestErrors.M(1),
+		)
 		logger.Debugw("request failed", "error", err, "to", p)
 		return nil, err
 	}
+
+	stats.Record(ctx,
+		metrics.NetSentRequests.M(1),
+		metrics.NetSentBytes.M(int64(pmes.Size())),
+		metrics.NetOutboundRequestLatency.M(float64(time.Since(start))/float64(time.Millisecond)),
+	)
 
 	m.host.Peerstore().RecordLatency(p, time.Since(start))
 	return rpmes, nil

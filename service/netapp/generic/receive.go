@@ -9,9 +9,12 @@ import (
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-msgio"
 	"github.com/libp2p/go-msgio/protoio"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 var dhtStreamIdleTimeout = 1 * time.Minute
@@ -77,26 +80,52 @@ func (service *GenericService) handleNewMessage(s network.Stream) bool {
 	for {
 		var req pb.NetMessage
 		msgbytes, err := r.ReadMsg()
+		msgLen := len(msgbytes)
 		if err != nil {
 			r.ReleaseMsg(msgbytes)
 			if err == io.EOF {
 				return true
 			}
+
+			if msgLen > 0 {
+				_ = stats.RecordWithTags(ctx,
+					[]tag.Mutator{tag.Upsert(metrics.NetMessageType, "UNKNOWN")},
+					metrics.NetReceivedMessages.M(1),
+					metrics.NetReceivedMessageErrors.M(1),
+					metrics.NetReceivedBytes.M(int64(msgLen)),
+				)
+			}
+
 			return false
 		}
 		err = req.XXX_Unmarshal(msgbytes)
 		r.ReleaseMsg(msgbytes)
 		if err != nil {
+			_ = stats.RecordWithTags(ctx,
+				[]tag.Mutator{tag.Upsert(metrics.NetMessageType, "UNKNOWN")},
+				metrics.NetReceivedMessages.M(1),
+				metrics.NetReceivedMessageErrors.M(1),
+				metrics.NetReceivedBytes.M(int64(msgLen)),
+			)
+
 			return false
 		}
 
 		timer.Reset(dhtStreamIdleTimeout)
 
 		startTime := time.Now()
+		ctx, _ := tag.New(ctx,
+			tag.Upsert(metrics.NetMessageType, req.GetHeader().GetType().String()),
+		)
+
+		stats.Record(ctx,
+			metrics.NetReceivedMessages.M(1),
+			metrics.NetReceivedBytes.M(int64(msgLen)),
+		)
 
 		resp, err := service.MsgHandle.Handle(ctx, mPeer, &req)
 		if err != nil {
-			// stats.Record(ctx, metrics.ReceivedMessageErrors.M(1))
+			stats.Record(ctx, metrics.NetReceivedMessageErrors.M(1))
 			return false
 		}
 
@@ -107,11 +136,15 @@ func (service *GenericService) handleNewMessage(s network.Stream) bool {
 		// send out response msg
 		err = writeMsg(s, resp)
 		if err != nil {
+			stats.Record(ctx, metrics.NetReceivedMessageErrors.M(1))
 			return false
 		}
 
 		elapsedTime := time.Since(startTime)
 
 		logger.Debug("elapsed time: ", elapsedTime)
+
+		latencyMillis := float64(elapsedTime) / float64(time.Millisecond)
+		stats.Record(ctx, metrics.NetInboundRequestLatency.M(latencyMillis))
 	}
 }

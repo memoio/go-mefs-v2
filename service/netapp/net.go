@@ -3,12 +3,14 @@ package netapp
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"go.opencensus.io/tag"
 
 	"github.com/memoio/go-mefs-v2/build"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
@@ -17,6 +19,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
@@ -89,7 +92,6 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		EventHandle:    peh,
 		BlockHandle:    bh,
 		HsMsgHandle:    hh,
-		ctx:            ctx,
 		roleID:         roleID,
 		netID:          ns.NetID(ctx),
 		ds:             ds,
@@ -103,6 +105,18 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		blockTopic:     bTopic,
 		hsTopic:        hTopic,
 	}
+
+	extraTags := []tag.Mutator{
+		tag.Upsert(metrics.NetPeerID, ns.NetID(ctx).Pretty()),
+		tag.Upsert(metrics.NetInstanceID, fmt.Sprintf("%p", core)),
+	}
+
+	ctx, _ = tag.New(
+		ctx,
+		extraTags...,
+	)
+
+	core.ctx = ctx
 
 	// register for find peer
 	peh.Register(pb.EventMessage_GetPeer, core.handleGetPeer)
