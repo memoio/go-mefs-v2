@@ -112,6 +112,11 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 
 	logger.Debug("handle add data: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
 
+	err := m.PutSegmentToLocal(m.ctx, seg)
+	if err != nil {
+		return err
+	}
+
 	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
 		id := seg.SegmentID().Bytes()
 		data, _ := seg.Content()

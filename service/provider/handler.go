@@ -139,17 +139,7 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 		return resp, nil
 	}
 
-	err = p.PutSegmentToLocal(ctx, seg)
-	if err != nil {
-		resp.Header.Type = pb.NetMessage_Err
-		return resp, nil
-	}
-
-	err = p.pom.HandleData(mes.Header.From, seg)
-	if err != nil {
-		resp.Header.Type = pb.NetMessage_Err
-		return resp, nil
-	}
+	go p.pom.HandleData(mes.Header.From, seg)
 
 	return resp, nil
 }

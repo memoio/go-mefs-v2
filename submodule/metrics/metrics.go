@@ -103,11 +103,11 @@ var (
 	}
 	TxBlockCreateExpectedView = &view.View{
 		Measure:     TxBlockCreateExpected,
-		Aggregation: defaultMillisecondsDistribution,
+		Aggregation: view.Count(),
 	}
 	TxBlockCreateSuccessView = &view.View{
 		Measure:     TxBlockCreateSuccess,
-		Aggregation: defaultMillisecondsDistribution,
+		Aggregation: view.Count(),
 	}
 )
 
