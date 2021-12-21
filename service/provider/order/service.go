@@ -412,11 +412,37 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 					logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
 					logger.Debug("handle seq remote:", os.Segments.Len(), os)
 					logger.Warn("segments are not equal, load or re-get missing")
-					//or.seq.Segments = os.Segments
-					//or.seq.Price = os.Price
-					//or.seq.Size = os.Size
-					//lHash = rHash
-					return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
+
+					sid, err := segment.NewSegmentID(or.fsID, 0, 0, 0)
+					if err != nil {
+						return nil, err
+					}
+					or.dv.Reset()
+
+					for _, seg := range os.Segments {
+						sid.SetBucketID(seg.BucketID)
+						for j := seg.Start; j < seg.Start+seg.Length; j++ {
+							sid.SetStripeID(j)
+							sid.SetChunkID(seg.ChunkID)
+							segmt, err := m.GetSegmentFromLocal(m.ctx, sid)
+							if err != nil {
+								return nil, err
+							}
+
+							id := sid.Bytes()
+							data, _ := segmt.Content()
+							tags, _ := segmt.Tags()
+
+							or.dv.Add(id, data, tags[0])
+						}
+					}
+					or.seq.Segments = os.Segments
+
+					// need verify again
+					or.seq.Price = os.Price
+					or.seq.Size = os.Size
+					lHash = rHash
+					//return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
 				}
 			}
 
