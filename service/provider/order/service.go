@@ -1,7 +1,6 @@
 package order
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"math/big"
@@ -405,13 +404,13 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			// compare local and remote
 			rHash := os.Hash()
 			lHash := or.seq.Hash()
-			if !bytes.Equal(lHash.Bytes(), rHash.Bytes()) {
-				logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
-				logger.Debug("handle seq remote:", os.Segments.Len(), os)
+			if !rHash.Equal(lHash) {
 				logger.Debug("handle seq md5:", lHash.String(), " and ", rHash.String())
 
-				// todo, load missing
+				// todo: load missing or reget
 				if !or.seq.Segments.Equal(os.Segments) {
+					logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
+					logger.Debug("handle seq remote:", os.Segments.Len(), os)
 					logger.Warn("segments are not equal, load or re-get missing")
 					//or.seq.Segments = os.Segments
 					//or.seq.Price = os.Price
