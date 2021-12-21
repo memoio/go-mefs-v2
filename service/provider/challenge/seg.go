@@ -82,6 +82,8 @@ func (s *SegMgr) AddUP(userID, proID uint64) {
 		return
 	}
 
+	logger.Debugf("add user %d for pro %d", userID, proID)
+
 	key := store.NewKey(pb.MetaType_Chal_UsersKey, proID)
 	val, _ := s.ds.Get(key)
 	buf := make([]byte, len(val)+8)
@@ -149,7 +151,7 @@ func (s *SegMgr) regularChallenge() {
 				continue
 			}
 
-			if len(s.users) >= i {
+			if len(s.users) <= i {
 				i = 0
 				time.Sleep(10 * time.Second)
 			}
@@ -164,7 +166,7 @@ func (s *SegMgr) regularChallenge() {
 // todo: add repair after check before challenge
 
 func (s *SegMgr) challenge(userID uint64) {
-	logger.Debug("challenge: ", userID)
+	logger.Debug("challenge for user: ", userID)
 	if s.epoch < 2 {
 		logger.Debug("not challenge at epoch: ", userID, s.epoch)
 		return

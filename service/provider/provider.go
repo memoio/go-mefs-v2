@@ -124,6 +124,7 @@ func (p *ProviderNode) Start() error {
 		return err
 	}
 
+	// start challenge
 	p.chalSeg.Start()
 
 	logger.Info("start provider for: ", p.RoleID())
