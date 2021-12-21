@@ -125,39 +125,41 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 			return err
 		}
 
-		if of.Start >= chalEnd || of.End <= chalStart {
-			return xerrors.Errorf("chal order all expired")
-		} else if of.Start <= chalStart && of.End >= chalEnd {
-			orderDur = chalDur
-		} else if of.Start >= chalStart && of.End >= chalEnd {
-			orderDur = chalEnd - of.Start
-		} else if of.Start <= chalStart && of.End <= chalEnd {
-			orderDur = of.End - chalStart
-		}
-
-		for i := uint32(0); i < ns.SeqNum; i++ {
-			key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, i)
-			data, err = s.ds.Get(key)
-			if err != nil {
-				return err
-			}
-			sf := new(types.SeqFull)
-			err = sf.Deserialize(data)
-			if err != nil {
-				return err
+		if of.Start < chalEnd {
+			if of.End <= chalStart {
+				return xerrors.Errorf("chal order all expired")
+			} else if of.Start <= chalStart && of.End >= chalEnd {
+				orderDur = chalDur
+			} else if of.Start >= chalStart && of.End >= chalEnd {
+				orderDur = chalEnd - of.Start
+			} else if of.Start <= chalStart && of.End <= chalEnd {
+				orderDur = of.End - chalStart
 			}
 
-			// calc del price and size
-			price.Set(sf.DelPart.Price)
-			price.Mul(price, big.NewInt(orderDur))
-			totalPrice.Sub(totalPrice, price)
-			delSize += sf.DelPart.Size
-			chal.Add(bls.SubFr(sf.AccFr, sf.DelPart.AccFr))
+			for i := uint32(0); i < ns.SeqNum; i++ {
+				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, i)
+				data, err = s.ds.Get(key)
+				if err != nil {
+					return err
+				}
+				sf := new(types.SeqFull)
+				err = sf.Deserialize(data)
+				if err != nil {
+					return err
+				}
 
-			if i == ns.SeqNum-1 {
-				totalSize += sf.Size
-				totalSize -= delSize
-				totalPrice.Add(totalPrice, sf.Price)
+				// calc del price and size
+				price.Set(sf.DelPart.Price)
+				price.Mul(price, big.NewInt(orderDur))
+				totalPrice.Sub(totalPrice, price)
+				delSize += sf.DelPart.Size
+				chal.Add(bls.SubFr(sf.AccFr, sf.DelPart.AccFr))
+
+				if i == ns.SeqNum-1 {
+					totalSize += sf.Size
+					totalSize -= delSize
+					totalPrice.Add(totalPrice, sf.Price)
+				}
 			}
 		}
 	}
