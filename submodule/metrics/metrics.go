@@ -23,7 +23,6 @@ var (
 
 	NetMessageType, _ = tag.NewKey("message_type")
 	NetPeerID, _      = tag.NewKey("peer_id")
-	NetInstanceID, _  = tag.NewKey("instance_id")
 )
 
 var (
@@ -130,42 +129,42 @@ var (
 
 	NetReceivedMessagesView = &view.View{
 		Measure:     NetReceivedMessages,
-		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID},
 		Aggregation: view.Count(),
 	}
 	NetReceivedMessageErrorsView = &view.View{
 		Measure:     NetReceivedMessageErrors,
-		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID},
 		Aggregation: view.Count(),
 	}
 	NetReceivedBytesView = &view.View{
 		Measure:     NetReceivedBytes,
-		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID},
 		Aggregation: defaultBytesDistribution,
 	}
 	NetInboundRequestLatencyView = &view.View{
 		Measure:     NetInboundRequestLatency,
-		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID},
 		Aggregation: defaultMillisecondsDistribution,
 	}
 	NetOutboundRequestLatencyView = &view.View{
 		Measure:     NetOutboundRequestLatency,
-		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID},
 		Aggregation: defaultMillisecondsDistribution,
 	}
 	NetSentRequestsView = &view.View{
 		Measure:     NetSentRequests,
-		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID},
 		Aggregation: view.Count(),
 	}
 	NetSentRequestErrorsView = &view.View{
 		Measure:     NetSentRequestErrors,
-		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID},
 		Aggregation: view.Count(),
 	}
 	NetSentBytesView = &view.View{
 		Measure:     NetSentBytes,
-		TagKeys:     []tag.Key{NetMessageType, NetPeerID, NetInstanceID},
+		TagKeys:     []tag.Key{NetMessageType, NetPeerID},
 		Aggregation: defaultBytesDistribution,
 	}
 )

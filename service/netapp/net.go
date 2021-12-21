@@ -3,7 +3,6 @@ package netapp
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"sync"
 	"time"
 
@@ -106,14 +105,9 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		hsTopic:        hTopic,
 	}
 
-	extraTags := []tag.Mutator{
-		tag.Upsert(metrics.NetPeerID, ns.NetID(ctx).Pretty()),
-		tag.Upsert(metrics.NetInstanceID, fmt.Sprintf("%p", core)),
-	}
-
 	ctx, _ = tag.New(
 		ctx,
-		extraTags...,
+		tag.Upsert(metrics.NetPeerID, ns.NetID(ctx).Pretty()),
 	)
 
 	core.ctx = ctx
