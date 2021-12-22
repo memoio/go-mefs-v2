@@ -120,11 +120,20 @@ func (n *BaseNode) Register() error {
 }
 
 func (n *BaseNode) UpdateNetAddr() error {
-	_, err := n.PushPool.GetNetInfo(n.RoleID())
+	data, err := n.PushPool.GetNetInfo(n.RoleID())
 	if err != nil {
 		pi, err := n.NetAddrInfo(n.ctx)
 		if err != nil {
 			return err
+		}
+
+		opi := new(peer.AddrInfo)
+		err = opi.UnmarshalJSON(data)
+		if err == nil {
+			if pi.ID == opi.ID {
+				logger.Debug("net addr has been on chain")
+				return nil
+			}
 		}
 
 		data, err := pi.MarshalJSON()
