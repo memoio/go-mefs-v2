@@ -369,6 +369,11 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 		if err != nil {
 			return s.root, err
 		}
+	case tx.UpdateNetAddr:
+		err := s.updateNetAddr(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	default:
 		return s.root, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}

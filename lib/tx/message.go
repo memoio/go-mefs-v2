@@ -32,6 +32,8 @@ const (
 	SegmentProof    // segment proof; by provider
 	SegmentFault    // segment remove; by provider
 	PostIncome      // add post income for provider; by keeper
+
+	UpdateNetAddr
 )
 
 // MsgID(message) as key

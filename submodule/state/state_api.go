@@ -119,6 +119,14 @@ func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
 	return pri, nil
 }
 
+func (s *StateMgr) GetNetInfo(roleID uint64) ([]byte, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_NetKey, roleID)
+	return s.ds.Get(key)
+}
+
 func (s *StateMgr) GetThreshold(ctx context.Context) int {
 	s.RLock()
 	defer s.RUnlock()

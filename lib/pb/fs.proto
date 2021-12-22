@@ -36,6 +36,7 @@ enum MetaType {
 	ST_KeepersKey = 31;         // key: x; val: keepers
 	ST_UsersKey = 32;           // key: x/roleID; val: users
 	ST_ProsKey = 33;            // key: x/roleID; val: pros  
+	ST_NetKey = 34;             // key: x/roleID; val: NetInfo 
 	
 	
 	ST_RootKey = 35;          // key: x; val: root of state	

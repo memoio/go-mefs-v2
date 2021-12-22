@@ -179,6 +179,11 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
+	case tx.UpdateNetAddr:
+		err := s.canUpdateNetAddr(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	default:
 		return s.validateRoot, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}
