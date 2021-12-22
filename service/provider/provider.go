@@ -85,7 +85,11 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 // start service related
 func (p *ProviderNode) Start() error {
-	go p.OpenTest()
+	if p.Repo.Config().Net.Name == "test" {
+		go p.OpenTest()
+	} else {
+		p.RoleMgr.Start()
+	}
 
 	// register net msg handle
 	p.GenericService.Register(pb.NetMessage_SayHello, p.DefaultHandler)

@@ -3,7 +3,6 @@ package settle
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
@@ -11,40 +10,24 @@ import (
 	"time"
 
 	callconts "memoContract/callcontracts"
+	"memoContract/test"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/memoio/go-mefs-v2/lib/address"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
 
 var logger = logging.Logger("settle")
 
-// for test
-func RegisterRole(addr address.Address) (uint64, error) {
-	return binary.BigEndian.Uint64(addr.Bytes()), nil
-}
-
-func GetRoleID(addr address.Address) (uint64, error) {
-	return binary.BigEndian.Uint64(addr.Bytes()), nil
-}
-
-func GetGroupID(roleID uint64) uint64 {
-	return 1
-}
-
-func GetThreshold(groupID uint64) int {
-	return 7
-}
-
 const RetryGetInfoSleepTime = 5 * time.Second
 
 // TransferTo trans money
-func TransferTo(value *big.Int, addr, eth, qeth string) error {
+func TransferTo(toAddress common.Address, value *big.Int) error {
+	eth := callconts.EndPoint
 	client, err := ethclient.Dial(eth)
 	if err != nil {
 		fmt.Println("rpc.Dial err", err)
@@ -67,7 +50,6 @@ func TransferTo(value *big.Int, addr, eth, qeth string) error {
 	gasLimit := uint64(23000)           // in units
 	gasPrice := big.NewInt(30000000000) // in wei (30 gwei)
 
-	toAddress := common.HexToAddress(addr[2:])
 	chainID, err := client.NetworkID(context.Background())
 	if err != nil {
 		fmt.Println("client.NetworkID error,use the default chainID")
@@ -105,11 +87,11 @@ func TransferTo(value *big.Int, addr, eth, qeth string) error {
 
 		qCount := 0
 		for qCount < 10 {
-			balance := QueryBalance(addr, qeth)
+			balance := QueryBalance(toAddress)
 			if balance.Cmp(value) >= 0 {
 				break
 			}
-			fmt.Println(addr, "'s Balance now:", balance.String(), ", waiting for transfer success")
+			fmt.Println(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
 			t := 20 * (qCount + 1)
 			time.Sleep(time.Duration(t) * time.Second)
 		}
@@ -119,21 +101,33 @@ func TransferTo(value *big.Int, addr, eth, qeth string) error {
 		}
 	}
 
-	fmt.Println("transfer ", value.String(), "to", addr)
+	fmt.Println("transfer ", value.String(), "to", toAddress)
 	return nil
 }
 
-func QueryBalance(addr, ethEndPoint string) *big.Int {
+func QueryBalance(addr common.Address) *big.Int {
+	ethEndPoint := callconts.EndPoint
+
 	var result string
 	client, err := rpc.Dial(ethEndPoint)
 	if err != nil {
 		log.Fatal("rpc.dial err:", err)
 	}
-	err = client.Call(&result, "eth_getBalance", addr, "latest")
+	err = client.Call(&result, "eth_getBalance", addr.String(), "latest")
 	if err != nil {
 		log.Fatal("client.call err:", err)
 	}
 
 	val, _ := new(big.Int).SetString(result[2:], 16)
 	return val
+}
+
+func erc20Transfer(addr common.Address, val *big.Int) {
+	txopts := &callconts.TxOpts{
+		Nonce:    nil,
+		GasPrice: big.NewInt(callconts.DefaultGasPrice),
+		GasLimit: callconts.DefaultGasLimit,
+	}
+	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, test.AdminSk, txopts)
+	erc20.Transfer(addr, val)
 }

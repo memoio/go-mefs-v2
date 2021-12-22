@@ -55,7 +55,6 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 				return c.GenericService.SendNetRequest(context.TODO(), pid, c.roleID, typ, value, sig)
 			}
 		}
-
 	}
 }
 

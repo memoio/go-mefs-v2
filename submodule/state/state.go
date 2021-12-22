@@ -13,7 +13,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 )
 
 // key: pb.MetaType_ST_RootKey; val: root []byte
@@ -54,11 +53,9 @@ type StateMgr struct {
 	handleDelSeg  HandleDelSegFunc
 }
 
-func NewStateMgr(groupID uint64, ds store.KVStore, ir api.IRole) *StateMgr {
+func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *StateMgr {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, groupID)
-
-	thre := settle.GetThreshold(groupID)
 
 	s := &StateMgr{
 		IRole:        ir,

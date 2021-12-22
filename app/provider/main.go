@@ -9,13 +9,14 @@ import (
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 var logger = logging.Logger("mefs-provider")
 
 func main() {
 	local := []*cli.Command{
-		DaemonCmd,
+		cmd.DaemonCmd,
 		cmd.InitCmd,
 		cmd.AuthCmd,
 		cmd.WalletCmd,
@@ -37,7 +38,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:  cmd.FlagRoleType,
-				Value: "provider",
+				Value: pb.RoleInfo_Provider.String(),
 				Usage: "set role type.",
 			},
 			&cli.StringFlag{

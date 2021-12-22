@@ -12,7 +12,7 @@ import (
 	bcommon "github.com/memoio/go-mefs-v2/submodule/consensus/common"
 )
 
-var logger = logging.Logger("hotstuff")
+var logger = logging.Logger("poa")
 
 // one keeper
 type PoAManager struct {
@@ -28,6 +28,8 @@ type PoAManager struct {
 }
 
 func NewPoAManager(ctx context.Context, localID uint64, ir api.IRole, in api.INetService, a bcommon.ConsensusApp) *PoAManager {
+	logger.Debug("create poa consensus service")
+
 	m := &PoAManager{
 		IRole:       ir,
 		INetService: in,

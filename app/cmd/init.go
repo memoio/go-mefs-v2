@@ -44,7 +44,6 @@ var InitCmd = &cli.Command{
 					return xerrors.Errorf("password length should be at least 8")
 				}
 			}
-
 			pw = npw
 		}
 		logger.Info("Checking if repo exists")

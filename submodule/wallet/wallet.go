@@ -206,6 +206,25 @@ func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (addr
 		w.Lock()
 		w.accounts[addr] = privkey
 		w.Unlock()
+
+		// for eth short addr
+		if ki.Type == types.Secp256k1 {
+			addrByte := utils.ToEthAddress(cbyte)
+
+			eaddr, err := address.NewAddress(addrByte)
+			if err != nil {
+				return address.Undef, err
+			}
+			err = w.keystore.Put(eaddr.String(), w.password, *ki)
+			if err != nil {
+				return address.Undef, err
+			}
+
+			w.Lock()
+			w.accounts[eaddr] = privkey
+			w.Unlock()
+		}
+
 		return addr, nil
 	default:
 		return address.Undef, xerrors.New("unsupported key type")

@@ -8,7 +8,6 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	bcommon "github.com/memoio/go-mefs-v2/submodule/consensus/common"
 	"github.com/memoio/go-mefs-v2/submodule/consensus/hotstuff"
 	"github.com/memoio/go-mefs-v2/submodule/consensus/poa"
@@ -47,7 +46,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		inp:      inp,
 	}
 
-	if settle.GetThreshold(bn.GroupID()) == 1 {
+	if bn.GetThreshold() == 1 {
 		kn.bc = poa.NewPoAManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
 	} else {
 		hm := hotstuff.NewHotstuffManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
@@ -61,7 +60,11 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 
 // start service related
 func (k *KeeperNode) Start() error {
-	go k.OpenTest()
+	if k.Repo.Config().Net.Name == "test" {
+		go k.OpenTest()
+	} else {
+		k.RoleMgr.Start()
+	}
 
 	// register net msg handle
 	k.GenericService.Register(pb.NetMessage_SayHello, k.DefaultHandler)

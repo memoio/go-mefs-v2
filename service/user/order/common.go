@@ -9,7 +9,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("uorder")
+var logger = logging.Logger("user-order")
 
 var (
 	ErrDataAdded = xerrors.New("add data fails")

@@ -16,7 +16,7 @@ var logger = logging.Logger("mefs")
 // full compatible with ipfs
 func main() {
 	local := []*cli.Command{
-		DaemonCmd,
+		cmd.DaemonCmd,
 		cmd.InitCmd,
 		cmd.AuthCmd,
 		cmd.WalletCmd,

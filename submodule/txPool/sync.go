@@ -18,7 +18,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/state"
 )
@@ -40,6 +39,7 @@ type SyncPool struct {
 	ctx context.Context
 	ds  store.KVStore
 
+	thre         int
 	localID      uint64
 	groupID      uint64
 	nextHeight   uint64 // next synced
@@ -59,7 +59,7 @@ type SyncPool struct {
 }
 
 // sync
-func NewSyncPool(ctx context.Context, roleID, groupID uint64, st *state.StateMgr, ds store.KVStore, ts tx.Store, ir api.IRole, ins api.INetService) *SyncPool {
+func NewSyncPool(ctx context.Context, roleID, groupID uint64, thre int, st *state.StateMgr, ds store.KVStore, ts tx.Store, ir api.IRole, ins api.INetService) *SyncPool {
 	sp := &SyncPool{
 		INetService: ins,
 		IRole:       ir,
@@ -70,6 +70,7 @@ func NewSyncPool(ctx context.Context, roleID, groupID uint64, st *state.StateMgr
 		ds:  ds,
 		ctx: ctx,
 
+		thre:         thre,
 		localID:      roleID,
 		groupID:      groupID,
 		nextHeight:   0,
@@ -363,7 +364,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	}
 
 	// verify signaturs len >= threshold
-	if tb.Height > 0 && tb.Len() < settle.GetThreshold(sp.groupID) {
+	if tb.Height > 0 && tb.Len() < sp.thre {
 		return xerrors.Errorf("block has not enough signers")
 	}
 

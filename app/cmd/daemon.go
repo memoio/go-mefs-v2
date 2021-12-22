@@ -1,16 +1,19 @@
-package main
+package cmd
 
 import (
 	_ "net/http/pprof"
 	"strings"
 
 	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
 
-	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
+	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/service/keeper"
+	"github.com/memoio/go-mefs-v2/service/provider"
+	"github.com/memoio/go-mefs-v2/service/user"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -18,6 +21,7 @@ const (
 	apiAddrKwd   = "api"
 	swarmPortKwd = "swarm-port"
 	pwKwd        = "password"
+	groupKwd     = "group"
 )
 
 var DaemonCmd = &cli.Command{
@@ -39,6 +43,11 @@ var DaemonCmd = &cli.Command{
 			Usage: "set the swarm port to use",
 			Value: "7001",
 		},
+		&cli.Uint64Flag{
+			Name:  groupKwd,
+			Usage: "set the group number",
+			Value: 1,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		return daemonFunc(cctx)
@@ -59,7 +68,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	}
 	defer stopFunc()
 
-	repoDir := cctx.String(cmd.FlagNodeRepo)
+	repoDir := cctx.String(FlagNodeRepo)
 	rep, err := repo.NewFSRepo(repoDir, nil)
 	if err != nil {
 		return err
@@ -90,23 +99,77 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 
 	rep.ReplaceConfig(config)
 
-	var node minit.Node
-	switch config.Identity.Role {
-	case "keeper":
-		pwd := cctx.String("password")
+	pwd := cctx.String("password")
+	opts, err := basenode.OptionsFromRepo(rep)
+	if err != nil {
+		return err
+	}
+	opts = append(opts, basenode.SetPassword(pwd))
 
-		opts, err := basenode.OptionsFromRepo(rep)
+	laddr, err := address.NewFromString(config.Wallet.DefaultAddress)
+	if err != nil {
+		return err
+	}
+
+	ki, err := rep.KeyStore().Get(laddr.String(), pwd)
+	if err != nil {
+		return err
+	}
+
+	var node minit.Node
+	switch cctx.String(FlagRoleType) {
+	case pb.RoleInfo_Keeper.String():
+		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
-		opts = append(opts, basenode.SetPassword(pwd))
+
+		opts = append(opts, basenode.SetRoleID(rid))
+		opts = append(opts, basenode.SetGroupID(gid))
 
 		node, err = keeper.New(ctx, opts...)
 		if err != nil {
 			return err
 		}
+	case pb.RoleInfo_Provider.String():
+		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
+		if err != nil {
+			return err
+		}
+
+		opts = append(opts, basenode.SetRoleID(rid))
+		opts = append(opts, basenode.SetGroupID(gid))
+
+		node, err = provider.New(ctx, opts...)
+		if err != nil {
+			return err
+		}
+	case pb.RoleInfo_User.String():
+		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
+		if err != nil {
+			return err
+		}
+
+		opts = append(opts, basenode.SetRoleID(rid))
+		opts = append(opts, basenode.SetGroupID(gid))
+
+		node, err = user.New(ctx, opts...)
+		if err != nil {
+			return err
+		}
 	default:
-		return xerrors.Errorf("wrong role type")
+		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Unknown, 1)
+		if err != nil {
+			return err
+		}
+
+		opts = append(opts, basenode.SetRoleID(rid))
+		opts = append(opts, basenode.SetGroupID(gid))
+
+		node, err = basenode.New(ctx, opts...)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Start the node

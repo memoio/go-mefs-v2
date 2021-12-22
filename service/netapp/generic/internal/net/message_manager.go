@@ -27,7 +27,7 @@ var dhtReadMessageTimeout = 10 * time.Second
 
 var ErrReadTimeout = xerrors.New("timed out reading response")
 
-var logger = logging.Logger("net")
+var logger = logging.Logger("net-message")
 
 type MessageSender interface {
 	// SendRequest sends a peer a message and waits for its response

@@ -22,6 +22,7 @@ import (
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
@@ -50,6 +51,8 @@ type BaseNode struct {
 
 	*txPool.PushPool
 
+	*settle.ContractMgr
+
 	repo.Repo
 
 	ctx context.Context
@@ -72,8 +75,11 @@ func (n *BaseNode) GroupID() uint64 {
 
 // Start boots up the node.
 func (n *BaseNode) Start() error {
-
-	go n.OpenTest()
+	if n.Repo.Config().Net.Name == "test" {
+		go n.OpenTest()
+	} else {
+		n.RoleMgr.Start()
+	}
 
 	n.TxMsgHandle.Register(n.TxMsgHandler)
 	n.BlockHandle.Register(n.TxBlockHandler)

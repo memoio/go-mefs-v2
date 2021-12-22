@@ -11,7 +11,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("netModule")
+var logger = logging.Logger("net-module")
 
 const (
 	SelfNetKey = "libp2p-self"

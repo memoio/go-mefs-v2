@@ -31,7 +31,6 @@ type WalletConfig struct {
 
 type IdentityConfig struct {
 	Role  string `json:"role"`
-	Name  string `json:"name"`
 	Group string `json:"group"`
 }
 

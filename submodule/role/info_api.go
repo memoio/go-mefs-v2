@@ -24,24 +24,17 @@ type roleAPI struct {
 }
 
 func (rm *RoleMgr) RoleSelf(ctx context.Context) (*pb.RoleInfo, error) {
-	rm.RLock()
-	defer rm.RUnlock()
+	rm.Lock()
+	defer rm.Unlock()
 
-	ri, ok := rm.infos[rm.roleID]
-	if ok {
-		return ri, nil
-	}
-	return nil, xerrors.Errorf("%d roleinfo not found", rm.roleID)
+	return rm.get(rm.roleID)
 }
 
 func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64) (*pb.RoleInfo, error) {
-	rm.RLock()
-	defer rm.RUnlock()
-	ri, ok := rm.infos[id]
-	if ok {
-		return ri, nil
-	}
-	return nil, xerrors.Errorf("%d roleinfo not found", id)
+	rm.Lock()
+	defer rm.Unlock()
+
+	return rm.get(id)
 }
 
 func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {
@@ -68,7 +61,6 @@ func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]
 		for i, id := range rm.users {
 			out[i] = id
 		}
-
 		return out, nil
 	default:
 		return nil, xerrors.Errorf("roleinfo not supported for type %d", typ)
@@ -194,11 +186,11 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 }
 
 func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (bool, error) {
-	rm.RLock()
-	ri, ok := rm.infos[msg.From]
-	rm.RUnlock()
-	if !ok {
-		return false, xerrors.Errorf("not found")
+	rm.Lock()
+	defer rm.Unlock()
+	ri, err := rm.get(msg.From)
+	if err != nil {
+		return false, err
 	}
 
 	switch msg.Method {

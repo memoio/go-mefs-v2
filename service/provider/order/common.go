@@ -6,7 +6,7 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
 
-var logger = logging.Logger("porder")
+var logger = logging.Logger("pro-order")
 
 var (
 	ErrDataSign = xerrors.New("wrong data content")

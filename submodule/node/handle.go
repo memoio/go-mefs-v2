@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/binary"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -24,6 +25,10 @@ func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.SignedBlock) erro
 }
 
 func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, n.RoleID())
+	mes.Data.MsgInfo = buf
+
 	return mes, nil
 }
 

@@ -2,17 +2,19 @@ package settle
 
 import (
 	"context"
-	"log"
+	"crypto/ecdsa"
+	"encoding/binary"
+	"encoding/hex"
 	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/xerrors"
 
 	callconts "memoContract/callcontracts"
 	iface "memoContract/interfaces"
-	"memoContract/test"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -20,27 +22,39 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
+var _ ISettle = &ContractMgr{}
+
 type ContractMgr struct {
-	ctx       context.Context
-	ds        store.KVStore
-	roleID    uint64
-	groupID   uint64
-	threshold int
-	tIndex    uint32
+	ctx context.Context
+
+	hexSK   string
+	roleID  uint64
+	groupID uint64
+	level   int
+	tIndex  uint32
 
 	eAddr  common.Address // local address
-	rAddr  common.Address // role contract address
-	tAddr  common.Address // token address
-	fsAddr common.Address // fs contract addr
-	ppAddr common.Address // pledge contract addr
+	txOpts *callconts.TxOpts
+
+	rAddr   common.Address // role contract address
+	rtAddr  common.Address // token mgr address
+	tAddr   common.Address // token address
+	ppAddr  common.Address // pledge pool address
+	isAddr  common.Address // issurance address
+	rfsAddr common.Address // issurance address
+	fsAddr  common.Address // fs contract addr
 
 	// Role caller for user
 	iRole iface.RoleInfo
+	iRT   iface.RTokenInfo
 	iErc  iface.ERC20Info
-	ipp   iface.PledgePoolInfo
+	iPP   iface.PledgePoolInfo
+	iSS   iface.IssuanceInfo
+	iRFS  iface.RoleFSInfo
+	iFS   iface.FileSysInfo
 }
 
-func NewContractMgr(ctx context.Context, addr address.Address, hexSk string, ds store.KVStore) (*ContractMgr, error) {
+func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	logger.Debug("create contract mgr")
 	// set endpoint
 	callconts.EndPoint = "http://119.147.213.220:8191"
@@ -51,37 +65,107 @@ func NewContractMgr(ctx context.Context, addr address.Address, hexSk string, ds 
 		GasLimit: callconts.DefaultGasLimit,
 	}
 
-	eAddr := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
-
-	val := QueryBalance(eAddr.String(), callconts.EndPoint)
-	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
-		TransferTo(big.NewInt(1_000_000_000_000_000_000), eAddr.String(), callconts.EndPoint, callconts.EndPoint)
+	hexSk := hex.EncodeToString(sk)
+	privateKey, err := crypto.HexToECDSA(hexSk)
+	if err != nil {
+		return nil, err
 	}
 
-	iRole := callconts.NewR(eAddr, hexSk, txopts)
-	iERC := callconts.NewERC20(eAddr, hexSk, txopts)
-	ipp := callconts.NewPledgePool(eAddr, hexSk, txopts)
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, xerrors.Errorf("error casting public key to ECDSA")
+	}
+
+	eAddr := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	// transfer eth
+	val := QueryBalance(eAddr)
+	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
+		TransferTo(eAddr, big.NewInt(100_000_000_000_000_000))
+	}
+
+	rAddr := callconts.RoleAddr
+	iRole := callconts.NewR(rAddr, eAddr, hexSk, txopts)
+
+	rtAddr, err := iRole.RToken()
+	if err != nil {
+		return nil, err
+	}
+
+	iRT := callconts.NewRT(rtAddr, eAddr, hexSk, txopts)
+	tIndex := uint32(0)
+	tAddr, err := iRT.GetTA(tIndex)
+	if err != nil {
+		return nil, err
+	}
+	iERC := callconts.NewERC20(tAddr, eAddr, hexSk, txopts)
+
+	ppAddr, err := iRole.PledgePool()
+	if err != nil {
+		return nil, err
+	}
+	ipp := callconts.NewPledgePool(ppAddr, eAddr, hexSk, txopts)
+
+	rfsAddr, err := iRole.Rolefs()
+	if err != nil {
+		return nil, err
+	}
+	iRFS := callconts.NewRFS(rfsAddr, eAddr, hexSk, txopts)
+
+	isAddr, err := iRole.Issuance()
+	if err != nil {
+		return nil, err
+	}
+	iIS := callconts.NewIssu(isAddr, eAddr, hexSk, txopts)
 
 	cm := &ContractMgr{
 		ctx: ctx,
-		ds:  ds,
+
+		hexSK:  hexSk,
+		tIndex: tIndex,
 
 		eAddr:  eAddr,
-		rAddr:  callconts.RoleAddr,
-		tAddr:  callconts.ERC20Addr,
-		ppAddr: callconts.PledgePoolAddr,
+		txOpts: txopts,
+
+		rAddr:   rAddr,
+		rtAddr:  rtAddr,
+		tAddr:   tAddr,
+		rfsAddr: rfsAddr,
+		isAddr:  isAddr,
+		ppAddr:  ppAddr,
 
 		iRole: iRole,
+		iRT:   iRT,
 		iErc:  iERC,
-		ipp:   ipp,
+		iRFS:  iRFS,
+		iSS:   iIS,
+		iPP:   ipp,
 	}
 
 	return cm, nil
 }
 
+func Register(ctx context.Context, sk []byte, typ pb.RoleInfo_Type, gIndex uint64) (uint64, uint64, error) {
+	cm, err := NewContractMgr(ctx, sk)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	err = cm.Start(typ, gIndex)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return cm.roleID, cm.groupID, nil
+}
+
 func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
-	logger.Debug("start contract mgr")
-	_, _, _, rid, _, _, err := cm.iRole.GetRoleInfo(cm.rAddr, cm.eAddr)
+	if gIndex == 0 {
+		return nil
+	}
+	logger.Debug("start contract mgr: ", typ, gIndex)
+	_, _, _, rid, _, _, err := cm.iRole.GetRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
 	}
@@ -96,9 +180,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 	}
 
-	cm.roleID = rid
-
-	_, _, rType, rid, gid, _, err := cm.iRole.GetRoleInfo(cm.rAddr, cm.eAddr)
+	_, _, rType, rid, gid, _, err := cm.iRole.GetRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
 	}
@@ -109,42 +191,64 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return xerrors.Errorf("register fails")
 	}
 
+	cm.roleID = rid
+
 	if rType == 0 {
 		switch typ {
+		case pb.RoleInfo_Keeper:
+			err = cm.RegisterKeeper()
+			if err != nil {
+				logger.Debug("register keeper fail: ", err)
+				return err
+			}
 		case pb.RoleInfo_Provider:
 			// provider: register,register; add to group
-
 			err = cm.RegisterProvider()
 			if err != nil {
-				logger.Debug("register fail: ", err)
+				logger.Debug("register provider fail: ", err)
 				return err
 			}
-
-			err = cm.AddProviderToGroup(gIndex)
-			if err != nil {
-				return err
-			}
-
 		case pb.RoleInfo_User:
 			// user: resgister user
 			// get extra byte
-			err = cm.RegisterUser(gIndex, nil)
+			err = cm.RegisterUser(gIndex)
 			if err != nil {
+				logger.Debug("register user fail: ", err)
 				return err
 			}
-
 		}
 	}
 
-	_, _, rType, rid, gid, _, err = cm.iRole.GetRoleInfo(cm.rAddr, cm.eAddr)
+	_, _, rType, rid, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
 	}
 
 	logger.Debug("get roleinfo: ", rid, gid, rType)
 
+	switch typ {
+	case pb.RoleInfo_Keeper:
+		if rType != callconts.KeeperRoleType {
+			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.KeeperRoleType, typ)
+		}
+	case pb.RoleInfo_Provider:
+		if rType != callconts.ProviderRoleType {
+			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.ProviderRoleType, typ)
+		}
+	case pb.RoleInfo_User:
+		if rType != callconts.UserRoleType {
+			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.UserRoleType, typ)
+		}
+	default:
+	}
+
 	if gid == 0 {
 		switch typ {
+		case pb.RoleInfo_Keeper:
+			err = cm.AddKeeperToGroup(gIndex)
+			if err != nil {
+				return err
+			}
 		case pb.RoleInfo_Provider:
 			// provider: register,register; add to group
 			err = cm.AddProviderToGroup(gIndex)
@@ -154,19 +258,33 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 	}
 
-	if rid == 0 {
-		return xerrors.Errorf("register group fails")
+	_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
+	if err != nil {
+		return err
 	}
 
-	err = cm.getGroupInfo(gid)
+	if gid == 0 {
+		return xerrors.Errorf("register group fails")
+	} else {
+		if gid != gIndex {
+			return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
+		}
+	}
+
+	fsAddr, level, err := cm.getGroupInfo(gIndex)
 	if err != nil {
 		return err
 	}
 
 	cm.roleID = rid
 	cm.groupID = gid
+	cm.fsAddr = fsAddr
+	cm.level = level
+	cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts)
 
-	go cm.getAllAddrs()
+	if rType == 1 {
+		cm.Recharge()
+	}
 
 	return nil
 }
@@ -178,7 +296,7 @@ func (cm *ContractMgr) GetRoleInfo(addr address.Address) (*pb.RoleInfo, error) {
 }
 
 func (cm *ContractMgr) GetRoleInfoAt(rid uint64) (*pb.RoleInfo, error) {
-	gotAddr, err := cm.iRole.GetAddr(cm.eAddr, rid)
+	gotAddr, err := cm.iRole.GetAddr(rid)
 	if err != nil {
 		return nil, err
 	}
@@ -187,13 +305,17 @@ func (cm *ContractMgr) GetRoleInfoAt(rid uint64) (*pb.RoleInfo, error) {
 }
 
 func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
-	_, _, rType, rid, gid, extra, err := cm.iRole.GetRoleInfo(eAddr, eAddr)
+	_, _, rType, rid, gid, extra, err := cm.iRole.GetRoleInfo(eAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(extra) < 48 {
-		return nil, xerrors.Errorf("bls public key length short, expected 48, got %d", len(extra))
+	if rid == 0 {
+		return nil, xerrors.Errorf("%s is not register or in group", eAddr)
+	}
+
+	if gid != cm.groupID {
+		return nil, xerrors.Errorf("%s is not register in group %d, got %d", eAddr, cm.groupID, gid)
 	}
 
 	pri := new(pb.RoleInfo)
@@ -202,102 +324,66 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 	pri.ChainVerifyKey = eAddr.Bytes()
 
 	switch rType {
-	case 0:
-		pri.Type = pb.RoleInfo_Unknown
-	case 1:
+	case callconts.UserRoleType:
 		pri.Type = pb.RoleInfo_User
 		pri.Extra = extra
-	case 2:
+	case callconts.ProviderRoleType:
 		pri.Type = pb.RoleInfo_Provider
-	case 3:
+	case callconts.KeeperRoleType:
 		pri.Type = pb.RoleInfo_Keeper
 		pri.BlsVerifyKey = extra
 	default:
-		return nil, xerrors.Errorf("roletype %d unsupported", rType)
+		pri.Type = pb.RoleInfo_Unknown
 	}
-
-	cm.groupID = gid
-	cm.roleID = rid
 
 	return pri, nil
 }
 
 func (cm *ContractMgr) RegisterRole() error {
-	logger.Debug("contract mgr register")
-	return cm.iRole.Register(cm.rAddr, cm.eAddr, nil)
+	logger.Debug("contract mgr register role")
+	return cm.iRole.Register(cm.eAddr, nil)
 }
 
-func (cm *ContractMgr) RegisterProvider() error {
-	logger.Debug("register provider")
-
-	txopts := &callconts.TxOpts{
-		Nonce:    nil,
-		GasPrice: big.NewInt(callconts.DefaultGasPrice),
-		GasLimit: callconts.DefaultGasLimit,
-	}
-
-	bal, err := cm.iErc.BalanceOf(cm.tAddr, cm.eAddr)
+func (cm *ContractMgr) getGroupInfo(gIndex uint64) (common.Address, int, error) {
+	isActive, isBanned, isReady, level, _, _, fsAddr, err := cm.iRole.GetGroupInfo(gIndex)
 	if err != nil {
-		logger.Debug(err)
-		return err
+		return common.Address{}, 0, err
 	}
 
-	logger.Debugf("erc20 balance is %d", bal)
+	logger.Debugf("group %d, state %v %v %v, level %d, fsAddr %s", gIndex, isActive, isBanned, isReady, level, fsAddr)
 
-	pledgep, err := cm.iRole.PledgeP(cm.rAddr) // 申请Provider最少需质押的金额
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if bal.Cmp(pledgep) < 0 {
-		erc20 := callconts.NewERC20(callconts.AdminAddr, test.AdminSk, txopts)
-		erc20.Transfer(cm.tAddr, cm.eAddr, pledgep)
-	}
-
-	err = cm.ipp.Pledge(cm.ppAddr, cm.tAddr, cm.rAddr, cm.roleID, pledgep, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	logger.Debugf("pledge %d", pledgep)
-
-	return cm.iRole.RegisterProvider(cm.rAddr, cm.roleID, nil)
+	return fsAddr, int(level), nil
 }
 
-func (cm *ContractMgr) AddProviderToGroup(gIndex uint64) error {
-	gn, err := cm.iRole.GetGroupsNum(cm.rAddr)
-	if err != nil {
-		return err
-	}
-
-	logger.Debug("get group number: ", gn)
-
-	return cm.iRole.AddProviderToGroup(cm.rAddr, cm.roleID, gIndex, nil)
+func (cm *ContractMgr) GetRoleID() uint64 {
+	return cm.roleID
 }
 
-func (cm *ContractMgr) RegisterUser(gIndex uint64, extra []byte) error {
-	return cm.iRole.RegisterUser(cm.rAddr, cm.eAddr, cm.roleID, gIndex, cm.tIndex, extra, nil)
+func (cm *ContractMgr) GetGroupID() uint64 {
+	return cm.groupID
 }
 
-func (cm *ContractMgr) getGroupInfo(gIndex uint64) error {
-	_, _, _, level, _, _, fsAddr, err := cm.iRole.GetGroupInfo(cm.rAddr, gIndex)
-	if err != nil {
-		return err
-	}
-
-	cm.threshold = int(level)
-	cm.fsAddr = fsAddr
-	return nil
+func (cm *ContractMgr) GetThreshold() int {
+	return cm.level
 }
 
-func (cm *ContractMgr) getAllAddrs() {
+func (cm *ContractMgr) GetAllAddrs(ds store.KVStore) {
 	//get all addrs and added it into roleMgr
-	tc := time.NewTicker(15 * time.Second)
+	tc := time.NewTicker(30 * time.Second)
 	defer tc.Stop()
+
+	key := store.NewKey(pb.MetaType_RoleInfoKey)
 
 	kCnt := uint64(0)
 	pCnt := uint64(0)
 	uCnt := uint64(0)
+
+	val, _ := ds.Get(key)
+	if len(val) >= 24 {
+		kCnt = binary.BigEndian.Uint64(val[:8])
+		pCnt = binary.BigEndian.Uint64(val[8:16])
+		uCnt = binary.BigEndian.Uint64(val[16:24])
+	}
 
 	for {
 		select {
@@ -308,35 +394,27 @@ func (cm *ContractMgr) getAllAddrs() {
 				continue
 			}
 
-			kcnt, err := cm.iRole.GetGKNum(cm.eAddr, cm.groupID)
+			kcnt, err := cm.iRole.GetGKNum(cm.groupID)
 			if err != nil {
+				logger.Debugf("get group %d keeper count fail %w", cm.groupID, err)
 				continue
 			}
 			if kcnt > kCnt {
-				for i := kCnt; i <= kcnt; i++ {
-					kindex, err := cm.iRole.GetGroupK(cm.eAddr, cm.groupID, i)
+				nkey := store.NewKey(pb.MetaType_RoleInfoKey, cm.groupID, pb.RoleInfo_Keeper.String())
+				data, _ := ds.Get(nkey)
+				for i := kCnt; i < kcnt; i++ {
+					kindex, err := cm.iRole.GetGroupK(cm.groupID, i)
 					if err != nil {
+						logger.Debugf("get group %d keeper %d fail %w", cm.groupID, i, err)
 						continue
 					}
 
-					gotAddr, err := cm.iRole.GetAddr(cm.eAddr, kindex)
-					if err != nil {
-						continue
-					}
+					buf := make([]byte, 8)
+					binary.BigEndian.PutUint64(buf, kindex)
+					data = append(data, buf...)
 
-					pri, err := cm.getRoleInfo(gotAddr)
+					pri, err := cm.GetRoleInfoAt(kindex)
 					if err != nil {
-						continue
-					}
-
-					// should not
-					if pri.ID == 0 {
-						continue
-					}
-					if pri.GroupID == 0 {
-						continue
-					}
-					if pri.GroupID != cm.groupID {
 						continue
 					}
 
@@ -346,41 +424,35 @@ func (cm *ContractMgr) getAllAddrs() {
 					}
 
 					// save to local
-					key := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
-					cm.ds.Put(key, val)
+					nrkey := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
+					ds.Put(nrkey, val)
 				}
 				kCnt = kcnt
+				ds.Put(nkey, data)
 			}
 
-			ucnt, pcnt, err := cm.iRole.GetGUPNum(cm.eAddr, cm.groupID)
+			ucnt, pcnt, err := cm.iRole.GetGUPNum(cm.groupID)
 			if err != nil {
+				logger.Debugf("get group %d user-pro count fail %w", cm.groupID, err)
 				continue
 			}
 			if pcnt > pCnt {
-				for i := pCnt; i <= pcnt; i++ {
-					pindex, err := cm.iRole.GetGroupP(cm.eAddr, cm.groupID, i)
+				nkey := store.NewKey(pb.MetaType_RoleInfoKey, cm.groupID, pb.RoleInfo_Provider.String())
+				data, _ := ds.Get(nkey)
+
+				for i := pCnt; i < pcnt; i++ {
+					pindex, err := cm.iRole.GetGroupP(cm.groupID, i)
 					if err != nil {
+						logger.Debugf("get group %d pro %d fail %w", cm.groupID, i, err)
 						continue
 					}
 
-					gotAddr, err := cm.iRole.GetAddr(cm.eAddr, pindex)
-					if err != nil {
-						continue
-					}
+					buf := make([]byte, 8)
+					binary.BigEndian.PutUint64(buf, pindex)
+					data = append(data, buf...)
 
-					pri, err := cm.getRoleInfo(gotAddr)
+					pri, err := cm.GetRoleInfoAt(pindex)
 					if err != nil {
-						continue
-					}
-
-					// should not
-					if pri.ID == 0 {
-						continue
-					}
-					if pri.GroupID == 0 {
-						continue
-					}
-					if pri.GroupID != cm.groupID {
 						continue
 					}
 
@@ -390,37 +462,25 @@ func (cm *ContractMgr) getAllAddrs() {
 					}
 
 					// save to local
-					key := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
-					cm.ds.Put(key, val)
+					nrkey := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
+					ds.Put(nrkey, val)
 				}
 				pCnt = pcnt
+
+				kCnt = kcnt
+				ds.Put(nkey, data)
 			}
 
 			if ucnt > uCnt {
-				for i := uCnt; i <= ucnt; i++ {
-					pindex, err := cm.iRole.GetGroupU(cm.eAddr, cm.groupID, i)
+				for i := uCnt; i < ucnt; i++ {
+					uindex, err := cm.iRole.GetGroupU(cm.groupID, i)
 					if err != nil {
+						logger.Debugf("get group %d user %d fail %w", cm.groupID, i, err)
 						continue
 					}
 
-					gotAddr, err := cm.iRole.GetAddr(cm.eAddr, pindex)
+					pri, err := cm.GetRoleInfoAt(uindex)
 					if err != nil {
-						continue
-					}
-
-					pri, err := cm.getRoleInfo(gotAddr)
-					if err != nil {
-						continue
-					}
-
-					// should not
-					if pri.ID == 0 {
-						continue
-					}
-					if pri.GroupID == 0 {
-						continue
-					}
-					if pri.GroupID != cm.groupID {
 						continue
 					}
 
@@ -430,11 +490,19 @@ func (cm *ContractMgr) getAllAddrs() {
 					}
 
 					// save to local
-					key := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
-					cm.ds.Put(key, val)
+					nkey := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
+					ds.Put(nkey, val)
 				}
 				uCnt = ucnt
 			}
+
+			logger.Debug("sync from chain: ", kCnt, pCnt, uCnt)
+
+			buf := make([]byte, 24)
+			binary.BigEndian.PutUint64(buf[:8], kCnt)
+			binary.BigEndian.PutUint64(buf[8:16], pCnt)
+			binary.BigEndian.PutUint64(buf[16:24], uCnt)
+			ds.Put(key, buf)
 		}
 	}
 }

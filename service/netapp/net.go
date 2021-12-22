@@ -193,6 +193,27 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 				}
 			}
 			c.Unlock()
+
+			pinfos, err := c.ns.NetPeers(ctx)
+			if err != nil {
+				continue
+			}
+
+			for _, pi := range pinfos {
+				resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.roleID, pb.NetMessage_SayHello, nil, nil)
+				if err != nil {
+					continue
+				}
+
+				if resp.GetHeader().GetType() == pb.NetMessage_Err {
+					continue
+				}
+
+				rid := binary.BigEndian.Uint64(resp.GetData().GetMsgInfo())
+
+				c.idMap[rid] = pi.ID
+			}
+
 		case <-c.ctx.Done():
 			return
 		}

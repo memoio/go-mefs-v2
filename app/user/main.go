@@ -10,13 +10,14 @@ import (
 	lfscmd "github.com/memoio/go-mefs-v2/app/cmd/lfs"
 	"github.com/memoio/go-mefs-v2/app/minit"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 var logger = logging.Logger("mefs-user")
 
 func main() {
 	local := []*cli.Command{
-		DaemonCmd,
+		cmd.DaemonCmd,
 		cmd.InitCmd,
 		cmd.AuthCmd,
 		cmd.WalletCmd,
@@ -39,7 +40,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:  cmd.FlagRoleType,
-				Value: "user",
+				Value: pb.RoleInfo_User.String(),
 				Usage: "set role type.",
 			},
 			&cli.StringFlag{

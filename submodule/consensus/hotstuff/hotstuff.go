@@ -51,6 +51,8 @@ type HotstuffManager struct {
 }
 
 func NewHotstuffManager(ctx context.Context, localID uint64, ir api.IRole, in api.INetService, a bcommon.ConsensusApp) *HotstuffManager {
+	logger.Debug("create hotstuff consensus service")
+
 	m := &HotstuffManager{
 		IRole:       ir,
 		INetService: in,

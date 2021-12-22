@@ -14,6 +14,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api/httpio"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/service/netapp"
@@ -36,6 +37,8 @@ type Builder struct {
 
 	repo repo.Repo
 
+	roleID         uint64
+	groupID        uint64
 	walletPassword string // en/decrypt wallet from keystore
 	authURL        string
 }
@@ -80,6 +83,14 @@ func (b builder) Libp2pOpts() []libp2p.Option {
 	return b.libp2pOpts
 }
 
+func (b builder) GroupID() uint64 {
+	return b.groupID
+}
+
+func (b builder) RoleID() uint64 {
+	return b.roleID
+}
+
 func (b builder) DaemonMode() bool {
 	return b.daemon
 }
@@ -122,6 +133,20 @@ func Libp2pOptions(opts ...libp2p.Option) BuilderOpt {
 	}
 }
 
+func SetGroupID(gid uint64) BuilderOpt {
+	return func(c *Builder) error {
+		c.groupID = gid
+		return nil
+	}
+}
+
+func SetRoleID(rid uint64) BuilderOpt {
+	return func(c *Builder) error {
+		c.roleID = rid
+		return nil
+	}
+}
+
 // New creates a new node.
 func New(ctx context.Context, opts ...BuilderOpt) (*BaseNode, error) {
 	// initialize builder and set base values
@@ -153,31 +178,33 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, err
 	}
 
-	id, err := settle.GetRoleID(defaultAddr)
+	lw := wallet.New(b.walletPassword, b.repo.KeyStore())
+	ki, err := lw.WalletExport(ctx, defaultAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	gid := settle.GetGroupID(id)
+	cm, err := settle.NewContractMgr(ctx, ki.SecretKey)
+	if err != nil {
+		return nil, err
+	}
+
+	err = cm.Start(pb.RoleInfo_Unknown, b.groupID)
+	if err != nil {
+		return nil, err
+	}
 
 	// create the node
 	nd := &BaseNode{
-		ctx:     ctx,
-		Repo:    b.repo,
-		roleID:  id,
-		groupID: gid,
+		ctx:         ctx,
+		Repo:        b.repo,
+		roleID:      b.roleID,
+		groupID:     b.groupID,
+		ContractMgr: cm,
+		LocalWallet: lw,
 	}
 
-	nd.LocalWallet = wallet.New(b.walletPassword, b.repo.KeyStore())
-	ok, err := nd.LocalWallet.WalletHas(ctx, defaultAddr)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, xerrors.New("donot have default wallet address")
-	}
-
-	networkName := cfg.Net.Name + "/group" + strconv.FormatInt(int64(gid), 10)
+	networkName := cfg.Net.Name + "/group" + strconv.FormatInt(int64(b.groupID), 10)
 
 	logger.Debug("networkName is: ", networkName)
 
@@ -202,14 +229,14 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.isOnline = true
 
-	cs, err := netapp.New(ctx, id, nd.MetaStore(), nd.NetworkSubmodule)
+	cs, err := netapp.New(ctx, b.roleID, nd.MetaStore(), nd.NetworkSubmodule)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create core service %w", err)
 	}
 
 	nd.NetServiceImpl = cs
 
-	rm, err := role.New(ctx, id, gid, nd.MetaStore(), nd.LocalWallet)
+	rm, err := role.New(ctx, b.roleID, nd.groupID, nd.MetaStore(), nd.LocalWallet, nd.ContractMgr)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create role service %w", err)
 	}
@@ -231,9 +258,9 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 
 	// use a different state store
-	stDB := state.NewStateMgr(gid, nd.StateStore(), rm)
+	stDB := state.NewStateMgr(b.groupID, nd.GetThreshold(), nd.StateStore(), rm)
 
-	sp := txPool.NewSyncPool(ctx, id, gid, stDB, nd.MetaStore(), txs, rm, cs)
+	sp := txPool.NewSyncPool(ctx, b.roleID, b.groupID, nd.GetThreshold(), stDB, nd.MetaStore(), txs, rm, cs)
 
 	nd.PushPool = txPool.NewPushPool(ctx, sp)
 

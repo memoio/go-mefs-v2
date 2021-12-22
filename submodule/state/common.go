@@ -17,7 +17,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("state")
+var logger = logging.Logger("data-state")
 
 type HanderAddRoleFunc func(roleID uint64, typ pb.RoleInfo_Type)
 type HandleAddUserFunc func(userID uint64)
