@@ -86,7 +86,7 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	}
 
 	val = QueryBalance(eAddr)
-	logger.Debug("%s has val %d", eAddr, val)
+	logger.Debugf("%s has val %d", eAddr, val)
 	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
 		return nil, xerrors.Errorf("val %d is not enough", val)
 	}
@@ -112,14 +112,14 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
+	if val.BitLen() == 0 {
 		erc20Transfer(eAddr, big.NewInt(100_000_000_000_000_000))
 	}
 	val, err = iERC.BalanceOf(eAddr)
 	if err != nil {
 		return nil, err
 	}
-	logger.Debug("%s has erc20 val %d", eAddr, val)
+	logger.Debugf("%s has erc20 val %d", eAddr, val)
 
 	ppAddr, err := iRole.PledgePool()
 	if err != nil {
