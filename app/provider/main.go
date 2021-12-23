@@ -22,6 +22,7 @@ func main() {
 		cmd.WalletCmd,
 		cmd.StateCmd,
 		cmd.NetCmd,
+		cmd.ConfigCmd,
 	}
 
 	app := &cli.App{

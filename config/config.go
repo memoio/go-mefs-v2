@@ -92,6 +92,7 @@ func newDefaultBootstrapConfig() BootstrapConfig {
 	return BootstrapConfig{
 		Addresses: []string{
 			"/ip4/192.168.1.46/tcp/7000/p2p/12D3KooW9wHS4bYiTRGMMZrzKcSXE92ZTMVhHcbTDaqHvDPDivgT",
+			"/ip4/192.168.1.46/tcp/4201/p2p/12D3KooWB5yMrUL6NG6wHrdR9V114mUDkpJ5Mp3c1sLPHwiFi6DN",
 		},
 	}
 }

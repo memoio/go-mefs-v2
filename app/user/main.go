@@ -24,6 +24,7 @@ func main() {
 		cmd.RoleCmd,
 		cmd.NetCmd,
 		lfscmd.LfsCmd,
+		cmd.ConfigCmd,
 	}
 
 	app := &cli.App{
