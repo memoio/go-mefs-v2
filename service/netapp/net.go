@@ -209,6 +209,10 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 					continue
 				}
 
+				if len(resp.GetData().GetMsgInfo()) < 8 {
+					continue
+				}
+
 				rid := binary.BigEndian.Uint64(resp.GetData().GetMsgInfo())
 
 				c.idMap[rid] = pi.ID

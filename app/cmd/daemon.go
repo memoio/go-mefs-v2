@@ -29,7 +29,7 @@ const (
 
 var DaemonCmd = &cli.Command{
 	Name:  "daemon",
-	Usage: "Run a network-connected Memoriae keeper.",
+	Usage: "Run a network-connected Memoriae node.",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  pwKwd,
@@ -176,7 +176,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	default:
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Unknown, 1)
+		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
