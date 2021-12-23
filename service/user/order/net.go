@@ -10,7 +10,13 @@ import (
 )
 
 func (m *OrderMgr) connect(proID uint64) error {
-	_, err := m.SendMetaRequest(m.ctx, proID, pb.NetMessage_SayHello, nil, nil)
+	pi, err := m.GetNetInfo(m.ctx, proID)
+	if err == nil {
+		m.ns.AddNode(proID, pi.ID)
+		m.ns.Host().Connect(m.ctx, pi)
+	}
+
+	_, err = m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_SayHello, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -29,7 +35,7 @@ func (m *OrderMgr) update(proID uint64) {
 
 func (m *OrderMgr) getQuotation(proID uint64) error {
 	logger.Debug("get new quotation from: ", proID)
-	resp, err := m.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
+	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -76,7 +82,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 		return err
 	}
 
-	resp, err := m.SendMetaRequest(m.ctx, proID, pb.NetMessage_CreateOrder, data, sigByte)
+	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_CreateOrder, data, sigByte)
 	if err != nil {
 		return err
 	}
@@ -122,7 +128,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 		return err
 	}
 
-	resp, err := m.SendMetaRequest(m.ctx, proID, pb.NetMessage_CreateSeq, data, sigByte)
+	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_CreateSeq, data, sigByte)
 	if err != nil {
 		return err
 	}
@@ -172,7 +178,7 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 		return err
 	}
 
-	resp, err := m.SendMetaRequest(m.ctx, proID, pb.NetMessage_FinishSeq, data, sigByte)
+	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_FinishSeq, data, sigByte)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -119,12 +120,18 @@ func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
 	return pri, nil
 }
 
-func (s *StateMgr) GetNetInfo(roleID uint64) ([]byte, error) {
+func (s *StateMgr) GetNetInfo(ctx context.Context, roleID uint64) (peer.AddrInfo, error) {
 	s.RLock()
 	defer s.RUnlock()
 
+	res := new(peer.AddrInfo)
 	key := store.NewKey(pb.MetaType_ST_NetKey, roleID)
-	return s.ds.Get(key)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return *res, err
+	}
+	err = res.UnmarshalJSON(data)
+	return *res, err
 }
 
 func (s *StateMgr) GetThreshold(ctx context.Context) int {

@@ -120,55 +120,51 @@ func (n *BaseNode) Register() error {
 }
 
 func (n *BaseNode) UpdateNetAddr() error {
-	data, err := n.PushPool.GetNetInfo(n.RoleID())
+	pi, err := n.NetAddrInfo(n.ctx)
 	if err != nil {
-		pi, err := n.NetAddrInfo(n.ctx)
+		return err
+	}
+
+	opi, err := n.PushPool.GetNetInfo(n.ctx, n.RoleID())
+	if err == nil {
+		if pi.ID == opi.ID {
+			logger.Debug("net addr has been on chain")
+			return nil
+		}
+	}
+
+	data, err := pi.MarshalJSON()
+	if err != nil {
+		return err
+	}
+	msg := &tx.Message{
+		Version: 0,
+		From:    n.RoleID(),
+		To:      n.RoleID(),
+		Method:  tx.UpdateNetAddr,
+		Params:  data,
+	}
+
+	for {
+		mid, err := n.PushPool.PushMessage(n.ctx, msg)
 		if err != nil {
-			return err
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
-		opi := new(peer.AddrInfo)
-		err = opi.UnmarshalJSON(data)
-		if err == nil {
-			if pi.ID == opi.ID {
-				logger.Debug("net addr has been on chain")
-				return nil
-			}
-		}
-
-		data, err := pi.MarshalJSON()
-		if err != nil {
-			return err
-		}
-		msg := &tx.Message{
-			Version: 0,
-			From:    n.RoleID(),
-			To:      n.RoleID(),
-			Method:  tx.UpdateNetAddr,
-			Params:  data,
-		}
-
+		ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
+		defer cancle()
 		for {
-			mid, err := n.PushPool.PushMessage(n.ctx, msg)
+			st, err := n.PushPool.GetTxMsgStatus(ctx, mid)
 			if err != nil {
-				time.Sleep(5 * time.Second)
+				time.Sleep(10 * time.Second)
 				continue
 			}
 
-			ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
-			defer cancle()
-			for {
-				st, err := n.PushPool.GetTxMsgStatus(ctx, mid)
-				if err != nil {
-					time.Sleep(10 * time.Second)
-					continue
-				}
-
-				logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
-				break
-			}
+			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
 			break
 		}
+		break
 	}
 
 	logger.Debug("role is registered")

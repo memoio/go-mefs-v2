@@ -64,7 +64,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl, bn.RoleMgr, sp)
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PushPool, bn.RoleMgr, bn.NetServiceImpl, ids)
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PushPool, bn.RoleMgr, ids, bn.NetServiceImpl)
 
 	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {

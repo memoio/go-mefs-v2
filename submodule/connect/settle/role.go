@@ -231,56 +231,70 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		if rType != callconts.KeeperRoleType {
 			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.KeeperRoleType, typ)
 		}
+
+		if gid == 0 && gIndex > 0 {
+			err = cm.AddKeeperToGroup(gIndex)
+			if err != nil {
+				return err
+			}
+
+			_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
+			if err != nil {
+				return err
+			}
+
+			if gid != gIndex {
+				return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
+			}
+		}
 	case pb.RoleInfo_Provider:
 		if rType != callconts.ProviderRoleType {
 			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.ProviderRoleType, typ)
+		}
+
+		if gid == 0 && gIndex > 0 {
+			err = cm.AddProviderToGroup(gIndex)
+			if err != nil {
+				return err
+			}
+
+			_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
+			if err != nil {
+				return err
+			}
+
+			if gid != gIndex {
+				return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
+			}
 		}
 	case pb.RoleInfo_User:
 		if rType != callconts.UserRoleType {
 			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.UserRoleType, typ)
 		}
+
+		_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
+		if err != nil {
+			return err
+		}
+
+		if gIndex > 0 && gid != gIndex {
+			return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
+		}
 	default:
 	}
 
-	if gid == 0 {
-		switch typ {
-		case pb.RoleInfo_Keeper:
-			err = cm.AddKeeperToGroup(gIndex)
-			if err != nil {
-				return err
-			}
-		case pb.RoleInfo_Provider:
-			// provider: register,register; add to group
-			err = cm.AddProviderToGroup(gIndex)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
-	if err != nil {
-		return err
-	}
-
-	if gid == 0 {
-		return xerrors.Errorf("register group fails")
-	} else {
-		if gid != gIndex {
-			return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
-		}
-	}
-
-	fsAddr, level, err := cm.getGroupInfo(gIndex)
-	if err != nil {
-		return err
-	}
-
 	cm.roleID = rid
-	cm.groupID = gid
-	cm.fsAddr = fsAddr
-	cm.level = level
-	cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts)
+	cm.groupID = gIndex
+
+	if gIndex > 0 {
+		fsAddr, level, err := cm.getGroupInfo(gIndex)
+		if err != nil {
+			return err
+		}
+		cm.fsAddr = fsAddr
+		cm.level = level
+		cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts)
+	}
 
 	if rType == 1 {
 		cm.Recharge()

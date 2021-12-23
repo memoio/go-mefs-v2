@@ -164,6 +164,7 @@ type IState interface {
 	GetNonce(context.Context, uint64) uint64
 
 	GetAllKeepers(context.Context) []uint64
+	GetNetInfo(context.Context, uint64) (peer.AddrInfo, error)
 
 	GetUsersForPro(context.Context, uint64) []uint64
 	GetProsForUser(context.Context, uint64) []uint64

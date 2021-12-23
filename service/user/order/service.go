@@ -13,18 +13,19 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/service/netapp"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 type OrderMgr struct {
 	api.IRole
-	api.INetService
 	api.IDataService
 	api.IChain
 
 	ctx context.Context
 	ds  store.KVStore // save order info
 
+	ns      *netapp.NetServiceImpl
 	localID uint64
 	fsID    []byte
 
@@ -58,15 +59,15 @@ type OrderMgr struct {
 	ready bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl) *OrderMgr {
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
-		INetService:  in,
 		IChain:       pp,
 
 		ctx: ctx,
 		ds:  ds,
+		ns:  ns,
 
 		localID: roleID,
 		fsID:    fsID,

@@ -68,6 +68,7 @@ type CommonStruct struct {
 		GetAllUsers    func(context.Context) []uint64         `perm:"read"`
 
 		GetAllKeepers   func(context.Context) []uint64                             `perm:"read"`
+		GetNetInfo      func(context.Context, uint64) (peer.AddrInfo, error)       `perm:"read"`
 		GetPDPPublicKey func(context.Context, uint64) (pdpcommon.PublicKey, error) `perm:"read"`
 		GetBucket       func(context.Context, uint64) uint64                       `perm:"read"`
 
@@ -219,6 +220,10 @@ func (s *CommonStruct) GetAllUsers(ctx context.Context) []uint64 {
 
 func (s *CommonStruct) GetAllKeepers(ctx context.Context) []uint64 {
 	return s.Internal.GetAllKeepers(ctx)
+}
+
+func (s *CommonStruct) GetNetInfo(ctx context.Context, roleID uint64) (peer.AddrInfo, error) {
+	return s.Internal.GetNetInfo(ctx, roleID)
 }
 
 func (s *CommonStruct) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
