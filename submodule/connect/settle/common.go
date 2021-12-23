@@ -89,7 +89,7 @@ func TransferTo(toAddress common.Address, value *big.Int) error {
 		for qCount < 5 {
 			balance := QueryBalance(toAddress)
 			if balance.Cmp(value) >= 0 {
-				logger.Debug("transfer ", value.String(), "to", toAddress)
+				logger.Debug("transfer ", value, " to ", toAddress)
 				return nil
 			}
 			logger.Debug(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")

@@ -81,13 +81,13 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 
 	// transfer eth
 	val := QueryBalance(eAddr)
-	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
+	if val.Cmp(big.NewInt(10_000_000_000_000_000)) < 0 {
 		TransferTo(eAddr, big.NewInt(100_000_000_000_000_000))
 	}
 
 	val = QueryBalance(eAddr)
 	logger.Debugf("%s has val %d", eAddr, val)
-	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
+	if val.Cmp(big.NewInt(10_000_000_000_000_000)) < 0 {
 		return nil, xerrors.Errorf("val %d is not enough", val)
 	}
 
