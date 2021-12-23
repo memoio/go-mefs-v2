@@ -2,8 +2,10 @@ package cmd
 
 import (
 	_ "net/http/pprof"
+	"os"
 	"strings"
 
+	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/minit"
@@ -22,6 +24,7 @@ const (
 	swarmPortKwd = "swarm-port"
 	pwKwd        = "password"
 	groupKwd     = "group"
+	dataPathKwd  = "data-path"
 )
 
 var DaemonCmd = &cli.Command{
@@ -47,6 +50,11 @@ var DaemonCmd = &cli.Command{
 			Name:  groupKwd,
 			Usage: "set the group number",
 			Value: 1,
+		},
+		&cli.StringFlag{
+			Name:  dataPathKwd,
+			Usage: "set the data path",
+			Value: "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -95,6 +103,16 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 
 	if apiAddr := cctx.String(apiAddrKwd); apiAddr != "" {
 		config.API.Address = apiAddr
+	}
+
+	if dataPath := cctx.String(dataPathKwd); dataPath != "" {
+		dp, err := homedir.Expand(dataPath)
+		if err == nil {
+			err = os.MkdirAll(dp, 0755)
+			if err == nil {
+				config.Data.DataPath = dp
+			}
+		}
 	}
 
 	rep.ReplaceConfig(config)
