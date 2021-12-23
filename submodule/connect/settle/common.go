@@ -4,9 +4,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
-	"log"
 	"math/big"
+	"math/rand"
 	"time"
 
 	callconts "memoContract/callcontracts"
@@ -17,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
@@ -30,19 +30,18 @@ func TransferTo(toAddress common.Address, value *big.Int) error {
 	eth := callconts.EndPoint
 	client, err := ethclient.Dial(eth)
 	if err != nil {
-		fmt.Println("rpc.Dial err", err)
-		log.Fatal(err)
+		return err
 	}
 
 	privateKey, err := crypto.HexToECDSA(callconts.AdminSk)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
-		log.Fatal("error casting public key to ECDSA")
+		return xerrors.Errorf("error casting public key to ECDSA")
 	}
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
@@ -52,16 +51,17 @@ func TransferTo(toAddress common.Address, value *big.Int) error {
 
 	chainID, err := client.NetworkID(context.Background())
 	if err != nil {
-		fmt.Println("client.NetworkID error,use the default chainID")
+		logger.Debug("client.NetworkID error,use the default chainID")
 		chainID = big.NewInt(666)
 	}
 
 	retry := 0
 	for {
 		if retry > 10 {
+			logger.Debug("fail transfer ", value.String(), "to", toAddress)
 			return errors.New("fail to transfer")
 		}
-		retry++
+
 		nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
 		if err != nil {
 			continue
@@ -81,28 +81,27 @@ func TransferTo(toAddress common.Address, value *big.Int) error {
 
 		err = client.SendTransaction(context.Background(), signedTx)
 		if err != nil {
-			log.Println("trans transcation fail:", err)
+			logger.Error("trans transcation fail:", err)
 			continue
 		}
 
 		qCount := 0
-		for qCount < 10 {
+		for qCount < 5 {
 			balance := QueryBalance(toAddress)
 			if balance.Cmp(value) >= 0 {
-				break
+				logger.Debug("transfer ", value.String(), "to", toAddress)
+				return nil
 			}
-			fmt.Println(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
-			t := 20 * (qCount + 1)
+			logger.Debug(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
+
+			rand.NewSource(time.Now().UnixNano())
+			t := rand.Intn(20 * (qCount + 1))
 			time.Sleep(time.Duration(t) * time.Second)
+			qCount++
 		}
 
-		if qCount < 10 {
-			break
-		}
+		retry++
 	}
-
-	fmt.Println("transfer ", value.String(), "to", toAddress)
-	return nil
 }
 
 func QueryBalance(addr common.Address) *big.Int {
@@ -111,23 +110,53 @@ func QueryBalance(addr common.Address) *big.Int {
 	var result string
 	client, err := rpc.Dial(ethEndPoint)
 	if err != nil {
-		log.Fatal("rpc.dial err:", err)
+		logger.Error("rpc.dial err:", err)
+		return big.NewInt(0)
 	}
+
 	err = client.Call(&result, "eth_getBalance", addr.String(), "latest")
 	if err != nil {
-		log.Fatal("client.call err:", err)
+		logger.Error("client.call err:", err)
+		return big.NewInt(0)
 	}
 
 	val, _ := new(big.Int).SetString(result[2:], 16)
 	return val
 }
 
-func erc20Transfer(addr common.Address, val *big.Int) {
+func erc20Transfer(addr common.Address, val *big.Int) error {
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
 		GasLimit: callconts.DefaultGasLimit,
 	}
 	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, test.AdminSk, txopts)
-	erc20.Transfer(addr, val)
+
+	oldVal, err := erc20.BalanceOf(addr)
+	if err != nil {
+		return err
+	}
+
+	retry := 0
+	for retry < 10 {
+		erc20.Transfer(addr, val)
+
+		newVal, err := erc20.BalanceOf(addr)
+		if err != nil {
+			return err
+		}
+
+		newVal.Sub(newVal, oldVal)
+		if newVal.Cmp(val) >= 0 {
+			return nil
+		}
+
+		retry++
+
+		rand.NewSource(time.Now().UnixNano())
+		t := rand.Intn(20 * retry)
+		time.Sleep(time.Duration(t) * time.Second)
+	}
+
+	return xerrors.Errorf("fail to transfer erc20 %d to %s", val, addr)
 }
