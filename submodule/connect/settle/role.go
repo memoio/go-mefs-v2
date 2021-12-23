@@ -107,6 +107,20 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	}
 	iERC := callconts.NewERC20(tAddr, eAddr, hexSk, txopts)
 
+	// transfer erc20
+	val, err = iERC.BalanceOf(eAddr)
+	if err != nil {
+		return nil, err
+	}
+	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
+		erc20Transfer(eAddr, big.NewInt(100_000_000_000_000_000))
+	}
+	val, err = iERC.BalanceOf(eAddr)
+	if err != nil {
+		return nil, err
+	}
+	logger.Debug("%s has erc20 val %d", eAddr, val)
+
 	ppAddr, err := iRole.PledgePool()
 	if err != nil {
 		return nil, err
