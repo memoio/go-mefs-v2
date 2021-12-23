@@ -87,6 +87,9 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 
 	val = QueryBalance(eAddr)
 	logger.Debug("%s has val %d", eAddr, val)
+	if val.Cmp(big.NewInt(100_000_000_000_000_000)) < 0 {
+		return nil, xerrors.Errorf("val %d is not enough", val)
+	}
 
 	rAddr := callconts.RoleAddr
 	iRole := callconts.NewR(rAddr, eAddr, hexSk, txopts)
