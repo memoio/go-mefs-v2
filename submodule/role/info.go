@@ -126,6 +126,10 @@ func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
 		return nil, err
 	}
 
+	if ri.GroupID != rm.groupID {
+		return nil, xerrors.Errorf("not my group")
+	}
+
 	rm.addRoleInfo(ri, true)
 
 	return ri, nil

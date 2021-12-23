@@ -85,6 +85,9 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 		TransferTo(eAddr, big.NewInt(100_000_000_000_000_000))
 	}
 
+	val = QueryBalance(eAddr)
+	logger.Debug("%s has val %d", eAddr, val)
+
 	rAddr := callconts.RoleAddr
 	iRole := callconts.NewR(rAddr, eAddr, hexSk, txopts)
 
@@ -328,9 +331,9 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 		return nil, xerrors.Errorf("%s is not register or in group", eAddr)
 	}
 
-	if gid != cm.groupID {
-		return nil, xerrors.Errorf("%s is not register in group %d, got %d", eAddr, cm.groupID, gid)
-	}
+	//if gid != cm.groupID {
+	//	return nil, xerrors.Errorf("%s is not register in group %d, got %d", eAddr, cm.groupID, gid)
+	//}
 
 	pri := new(pb.RoleInfo)
 	pri.ID = rid
