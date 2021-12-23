@@ -128,6 +128,11 @@ func (p *ProviderNode) Start() error {
 		return err
 	}
 
+	err = p.UpdateNetAddr()
+	if err != nil {
+		return err
+	}
+
 	// start challenge
 	p.chalSeg.Start()
 
