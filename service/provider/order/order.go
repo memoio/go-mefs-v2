@@ -41,6 +41,7 @@ type SeqState struct {
 	State  OrderSeqState
 }
 
+// todo: check order
 type OrderFull struct {
 	sync.Mutex
 	userID uint64
