@@ -317,6 +317,9 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
 	s.ds.Put(key, buf)
 
+	key = store.NewKey(pb.MetaType_ST_BlockHeightKey)
+	s.ds.Put(key, buf)
+
 	// not apply wrong message; but update its nonce
 	if tr.Err != 0 {
 		logger.Debug("not apply wrong message")
