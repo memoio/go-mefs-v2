@@ -36,6 +36,8 @@ type ProviderNode struct {
 	rp *readpay.ReceivePay
 
 	ctx context.Context
+
+	ready bool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
@@ -135,6 +137,8 @@ func (p *ProviderNode) Start() error {
 
 	// start challenge
 	p.chalSeg.Start()
+
+	p.ready = true
 
 	logger.Info("start provider for: ", p.RoleID())
 	return nil

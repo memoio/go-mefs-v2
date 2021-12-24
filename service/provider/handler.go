@@ -155,6 +155,12 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 		Data: &pb.NetMessage_MsgData{},
 	}
 
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle create order from:", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		return resp, nil
+	}
+
 	// verify sig
 	sigFrom := new(types.Signature)
 	err := sigFrom.Deserialize(mes.GetData().GetSign())

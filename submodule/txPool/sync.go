@@ -249,7 +249,8 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 
 	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
 		logger.Warnf("apply wrong state at height %d, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
-		return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+		panic("apply wrong state, should re-sync")
+		//return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
 
 	newRoot, err := sp.ApplyBlock(sb)
