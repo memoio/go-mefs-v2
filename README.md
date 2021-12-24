@@ -66,3 +66,28 @@ proof管理
 
 
 ## usage
+
+
+### keeper
+
+```
+// compile
+> make keeper
+// init
+> ./mefs-keeper init
+// start
+> MEFS_PATH=$mpath ./mefs-keeper daemon --swarm-port=$port --api=$api --group=$gorupID 
+// example
+> /mefs-keeper daemon --swarm-port=27201 --api=/ip4/127.0.0.1/tcp/28201 --group=2
+```
+
+### provider
+
+```
+// compile
+> make provider
+// init
+> ./mefs-provider init
+// start
+> MEFS_PATH=$mpath ./mefs-provider daemon --swarm-port=$port --api=$api --data-path=$dpath --group=$gorupID  
+```

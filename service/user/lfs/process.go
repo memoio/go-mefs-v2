@@ -216,7 +216,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 					ChunkID:  bucket.DataCount + bucket.ParityCount,
 				}
 
-				logger.Debug("send job to order: ", opID, sj.Start, sj.Length, sj.ChunkID)
+				logger.Debug("send job to order manager: ", sj.BucketID, opID, sj.Start, sj.Length, sj.ChunkID)
 				l.om.AddSegJob(sj)
 
 				sendCount = 0

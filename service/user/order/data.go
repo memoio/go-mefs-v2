@@ -601,11 +601,12 @@ func (o *OrderFull) addSeg(sj *types.SegJob) error {
 	return nil
 }
 
-func (o *OrderFull) sendData() {
+// todo: add parallel control here; goprocess
+func (m *OrderMgr) sendData(o *OrderFull) {
 	i := 0
 	for {
 		select {
-		case <-o.ctx.Done():
+		case <-m.ctx.Done():
 			return
 		default:
 			if o.base == nil || o.orderState != Order_Running {
@@ -623,7 +624,15 @@ func (o *OrderFull) sendData() {
 				continue
 			}
 
+			err := m.sendCtr.Acquire(m.ctx, 1)
+			if err != nil {
+				time.Sleep(time.Second)
+				continue
+			}
+
 			o.Lock()
+			// should i++ here?
+			i++
 			if i >= len(o.buckets) {
 				i = 0
 			}
@@ -631,8 +640,8 @@ func (o *OrderFull) sendData() {
 
 			bjob, ok := o.jobs[bid]
 			if !ok || len(bjob.jobs) == 0 {
-				i++
 				o.Unlock()
+				m.sendCtr.Release(1)
 				continue
 			}
 			sj := bjob.jobs[0]
@@ -641,8 +650,8 @@ func (o *OrderFull) sendData() {
 
 			sid, err := segment.NewSegmentID(o.fsID, sj.BucketID, sj.Start, sj.ChunkID)
 			if err != nil {
+				m.sendCtr.Release(1)
 				o.Lock()
-				i++
 				o.inflight = false
 				o.Unlock()
 				continue
@@ -650,13 +659,14 @@ func (o *OrderFull) sendData() {
 
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
 			if err != nil {
+				m.sendCtr.Release(1)
 				o.Lock()
 				o.inflight = false
-				i++
 				o.Unlock()
 				logger.Debug("send segment fail:", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
 				continue
 			}
+			m.sendCtr.Release(1)
 
 			logger.Debug("send segment:", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
 

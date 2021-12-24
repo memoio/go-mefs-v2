@@ -119,7 +119,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		op.ready = true
 	}
 
-	go op.sendData()
+	go m.sendData(op)
 
 	ns := new(NonceState)
 	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, id)
@@ -715,6 +715,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	if err != nil {
 		return err
 	}
+
+	logger.Debugf("pro %d order %d seq %d count %d length %d", o.pro, o.seq.Nonce, o.seq.SeqNum, o.seq.Segments.Len(), len(data))
 
 	msg := &tx.Message{
 		Version: 0,

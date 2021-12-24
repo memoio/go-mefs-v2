@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/jbenet/goprocess"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -13,10 +15,10 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (m *OrderMgr) runPush() {
+func (m *OrderMgr) runPush(proc goprocess.Process) {
 	for {
 		select {
-		case <-m.ctx.Done():
+		case <-proc.Closing():
 			return
 		case msg := <-m.msgChan:
 			m.pushMessage(msg)

@@ -7,6 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jbenet/goprocess"
+	goprocessctx "github.com/jbenet/goprocess/context"
+	"golang.org/x/sync/semaphore"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -22,8 +26,11 @@ type OrderMgr struct {
 	api.IDataService
 	api.IChain
 
-	ctx context.Context
-	ds  store.KVStore // save order info
+	ctx     context.Context
+	proc    goprocess.Process
+	sendCtr *semaphore.Weighted
+
+	ds store.KVStore // save order info
 
 	ns      *netapp.NetServiceImpl
 	localID uint64
@@ -60,14 +67,16 @@ type OrderMgr struct {
 }
 
 func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl) *OrderMgr {
+
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
 		IChain:       pp,
 
-		ctx: ctx,
-		ds:  ds,
-		ns:  ns,
+		ds: ds,
+		ns: ns,
+
+		sendCtr: semaphore.NewWeighted(defaultWeighted),
 
 		localID: roleID,
 		fsID:    fsID,
@@ -96,6 +105,9 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		msgChan: make(chan *tx.Message, 128),
 	}
 
+	om.proc = goprocessctx.WithContext(ctx)
+	om.ctx = goprocessctx.WithProcessClosing(ctx, om.proc)
+
 	logger.Info("create order manager")
 
 	return om
@@ -106,11 +118,15 @@ func (m *OrderMgr) Start() {
 
 	m.ready = true
 
-	go m.runSched()
+	m.proc.Go(m.runSched)
+
+	m.proc.Go(m.runPush)
 
 	go m.dispatch()
+}
 
-	go m.runPush()
+func (m *OrderMgr) Stop() {
+	m.proc.Close()
 }
 
 func (m *OrderMgr) load() error {
@@ -162,7 +178,7 @@ func (m *OrderMgr) addPros() {
 
 }
 
-func (m *OrderMgr) runSched() {
+func (m *OrderMgr) runSched(proc goprocess.Process) {
 	st := time.NewTicker(10 * time.Second)
 	defer st.Stop()
 
@@ -263,7 +279,7 @@ func (m *OrderMgr) runSched() {
 			for _, lp := range m.proMap {
 				m.saveLastProsPerBucket(lp)
 			}
-		case <-m.ctx.Done():
+		case <-proc.Closing():
 			return
 		}
 	}

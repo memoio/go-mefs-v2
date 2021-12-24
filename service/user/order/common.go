@@ -24,6 +24,9 @@ const (
 	DefaultAckWaiting   = 30
 	DefaultOrderLast    = 600 // 1 day
 	DefaultOrderSeqLast = 180 // 1 hour
+
+	// parallel number of net send
+	defaultWeighted = 50
 )
 
 type orderSeqPro struct {
