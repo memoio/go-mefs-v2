@@ -16,7 +16,8 @@ func (m *OrderMgr) connect(proID uint64) error {
 		m.ns.Host().Connect(m.ctx, pi)
 	}
 
-	_, err = m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_SayHello, nil, nil)
+	// test remote service is ready or not
+	_, err = m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
 		return err
 	}
