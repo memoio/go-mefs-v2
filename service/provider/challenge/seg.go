@@ -64,6 +64,7 @@ func (s *SegMgr) Start() {
 	go s.regularChallenge()
 }
 
+// todo: should load from state
 func (s *SegMgr) load() {
 	key := store.NewKey(pb.MetaType_Chal_UsersKey, s.localID)
 	val, err := s.ds.Get(key)

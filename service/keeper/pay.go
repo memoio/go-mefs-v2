@@ -44,7 +44,7 @@ func (k *KeeperNode) updatePay() {
 			payEpoch := latest - 2
 
 			logger.Debugf("pay at epoch %d", payEpoch)
-
+			// todo: should get from state
 			key := store.NewKey(pb.MetaType_Chal_UsersKey)
 			data, err := k.MetaStore().Get(key)
 			if err != nil {
