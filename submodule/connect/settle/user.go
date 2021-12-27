@@ -28,7 +28,7 @@ func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
 	return cm.iRole.RegisterUser(cm.rtAddr, cm.roleID, gIndex, cm.tIndex, pdpKeySet.VerifyKey().Serialize(), nil)
 }
 
-func (cm *ContractMgr) Recharge() error {
+func (cm *ContractMgr) Recharge(val *big.Int) error {
 	logger.Debug("recharge user")
 
 	avail, _, err := cm.iFS.GetBalance(cm.roleID, cm.tIndex)
@@ -36,7 +36,6 @@ func (cm *ContractMgr) Recharge() error {
 		return err
 	}
 
-	val := big.NewInt(10_000_000_000_000_000)
 	if avail.Cmp(val) < 0 {
 		bal, err := cm.iErc.BalanceOf(cm.eAddr)
 		if err != nil {

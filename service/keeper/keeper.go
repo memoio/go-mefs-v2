@@ -106,6 +106,7 @@ func (k *KeeperNode) Start() error {
 
 	go k.updateChalEpoch()
 	go k.updatePay()
+	go k.updateOrder()
 
 	logger.Info("start keeper for: ", k.RoleID())
 	return nil

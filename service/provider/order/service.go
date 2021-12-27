@@ -38,7 +38,7 @@ type OrderMgr struct {
 func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService, ic api.IChain) *OrderMgr {
 	quo := &types.Quotation{
 		ProID:      roleID,
-		TokenIndex: 1,
+		TokenIndex: 0,
 		SegPrice:   new(big.Int).Set(build.DefaultSegPrice),
 		PiecePrice: new(big.Int).Set(build.DefaultPiecePrice),
 	}

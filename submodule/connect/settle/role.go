@@ -317,7 +317,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	}
 
 	if rType == 1 {
-		cm.Recharge()
+		cm.Recharge(big.NewInt(10_000_000_000_000_000))
 	}
 
 	return nil

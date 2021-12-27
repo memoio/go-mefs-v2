@@ -11,6 +11,7 @@ import (
 )
 
 func (k *KeeperNode) updatePay() {
+	logger.Debug("start update pay")
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -44,30 +45,12 @@ func (k *KeeperNode) updatePay() {
 			payEpoch := latest - 2
 
 			logger.Debugf("pay at epoch %d", payEpoch)
-			// todo: should get from state
-			key := store.NewKey(pb.MetaType_Chal_UsersKey)
-			data, err := k.MetaStore().Get(key)
-			if err != nil {
-				logger.Debugf("pay no users at epoch %d", payEpoch)
-				continue
-			}
 
-			users := make([]uint64, len(data)/8)
-			for i := 0; i < len(data)/8; i++ {
-				users[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
-			}
-
+			users := k.GetAllUsers(k.ctx)
 			for _, uid := range users {
-				key := store.NewKey(pb.MetaType_Chal_ProsKey, uid)
-				data, err := k.MetaStore().Get(key)
-				if err != nil {
-					logger.Debugf("pay no pros for user %d at epoch %d", uid, payEpoch)
+				pros := k.GetProsForUser(k.ctx, uid)
+				if len(pros) == 0 {
 					continue
-				}
-
-				pros := make([]uint64, len(data)/8)
-				for i := 0; i < len(data)/8; i++ {
-					pros[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
 				}
 
 				pip := &tx.PostIncomeParams{
@@ -103,7 +86,7 @@ func (k *KeeperNode) updatePay() {
 					continue
 				}
 
-				data, err = pip.Serialize()
+				data, err := pip.Serialize()
 				if err != nil {
 					continue
 				}

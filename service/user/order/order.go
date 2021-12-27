@@ -639,6 +639,8 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 		o.seq.UserDataSig = ssig
 		o.seq.UserSig = osig
 
+		// todo: add money
+
 		// save order seq
 		err = saveOrderSeq(o, m.ds)
 		if err != nil {
