@@ -42,8 +42,6 @@ type NetServiceImpl struct {
 	idMap map[uint64]peer.ID
 	wants map[uint64]time.Time
 
-	peers map[peer.ID]struct{}
-
 	ns *network.NetworkSubmodule
 
 	eventTopic *pubsub.Topic // used to find peerID depends on roleID
@@ -97,7 +95,6 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		ns:             ns,
 		idMap:          make(map[uint64]peer.ID),
 		wants:          make(map[uint64]time.Time),
-		peers:          make(map[peer.ID]struct{}),
 		related:        make([]uint64, 0, 128),
 		eventTopic:     eTopic,
 		msgTopic:       mTopic,

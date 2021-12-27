@@ -116,9 +116,8 @@ func (w *LocalWallet) WalletNew(ctx context.Context, kt types.KeyType) (address.
 	}
 
 	w.Lock()
-	defer w.Unlock()
-
 	w.accounts[addr] = privkey
+	w.Unlock()
 
 	return addr, nil
 }
@@ -164,8 +163,8 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) er
 	}
 
 	w.Lock()
-	defer w.Unlock()
 	delete(w.accounts, addr)
+	w.Unlock()
 
 	return nil
 }
