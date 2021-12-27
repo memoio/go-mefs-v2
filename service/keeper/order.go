@@ -42,13 +42,6 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 
 		logger.Debugf("user %d pro %d has order %d %d %d", userID, proID, nonce, subNonce, ns.Nonce)
 		for i := nonce; i+1 < ns.Nonce; i++ {
-			// add order here
-			of, err := k.GetOrder(userID, proID, i)
-			if err != nil {
-				logger.Debug("fail to get order info", userID, proID, err)
-				break
-			}
-
 			curNonce, _, err := k.ContractMgr.GetOrderInfo(userID, proID)
 			if err != nil {
 				logger.Debug("fail to get order info in chain", userID, proID, err)
@@ -56,6 +49,13 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 			}
 
 			if curNonce > i {
+				break
+			}
+
+			// add order here
+			of, err := k.GetOrder(userID, proID, i)
+			if err != nil {
+				logger.Debug("fail to get order info", userID, proID, err)
 				break
 			}
 
