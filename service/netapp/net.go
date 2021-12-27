@@ -214,8 +214,9 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 				}
 
 				rid := binary.BigEndian.Uint64(resp.GetData().GetMsgInfo())
-
+				c.Lock()
 				c.idMap[rid] = pi.ID
+				c.Unlock()
 			}
 
 		case <-c.ctx.Done():
