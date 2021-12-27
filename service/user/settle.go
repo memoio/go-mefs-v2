@@ -18,7 +18,6 @@ func (u *UserNode) recharge() {
 			return
 		case <-ticker.C:
 			u.charge()
-			u.addOrder()
 		}
 	}
 }

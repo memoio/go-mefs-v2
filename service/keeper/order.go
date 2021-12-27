@@ -32,10 +32,6 @@ func (k *KeeperNode) updateOrder() {
 func (k *KeeperNode) addOrder(userID uint64) error {
 	logger.Debug("add order for user: ", userID)
 
-	if userID != 0 {
-		return nil
-	}
-
 	pros := k.GetProsForUser(k.ctx, userID)
 	for _, proID := range pros {
 		ns := k.GetOrderState(k.ctx, userID, proID)
