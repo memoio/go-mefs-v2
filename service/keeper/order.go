@@ -46,38 +46,38 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 			of, err := k.GetOrder(userID, proID, i)
 			if err != nil {
 				logger.Debug("fail to get order info", userID, proID, err)
-				continue
+				break
 			}
 
 			curNonce, _, err := k.ContractMgr.GetOrderInfo(userID, proID)
 			if err != nil {
 				logger.Debug("fail to get order info in chain", userID, proID, err)
-				continue
+				break
 			}
 
 			if curNonce > i {
-				continue
+				break
 			}
 
 			ksigns := make([][]byte, 7)
 			err = k.ContractMgr.AddOrder(&of.SignedOrder, ksigns)
 			if err != nil {
-				logger.Debug("fail to add order", userID, proID, err)
-				continue
+				logger.Debug("fail to add order ", userID, proID, err)
+				break
 			}
 
 			avail, tmp, err := k.ContractMgr.GetBalanceInFs(userID)
 			if err != nil {
-				logger.Debug("fail to get balance", userID, proID, err)
-				continue
+				logger.Debug("fail to get balance ", userID, proID, err)
+				break
 			}
 
 			logger.Debugf("user %d has balance %d %d", userID, avail, tmp)
 
 			avail, tmp, err = k.ContractMgr.GetBalanceInFs(proID)
 			if err != nil {
-				logger.Debug("fail to get balance", userID, proID, err)
-				continue
+				logger.Debug("fail to get balance ", userID, proID, err)
+				break
 			}
 
 			logger.Debugf("pro %d has balance %d %d", proID, avail, tmp)

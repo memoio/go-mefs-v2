@@ -132,6 +132,8 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 	}
 	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, test.AdminSk, txopts)
 
+	erc20.MintToken(callconts.AdminAddr, val)
+
 	oldVal, err := erc20.BalanceOf(addr)
 	if err != nil {
 		return err

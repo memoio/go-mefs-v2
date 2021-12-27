@@ -18,9 +18,11 @@ type Store interface {
 
 	GetTxBlock(bid types.MsgID) (*SignedBlock, error)
 	PutTxBlock(tb *SignedBlock) error
+	DeleteTxBlock(bid types.MsgID) error
 	HasTxBlock(bid types.MsgID) (bool, error)
 
 	GetTxBlockByHeight(ht uint64) (types.MsgID, error)
+	DeleteTxBlockHeight(ht uint64) error
 	PutTxBlockHeight(uint64, types.MsgID) error
 }
 
@@ -127,6 +129,16 @@ func (ts *TxStoreImpl) HasTxBlock(bid types.MsgID) (bool, error) {
 	return ts.ds.Has(key)
 }
 
+func (ts *TxStoreImpl) DeleteTxBlock(bid types.MsgID) error {
+	ok := ts.blkCache.Contains(bid)
+	if ok {
+		ts.blkCache.Remove(bid)
+	}
+	key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
+
+	return ts.ds.Delete(key)
+}
+
 func (ts *TxStoreImpl) GetTxBlock(bid types.MsgID) (*SignedBlock, error) {
 	val, ok := ts.blkCache.Get(bid)
 	if ok {
@@ -204,6 +216,16 @@ func (ts *TxStoreImpl) GetTxBlockByHeight(ht uint64) (types.MsgID, error) {
 	ts.htCache.Add(ht, bid)
 
 	return bid, nil
+}
+
+func (ts *TxStoreImpl) DeleteTxBlockHeight(ht uint64) error {
+	ok := ts.htCache.Contains(ht)
+	if ok {
+		ts.htCache.Remove(ht)
+	}
+
+	key := store.NewKey(pb.MetaType_Tx_BlockHeightKey, ht)
+	return ts.ds.Delete(key)
 }
 
 func (ts *TxStoreImpl) PutTxBlockHeight(ht uint64, bid types.MsgID) error {

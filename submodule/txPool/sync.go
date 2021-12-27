@@ -249,6 +249,8 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 
 	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
 		logger.Warnf("apply wrong state at height %d, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
+		sp.DeleteTxBlock(bid)
+		sp.DeleteTxBlockHeight(sb.Height)
 		panic("apply wrong state, should re-sync")
 		//return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
@@ -281,7 +283,10 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		newRoot, err = sp.AppleyMsg(&msg.Message, &sb.Receipts[i])
 		if err != nil {
 			// should not; todo
+			sp.DeleteTxBlock(bid)
+			sp.DeleteTxBlockHeight(sb.Height)
 			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
+			panic("apply message fail, should re-sync")
 		}
 		msgDone()
 

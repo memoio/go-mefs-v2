@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"io"
+	"math/big"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -192,4 +193,8 @@ type IStateState interface {
 	GetUsersForPro(context.Context, uint64) []uint64
 	GetProsForUser(context.Context, uint64) []uint64
 	GetAllUsers(context.Context) []uint64
+}
+
+type ISettle interface {
+	GetBalance(context.Context, uint64) (*big.Int, error)
 }
