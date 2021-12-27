@@ -258,9 +258,9 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 
 	// use a different state store
-	stDB := state.NewStateMgr(b.groupID, nd.GetThreshold(), nd.StateStore(), rm)
+	stDB := state.NewStateMgr(b.groupID, nd.GetThreshold(ctx), nd.StateStore(), rm)
 
-	sp := txPool.NewSyncPool(ctx, b.roleID, b.groupID, nd.GetThreshold(), stDB, nd.MetaStore(), txs, rm, cs)
+	sp := txPool.NewSyncPool(ctx, b.roleID, b.groupID, nd.GetThreshold(ctx), stDB, nd.MetaStore(), txs, rm, cs)
 
 	nd.PushPool = txPool.NewPushPool(ctx, sp)
 

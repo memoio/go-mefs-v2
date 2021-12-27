@@ -16,13 +16,14 @@ import (
 	callconts "memoContract/callcontracts"
 	iface "memoContract/interfaces"
 
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
-var _ ISettle = &ContractMgr{}
+var _ api.ISettle = &ContractMgr{}
 
 type ContractMgr struct {
 	ctx context.Context
@@ -329,7 +330,7 @@ func (cm *ContractMgr) GetRoleInfo(addr address.Address) (*pb.RoleInfo, error) {
 	return cm.getRoleInfo(eAddr)
 }
 
-func (cm *ContractMgr) GetRoleInfoAt(rid uint64) (*pb.RoleInfo, error) {
+func (cm *ContractMgr) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
 	gotAddr, err := cm.iRole.GetAddr(rid)
 	if err != nil {
 		return nil, err
@@ -389,15 +390,15 @@ func (cm *ContractMgr) getGroupInfo(gIndex uint64) (common.Address, int, error) 
 	return fsAddr, int(level), nil
 }
 
-func (cm *ContractMgr) GetRoleID() uint64 {
+func (cm *ContractMgr) GetRoleID(ctx context.Context) uint64 {
 	return cm.roleID
 }
 
-func (cm *ContractMgr) GetGroupID() uint64 {
+func (cm *ContractMgr) GetGroupID(ctx context.Context) uint64 {
 	return cm.groupID
 }
 
-func (cm *ContractMgr) GetThreshold() int {
+func (cm *ContractMgr) GetThreshold(ctx context.Context) int {
 	return cm.level
 }
 
@@ -447,7 +448,7 @@ func (cm *ContractMgr) GetAllAddrs(ds store.KVStore) {
 					binary.BigEndian.PutUint64(buf, kindex)
 					data = append(data, buf...)
 
-					pri, err := cm.GetRoleInfoAt(kindex)
+					pri, err := cm.GetRoleInfoAt(context.TODO(), kindex)
 					if err != nil {
 						continue
 					}
@@ -485,7 +486,7 @@ func (cm *ContractMgr) GetAllAddrs(ds store.KVStore) {
 					binary.BigEndian.PutUint64(buf, pindex)
 					data = append(data, buf...)
 
-					pri, err := cm.GetRoleInfoAt(pindex)
+					pri, err := cm.GetRoleInfoAt(context.TODO(), pindex)
 					if err != nil {
 						continue
 					}
@@ -513,7 +514,7 @@ func (cm *ContractMgr) GetAllAddrs(ds store.KVStore) {
 						continue
 					}
 
-					pri, err := cm.GetRoleInfoAt(uindex)
+					pri, err := cm.GetRoleInfoAt(context.TODO(), uindex)
 					if err != nil {
 						continue
 					}

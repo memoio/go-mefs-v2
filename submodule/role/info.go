@@ -22,7 +22,7 @@ type RoleMgr struct {
 	sync.RWMutex
 	api.IWallet
 
-	is settle.ISettle
+	is *settle.ContractMgr
 
 	ctx     context.Context
 	roleID  uint64
@@ -37,8 +37,8 @@ type RoleMgr struct {
 	ds store.KVStore
 }
 
-func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet, is settle.ISettle) (*RoleMgr, error) {
-	ri, err := is.GetRoleInfoAt(roleID)
+func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet, is *settle.ContractMgr) (*RoleMgr, error) {
+	ri, err := is.GetRoleInfoAt(ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
 		}
 	}
 
-	ri, err = rm.is.GetRoleInfoAt(roleID)
+	ri, err = rm.is.GetRoleInfoAt(rm.ctx, roleID)
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,18 @@
 package settle
 
-import "math/big"
+import (
+	"context"
+	"math/big"
+)
 
-func (cm *ContractMgr) GetBalanceInFs(roleID uint64) (*big.Int, *big.Int, error) {
-	return cm.iFS.GetBalance(roleID, cm.tIndex)
+func (cm *ContractMgr) GetBalance(ctx context.Context, roleID uint64) (*big.Int, error) {
+	avil, tmp, err := cm.iFS.GetBalance(roleID, cm.tIndex)
+	avil.Add(avil, tmp)
+	return avil, err
+}
+
+func (cm *ContractMgr) Withdraw(ctx context.Context, val *big.Int) error {
+	ksigns := make([][]byte, 10)
+	err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, big.NewInt(0), ksigns)
+	return err
 }
