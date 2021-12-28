@@ -90,7 +90,8 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 	}
 
 	// save all keepers
-	if pri.Type == pb.RoleInfo_Keeper {
+	switch pri.Type {
+	case pb.RoleInfo_Keeper:
 		s.keepers = append(s.keepers, msg.From)
 		key = store.NewKey(pb.MetaType_ST_KeepersKey)
 		val, _ := s.ds.Get(key)
@@ -98,8 +99,17 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
 		s.ds.Put(key, buf)
-	} else if pri.Type == pb.RoleInfo_Provider {
+	case pb.RoleInfo_Provider:
+		s.pros = append(s.pros, msg.From)
 		key = store.NewKey(pb.MetaType_ST_ProsKey)
+		val, _ := s.ds.Get(key)
+		buf := make([]byte, len(val)+8)
+		copy(buf[:len(val)], val)
+		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
+		s.ds.Put(key, buf)
+	case pb.RoleInfo_User:
+		s.users = append(s.users, msg.From)
+		key = store.NewKey(pb.MetaType_ST_UsersKey)
 		val, _ := s.ds.Get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
