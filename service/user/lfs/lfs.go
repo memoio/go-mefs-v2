@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -124,8 +125,23 @@ func (l *LfsService) Start() error {
 	l.sb.bucketVerify = l.om.GetBucket(l.ctx, l.userID)
 
 	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
-		bu := l.sb.buckets[bid]
-		bu.Confirmed = true
+		if uint64(len(l.sb.buckets)) > bid {
+			bu := l.sb.buckets[bid]
+			bu.Confirmed = true
+		} else {
+			// if missing
+			bu := &bucket{
+				BucketInfo: types.BucketInfo{
+					BucketInfo: pb.BucketInfo{
+						Deletion: true,
+					},
+					Confirmed: true,
+				},
+				dirty: false,
+			}
+			l.sb.buckets = append(l.sb.buckets, bu)
+			l.sb.NextBucketID++
+		}
 	}
 
 	if l.sb.bucketVerify < l.sb.NextBucketID {

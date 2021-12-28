@@ -13,7 +13,6 @@ import (
 	"github.com/memoio/go-mefs-v2/build"
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -64,16 +63,10 @@ func (s *SegMgr) Start() {
 	go s.regularChallenge()
 }
 
-// todo: should load from state
+// load from state
 func (s *SegMgr) load() {
-	key := store.NewKey(pb.MetaType_Chal_UsersKey, s.localID)
-	val, err := s.ds.Get(key)
-	if err != nil {
-		return
-	}
-
-	for i := 0; i < len(val)/8; i++ {
-		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+	users := s.GetUsersForPro(s.ctx, s.localID)
+	for _, pid := range users {
 		s.loadFs(pid)
 	}
 }
@@ -84,13 +77,6 @@ func (s *SegMgr) AddUP(userID, proID uint64) {
 	}
 
 	logger.Debugf("add user %d for pro %d", userID, proID)
-
-	key := store.NewKey(pb.MetaType_Chal_UsersKey, proID)
-	val, _ := s.ds.Get(key)
-	buf := make([]byte, len(val)+8)
-	copy(buf[:len(val)], val)
-	binary.BigEndian.PutUint64(buf[len(val):len(val)+8], userID)
-	s.ds.Put(key, buf)
 
 	go s.loadFs(userID)
 }

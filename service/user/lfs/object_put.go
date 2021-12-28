@@ -97,7 +97,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 
 	bucket.objects.Insert(MetaName(objectName), object)
 
-	logger.Info("Upload create object: %s in bucket: %s", object.GetName(), bucket.GetName())
+	logger.Debugf("Upload create object: %s in bucket: %s", object.GetName(), bucket.GetName())
 
 	return object, nil
 }

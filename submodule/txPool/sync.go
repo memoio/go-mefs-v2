@@ -56,6 +56,9 @@ type SyncPool struct {
 	msgChan   chan *tx.SignedMessage
 	blkDone   chan *blkDigest
 	inProcess bool
+
+	retry int
+	bads  map[types.MsgID]struct{}
 }
 
 // sync
@@ -82,6 +85,8 @@ func NewSyncPool(ctx context.Context, roleID, groupID uint64, thre int, st *stat
 		msgChan: make(chan *tx.SignedMessage, 128),
 		msgDone: make(chan *tx.MessageDigest, 16),
 		blkDone: make(chan *blkDigest, 8),
+
+		bads: make(map[types.MsgID]struct{}),
 	}
 
 	sp.load()
@@ -251,7 +256,15 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		logger.Warnf("apply wrong state at height %d, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
 		sp.DeleteTxBlock(bid)
 		sp.DeleteTxBlockHeight(sb.Height)
-		panic("apply wrong state, should re-sync")
+
+		sp.Lock()
+		sp.bads[bid] = struct{}{}
+		sp.retry++
+		sp.Unlock()
+
+		if sp.retry > 10 {
+			panic("apply wrong state, should re-sync")
+		}
 		//return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
 
@@ -356,6 +369,14 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	sp.SetReady()
 
 	bid := tb.Hash()
+
+	sp.Lock()
+	_, ok := sp.bads[bid]
+	if ok {
+		sp.Unlock()
+		return nil
+	}
+	sp.Unlock()
 
 	has, _ := sp.HasTxBlock(bid)
 	if has {
