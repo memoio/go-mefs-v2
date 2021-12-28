@@ -238,16 +238,40 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
 	s.ds.Put(key, data)
 
-	// save at epoch
-	spi := types.SignedPostIncome{
-		PostIncome: *oinfo.income,
-		Sign:       types.NewMultiSignature(types.SigSecp256k1),
+	pi := &types.PostIncome{
+		UserID:  okey.userID,
+		ProID:   okey.proID,
+		Value:   big.NewInt(0),
+		Penalty: big.NewInt(0),
 	}
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		pi.Deserialize(data)
+	}
+	pi.Value.Add(pi.Value, totalPrice)
+	data, err = pi.Serialize()
+	if err != nil {
+		return err
+	}
+	s.ds.Put(key, data)
+
+	// save acc
+	spi := &types.AccPostIncome{
+		ProID:   okey.proID,
+		Value:   big.NewInt(0),
+		Penalty: big.NewInt(0),
+	}
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		spi.Deserialize(data)
+	}
+	spi.Value.Add(spi.Value, totalPrice)
 	data, err = spi.Serialize()
 	if err != nil {
 		return err
 	}
-	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
 	s.ds.Put(key, data)
 
 	// save for next

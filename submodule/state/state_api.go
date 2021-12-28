@@ -226,6 +226,24 @@ func (s *StateMgr) GetAllUsers(ctx context.Context) []uint64 {
 	return res
 }
 
+func (s *StateMgr) GetAllProviders(ctx context.Context) []uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_ProsKey)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return nil
+	}
+
+	res := make([]uint64, len(data)/8)
+	for i := 0; i < len(data)/8; i++ {
+		res[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
+	}
+
+	return res
+}
+
 func (s *StateMgr) GetBucket(ctx context.Context, userID uint64) uint64 {
 	s.RLock()
 	defer s.RUnlock()
@@ -285,17 +303,51 @@ func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) *typ
 	return pi
 }
 
-func (s *StateMgr) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.SignedPostIncome, error) {
+func (s *StateMgr) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.PostIncome, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	spi := new(types.SignedPostIncome)
+	pi := new(types.PostIncome)
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, userID, proID, epoch)
 	data, err := s.ds.Get(key)
 	if err == nil {
-		err = spi.Deserialize(data)
+		err = pi.Deserialize(data)
 		if err == nil {
-			return spi, nil
+			return pi, nil
+		}
+	}
+
+	return nil, xerrors.Errorf("not found")
+}
+
+func (s *StateMgr) GetAccPostIncomeAt(ctx context.Context, proID, epoch uint64) (*types.AccPostIncome, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	pi := new(types.AccPostIncome)
+	key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, proID, epoch)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		err = pi.Deserialize(data)
+		if err == nil {
+			return pi, nil
+		}
+	}
+
+	return nil, xerrors.Errorf("not found")
+}
+
+func (s *StateMgr) GetAccPostIncome(ctx context.Context, proID uint64) (*types.SignedAccPostIncome, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	pi := new(types.SignedAccPostIncome)
+	key := store.NewKey(pb.MetaType_ST_SegPayComfirmKey, proID)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		err = pi.Deserialize(data)
+		if err == nil {
+			return pi, nil
 		}
 	}
 

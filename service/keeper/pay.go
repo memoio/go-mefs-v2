@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"encoding/binary"
+	"math/big"
 	"time"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -46,21 +47,24 @@ func (k *KeeperNode) updatePay() {
 
 			logger.Debugf("pay at epoch %d", payEpoch)
 
-			users := k.GetAllUsers(k.ctx)
-			for _, uid := range users {
-				pros := k.GetProsForUser(k.ctx, uid)
-				if len(pros) == 0 {
+			pros := k.GetAllProviders(k.ctx)
+			for _, pid := range pros {
+				users := k.GetProsForUser(k.ctx, pid)
+				if len(users) == 0 {
 					continue
 				}
 
 				pip := &tx.PostIncomeParams{
-					Epoch:  payEpoch,
-					UserID: uid,
-					Pros:   make([]uint64, 0, len(pros)),
-					Sig:    make([]types.Signature, 0, len(pros)),
+					Epoch: payEpoch,
+					Users: make([]uint64, 0, len(users)),
+					Income: types.AccPostIncome{
+						ProID:   pid,
+						Value:   big.NewInt(0),
+						Penalty: big.NewInt(0),
+					},
 				}
 
-				for _, pid := range pros {
+				for _, uid := range users {
 					pi, err := k.PushPool.GetPostIncomeAt(k.ctx, uid, pid, payEpoch)
 					if err != nil {
 						// todo: add penalty here?
@@ -73,18 +77,29 @@ func (k *KeeperNode) updatePay() {
 					if pi.Value.BitLen() == 0 && pi.Penalty.BitLen() == 0 {
 						continue
 					}
-					sig, err := k.RoleSign(k.ctx, k.RoleID(), pi.Hash(), types.SigSecp256k1)
-					if err != nil {
-						continue
-					}
-					pip.Pros = append(pip.Pros, pid)
-					pip.Sig = append(pip.Sig, sig)
+
+					pip.Income.Value.Add(pip.Income.Value, pi.Value)
+					pip.Income.Penalty.Add(pip.Income.Penalty, pi.Penalty)
+					pip.Users = append(pip.Users, pid)
 				}
 
-				if len(pip.Pros) == 0 {
-					logger.Debugf("pay not have positive post income for %d %d at epoch %d", uid, pros, payEpoch)
+				if len(pip.Users) == 0 {
+					logger.Debugf("pay not have positive post income for %d at epoch %d", pros, payEpoch)
 					continue
 				}
+
+				// add base
+				spi, err := k.PushPool.GetAccPostIncomeAt(k.ctx, pid, payEpoch)
+				if err == nil {
+					pip.Income.Value.Add(pip.Income.Value, spi.Value)
+					pip.Income.Penalty.Add(pip.Income.Penalty, spi.Penalty)
+				}
+
+				sig, err := k.RoleSign(k.ctx, k.RoleID(), pip.Income.Hash(), types.SigSecp256k1)
+				if err != nil {
+					continue
+				}
+				pip.Sig = sig
 
 				data, err := pip.Serialize()
 				if err != nil {
@@ -100,7 +115,7 @@ func (k *KeeperNode) updatePay() {
 				}
 
 				k.pushMsg(msg)
-				logger.Debugf("pay for user %d at epoch %d pro %d ", pip.UserID, payEpoch, pip.Pros)
+				logger.Debugf("pay for pro %d at epoch %d users %d ", pip.Income.ProID, payEpoch, pip.Users)
 			}
 			key = store.NewKey(pb.MetaType_ConfirmPayKey)
 			binary.BigEndian.PutUint64(buf, latest)

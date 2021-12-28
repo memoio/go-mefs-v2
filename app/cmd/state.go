@@ -15,6 +15,7 @@ var StateCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		statePostIncomeCmd,
 		statePayCmd,
+		stateWithdrawCmd,
 	},
 }
 
@@ -74,20 +75,57 @@ var statePayCmd = &cli.Command{
 			return err
 		}
 
-		epoch := napi.GetChalEpoch(cctx.Context)
-
 		fmt.Println("pay info: ", nid.ID)
 
-		users := napi.GetUsersForPro(cctx.Context, nid.ID)
-		fmt.Println("pay info: ", nid.ID, users)
+		spi, err := napi.GetAccPostIncome(cctx.Context, nid.ID)
+		if err != nil {
+			return err
+		}
 
-		for _, uid := range users {
-			pi, err := napi.GetPostIncomeAt(cctx.Context, uid, nid.ID, epoch-2)
-			if err != nil {
-				continue
-			}
+		fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
 
-			fmt.Printf("pay info: pro %d, user %d, income %s, penalty %s, signer: %d \n", nid.ID, uid, types.FormatWei(pi.Value), types.FormatWei(pi.Penalty), pi.Sign.Signer)
+		val, err := napi.GetBalance(cctx.Context, nid.ID)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("pay info max: proID %d, expected income: %s \n", nid.ID, types.FormatWei(val))
+
+		return nil
+	},
+}
+
+var stateWithdrawCmd = &cli.Command{
+	Name:  "withdraw",
+	Usage: "withdraw balance",
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		napi, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		nid, err := napi.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		spi, err := napi.GetAccPostIncome(cctx.Context, nid.ID)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
+
+		err = napi.Withdraw(cctx.Context, spi.Value, spi.Penalty)
+		if err != nil {
+			return err
 		}
 
 		return nil

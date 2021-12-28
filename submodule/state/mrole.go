@@ -98,6 +98,13 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
 		s.ds.Put(key, buf)
+	} else if pri.Type == pb.RoleInfo_Provider {
+		key = store.NewKey(pb.MetaType_ST_ProsKey)
+		val, _ := s.ds.Get(key)
+		buf := make([]byte, len(val)+8)
+		copy(buf[:len(val)], val)
+		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
+		s.ds.Put(key, buf)
 	}
 
 	if s.handleAddRole != nil {

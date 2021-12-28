@@ -79,9 +79,9 @@ func (scp *SegChalParams) Deserialize(b []byte) error {
 
 type PostIncomeParams struct {
 	Epoch  uint64
-	UserID uint64
-	Pros   []uint64
-	Sig    []types.Signature
+	Users  []uint64
+	Income types.AccPostIncome
+	Sig    types.Signature
 }
 
 func (pip *PostIncomeParams) Serialize() ([]byte, error) {

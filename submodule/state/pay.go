@@ -1,6 +1,8 @@
 package state
 
 import (
+	"math/big"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -19,9 +21,11 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income epoch, expected %d, got %d", s.ceInfo.previous.Epoch, pip.Epoch)
 	}
 
-	if len(pip.Pros) != len(pip.Sig) {
-		return xerrors.Errorf("add post income paras, expected %d, got %d", len(pip.Pros), len(pip.Sig))
+	if len(pip.Users) == 0 {
+		return xerrors.Errorf("add post income paras, expected >0, got %d", len(pip.Users))
 	}
+
+	// todo: verify proID
 
 	kri, ok := s.rInfo[msg.From]
 	if !ok {
@@ -33,33 +37,84 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income role type wrong, expected %d, got %d", pb.RoleInfo_Keeper, kri.base.Type)
 	}
 
-	for i, pid := range pip.Pros {
-		key := store.NewKey(pb.MetaType_ST_SegPayKey, pip.UserID, pid, pip.Epoch)
+	spi := &types.AccPostIncome{
+		ProID:   pip.Income.ProID,
+		Value:   big.NewInt(0),
+		Penalty: big.NewInt(0),
+	}
+
+	key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, pip.Income.ProID, pip.Epoch)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		spi.Deserialize(data)
+	}
+
+	for _, uid := range pip.Users {
+		key := store.NewKey(pb.MetaType_ST_SegPayKey, uid, pip.Income.ProID, pip.Epoch)
 		data, err := s.ds.Get(key)
 		if err != nil {
 			return err
 		}
 
-		spi := new(types.SignedPostIncome)
-		err = spi.Deserialize(data)
-		if err != nil {
-			return err
-		}
-		err = verify(kri.base, spi.Hash(), pip.Sig[i])
-		if err != nil {
-			return err
-		}
-		err = spi.Sign.Add(msg.From, pip.Sig[i])
+		pi := new(types.PostIncome)
+		err = pi.Deserialize(data)
 		if err != nil {
 			return err
 		}
 
-		data, err = spi.Serialize()
-		if err != nil {
-			return err
-		}
-		s.ds.Put(key, data)
+		spi.Value.Add(spi.Value, pi.Value)
+		spi.Penalty.Add(spi.Penalty, pi.Penalty)
 	}
+
+	if spi.Value.Cmp(pip.Income.Value) != 0 {
+		return xerrors.Errorf("income value not equal, expected %d, got %d", pip.Income.Value, spi.Value)
+	}
+
+	if spi.Penalty.Cmp(pip.Income.Penalty) != 0 {
+		return xerrors.Errorf("income penalty not equal, expected %d, got %d", pip.Income.Penalty, spi.Penalty)
+	}
+
+	err = verify(kri.base, pip.Income.Hash(), pip.Sig)
+	if err != nil {
+		return err
+	}
+
+	sapi := types.SignedAccPostIncome{
+		AccPostIncome: pip.Income,
+		Sig:           types.NewMultiSignature(types.SigSecp256k1),
+	}
+	key = store.NewKey(pb.MetaType_ST_SegPayComfirmKey, pip.Income.ProID, pip.Epoch)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		spi.Deserialize(data)
+	}
+
+	if sapi.ProID != spi.ProID {
+		return xerrors.Errorf("proID is not right, expected %d, got %d", sapi.ProID, spi.ProID)
+	}
+
+	if sapi.Value.Cmp(spi.Value) != 0 {
+		return xerrors.Errorf("income value is not right, expected %d, got %d", sapi.Value, spi.Value)
+	}
+
+	if sapi.Penalty.Cmp(spi.Penalty) != 0 {
+		return xerrors.Errorf("income Penalty is not right, expected %d, got %d", sapi.Penalty, spi.Penalty)
+	}
+
+	err = sapi.Sig.Add(msg.From, pip.Sig)
+	if err != nil {
+		return err
+	}
+
+	data, err = sapi.Serialize()
+	if err != nil {
+		return err
+	}
+	s.ds.Put(key, data)
+
+	// save lastest
+	key = store.NewKey(pb.MetaType_ST_SegPayComfirmKey, 0, 0, pip.Income.ProID)
+	s.ds.Put(key, data)
 
 	return nil
 }
@@ -75,9 +130,11 @@ func (s *StateMgr) canAddPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income epoch, expected %d, got %d", s.validateCeInfo.previous.Epoch, pip.Epoch)
 	}
 
-	if len(pip.Pros) != len(pip.Sig) {
-		return xerrors.Errorf("add post income paras, expected %d, got %d", len(pip.Pros), len(pip.Sig))
+	if len(pip.Users) == 0 {
+		return xerrors.Errorf("add post income paras, expected >0, got %d", len(pip.Users))
 	}
+
+	// todo: verify proID
 
 	kri, ok := s.validateRInfo[msg.From]
 	if !ok {
@@ -89,26 +146,73 @@ func (s *StateMgr) canAddPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income role type wrong, expected %d, got %d", pb.RoleInfo_Keeper, kri.base.Type)
 	}
 
-	for i, pid := range pip.Pros {
-		key := store.NewKey(pb.MetaType_ST_SegPayKey, pip.UserID, pid, pip.Epoch)
+	spi := &types.AccPostIncome{
+		ProID:   pip.Income.ProID,
+		Value:   big.NewInt(0),
+		Penalty: big.NewInt(0),
+	}
+
+	key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, pip.Income.ProID, pip.Epoch)
+	data, err := s.ds.Get(key)
+	if err == nil {
+		spi.Deserialize(data)
+	}
+
+	for _, uid := range pip.Users {
+		key := store.NewKey(pb.MetaType_ST_SegPayKey, uid, pip.Income.ProID, pip.Epoch)
 		data, err := s.ds.Get(key)
 		if err != nil {
 			return err
 		}
 
-		spi := new(types.SignedPostIncome)
-		err = spi.Deserialize(data)
+		pi := new(types.PostIncome)
+		err = pi.Deserialize(data)
 		if err != nil {
 			return err
 		}
-		err = verify(kri.base, spi.Hash(), pip.Sig[i])
-		if err != nil {
-			return err
-		}
-		err = spi.Sign.Add(msg.From, pip.Sig[i])
-		if err != nil {
-			return err
-		}
+
+		spi.Value.Add(spi.Value, pi.Value)
+		spi.Penalty.Add(spi.Penalty, pi.Penalty)
+	}
+
+	if spi.Value.Cmp(pip.Income.Value) != 0 {
+		return xerrors.Errorf("income value not equal, expected %d, got %d", pip.Income.Value, spi.Value)
+	}
+
+	if spi.Penalty.Cmp(pip.Income.Penalty) != 0 {
+		return xerrors.Errorf("income penalty not equal, expected %d, got %d", pip.Income.Penalty, spi.Penalty)
+	}
+
+	err = verify(kri.base, pip.Income.Hash(), pip.Sig)
+	if err != nil {
+		return err
+	}
+
+	sapi := types.SignedAccPostIncome{
+		AccPostIncome: pip.Income,
+		Sig:           types.NewMultiSignature(types.SigSecp256k1),
+	}
+	key = store.NewKey(pb.MetaType_ST_SegPayComfirmKey, pip.Income.ProID, pip.Epoch)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		spi.Deserialize(data)
+	}
+
+	if sapi.ProID != spi.ProID {
+		return xerrors.Errorf("proID is not right, expected %d, got %d", sapi.ProID, spi.ProID)
+	}
+
+	if sapi.Value.Cmp(spi.Value) != 0 {
+		return xerrors.Errorf("income value is not right, expected %d, got %d", sapi.Value, spi.Value)
+	}
+
+	if sapi.Penalty.Cmp(spi.Penalty) != 0 {
+		return xerrors.Errorf("income Penalty is not right, expected %d, got %d", sapi.Penalty, spi.Penalty)
+	}
+
+	err = sapi.Sig.Add(msg.From, pip.Sig)
+	if err != nil {
+		return err
 	}
 
 	return nil

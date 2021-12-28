@@ -22,8 +22,8 @@ var (
 
 const (
 	DefaultAckWaiting   = 30
-	DefaultOrderLast    = 3600 // 1 day
-	DefaultOrderSeqLast = 180  // 1 hour
+	DefaultOrderLast    = 600 // 1 day
+	DefaultOrderSeqLast = 180 // 1 hour
 
 	// parallel number of net send
 	defaultWeighted = 50

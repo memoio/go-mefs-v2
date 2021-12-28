@@ -769,6 +769,43 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	}
 	s.ds.Put(key, data)
 
+	// save penalty at epoch
+	pi := &types.PostIncome{
+		UserID:  so.UserID,
+		ProID:   so.ProID,
+		Value:   big.NewInt(0),
+		Penalty: big.NewInt(0),
+	}
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, so.UserID, so.ProID, s.ceInfo.current.Epoch)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		pi.Deserialize(data)
+	}
+	pi.Penalty.Add(pi.Penalty, penalty)
+	data, err = pi.Serialize()
+	if err != nil {
+		return err
+	}
+	s.ds.Put(key, data)
+
+	// save acc
+	spi := &types.AccPostIncome{
+		ProID:   okey.proID,
+		Value:   big.NewInt(0),
+		Penalty: big.NewInt(0),
+	}
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		spi.Deserialize(data)
+	}
+	spi.Penalty.Add(spi.Penalty, penalty)
+	data, err = spi.Serialize()
+	if err != nil {
+		return err
+	}
+	s.ds.Put(key, data)
+
 	if s.handleDelSeg != nil {
 		s.handleDelSeg(so)
 	}

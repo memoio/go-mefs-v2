@@ -25,6 +25,7 @@ type FullNode interface {
 	IRole
 	IState
 	INetwork
+	ISettle
 }
 
 type UserNode interface {
@@ -170,13 +171,16 @@ type IState interface {
 	GetUsersForPro(context.Context, uint64) []uint64
 	GetProsForUser(context.Context, uint64) []uint64
 	GetAllUsers(context.Context) []uint64
+	GetAllProviders(context.Context) []uint64
 
 	GetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
 	GetBucket(context.Context, uint64) uint64
 
 	GetOrderState(context.Context, uint64, uint64) *types.NonceSeq
 	GetPostIncome(context.Context, uint64, uint64) *types.PostIncome
-	GetPostIncomeAt(context.Context, uint64, uint64, uint64) (*types.SignedPostIncome, error)
+	GetPostIncomeAt(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)
+	GetAccPostIncome(context.Context, uint64) (*types.SignedAccPostIncome, error)
+	GetAccPostIncomeAt(context.Context, uint64, uint64) (*types.AccPostIncome, error)
 
 	/*
 		GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error)
@@ -189,19 +193,11 @@ type IState interface {
 	*/
 }
 
-type IStateState interface {
-	GetUsersForPro(context.Context, uint64) []uint64
-	GetProsForUser(context.Context, uint64) []uint64
-	GetAllUsers(context.Context) []uint64
-}
-
 type ISettle interface {
 	GetRoleID(context.Context) uint64
 	GetGroupID(context.Context) uint64
 	GetThreshold(context.Context) int
-
 	GetRoleInfoAt(context.Context, uint64) (*pb.RoleInfo, error)
-
 	GetBalance(context.Context, uint64) (*big.Int, error)
-	Withdraw(context.Context, *big.Int) error
+	Withdraw(context.Context, *big.Int, *big.Int) error
 }

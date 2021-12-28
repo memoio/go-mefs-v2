@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"io"
+	"math/big"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -63,18 +64,28 @@ type CommonStruct struct {
 
 		GetNonce func(context.Context, uint64) uint64 `perm:"read"`
 
-		GetUsersForPro func(context.Context, uint64) []uint64 `perm:"read"`
-		GetProsForUser func(context.Context, uint64) []uint64 `perm:"read"`
-		GetAllUsers    func(context.Context) []uint64         `perm:"read"`
+		GetUsersForPro  func(context.Context, uint64) []uint64 `perm:"read"`
+		GetProsForUser  func(context.Context, uint64) []uint64 `perm:"read"`
+		GetAllUsers     func(context.Context) []uint64         `perm:"read"`
+		GetAllProviders func(context.Context) []uint64         `perm:"read"`
 
 		GetAllKeepers   func(context.Context) []uint64                             `perm:"read"`
 		GetNetInfo      func(context.Context, uint64) (peer.AddrInfo, error)       `perm:"read"`
 		GetPDPPublicKey func(context.Context, uint64) (pdpcommon.PublicKey, error) `perm:"read"`
 		GetBucket       func(context.Context, uint64) uint64                       `perm:"read"`
 
-		GetOrderState   func(context.Context, uint64, uint64) *types.NonceSeq                          `perm:"read"`
-		GetPostIncome   func(context.Context, uint64, uint64) *types.PostIncome                        `perm:"read"`
-		GetPostIncomeAt func(context.Context, uint64, uint64, uint64) (*types.SignedPostIncome, error) `perm:"read"`
+		GetOrderState      func(context.Context, uint64, uint64) *types.NonceSeq                    `perm:"read"`
+		GetPostIncome      func(context.Context, uint64, uint64) *types.PostIncome                  `perm:"read"`
+		GetPostIncomeAt    func(context.Context, uint64, uint64, uint64) (*types.PostIncome, error) `perm:"read"`
+		GetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
+		GetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
+
+		GetRoleID     func(context.Context) uint64                        `perm:"read"`
+		GetGroupID    func(context.Context) uint64                        `perm:"read"`
+		GetThreshold  func(context.Context) int                           `perm:"read"`
+		GetRoleInfoAt func(context.Context, uint64) (*pb.RoleInfo, error) `perm:"read"`
+		GetBalance    func(context.Context, uint64) (*big.Int, error)     `perm:"read"`
+		Withdraw      func(context.Context, *big.Int, *big.Int) error     `perm:"read"`
 	}
 }
 
@@ -218,6 +229,10 @@ func (s *CommonStruct) GetAllUsers(ctx context.Context) []uint64 {
 	return s.Internal.GetAllUsers(ctx)
 }
 
+func (s *CommonStruct) GetAllProviders(ctx context.Context) []uint64 {
+	return s.Internal.GetAllProviders(ctx)
+}
+
 func (s *CommonStruct) GetAllKeepers(ctx context.Context) []uint64 {
 	return s.Internal.GetAllKeepers(ctx)
 }
@@ -242,8 +257,36 @@ func (s *CommonStruct) GetPostIncome(ctx context.Context, userID, proID uint64) 
 	return s.Internal.GetPostIncome(ctx, userID, proID)
 }
 
-func (s *CommonStruct) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.SignedPostIncome, error) {
+func (s *CommonStruct) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.PostIncome, error) {
 	return s.Internal.GetPostIncomeAt(ctx, userID, proID, epoch)
+}
+
+func (s *CommonStruct) GetAccPostIncome(ctx context.Context, proID uint64) (*types.SignedAccPostIncome, error) {
+	return s.Internal.GetAccPostIncome(ctx, proID)
+}
+
+func (s *CommonStruct) GetAccPostIncomeAt(ctx context.Context, proID, epoch uint64) (*types.AccPostIncome, error) {
+	return s.Internal.GetAccPostIncomeAt(ctx, proID, epoch)
+}
+
+func (s *CommonStruct) GetRoleID(ctx context.Context) uint64 {
+	return s.Internal.GetRoleID(ctx)
+}
+
+func (s *CommonStruct) GetGroupID(ctx context.Context) uint64 {
+	return s.Internal.GetGroupID(ctx)
+}
+func (s *CommonStruct) GetThreshold(ctx context.Context) int {
+	return s.Internal.GetThreshold(ctx)
+}
+func (s *CommonStruct) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
+	return s.Internal.GetRoleInfoAt(ctx, rid)
+}
+func (s *CommonStruct) GetBalance(ctx context.Context, rid uint64) (*big.Int, error) {
+	return s.Internal.GetBalance(ctx, rid)
+}
+func (s *CommonStruct) Withdraw(ctx context.Context, val, penlty *big.Int) error {
+	return s.Internal.Withdraw(ctx, val, penlty)
 }
 
 type FullNodeStruct struct {

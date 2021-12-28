@@ -46,6 +46,6 @@ func (f *fakeSettle) GetBalance(context.Context, uint64) (*big.Int, error) {
 	return nil, nil
 }
 
-func (f *fakeSettle) Withdraw(context.Context, *big.Int) error {
+func (f *fakeSettle) Withdraw(context.Context, *big.Int, *big.Int) error {
 	return nil
 }

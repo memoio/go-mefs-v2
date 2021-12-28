@@ -30,18 +30,6 @@ type PostIncome struct {
 	Penalty *big.Int // due to delete
 }
 
-func (pi *PostIncome) Hash() []byte {
-	var buf = make([]byte, 8)
-	d := sha3.NewLegacyKeccak256()
-	binary.BigEndian.PutUint64(buf, pi.UserID)
-	d.Write(buf)
-	binary.BigEndian.PutUint64(buf, pi.ProID)
-	d.Write(buf)
-	d.Write(utils.LeftPadBytes(pi.Value.Bytes(), 32))
-	d.Write(utils.LeftPadBytes(pi.Penalty.Bytes(), 32))
-	return d.Sum(nil)
-}
-
 func (pi *PostIncome) Serialize() ([]byte, error) {
 	return cbor.Marshal(pi)
 }
@@ -50,15 +38,39 @@ func (pi *PostIncome) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, pi)
 }
 
-type SignedPostIncome struct {
-	PostIncome
-	Sign MultiSignature // signed by keepers
+type AccPostIncome struct {
+	ProID   uint64
+	Value   *big.Int // duo to income
+	Penalty *big.Int // due to delete
 }
 
-func (spi *SignedPostIncome) Serialize() ([]byte, error) {
-	return cbor.Marshal(spi)
+func (api *AccPostIncome) Hash() []byte {
+	var buf = make([]byte, 8)
+	d := sha3.NewLegacyKeccak256()
+	binary.BigEndian.PutUint64(buf, api.ProID)
+	d.Write(buf)
+	d.Write(utils.LeftPadBytes(api.Value.Bytes(), 32))
+	d.Write(utils.LeftPadBytes(api.Penalty.Bytes(), 32))
+	return d.Sum(nil)
 }
 
-func (spi *SignedPostIncome) Deserialize(b []byte) error {
-	return cbor.Unmarshal(b, spi)
+func (api *AccPostIncome) Serialize() ([]byte, error) {
+	return cbor.Marshal(api)
+}
+
+func (api *AccPostIncome) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, api)
+}
+
+type SignedAccPostIncome struct {
+	AccPostIncome
+	Sig MultiSignature
+}
+
+func (sapi *SignedAccPostIncome) Serialize() ([]byte, error) {
+	return cbor.Marshal(sapi)
+}
+
+func (sapi *SignedAccPostIncome) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, sapi)
 }

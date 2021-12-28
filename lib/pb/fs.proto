@@ -20,38 +20,32 @@ enum MetaType {
     LFS_OpCountKey = 17;        // key: x/userID/bucketID; val: op number
 
 	// key in state
-	ST_PDPPublicKey = 20;    // key: x/userID; val: Bls Prove key set
-	ST_BucketOptKey = 21;    // key: x/userID/bucketID; val: bucket option
-	ST_SegLocKey = 22;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
-	ST_SegMapKey = 23;       // key: x/userID/bucketID/proID; val: accFr, bitmap
+	ST_RootKey = 20;          // key: x; val: root of state	
+	ST_BlockHeightKey = 21;   // key: x; val: height
+	ST_ChalEpochKey = 22;     // key: x; val: epoch; key: x/epoch; val: content
 
-	ST_OrderCommitKey = 24;     // key: x/userID/proID; val: OrderNonce;
-	ST_OrderStateKey = 25;      // key: x/userID/proID/epoch; val: Order Seq;
-	ST_OrderBaseKey = 26;       // key: x/userID/proID/nonce; val: SignedOrderBase;
-	ST_OrderSeqKey = 27;        // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
-	ST_SegProofKey = 28;        // key: x/userID/proID/epoch; val: proof
-	ST_SegPayKey = 29;          // key: x/userID/proID; val: payinfo 
-	ST_OrderDurationKey = 30;   // key: x/userID/proID/epoch; val: proof
-
-	ST_KeepersKey = 31;         // key: x; val: keepers
-	ST_UsersKey = 32;           // key: x/roleID; val: users
-	ST_ProsKey = 33;            // key: x/roleID; val: pros  
-	ST_NetKey = 34;             // key: x/roleID; val: NetInfo 
+	ST_KeepersKey = 25;         // key: x; val: keepers
+	ST_UsersKey = 26;           // key: x/roleID; val: users
+	ST_ProsKey = 27;            // key: x/roleID; val: pros  
 	
 	
-	ST_RootKey = 35;          // key: x; val: root of state	
-	ST_BlockHeightKey = 36;   // key: x; val: height
-	ST_ChalEpochKey = 37;     // key: x; val: epoch; key: x/epoch; val: content
-	ST_RoleBaseKey = 38;      // key: x/roleID; val: pb.RoleInfo
-	ST_RoleValueKey = 39;     // key: x/roleID; val: nonce, val
-
-	// data meta
-	SegLocationKey = 40;     // key: x/segID; val: proID; on user
-	Chal_ProofKey = 42;      // key: x/userID; val: proof
-	Chal_BucketInfoKey = 43; // key: x/userID/bucketID; val: BucketInfo
-	ConfirmPayKey = 44;      // key: x; val: epoch
-	Chal_UsersKey = 45;      // key: x/roleID; val: users
-	Chal_ProsKey = 46;       // key: x/roleID; val: pros    
+	ST_RoleBaseKey = 30;      // key: x/roleID; val: pb.RoleInfo
+	ST_RoleValueKey = 31;     // key: x/roleID; val: nonce, val
+	ST_PDPPublicKey = 32;    // key: x/userID; val: Bls Prove key set
+	ST_NetKey = 33;             // key: x/roleID; val: NetInfo 
+	
+	ST_BucketOptKey = 35;    // key: x/userID/bucketID; val: bucket option
+	ST_SegLocKey = 36;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
+	ST_SegMapKey = 37;          // key: x/userID/bucketID/proID; val: accFr, bitmap
+	ST_OrderCommitKey = 38;     // key: x/userID/proID; val: OrderNonce;
+	ST_OrderStateKey = 39;      // key: x/userID/proID/epoch; val: Order Seq;
+	ST_OrderBaseKey = 40;       // key: x/userID/proID/nonce; val: SignedOrderBase;
+	ST_OrderSeqKey = 41;        // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
+	ST_OrderDurationKey = 42;   // key: x/userID/proID/epoch; val: proof
+	
+	ST_SegProofKey = 45;        // key: x/userID/proID/epoch; val: proof
+	ST_SegPayKey = 46;          // key: x/userID/proID; val: payinfo
+	ST_SegPayComfirmKey = 47;   // key: x/proID; val: payinfo  
 
 	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
@@ -68,6 +62,15 @@ enum MetaType {
 	Tx_BlockHeightKey = 62;	  // key: x/blockHeight; value: blk hash
 	TX_MessageKey = 64;       // key: x/messageHash; value: SignedMessage
 	Tx_MessageStateKey = 65;  // key: x/messageHash; value: blkID, height	
+
+
+	// data meta
+	SegLocationKey = 70;     // key: x/segID; val: proID; on user
+	Chal_ProofKey = 71;      // key: x/userID; val: proof
+	Chal_BucketInfoKey = 72; // key: x/userID/bucketID; val: BucketInfo
+	ConfirmPayKey = 73;      // key: x; val: epoch
+	Chal_UsersKey = 74;      // key: x/roleID; val: users
+	Chal_ProsKey = 75;       // key: x/roleID; val: pros  
 }
 
 //    =============  lfs information  ================

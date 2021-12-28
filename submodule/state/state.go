@@ -30,6 +30,8 @@ type StateMgr struct {
 	slot   uint64 // logical time
 
 	keepers   []uint64
+	pros      []uint64
+	users     []uint64
 	threshold int
 	ceInfo    *chalEpochInfo
 	root      types.MsgID // for verify
@@ -63,6 +65,8 @@ func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *Stat
 		height:       0,
 		threshold:    thre,
 		keepers:      make([]uint64, 0, 16),
+		pros:         make([]uint64, 0, 128),
+		users:        make([]uint64, 0, 128),
 		root:         types.NewMsgID(buf),
 		validateRoot: types.NewMsgID(buf),
 		ceInfo: &chalEpochInfo{
@@ -133,6 +137,24 @@ func (s *StateMgr) load() {
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
 			s.keepers = append(s.keepers, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+		}
+	}
+
+	// load pros
+	key = store.NewKey(pb.MetaType_ST_ProsKey)
+	val, err = s.ds.Get(key)
+	if err == nil && len(val) >= 0 {
+		for i := 0; i < len(val)/8; i++ {
+			s.pros = append(s.pros, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+		}
+	}
+
+	// load users
+	key = store.NewKey(pb.MetaType_ST_UsersKey)
+	val, err = s.ds.Get(key)
+	if err == nil && len(val) >= 0 {
+		for i := 0; i < len(val)/8; i++ {
+			s.users = append(s.users, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
 		}
 	}
 
