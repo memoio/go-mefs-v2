@@ -9,7 +9,6 @@ import (
 	"time"
 
 	callconts "memoContract/callcontracts"
-	"memoContract/test"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -130,7 +129,7 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
 		GasLimit: callconts.DefaultGasLimit,
 	}
-	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, test.AdminSk, txopts)
+	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, callconts.AdminSk, txopts)
 
 	adminVal, err := erc20.BalanceOf(callconts.AdminAddr)
 	if err != nil {
@@ -141,7 +140,7 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 
 	err = erc20.MintToken(callconts.AdminAddr, val)
 	if err != nil {
-		return err
+		logger.Debug("erc20 mintToken fail: ", callconts.ERC20Addr, callconts.AdminAddr, val)
 	}
 
 	oldVal, err := erc20.BalanceOf(addr)
@@ -151,7 +150,10 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 
 	retry := 0
 	for retry < 10 {
-		erc20.Transfer(addr, val)
+		err = erc20.Transfer(addr, val)
+		if err != nil {
+			logger.Debug("erc20 transfer fail: ", callconts.ERC20Addr, addr, val)
+		}
 
 		newVal, err := erc20.BalanceOf(addr)
 		if err != nil {
