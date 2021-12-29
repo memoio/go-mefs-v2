@@ -50,7 +50,7 @@ var statePostIncomeCmd = &cli.Command{
 			if err != nil {
 				continue
 			}
-			fmt.Printf("post income: proID %d, userID %d, income: %s, penalty: %s \n", nid.ID, uid, types.FormatWei(pi.Value), types.FormatWei(pi.Penalty))
+			fmt.Printf("post income: proID %d, userID %d, value: %s, penalty: %s \n", nid.ID, uid, types.FormatWei(pi.Value), types.FormatWei(pi.Penalty))
 		}
 
 		return nil
