@@ -331,7 +331,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		if sp.retry > 10 {
 			panic("apply wrong state, should re-sync")
 		}
-		//return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
+		return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
 
 	newRoot, err := sp.ApplyBlock(sb)
