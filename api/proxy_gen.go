@@ -86,6 +86,8 @@ type CommonStruct struct {
 		GetRoleInfoAt func(context.Context, uint64) (*pb.RoleInfo, error) `perm:"read"`
 		GetBalance    func(context.Context, uint64) (*big.Int, error)     `perm:"read"`
 		Withdraw      func(context.Context, *big.Int, *big.Int) error     `perm:"read"`
+
+		Shutdown func(context.Context) error `perm:"admin"`
 	}
 }
 
@@ -276,17 +278,25 @@ func (s *CommonStruct) GetRoleID(ctx context.Context) uint64 {
 func (s *CommonStruct) GetGroupID(ctx context.Context) uint64 {
 	return s.Internal.GetGroupID(ctx)
 }
+
 func (s *CommonStruct) GetThreshold(ctx context.Context) int {
 	return s.Internal.GetThreshold(ctx)
 }
+
 func (s *CommonStruct) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
 	return s.Internal.GetRoleInfoAt(ctx, rid)
 }
+
 func (s *CommonStruct) GetBalance(ctx context.Context, rid uint64) (*big.Int, error) {
 	return s.Internal.GetBalance(ctx, rid)
 }
+
 func (s *CommonStruct) Withdraw(ctx context.Context, val, penlty *big.Int) error {
 	return s.Internal.Withdraw(ctx, val, penlty)
+}
+
+func (s *CommonStruct) Shutdown(ctx context.Context) error {
+	return s.Internal.Shutdown(ctx)
 }
 
 type FullNodeStruct struct {

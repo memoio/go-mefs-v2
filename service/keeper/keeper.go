@@ -112,6 +112,6 @@ func (k *KeeperNode) Start() error {
 	return nil
 }
 
-func (k *KeeperNode) Close() {
-	k.BaseNode.Close()
+func (k *KeeperNode) Shutdown(ctx context.Context) error {
+	return k.BaseNode.Stop(ctx)
 }

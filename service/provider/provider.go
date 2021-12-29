@@ -143,3 +143,7 @@ func (p *ProviderNode) Start() error {
 	logger.Info("start provider for: ", p.RoleID())
 	return nil
 }
+
+func (p *ProviderNode) Shutdown(ctx context.Context) error {
+	return p.BaseNode.Stop(ctx)
+}

@@ -128,7 +128,7 @@ func (u *UserNode) Start() error {
 	return nil
 }
 
-func (u *UserNode) Stop(ctx context.Context) error {
+func (u *UserNode) Shutdown(ctx context.Context) error {
 	u.LfsService.Stop()
 	return u.BaseNode.Stop(ctx)
 }

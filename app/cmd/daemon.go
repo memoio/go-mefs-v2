@@ -8,6 +8,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 
+	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -26,6 +27,32 @@ const (
 	groupKwd     = "group"
 	dataPathKwd  = "data-path"
 )
+
+var daemonStopCmd = &cli.Command{
+	Name:  "stop",
+	Usage: "Stop a running lotus daemon",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		napi, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		err = napi.Shutdown(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	},
+}
 
 var DaemonCmd = &cli.Command{
 	Name:  "daemon",
@@ -59,6 +86,9 @@ var DaemonCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		return daemonFunc(cctx)
+	},
+	Subcommands: []*cli.Command{
+		daemonStopCmd,
 	},
 }
 

@@ -19,6 +19,7 @@ import (
 )
 
 type FullNode interface {
+	Shutdown(context.Context) error
 	IAuth
 	IConfig
 	IWallet

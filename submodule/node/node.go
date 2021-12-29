@@ -187,3 +187,7 @@ func (n *BaseNode) RunDaemon() error {
 func (n *BaseNode) Online() bool {
 	return n.isOnline
 }
+
+func (n *BaseNode) Shutdown(ctx context.Context) error {
+	return n.Close()
+}
