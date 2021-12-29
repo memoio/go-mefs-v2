@@ -147,6 +147,9 @@ func (sp *SyncPool) load() {
 
 			if nextNonce != msg.Nonce {
 				logger.Debug("has wrong nonce: ", msg.From, msg.Nonce, nextNonce)
+				if nextNonce > msg.Nonce {
+					continue
+				}
 			}
 
 			sp.nonce[msg.From] = msg.Nonce + 1
