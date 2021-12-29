@@ -108,21 +108,30 @@ func (sp *SyncPool) SetReady() {
 func (sp *SyncPool) load() {
 	// todo: handle case if msglen > 0
 	ht := sp.GetHeight(sp.ctx)
+	sp.nextHeight = ht
+	sp.remoteHeight = ht
+	if sp.nextHeight == 0 {
+		sp.PutTxBlockHeight(math.MaxUint64, build.GenesisBlockID("test"))
+	}
+
+	logger.Debug("block synced to: ", sp.nextHeight)
+
 	msglen := sp.GetMsgNum()
 	if msglen != 0 {
 		logger.Warn("state is incomplete at: ", ht, msglen)
 		bid, err := sp.GetTxBlockByHeight(ht - 1)
 		if err != nil {
 			logger.Warnf("not have block at height %d", ht-1)
+			return
 		}
 
 		sb, err := sp.GetTxBlock(bid)
 		if err != nil {
 			logger.Warnf("not have block at height %d %s", ht-1, bid)
+			return
 		}
 
 		mlen := uint16(len(sb.Msgs))
-
 		if msglen > mlen {
 			logger.Warnf("not have enough messages at height %d %s, expected %d got %d", ht-1, bid, msglen, mlen)
 			panic("wrong block")
@@ -173,14 +182,6 @@ func (sp *SyncPool) load() {
 			logger.Warnf("apply has wrong state, got: %s, expected: %s", newRoot, sb.Root)
 		}
 	}
-
-	sp.nextHeight = ht
-	sp.remoteHeight = ht
-	if sp.nextHeight == 0 {
-		sp.PutTxBlockHeight(math.MaxUint64, build.GenesisBlockID("test"))
-	}
-
-	logger.Debug("block synced to: ", sp.nextHeight)
 }
 
 func (sp *SyncPool) syncBlock() {

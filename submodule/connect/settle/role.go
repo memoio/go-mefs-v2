@@ -45,7 +45,7 @@ type ContractMgr struct {
 	rfsAddr common.Address // issurance address
 	fsAddr  common.Address // fs contract addr
 
-	// Role caller for user
+	// caller
 	iRole iface.RoleInfo
 	iRT   iface.RTokenInfo
 	iErc  iface.ERC20Info
@@ -58,7 +58,7 @@ type ContractMgr struct {
 func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	logger.Debug("create contract mgr")
 	// set endpoint
-	callconts.EndPoint = "http://119.147.213.220:8191"
+	callconts.EndPoint = "http://119.147.213.220:8193"
 
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
