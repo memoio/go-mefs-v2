@@ -37,6 +37,10 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	}
 	defer l.sw.Release(1)
 
+	if !l.Ready() {
+		return nil, ErrLfsServiceNotReady
+	}
+
 	bu, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
@@ -66,6 +70,10 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
+
+	if !l.Ready() {
+		return nil, ErrLfsServiceNotReady
+	}
 
 	if !l.Writeable() {
 		return nil, ErrLfsReadOnly
