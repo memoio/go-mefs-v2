@@ -32,6 +32,14 @@ type NonceState struct {
 	State OrderState
 }
 
+func (ns *NonceState) Serialize() ([]byte, error) {
+	return cbor.Marshal(ns)
+}
+
+func (ns *NonceState) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ns)
+}
+
 type OrderSeqState uint8
 
 const (
@@ -46,6 +54,14 @@ type SeqState struct {
 	Number uint32
 	Time   int64
 	State  OrderSeqState
+}
+
+func (ss *SeqState) Serialize() ([]byte, error) {
+	return cbor.Marshal(ss)
+}
+
+func (ss *SeqState) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ss)
 }
 
 // per provider
@@ -127,7 +143,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	if err != nil {
 		return op
 	}
-	err = cbor.Unmarshal(val, ns)
+	err = ns.Deserialize(val)
 	if err != nil {
 		return op
 	}
@@ -138,7 +154,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	if err != nil {
 		return op
 	}
-	err = cbor.Unmarshal(val, ob)
+	err = ob.Deserialize(val)
 	if err != nil {
 		return op
 	}
@@ -155,7 +171,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	if err != nil {
 		return op
 	}
-	err = cbor.Unmarshal(val, ss)
+	err = ss.Deserialize(val)
 	if err != nil {
 		return op
 	}
@@ -166,7 +182,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	if err != nil {
 		return op
 	}
-	err = cbor.Unmarshal(val, os)
+	err = os.Deserialize(val)
 	if err != nil {
 		return op
 	}
@@ -284,7 +300,7 @@ func saveOrderState(o *OrderFull, ds store.KVStore) error {
 		Time:  o.orderTime,
 		State: o.orderState,
 	}
-	val, err := cbor.Marshal(ns)
+	val, err := ns.Serialize()
 	if err != nil {
 		return err
 	}
@@ -307,7 +323,7 @@ func saveSeqState(o *OrderFull, ds store.KVStore) error {
 		Time:   o.seqTime,
 		State:  o.seqState,
 	}
-	val, err := cbor.Marshal(ss)
+	val, err := ss.Serialize()
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,6 @@
 package order
 
 import (
-	"github.com/fxamacker/cbor/v2"
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
@@ -47,7 +46,7 @@ func (m *OrderMgr) getQuotation(proID uint64) error {
 	}
 
 	quo := new(types.Quotation)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), quo)
+	err = quo.Deserialize(resp.GetData().GetMsgInfo())
 	if err != nil {
 		logger.Debug("fail get new quotation from: ", proID, err)
 		return err
@@ -94,7 +93,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 	}
 
 	ob := new(types.SignedOrder)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), ob)
+	err = ob.Deserialize(resp.GetData().GetMsgInfo())
 	if err != nil {
 		logger.Debug("fail get new order ack from: ", proID, err)
 		return err
@@ -140,7 +139,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 	}
 
 	os := new(types.SignedOrderSeq)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), os)
+	err = os.Deserialize(resp.GetData().GetMsgInfo())
 	if err != nil {
 		logger.Debug("fail get new seq ack from: ", proID, err)
 		return err
@@ -190,7 +189,7 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 	}
 
 	os := new(types.SignedOrderSeq)
-	err = cbor.Unmarshal(resp.GetData().GetMsgInfo(), os)
+	err = os.Deserialize(resp.GetData().GetMsgInfo())
 	if err != nil {
 		logger.Debug("fail get finish seq ack from: ", proID, err)
 		return err

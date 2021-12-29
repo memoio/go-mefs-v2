@@ -3,9 +3,9 @@ package order
 import (
 	"context"
 	"encoding/binary"
+	"math/big"
 	"time"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/jbenet/goprocess"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -16,13 +16,85 @@ import (
 )
 
 func (m *OrderMgr) runPush(proc goprocess.Process) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-proc.Closing():
 			return
 		case msg := <-m.msgChan:
 			m.pushMessage(msg)
+		case <-ticker.C:
+			if !m.inCheck {
+				go m.checkBalance()
+			}
 		}
+	}
+}
+
+func (m *OrderMgr) checkBalance() {
+	m.inCheck = true
+	defer func() {
+		m.inCheck = false
+	}()
+
+	needPay := big.NewInt(0)
+	pros := m.GetProsForUser(m.ctx, m.localID)
+	for _, proID := range pros {
+		ns := m.GetOrderState(m.ctx, m.localID, proID)
+		nonce, subNonce, err := m.is.GetOrderInfo(m.localID, proID)
+		if err != nil {
+			logger.Debug("fail to get order info in chain", m.localID, proID, err)
+			continue
+		}
+
+		logger.Debugf("user %d pro %d has order %d %d %d", m.localID, proID, nonce, subNonce, ns.Nonce)
+		for i := nonce; i < ns.Nonce; i++ {
+			logger.Debugf("user %d pro %d add order %d %d", m.localID, proID, i, ns.Nonce)
+
+			// load order
+			ss := new(SeqState)
+			key := store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, proID, i)
+			val, err := m.ds.Get(key)
+			if err == nil {
+				ss.Deserialize(val)
+			}
+
+			if ss.Number == 0 {
+				continue
+			}
+
+			ob := new(types.SignedOrder)
+			key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, proID, i)
+			val, err = m.ds.Get(key)
+			if err == nil {
+				ob.Deserialize(val)
+			}
+
+			os := new(types.SignedOrderSeq)
+			key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, proID, i, ss.Number)
+			val, err = m.ds.Get(key)
+			if err == nil {
+				os.Deserialize(val)
+			}
+
+			os.Price.Mul(os.Price, big.NewInt(ob.End-ob.Start))
+			os.Price.Mul(os.Price, big.NewInt(12))
+			os.Price.Div(os.Price, big.NewInt(10))
+
+			needPay.Add(needPay, os.Price)
+		}
+	}
+
+	bal, err := m.is.GetBalance(m.ctx, m.localID)
+	if err != nil {
+		return
+	}
+
+	if bal.Cmp(needPay) < 0 {
+		needPay.Sub(needPay, bal)
+		m.is.Recharge(needPay)
 	}
 }
 
@@ -88,7 +160,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 		if err != nil {
 			return
 		}
-		err = cbor.Unmarshal(val, ss)
+		err = ss.Deserialize(val)
 		if err != nil {
 			return
 		}
@@ -133,7 +205,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 	if err != nil {
 		return
 	}
-	err = cbor.Unmarshal(val, ss)
+	err = ss.Deserialize(val)
 	if err != nil {
 		return
 	}

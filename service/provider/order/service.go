@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -169,7 +168,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
 	m.RLock()
 	defer m.RUnlock()
-	data, err := cbor.Marshal(m.quo)
+	data, err := m.quo.Serialize()
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +178,7 @@ func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
 
 func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	ob := new(types.SignedOrder)
-	err := cbor.Unmarshal(b, ob)
+	err := ob.Deserialize(b)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +215,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 				Time:  or.orderTime,
 				State: or.orderState,
 			}
-			val, err := cbor.Marshal(ns)
+			val, err := ns.Serialize()
 			if err != nil {
 				return nil, err
 			}
@@ -272,7 +271,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 				Time:  or.orderTime,
 				State: or.orderState,
 			}
-			val, err := cbor.Marshal(ns)
+			val, err := ns.Serialize()
 			if err != nil {
 				return nil, err
 			}
@@ -300,7 +299,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 
 func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 	os := new(types.SignedOrderSeq)
-	err := cbor.Unmarshal(b, os)
+	err := os.Deserialize(b)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +359,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 			Time:   or.seqTime,
 			State:  or.seqState,
 		}
-		val, err := cbor.Marshal(ss)
+		val, err := ss.Serialize()
 		if err != nil {
 			return nil, err
 		}
@@ -529,7 +528,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				Time:   or.seqTime,
 				State:  or.seqState,
 			}
-			val, err := cbor.Marshal(ss)
+			val, err := ss.Serialize()
 			if err != nil {
 				return nil, err
 			}

@@ -18,6 +18,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
@@ -32,11 +33,13 @@ type OrderMgr struct {
 
 	ds store.KVStore // save order info
 
+	is      *settle.ContractMgr
 	ns      *netapp.NetServiceImpl
 	localID uint64
 	fsID    []byte
 
 	segPrice *big.Int
+	needPay  *big.Int
 
 	pros   []uint64
 	orders map[uint64]*OrderFull         // key: proID
@@ -63,10 +66,11 @@ type OrderMgr struct {
 	// message send out
 	msgChan chan *tx.Message
 
-	ready bool
+	ready   bool
+	inCheck bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is *settle.ContractMgr) *OrderMgr {
 
 	om := &OrderMgr{
 		IRole:        ir,
@@ -75,6 +79,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 
 		ds: ds,
 		ns: ns,
+		is: is,
 
 		sendCtr: semaphore.NewWeighted(defaultWeighted),
 
@@ -82,6 +87,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		fsID:    fsID,
 
 		segPrice: new(big.Int).Set(build.DefaultSegPrice),
+		needPay:  big.NewInt(0),
 
 		orders: make(map[uint64]*OrderFull),
 		proMap: make(map[uint64]*lastProsPerBucket),
