@@ -50,8 +50,9 @@ func (k *KeeperNode) updatePay() {
 			pros := k.GetAllProviders(k.ctx)
 			for _, pid := range pros {
 				logger.Debugf("pay for %d at epoch %d", pid, payEpoch)
-				users := k.GetProsForUser(k.ctx, pid)
+				users := k.GetUsersForPro(k.ctx, pid)
 				if len(users) == 0 {
+					logger.Debugf("pay for %d at epoch %d, not have users", pid, payEpoch)
 					continue
 				}
 
@@ -81,7 +82,7 @@ func (k *KeeperNode) updatePay() {
 
 					pip.Income.Value.Add(pip.Income.Value, pi.Value)
 					pip.Income.Penalty.Add(pip.Income.Penalty, pi.Penalty)
-					pip.Users = append(pip.Users, pid)
+					pip.Users = append(pip.Users, uid)
 				}
 
 				if len(pip.Users) == 0 {

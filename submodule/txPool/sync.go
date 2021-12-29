@@ -111,7 +111,69 @@ func (sp *SyncPool) load() {
 	msglen := sp.GetMsgNum()
 	if msglen != 0 {
 		logger.Warn("state is incomplete at: ", ht, msglen)
+		bid, err := sp.GetTxBlockByHeight(ht - 1)
+		if err != nil {
+			logger.Warnf("not have block at height %d", ht-1)
+		}
+
+		sb, err := sp.GetTxBlock(bid)
+		if err != nil {
+			logger.Warnf("not have block at height %d %s", ht-1, bid)
+		}
+
+		mlen := uint16(len(sb.Msgs))
+
+		if msglen > mlen {
+			logger.Warnf("not have enough messages at height %d %s, expected %d got %d", ht-1, bid, msglen, mlen)
+			panic("wrong block")
+		}
+
+		var newRoot types.MsgID
+		for i := msglen; i > 0; i-- {
+			msg := sb.Msgs[mlen-i]
+			nextNonce, ok := sp.nonce[msg.From]
+			if !ok {
+				nextNonce = sp.GetNonce(sp.ctx, msg.From)
+			}
+
+			if nextNonce != msg.Nonce {
+				logger.Debug("has wrong nonce: ", msg.From, msg.Nonce, nextNonce)
+			}
+
+			sp.nonce[msg.From] = msg.Nonce + 1
+
+			// apply message
+			msgDone := metrics.Timer(sp.ctx, metrics.TxMessageApply)
+			newRoot, err = sp.AppleyMsg(&msg.Message, &sb.Receipts[mlen-i])
+			if err != nil {
+				// should not; todo
+				sp.DeleteTxBlock(bid)
+				sp.DeleteTxBlockHeight(sb.Height)
+				logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
+				panic("apply message fail, should re-sync")
+			}
+			msgDone()
+
+			ms := &tx.MsgState{
+				BlockID: bid,
+				Height:  sb.Height,
+				Status:  sb.Receipts[i],
+			}
+
+			msb, err := ms.Serialize()
+			if err != nil {
+				return
+			}
+
+			key := store.NewKey(pb.MetaType_Tx_MessageStateKey, msg.Hash().String())
+			sp.ds.Put(key, msb)
+		}
+
+		if !bytes.Equal(newRoot.Bytes(), sb.Root.Bytes()) {
+			logger.Warnf("apply has wrong state, got: %s, expected: %s", newRoot, sb.Root)
+		}
 	}
+
 	sp.nextHeight = ht
 	sp.remoteHeight = ht
 	if sp.nextHeight == 0 {
