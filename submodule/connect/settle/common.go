@@ -31,6 +31,7 @@ func TransferTo(toAddress common.Address, value *big.Int) error {
 	if err != nil {
 		return err
 	}
+	defer client.Close()
 
 	privateKey, err := crypto.HexToECDSA(callconts.AdminSk)
 	if err != nil {
@@ -112,6 +113,8 @@ func QueryBalance(addr common.Address) *big.Int {
 		logger.Error("rpc.dial err:", err)
 		return big.NewInt(0)
 	}
+
+	defer client.Close()
 
 	err = client.Call(&result, "eth_getBalance", addr.String(), "latest")
 	if err != nil {
