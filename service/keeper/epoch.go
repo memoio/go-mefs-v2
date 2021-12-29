@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/memoio/go-mefs-v2/build"
@@ -10,6 +11,12 @@ import (
 )
 
 func (k *KeeperNode) updateChalEpoch() {
+	logger.Debug("start update epoch")
+
+	rand.NewSource(time.Now().UnixNano())
+	t := rand.Intn(120)
+	time.Sleep(time.Duration(t) * time.Second)
+
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 	for {
