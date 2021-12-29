@@ -86,7 +86,7 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 	key = store.NewKey(pb.MetaType_ST_SegPayComfirmKey, pip.Income.ProID, pip.Epoch)
 	data, err = s.ds.Get(key)
 	if err == nil {
-		spi.Deserialize(data)
+		sapi.Deserialize(data)
 	}
 
 	if sapi.ProID != spi.ProID {
@@ -131,7 +131,7 @@ func (s *StateMgr) canAddPay(msg *tx.Message) error {
 	}
 
 	if len(pip.Users) == 0 {
-		return xerrors.Errorf("add post income paras, expected >0, got %d", len(pip.Users))
+		return xerrors.Errorf("add post income users, expected >0, got %d", len(pip.Users))
 	}
 
 	// todo: verify proID
