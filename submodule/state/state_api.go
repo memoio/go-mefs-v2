@@ -262,7 +262,7 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 	return proved
 }
 
-func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) *types.PostIncome {
+func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -272,11 +272,11 @@ func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) *typ
 	if err == nil {
 		err = pi.Deserialize(data)
 		if err == nil {
-			return pi
+			return pi, nil
 		}
 	}
 
-	return pi
+	return nil, xerrors.Errorf("not found")
 }
 
 func (s *StateMgr) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.PostIncome, error) {

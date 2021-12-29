@@ -177,7 +177,7 @@ type IState interface {
 	GetBucket(context.Context, uint64) uint64
 
 	GetOrderState(context.Context, uint64, uint64) *types.NonceSeq
-	GetPostIncome(context.Context, uint64, uint64) *types.PostIncome
+	GetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)
 	GetPostIncomeAt(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)
 	GetAccPostIncome(context.Context, uint64) (*types.SignedAccPostIncome, error)
 	GetAccPostIncomeAt(context.Context, uint64, uint64) (*types.AccPostIncome, error)

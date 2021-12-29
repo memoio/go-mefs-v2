@@ -75,7 +75,7 @@ type CommonStruct struct {
 		GetBucket       func(context.Context, uint64) uint64                       `perm:"read"`
 
 		GetOrderState      func(context.Context, uint64, uint64) *types.NonceSeq                    `perm:"read"`
-		GetPostIncome      func(context.Context, uint64, uint64) *types.PostIncome                  `perm:"read"`
+		GetPostIncome      func(context.Context, uint64, uint64) (*types.PostIncome, error)         `perm:"read"`
 		GetPostIncomeAt    func(context.Context, uint64, uint64, uint64) (*types.PostIncome, error) `perm:"read"`
 		GetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
 		GetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
@@ -253,7 +253,7 @@ func (s *CommonStruct) GetOrderState(ctx context.Context, userID, proID uint64) 
 	return s.Internal.GetOrderState(ctx, userID, proID)
 }
 
-func (s *CommonStruct) GetPostIncome(ctx context.Context, userID, proID uint64) *types.PostIncome {
+func (s *CommonStruct) GetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {
 	return s.Internal.GetPostIncome(ctx, userID, proID)
 }
 
