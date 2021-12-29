@@ -27,6 +27,7 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 			m.pushMessage(msg)
 		case <-ticker.C:
 			if !m.inCheck {
+				m.inCheck = true
 				go m.checkBalance()
 			}
 		}
@@ -34,7 +35,6 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 }
 
 func (m *OrderMgr) checkBalance() {
-	m.inCheck = true
 	defer func() {
 		m.inCheck = false
 	}()

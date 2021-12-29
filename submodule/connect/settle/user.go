@@ -29,7 +29,7 @@ func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
 }
 
 func (cm *ContractMgr) Recharge(val *big.Int) error {
-	logger.Debug("recharge user")
+	logger.Debug("recharge user: ", cm.roleID, val)
 
 	avail, _, err := cm.iFS.GetBalance(cm.roleID, cm.tIndex)
 	if err != nil {
