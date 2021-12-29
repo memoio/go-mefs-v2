@@ -54,20 +54,6 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 	binary.BigEndian.PutUint64(buf, s.ceInfo.epoch)
 	s.ds.Put(key, buf)
 
-	// store for pro pay
-	for _, pid := range s.pros {
-		key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, pid, s.ceInfo.previous.Epoch)
-		ok, err := s.ds.Has(key)
-		if err != nil || !ok {
-			// not challenge, so get value from latest
-			skey := store.NewKey(pb.MetaType_ST_SegPayKey, pid)
-			val, err := s.ds.Get(skey)
-			if err == nil {
-				s.ds.Put(key, val)
-			}
-		}
-	}
-
 	return nil
 }
 

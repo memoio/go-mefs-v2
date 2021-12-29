@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"encoding/binary"
-	"math/big"
 	"time"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -56,45 +55,15 @@ func (k *KeeperNode) updatePay() {
 					continue
 				}
 
-				pip := &tx.PostIncomeParams{
-					Epoch: payEpoch,
-					Users: make([]uint64, 0, len(users)),
-					Income: types.AccPostIncome{
-						ProID:   pid,
-						Value:   big.NewInt(0),
-						Penalty: big.NewInt(0),
-					},
-				}
-
-				for _, uid := range users {
-					pi, err := k.PushPool.GetPostIncomeAt(k.ctx, uid, pid, payEpoch)
-					if err != nil {
-						// todo: add penalty here?
-						logger.Debugf("pay not have post income for %d %d at epoch %d", uid, pid, payEpoch)
-						continue
-					}
-					if pi == nil || pi.Value == nil || pi.Penalty == nil {
-						continue
-					}
-					if pi.Value.BitLen() == 0 && pi.Penalty.BitLen() == 0 {
-						continue
-					}
-
-					pip.Income.Value.Add(pip.Income.Value, pi.Value)
-					pip.Income.Penalty.Add(pip.Income.Penalty, pi.Penalty)
-					pip.Users = append(pip.Users, uid)
-				}
-
-				if len(pip.Users) == 0 {
-					logger.Debugf("pay not have positive post income for %d at epoch %d", pros, payEpoch)
+				spi, err := k.PushPool.GetAccPostIncomeAt(k.ctx, pid, payEpoch)
+				if err != nil {
+					logger.Debugf("pay for %d at epoch %d, not have challenge or declare fault", pid, payEpoch)
 					continue
 				}
 
-				// add base
-				spi, err := k.PushPool.GetAccPostIncomeAt(k.ctx, pid, payEpoch)
-				if err == nil {
-					pip.Income.Value.Add(pip.Income.Value, spi.Value)
-					pip.Income.Penalty.Add(pip.Income.Penalty, spi.Penalty)
+				pip := &tx.PostIncomeParams{
+					Epoch:  payEpoch,
+					Income: *spi,
 				}
 
 				sig, err := k.RoleSign(k.ctx, k.RoleID(), pip.Income.Hash(), types.SigSecp256k1)
@@ -117,7 +86,7 @@ func (k *KeeperNode) updatePay() {
 				}
 
 				k.pushMsg(msg)
-				logger.Debugf("pay for pro %d at epoch %d users %d ", pip.Income.ProID, payEpoch, pip.Users)
+				logger.Debugf("pay for pro %d at epoch %d users %d ", pip.Income.ProID, payEpoch, users)
 			}
 			key = store.NewKey(pb.MetaType_ConfirmPayKey)
 			binary.BigEndian.PutUint64(buf, latest)

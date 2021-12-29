@@ -1,8 +1,6 @@
 package state
 
 import (
-	"math/big"
-
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -21,10 +19,6 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income epoch, expected %d, got %d", s.ceInfo.previous.Epoch, pip.Epoch)
 	}
 
-	if len(pip.Users) == 0 {
-		return xerrors.Errorf("add post income paras, expected >0, got %d", len(pip.Users))
-	}
-
 	// todo: verify proID
 
 	kri, ok := s.rInfo[msg.From]
@@ -37,33 +31,16 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income role type wrong, expected %d, got %d", pb.RoleInfo_Keeper, kri.base.Type)
 	}
 
-	spi := &types.AccPostIncome{
-		ProID:   pip.Income.ProID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
-	}
-
+	spi := new(types.AccPostIncome)
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, pip.Income.ProID, pip.Epoch)
 	data, err := s.ds.Get(key)
-	if err == nil {
-		spi.Deserialize(data)
+	if err != nil {
+		return err
 	}
 
-	for _, uid := range pip.Users {
-		key := store.NewKey(pb.MetaType_ST_SegPayKey, uid, pip.Income.ProID, pip.Epoch)
-		data, err := s.ds.Get(key)
-		if err != nil {
-			return err
-		}
-
-		pi := new(types.PostIncome)
-		err = pi.Deserialize(data)
-		if err != nil {
-			return err
-		}
-
-		spi.Value.Add(spi.Value, pi.Value)
-		spi.Penalty.Add(spi.Penalty, pi.Penalty)
+	err = spi.Deserialize(data)
+	if err != nil {
+		return err
 	}
 
 	if spi.Value.Cmp(pip.Income.Value) != 0 {
@@ -130,12 +107,6 @@ func (s *StateMgr) canAddPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income epoch, expected %d, got %d", s.validateCeInfo.previous.Epoch, pip.Epoch)
 	}
 
-	if len(pip.Users) == 0 {
-		return xerrors.Errorf("add post income users, expected >0, got %d", len(pip.Users))
-	}
-
-	// todo: verify proID
-
 	kri, ok := s.validateRInfo[msg.From]
 	if !ok {
 		kri = s.loadRole(msg.From)
@@ -146,33 +117,16 @@ func (s *StateMgr) canAddPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income role type wrong, expected %d, got %d", pb.RoleInfo_Keeper, kri.base.Type)
 	}
 
-	spi := &types.AccPostIncome{
-		ProID:   pip.Income.ProID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
-	}
-
+	spi := new(types.AccPostIncome)
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, pip.Income.ProID, pip.Epoch)
 	data, err := s.ds.Get(key)
-	if err == nil {
-		spi.Deserialize(data)
+	if err != nil {
+		return err
 	}
 
-	for _, uid := range pip.Users {
-		key := store.NewKey(pb.MetaType_ST_SegPayKey, uid, pip.Income.ProID, pip.Epoch)
-		data, err := s.ds.Get(key)
-		if err != nil {
-			return err
-		}
-
-		pi := new(types.PostIncome)
-		err = pi.Deserialize(data)
-		if err != nil {
-			return err
-		}
-
-		spi.Value.Add(spi.Value, pi.Value)
-		spi.Penalty.Add(spi.Penalty, pi.Penalty)
+	err = spi.Deserialize(data)
+	if err != nil {
+		return err
 	}
 
 	if spi.Value.Cmp(pip.Income.Value) != 0 {

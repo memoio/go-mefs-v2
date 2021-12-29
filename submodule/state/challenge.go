@@ -275,10 +275,8 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	}
 	s.ds.Put(key, data)
 
-	/*
-		key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, s.ceInfo.current.Epoch)
-		s.ds.Put(key, data)
-	*/
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, scp.Epoch)
+	s.ds.Put(key, data)
 
 	// save for next
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, s.ceInfo.epoch)

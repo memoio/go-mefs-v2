@@ -798,6 +798,9 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	}
 	s.ds.Put(key, data)
 
+	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, s.ceInfo.current.Epoch)
+	s.ds.Put(key, data)
+
 	if s.handleDelSeg != nil {
 		s.handleDelSeg(so)
 	}
