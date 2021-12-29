@@ -238,6 +238,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
 	s.ds.Put(key, data)
 
+	// save postincome at this epoch
 	pi := &types.PostIncome{
 		UserID:  okey.userID,
 		ProID:   okey.proID,
@@ -256,7 +257,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	}
 	s.ds.Put(key, data)
 
-	// save acc
+	// save acc income of this pro
 	spi := &types.AccPostIncome{
 		ProID:   okey.proID,
 		Value:   big.NewInt(0),
@@ -273,6 +274,11 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return err
 	}
 	s.ds.Put(key, data)
+
+	/*
+		key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, s.ceInfo.current.Epoch)
+		s.ds.Put(key, data)
+	*/
 
 	// save for next
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, s.ceInfo.epoch)

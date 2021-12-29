@@ -238,14 +238,6 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], or.UserID)
 		s.ds.Put(key, buf)
 
-		// save posincome
-		key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
-		data, err = oinfo.income.Serialize()
-		if err != nil {
-			return err
-		}
-		s.ds.Put(key, data)
-
 		// callback for user-pro relation
 		if s.handleAddUP != nil {
 			s.handleAddUP(okey.userID, okey.proID)

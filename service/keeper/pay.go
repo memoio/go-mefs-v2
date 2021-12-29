@@ -49,6 +49,7 @@ func (k *KeeperNode) updatePay() {
 
 			pros := k.GetAllProviders(k.ctx)
 			for _, pid := range pros {
+				logger.Debugf("pay for %d at epoch %d", pid, payEpoch)
 				users := k.GetProsForUser(k.ctx, pid)
 				if len(users) == 0 {
 					continue

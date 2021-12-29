@@ -145,16 +145,8 @@ func (s *StateMgr) GetAllKeepers(ctx context.Context) []uint64 {
 	s.RLock()
 	defer s.RUnlock()
 
-	key := store.NewKey(pb.MetaType_ST_KeepersKey)
-	data, err := s.ds.Get(key)
-	if err != nil {
-		return nil
-	}
-
-	res := make([]uint64, len(data)/8)
-	for i := 0; i < len(data)/8; i++ {
-		res[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
-	}
+	res := make([]uint64, 0, len(s.keepers))
+	res = append(res, s.keepers...)
 
 	return res
 }
@@ -212,16 +204,8 @@ func (s *StateMgr) GetAllUsers(ctx context.Context) []uint64 {
 	s.RLock()
 	defer s.RUnlock()
 
-	key := store.NewKey(pb.MetaType_ST_UsersKey)
-	data, err := s.ds.Get(key)
-	if err != nil {
-		return nil
-	}
-
-	res := make([]uint64, len(data)/8)
-	for i := 0; i < len(data)/8; i++ {
-		res[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
-	}
+	res := make([]uint64, 0, len(s.users))
+	res = append(res, s.users...)
 
 	return res
 }
@@ -230,16 +214,8 @@ func (s *StateMgr) GetAllProviders(ctx context.Context) []uint64 {
 	s.RLock()
 	defer s.RUnlock()
 
-	key := store.NewKey(pb.MetaType_ST_ProsKey)
-	data, err := s.ds.Get(key)
-	if err != nil {
-		return nil
-	}
-
-	res := make([]uint64, len(data)/8)
-	for i := 0; i < len(data)/8; i++ {
-		res[i] = binary.BigEndian.Uint64(data[8*i : 8*(i+1)])
-	}
+	res := make([]uint64, 0, len(s.pros))
+	res = append(res, s.pros...)
 
 	return res
 }

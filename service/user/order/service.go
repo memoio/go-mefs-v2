@@ -220,7 +220,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				of.availTime = time.Now().Unix()
 				err := m.runOrder(of, ob)
 				if err != nil {
-					logger.Debug("fail run new order:", err)
+					logger.Debug("fail run new order:", ob.ProID, err)
 				}
 			}
 		case s := <-m.seqNewChan:

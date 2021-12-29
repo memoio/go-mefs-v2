@@ -89,7 +89,7 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 		return err
 	}
 
-	// save all keepers
+	// save all roles
 	switch pri.Type {
 	case pb.RoleInfo_Keeper:
 		s.keepers = append(s.keepers, msg.From)
