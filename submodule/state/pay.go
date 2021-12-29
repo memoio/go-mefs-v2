@@ -113,7 +113,7 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 	s.ds.Put(key, data)
 
 	// save lastest
-	key = store.NewKey(pb.MetaType_ST_SegPayComfirmKey, 0, 0, pip.Income.ProID)
+	key = store.NewKey(pb.MetaType_ST_SegPayComfirmKey, pip.Income.ProID)
 	s.ds.Put(key, data)
 
 	return nil
