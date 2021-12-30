@@ -357,6 +357,12 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 
 		sp.nonce[msg.From] = msg.Nonce + 1
 
+		if sb.Receipts[i].Err == 0 {
+			stats.Record(sp.ctx, metrics.TxMessageApplySuccess.M(1))
+		} else {
+			stats.Record(sp.ctx, metrics.TxMessageApplyFailure.M(1))
+		}
+
 		// apply message
 		msgDone := metrics.Timer(sp.ctx, metrics.TxMessageApply)
 		newRoot, err = sp.AppleyMsg(&msg.Message, &sb.Receipts[i])

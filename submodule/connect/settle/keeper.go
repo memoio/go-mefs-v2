@@ -4,8 +4,8 @@ import (
 	"encoding/hex"
 	"log"
 	"math/big"
+
 	callconts "memoContract/callcontracts"
-	"memoContract/test"
 
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -71,7 +71,7 @@ func (cm *ContractMgr) AddKeeperToGroup(gIndex uint64) error {
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
 		GasLimit: callconts.DefaultGasLimit,
 	}
-	ar := callconts.NewR(callconts.RoleAddr, callconts.AdminAddr, test.AdminSk, txopts)
+	ar := callconts.NewR(callconts.RoleAddr, callconts.AdminAddr, callconts.AdminSk, txopts)
 
 	return ar.AddKeeperToGroup(cm.roleID, gIndex)
 }
@@ -89,13 +89,19 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
 	pay.Mul(pay, big.NewInt(12))
 	pay.Div(pay, big.NewInt(10))
 
-	logger.Debugf("user %d has balance %d, require %d", so.UserID, avil, pay)
-
 	if pay.Cmp(avil) > 0 {
+		logger.Debugf("user %d has balance %d, require %d", so.UserID, avil, pay)
 		return xerrors.Errorf("insufficiecnt funds in user %d", so.UserID)
 	}
 
-	return cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
+	err = cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
+	if err != nil {
+		return xerrors.Errorf("add user %d pro %d order %d size %d fail %w", so.UserID, so.ProID, so.Nonce, so.Size, err)
+	}
+
+	logger.Debugf("add user %d pro %d order %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
+
+	return nil
 }
 
 func (cm *ContractMgr) SubOrder(so *types.SignedOrder, ksigns [][]byte) error {

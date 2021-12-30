@@ -32,11 +32,13 @@ var (
 	APIRequestDuration = stats.Float64("api/request_duration_ms", "Duration of API requests", stats.UnitMilliseconds)
 
 	// message
-	TxMessagePublished = stats.Int64("message/published", "Counter for total locally published messages", stats.UnitDimensionless)
-	TxMessageReceived  = stats.Int64("message/received", "Counter for total received messages", stats.UnitDimensionless)
-	TxMessageSuccess   = stats.Int64("message/success", "Counter for message validation successes", stats.UnitDimensionless)
-	TxMessageFailure   = stats.Int64("message/failure", "Counter for message validation failures", stats.UnitDimensionless)
-	TxMessageApply     = stats.Float64("message/apply_total_ms", "Time spent applying block messages", stats.UnitMilliseconds)
+	TxMessagePublished    = stats.Int64("message/published", "Counter for total locally published messages", stats.UnitDimensionless)
+	TxMessageReceived     = stats.Int64("message/received", "Counter for total received messages", stats.UnitDimensionless)
+	TxMessageSuccess      = stats.Int64("message/success", "Counter for message received validation successes", stats.UnitDimensionless)
+	TxMessageFailure      = stats.Int64("message/failure", "Counter for message received validation failures", stats.UnitDimensionless)
+	TxMessageApply        = stats.Float64("message/apply_total_ms", "Time spent applying block messages", stats.UnitMilliseconds)
+	TxMessageApplySuccess = stats.Int64("message/apply_success", "Counter for message applied validation successes", stats.UnitDimensionless)
+	TxMessageApplyFailure = stats.Int64("message/apply_failure", "Counter for message applied validation failures", stats.UnitDimensionless)
 
 	// block
 	TxBlockSyncdHeight    = stats.Int64("block/synced_height", "Syned height of block", stats.UnitDimensionless)
@@ -92,6 +94,14 @@ var (
 	TxMessageApplyView = &view.View{
 		Measure:     TxMessageApply,
 		Aggregation: defaultMillisecondsDistribution,
+	}
+	TxMessageApplySuccessView = &view.View{
+		Measure:     TxMessageApplySuccess,
+		Aggregation: view.Count(),
+	}
+	TxMessageApplyFailureView = &view.View{
+		Measure:     TxMessageApplyFailure,
+		Aggregation: view.Count(),
 	}
 
 	TxBlockSyncedHeightView = &view.View{
@@ -179,6 +189,8 @@ var DefaultViews = func() []*view.View {
 		TxMessageReceivedView,
 		TxMessageSuccessView,
 		TxMessageApplyView,
+		TxMessageApplySuccessView,
+		TxMessageApplyFailureView,
 
 		TxBlockSyncedHeightView,
 		TxBlockRemoteHeightView,
