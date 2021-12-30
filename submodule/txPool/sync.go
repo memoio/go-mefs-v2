@@ -156,7 +156,7 @@ func (sp *SyncPool) load() {
 
 			// apply message
 			msgDone := metrics.Timer(sp.ctx, metrics.TxMessageApply)
-			newRoot, err = sp.AppleyMsg(&msg.Message, &sb.Receipts[mlen-i])
+			newRoot, err = sp.ApplyMsg(&msg.Message, &sb.Receipts[mlen-i])
 			if err != nil {
 				// should not; todo
 				sp.DeleteTxBlock(bid)
@@ -313,7 +313,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 
 	bid := sb.Hash()
 	logger.Debug("process block: ", sb.Height, bid)
-	oRoot, err := sp.AppleyMsg(nil, nil)
+	oRoot, err := sp.ApplyMsg(nil, nil)
 	if err != nil {
 		return err
 	}
@@ -334,6 +334,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
 	}
 
+	// apply block to state.ds
 	newRoot, err := sp.ApplyBlock(sb)
 	if err != nil {
 		logger.Debug("apply block fail: ", err)
@@ -345,6 +346,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		msgs:   make([]tx.MessageDigest, 0, len(sb.Msgs)),
 	}
 
+	// apply block to syncpool.ds and make block digest
 	for i, msg := range sb.Msgs {
 		nextNonce, ok := sp.nonce[msg.From]
 		if !ok {
@@ -356,18 +358,6 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		}
 
 		sp.nonce[msg.From] = msg.Nonce + 1
-
-		// apply message
-		msgDone := metrics.Timer(sp.ctx, metrics.TxMessageApply)
-		newRoot, err = sp.AppleyMsg(&msg.Message, &sb.Receipts[i])
-		if err != nil {
-			// should not; todo
-			sp.DeleteTxBlock(bid)
-			sp.DeleteTxBlockHeight(sb.Height)
-			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
-			panic("apply message fail, should re-sync")
-		}
-		msgDone()
 
 		ms := &tx.MsgState{
 			BlockID: bid,

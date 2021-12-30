@@ -189,7 +189,7 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -210,14 +210,14 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
 
 	// save for challenge
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID, s.ceInfo.epoch)
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -229,14 +229,14 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], or.ProID)
-		s.ds.Put(key, buf)
+		s.tds.Put(key, buf)
 
 		key = store.NewKey(pb.MetaType_ST_UsersKey, or.ProID)
 		val, _ = s.ds.Get(key)
 		buf = make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], or.UserID)
-		s.ds.Put(key, buf)
+		s.tds.Put(key, buf)
 
 		// callback for user-pro relation
 		if s.handleAddUP != nil {
@@ -470,7 +470,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -489,7 +489,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -500,13 +500,13 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID, s.ceInfo.epoch)
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -735,7 +735,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	// save seq
 	sf.DelPart.Price.Add(sf.DelPart.Price, price)
@@ -751,7 +751,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	// save post income
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, so.UserID, so.ProID)
@@ -759,7 +759,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	// save penalty at epoch
 	pi := &types.PostIncome{
@@ -778,7 +778,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	// save acc
 	spi := &types.AccPostIncome{
@@ -796,10 +796,10 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, s.ceInfo.current.Epoch)
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	if s.handleDelSeg != nil {
 		s.handleDelSeg(so)

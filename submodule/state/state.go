@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"encoding/binary"
 	"sync"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 // key: pb.MetaType_ST_RootKey; val: root []byte
@@ -21,9 +23,8 @@ type StateMgr struct {
 
 	api.IRole
 
-	// todo: add txn store
-	// need a different store
-	ds store.KVStore
+	ds  store.KVStore
+	tds store.TxnStore
 
 	msgNum uint16 // applied msg number of current height
 	height uint64 // next block height
@@ -84,6 +85,7 @@ func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *Stat
 			previous: newChalEpoch(groupID),
 		},
 	}
+	s.tds, _ = s.ds.NewTxnStore(true)
 
 	s.load()
 
@@ -216,7 +218,7 @@ func (s *StateMgr) newRoot(b []byte) {
 
 	// store
 	key := store.NewKey(pb.MetaType_ST_RootKey)
-	s.ds.Put(key, s.root.Bytes())
+	s.tds.Put(key, s.root.Bytes())
 }
 
 func (s *StateMgr) getThreshold() int {
@@ -298,17 +300,31 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	binary.BigEndian.PutUint64(buf[:8], s.height)
 	binary.BigEndian.PutUint64(buf[8:16], s.slot)
 	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
-	s.ds.Put(key, buf)
+	s.tds.Put(key, buf)
 
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
-	s.ds.Put(key, buf)
+	s.tds.Put(key, buf)
 
 	s.newRoot(b)
+
+	for i, msg := range blk.Msgs {
+		// apply message
+		msgDone := metrics.Timer(context.TODO(), metrics.TxMessageApply)
+		_, err = s.ApplyMsg(&msg.Message, &blk.Receipts[i])
+		if err != nil {
+			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
+			return s.root, err
+		}
+		msgDone()
+	}
+
+	// apply block ok, commit all changes
+	s.tds.Commit()
 
 	return s.root, nil
 }
 
-func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
+func (s *StateMgr) ApplyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
 	if msg == nil {
 		return s.root, nil
 	}
@@ -337,10 +353,10 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 	binary.BigEndian.PutUint64(buf[:8], s.height)
 	binary.BigEndian.PutUint64(buf[8:16], s.slot)
 	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
-	s.ds.Put(key, buf)
+	s.tds.Put(key, buf)
 
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	s.ds.Put(key, buf)
+	s.tds.Put(key, buf)
 
 	// not apply wrong message; but update its nonce
 	if tr.Err != 0 {

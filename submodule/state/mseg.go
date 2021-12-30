@@ -130,7 +130,7 @@ func (s *StateMgr) addBucket(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *StateMgr) addBucket(msg *tx.Message) error {
 	key = store.NewKey(pb.MetaType_ST_BucketOptKey, msg.From)
 	val := make([]byte, 8)
 	binary.BigEndian.PutUint64(val, uinfo.nextBucket)
-	err = s.ds.Put(key, val)
+	err = s.tds.Put(key, val)
 	if err != nil {
 		return err
 	}
@@ -231,13 +231,13 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID, s.ceInfo.epoch)
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	key = store.NewKey(pb.MetaType_ST_SegLocKey, userID, bucketID, chunkID)
 	val := make([]byte, 8)
 	binary.BigEndian.PutUint64(val, stripeStart)
-	err = s.ds.Put(key, val)
+	err = s.tds.Put(key, val)
 	if err != nil {
 		return err
 	}

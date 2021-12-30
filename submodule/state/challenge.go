@@ -223,12 +223,12 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 
 	// save proof result
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID, scp.Epoch)
-	s.ds.Put(key, msg.Params)
+	s.tds.Put(key, msg.Params)
 
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID)
 	buf = make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, oinfo.prove)
-	s.ds.Put(key, buf)
+	s.tds.Put(key, buf)
 
 	// save postincome
 	data, err = oinfo.income.Serialize()
@@ -236,7 +236,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	// save postincome at this epoch
 	pi := &types.PostIncome{
@@ -255,7 +255,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	// save acc income of this pro
 	spi := &types.AccPostIncome{
@@ -273,10 +273,10 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, scp.Epoch)
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	// save for next
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, s.ceInfo.epoch)
@@ -284,7 +284,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	// keeper handle callback income
 	if s.handleAddPay != nil {

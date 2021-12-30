@@ -47,12 +47,12 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	s.tds.Put(key, data)
 
 	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, s.ceInfo.epoch)
-	s.ds.Put(key, buf)
+	s.tds.Put(key, buf)
 
 	return nil
 }

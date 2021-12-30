@@ -87,7 +87,7 @@ func (s *StateMgr) addUser(msg *tx.Message) error {
 	// save users
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, msg.From)
 	data := pk.Serialize()
-	err = s.ds.Put(key, data)
+	err = s.tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (s *StateMgr) addUser(msg *tx.Message) error {
 	buf := make([]byte, len(val)+8)
 	copy(buf[:len(val)], val)
 	binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-	s.ds.Put(key, buf)
+	s.tds.Put(key, buf)
 
 	if s.handleAddUser != nil {
 		s.handleAddUser(msg.From)

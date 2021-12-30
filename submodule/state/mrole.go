@@ -29,7 +29,7 @@ func (s *StateMgr) saveVal(roleID uint64, rv *roleValue) error {
 	if err != nil {
 		return err
 	}
-	return s.ds.Put(key, data)
+	return s.tds.Put(key, data)
 }
 
 func (s *StateMgr) loadRole(roleID uint64) *roleInfo {
@@ -84,7 +84,7 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 	}
 
 	// save
-	err = s.ds.Put(key, msg.Params)
+	err = s.tds.Put(key, msg.Params)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		s.ds.Put(key, buf)
+		s.tds.Put(key, buf)
 	case pb.RoleInfo_Provider:
 		s.pros = append(s.pros, msg.From)
 		key = store.NewKey(pb.MetaType_ST_ProsKey)
@@ -106,7 +106,7 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		s.ds.Put(key, buf)
+		s.tds.Put(key, buf)
 	case pb.RoleInfo_User:
 		s.users = append(s.users, msg.From)
 		key = store.NewKey(pb.MetaType_ST_UsersKey)
@@ -114,7 +114,7 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		s.ds.Put(key, buf)
+		s.tds.Put(key, buf)
 	}
 
 	if s.handleAddRole != nil {

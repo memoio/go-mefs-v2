@@ -8,7 +8,7 @@ import (
 
 func (s *StateMgr) updateNetAddr(msg *tx.Message) error {
 	key := store.NewKey(pb.MetaType_ST_NetKey, msg.From)
-	return s.ds.Put(key, msg.Params)
+	return s.tds.Put(key, msg.Params)
 }
 
 func (s *StateMgr) canUpdateNetAddr(msg *tx.Message) error {
