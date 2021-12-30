@@ -108,7 +108,8 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 
 	opt.Dir = path
 	opt.ValueDir = path
-	opt.Logger = &compatLogger{logger}
+	// take over logger
+	//opt.Logger = &compatLogger{logger}
 
 	kv, err := badger.Open(opt)
 	if err != nil {
