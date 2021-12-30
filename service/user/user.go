@@ -127,8 +127,3 @@ func (u *UserNode) Start() error {
 	logger.Info("start user for: ", u.RoleID())
 	return nil
 }
-
-func (u *UserNode) Shutdown(ctx context.Context) error {
-	u.LfsService.Stop()
-	return u.BaseNode.Stop(ctx)
-}

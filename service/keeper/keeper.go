@@ -111,7 +111,3 @@ func (k *KeeperNode) Start() error {
 	logger.Info("start keeper for: ", k.RoleID())
 	return nil
 }
-
-func (k *KeeperNode) Shutdown(ctx context.Context) error {
-	return k.BaseNode.Stop(ctx)
-}

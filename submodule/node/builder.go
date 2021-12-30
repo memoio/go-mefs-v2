@@ -196,12 +196,13 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	// create the node
 	nd := &BaseNode{
-		ctx:         ctx,
-		Repo:        b.repo,
-		roleID:      b.roleID,
-		groupID:     b.groupID,
-		ContractMgr: cm,
-		LocalWallet: lw,
+		ctx:          ctx,
+		Repo:         b.repo,
+		roleID:       b.roleID,
+		groupID:      b.groupID,
+		ContractMgr:  cm,
+		LocalWallet:  lw,
+		shutdownChan: make(chan struct{}),
 	}
 
 	networkName := cfg.Net.Name + "/group" + strconv.FormatInt(int64(b.groupID), 10)

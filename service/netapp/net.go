@@ -127,6 +127,17 @@ func (c *NetServiceImpl) API() *netServiceAPI {
 	return &netServiceAPI{c}
 }
 
+func (c *NetServiceImpl) Stop() error {
+	// stop handle
+	c.MsgHandle.Close()
+	// close all topic
+	c.eventTopic.Close()
+	c.blockTopic.Close()
+	c.hsTopic.Close()
+	c.msgTopic.Close()
+	return nil
+}
+
 // add a new node
 func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
 	c.Lock()

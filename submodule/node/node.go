@@ -63,6 +63,8 @@ type BaseNode struct {
 	groupID uint64
 
 	isOnline bool
+
+	shutdownChan chan struct{}
 }
 
 func (n *BaseNode) RoleID() uint64 {
@@ -106,12 +108,15 @@ func (n *BaseNode) Start() error {
 }
 
 func (n *BaseNode) Stop(ctx context.Context) error {
-	n.GenericService.MsgHandle.Close()
+	// stop handle msg
+	n.NetServiceImpl.Stop()
 
+	// stop network
 	n.NetworkSubmodule.Stop(ctx)
 
-	// stop other module
+	// stop module
 
+	// stop repo
 	err := n.Repo.Close()
 	if err != nil {
 		logger.Errorf("error closing repo: %s", err)
@@ -151,33 +156,35 @@ func (n *BaseNode) RunDaemon() error {
 	}
 
 	var terminate = make(chan os.Signal, 2)
-	shutdownChan := make(chan struct{})
 	go func() {
 		select {
-		case <-shutdownChan:
-			logger.Warn("received shutdown")
+		case <-n.shutdownChan:
+			logger.Warn("received shutdown chan")
 		case sig := <-terminate:
 			logger.Warn("received shutdown signal: ", sig)
 		}
 
 		logger.Warn("shutdown...")
+		// stop api service
 		err = apiserv.Shutdown(context.TODO())
 		if err != nil {
 			logger.Errorf("shut down api server failed: %s", err)
 		}
+
+		// stop node
 		err = n.Stop(context.TODO())
 		if err != nil {
 			logger.Errorf("shut down node failed: %s", err)
 		}
 
 		logger.Info("shutdown successful")
-		close(shutdownChan)
+		close(n.shutdownChan)
 	}()
 	signal.Notify(terminate, syscall.SIGTERM, syscall.SIGINT)
 
 	err = apiserv.Serve(netListener)
 	if err == http.ErrServerClosed {
-		<-shutdownChan
+		<-n.shutdownChan
 		return nil
 	}
 
@@ -189,5 +196,6 @@ func (n *BaseNode) Online() bool {
 }
 
 func (n *BaseNode) Shutdown(ctx context.Context) error {
-	return n.Close()
+	n.shutdownChan <- struct{}{}
+	return nil
 }
