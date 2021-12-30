@@ -42,7 +42,7 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 		}
 
 		logger.Debugf("addOrder user %d pro %d has order %d %d %d", userID, proID, nonce, subNonce, ns.Nonce)
-		for i := nonce; i+1 < ns.Nonce; i++ {
+		for i := nonce; i < ns.Nonce; i++ {
 			keepers := k.GetAllKeepers(k.ctx)
 			nt := time.Now().Unix() / (600)
 			// only one do this

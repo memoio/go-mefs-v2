@@ -66,5 +66,12 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 		logger.Debug("recharge user charged: ", val)
 	}
 
+	avail, _, err = cm.iFS.GetBalance(cm.roleID, cm.tIndex)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("recharge user has balance: ", avail)
+
 	return nil
 }

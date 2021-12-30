@@ -50,30 +50,19 @@ func (m *OrderMgr) checkBalance() {
 		}
 
 		logger.Debugf("user %d pro %d has order %d %d %d", m.localID, proID, nonce, subNonce, ns.Nonce)
-		for i := nonce; i < ns.Nonce; i++ {
+		for i := nonce; i <= ns.Nonce; i++ {
 			logger.Debugf("user %d pro %d add order %d %d", m.localID, proID, i, ns.Nonce)
 
 			// load order
-			ss := new(SeqState)
-			key := store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, proID, i)
-			val, err := m.ds.Get(key)
-			if err == nil {
-				ss.Deserialize(val)
-			}
-
-			if ss.Number == 0 {
-				continue
-			}
-
 			ob := new(types.SignedOrder)
-			key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, proID, i)
-			val, err = m.ds.Get(key)
+			key := store.NewKey(pb.MetaType_OrderBaseKey, m.localID, proID, i)
+			val, err := m.ds.Get(key)
 			if err == nil {
 				ob.Deserialize(val)
 			}
 
 			os := new(types.SignedOrderSeq)
-			key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, proID, i, ss.Number)
+			key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, proID, i, ns.SeqNum)
 			val, err = m.ds.Get(key)
 			if err == nil {
 				os.Deserialize(val)
@@ -120,7 +109,12 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 				continue
 			}
 
-			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+			if st.Status.Err == 0 {
+				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+			} else {
+				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, string(st.Status.Extra))
+			}
+
 			break
 		}
 	}(mid)
@@ -128,34 +122,31 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 
 func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 	ns := m.GetOrderState(m.ctx, of.localID, of.pro)
-	if of.nonce == 0 {
-		return
-	}
-
 	logger.Debug("resend message for : ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
 
-	if ns.Nonce == 0 {
-		key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
-		data, err := m.ds.Get(key)
-		if err != nil {
-			return
-		}
-
-		msg := &tx.Message{
-			Version: 0,
-			From:    of.localID,
-			To:      of.pro,
-			Method:  tx.DataPreOrder,
-			Params:  data,
-		}
-
-		m.msgChan <- msg
-		ns.Nonce++
-	}
-
+	seqNum := ns.SeqNum
 	for ns.Nonce < of.nonce {
+		// add order base
+		if seqNum == 0 {
+			key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
+			data, err := m.ds.Get(key)
+			if err != nil {
+				return
+			}
+
+			msg := &tx.Message{
+				Version: 0,
+				From:    of.localID,
+				To:      of.pro,
+				Method:  tx.DataPreOrder,
+				Params:  data,
+			}
+
+			m.msgChan <- msg
+		}
+
 		ss := new(SeqState)
-		key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce-1)
+		key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce)
 		val, err := m.ds.Get(key)
 		if err != nil {
 			return
@@ -165,8 +156,9 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 			return
 		}
 
-		for i := uint32(0); i <= ss.Number; i++ {
-			key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, ns.Nonce-1, i)
+		// add seq
+		for i := uint32(seqNum); i <= ss.Number; i++ {
+			key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, ns.Nonce, i)
 			data, err := m.ds.Get(key)
 			if err != nil {
 				return
@@ -181,8 +173,15 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 			m.msgChan <- msg
 		}
 
-		key = store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
-		data, err := m.ds.Get(key)
+		// commit
+		ocp := tx.OrderCommitParas{
+			UserID: of.localID,
+			ProID:  of.pro,
+			Nonce:  ns.Nonce,
+			SeqNum: ss.Number,
+		}
+
+		data, err := ocp.Serialize()
 		if err != nil {
 			return
 		}
@@ -191,61 +190,13 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 			Version: 0,
 			From:    of.localID,
 			To:      of.pro,
-			Method:  tx.DataPreOrder,
+			Method:  tx.DataOrderCommit,
 			Params:  data,
 		}
 
 		m.msgChan <- msg
+
 		ns.Nonce++
-	}
-
-	ss := new(SeqState)
-	key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce-1)
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return
-	}
-	err = ss.Deserialize(val)
-	if err != nil {
-		return
-	}
-
-	if ss.State == OrderSeq_Finish {
-		ss.Number++
-	}
-
-	for i := ns.SeqNum; i < ss.Number; i++ {
-		key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, ns.Nonce-1, i)
-		data, err := m.ds.Get(key)
-		if err != nil {
-			return
-		}
-		msg := &tx.Message{
-			Version: 0,
-			From:    of.localID,
-			To:      of.pro,
-			Method:  tx.DataOrder,
-			Params:  data,
-		}
-		m.msgChan <- msg
-	}
-
-	if of.orderState >= Order_Running {
-		key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
-		data, err := m.ds.Get(key)
-		if err != nil {
-			return
-		}
-
-		msg := &tx.Message{
-			Version: 0,
-			From:    of.localID,
-			To:      of.pro,
-			Method:  tx.DataPreOrder,
-			Params:  data,
-		}
-
-		m.msgChan <- msg
 	}
 }
 

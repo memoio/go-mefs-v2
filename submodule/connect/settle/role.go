@@ -164,6 +164,13 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 		iPP:   ipp,
 	}
 
+	logger.Debug("role contract address: ", rAddr.Hex())
+	logger.Debug("token mgr contract address: ", rtAddr.Hex())
+	logger.Debug("token contract address: ", tAddr.Hex())
+	logger.Debug("role fs contract address: ", rfsAddr.Hex())
+	logger.Debug("issu contract address: ", isAddr.Hex())
+	logger.Debug("pledge contract address: ", ppAddr.Hex())
+
 	return cm, nil
 }
 
@@ -315,6 +322,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		cm.fsAddr = fsAddr
 		cm.level = level
 		cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts)
+		logger.Debug("fs contract address: ", fsAddr.Hex())
 	}
 
 	if rType == 1 {

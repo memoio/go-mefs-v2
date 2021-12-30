@@ -118,8 +118,6 @@ func (u *UserNode) Start() error {
 			return
 		}
 
-		go u.recharge()
-
 		// start lfs service and its ordermgr service
 		u.LfsService.Start()
 	}()

@@ -96,10 +96,10 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
 
 	err = cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
 	if err != nil {
-		return xerrors.Errorf("add user %d pro %d order %d size %d fail %w", so.UserID, so.ProID, so.Nonce, so.Size, err)
+		return xerrors.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %d fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, avil, err)
 	}
 
-	logger.Debugf("add user %d pro %d order %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
+	logger.Debugf("add order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
 
 	return nil
 }

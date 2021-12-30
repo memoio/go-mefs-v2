@@ -237,12 +237,12 @@ func (s *SegMgr) challenge(userID uint64) {
 	delSize := uint64(0)
 
 	orderStart := uint64(0)
-	orderEnd := ns.Nonce - 1
+	orderEnd := ns.Nonce
 
-	if ns.Nonce > 0 {
-		so, err := s.GetOrder(userID, s.localID, ns.Nonce-1)
+	if ns.SeqNum > 0 {
+		so, err := s.GetOrder(userID, s.localID, ns.Nonce)
 		if err != nil {
-			logger.Debug("chal get order fails: ", userID, ns.Nonce-1, err)
+			logger.Debug("chal get order fails: ", userID, ns.Nonce, err)
 			return
 		}
 
@@ -349,9 +349,9 @@ func (s *SegMgr) challenge(userID uint64) {
 		}
 	}
 
-	if ns.Nonce > 1 {
-		// todo: choose some from [0, ns.Nonce-1)
-		for i := uint64(0); i < ns.Nonce-1; i++ {
+	if ns.Nonce > 0 {
+		// todo: choose some from [0, ns.Nonce)
+		for i := uint64(0); i < ns.Nonce; i++ {
 			so, err := s.GetOrder(userID, s.localID, i)
 			if err != nil {
 				logger.Debug("chal get order fails:", userID, i, err)

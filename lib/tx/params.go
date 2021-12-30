@@ -106,3 +106,18 @@ func (srp *SegRemoveParas) Serialize() ([]byte, error) {
 func (srp *SegRemoveParas) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, srp)
 }
+
+type OrderCommitParas struct {
+	UserID uint64
+	ProID  uint64
+	Nonce  uint64
+	SeqNum uint32
+}
+
+func (ocp *OrderCommitParas) Serialize() ([]byte, error) {
+	return cbor.Marshal(ocp)
+}
+
+func (ocp *OrderCommitParas) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ocp)
+}

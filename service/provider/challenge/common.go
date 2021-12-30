@@ -50,7 +50,11 @@ func (s *SegMgr) pushMessage(msg *tx.Message, epoch uint64) {
 				continue
 			}
 
-			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+			if st.Status.Err == 0 {
+				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+			} else {
+				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, string(st.Status.Extra))
+			}
 
 			s.chalChan <- &chal{
 				userID:  msg.To,
@@ -95,7 +99,12 @@ func (s *SegMgr) pushAndWaitMessage(msg *tx.Message) error {
 				continue
 			}
 
-			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+			if st.Status.Err == 0 {
+				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+			} else {
+				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, string(st.Status.Extra))
+			}
+
 			return nil
 		}
 	}

@@ -107,7 +107,11 @@ func (n *BaseNode) Register() error {
 					continue
 				}
 
-				logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+				if st.Status.Err == 0 {
+					logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+				} else {
+					logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, string(st.Status.Extra))
+				}
 				break
 			}
 			break
@@ -161,7 +165,11 @@ func (n *BaseNode) UpdateNetAddr() error {
 				continue
 			}
 
-			logger.Debug("tx message done: ", mid, st.BlockID, st.Height, st.Status.Err, string(st.Status.Extra))
+			if st.Status.Err == 0 {
+				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+			} else {
+				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, string(st.Status.Extra))
+			}
 			break
 		}
 		break

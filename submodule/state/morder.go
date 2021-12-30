@@ -30,7 +30,7 @@ import (
 // for chal pay
 // key: pb.MetaType_ST_OrderDuration/userID/proID; val: order durations;
 
-// todo: commit order
+// todo: add commit order
 // key: pb.MetaType_ST_OrderCommit/userID/proID; val: order nonce;
 
 func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
@@ -70,19 +70,8 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 		oinfo.ns.Deserialize(data)
 	}
 
-	if oinfo.ns.Nonce == 0 {
-		return oinfo
-	}
-
-	// load order durations
-	key = store.NewKey(pb.MetaType_ST_OrderDurationKey, userID, proID)
-	data, err = s.ds.Get(key)
-	if err == nil {
-		oinfo.od.Deserialize(data)
-	}
-
 	// load current order
-	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.ns.Nonce-1)
+	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.ns.Nonce)
 	data, err = s.ds.Get(key)
 	if err != nil {
 		return oinfo
@@ -94,6 +83,13 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	}
 	oinfo.base = &of.SignedOrder
 	bls.FrFromBytes(&oinfo.accFr, of.AccFr)
+
+	// load order durations
+	key = store.NewKey(pb.MetaType_ST_OrderDurationKey, userID, proID)
+	data, err = s.ds.Get(key)
+	if err == nil {
+		oinfo.od.Deserialize(data)
+	}
 
 	return oinfo
 }
@@ -167,16 +163,20 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		return xerrors.Errorf("add order nonce wrong, got %d, expected %d", or.Nonce, oinfo.ns.Nonce)
 	}
 
+	if oinfo.ns.SeqNum != 0 {
+		return xerrors.Errorf("add order seq wrong, got %d, expected 0", oinfo.ns.SeqNum)
+	}
+
+	if oinfo.base != nil {
+		return xerrors.Errorf("add order base wrong, should be empty")
+	}
+
 	err = oinfo.od.Add(or.Start, or.End)
 	if err != nil {
 		return err
 	}
 
-	oinfo.ns.Nonce++
 	oinfo.base = or
-	// reset
-	oinfo.ns.SeqNum = 0
-	oinfo.accFr = bls.ZERO
 
 	// save order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, or.UserID, or.ProID, or.Nonce)
@@ -325,7 +325,7 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 		return err
 	}
 
-	oinfo.ns.Nonce++
+	//oinfo.ns.Nonce++
 	oinfo.base = or
 	// reset
 	oinfo.ns.SeqNum = 0
@@ -394,7 +394,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		s.sInfo[okey.userID] = uinfo
 	}
 
-	if oinfo.ns.Nonce != so.Nonce+1 {
+	if oinfo.ns.Nonce != so.Nonce {
 		return xerrors.Errorf("add seq nonce err got %d, expected %d", so.Nonce, oinfo.ns.Nonce)
 	}
 
@@ -579,16 +579,7 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		s.validateOInfo[okey] = oinfo
 	}
 
-	uinfo, ok := s.validateSInfo[okey.userID]
-	if !ok {
-		uinfo, err = s.loadUser(okey.userID)
-		if err != nil {
-			return err
-		}
-		s.validateSInfo[okey.userID] = uinfo
-	}
-
-	if oinfo.ns.Nonce != so.Nonce+1 {
+	if oinfo.ns.Nonce != so.Nonce {
 		return xerrors.Errorf("add seq nonce err got %d, expected %d", so.Nonce, oinfo.ns.Nonce)
 	}
 
@@ -868,6 +859,97 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 			}
 		}
 	}
+
+	return nil
+}
+
+func (s *StateMgr) commitOrder(msg *tx.Message) error {
+	ocp := new(tx.OrderCommitParas)
+	err := ocp.Deserialize(msg.Params)
+	if err != nil {
+		return err
+	}
+	if msg.From != ocp.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, ocp.UserID)
+	}
+
+	okey := orderKey{
+		userID: ocp.UserID,
+		proID:  ocp.ProID,
+	}
+
+	oinfo, ok := s.oInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(ocp.UserID, ocp.ProID)
+		s.oInfo[okey] = oinfo
+	}
+
+	if ocp.Nonce != oinfo.ns.Nonce {
+		return xerrors.Errorf("commit order nonce wrong, got %d, expected %d", ocp.Nonce, oinfo.ns.Nonce)
+	}
+
+	if ocp.SeqNum != oinfo.ns.SeqNum {
+		return xerrors.Errorf("commit order seqnum wrong, got %d, expected %d", ocp.SeqNum, oinfo.ns.SeqNum)
+	}
+
+	oinfo.ns.Nonce++
+	oinfo.ns.SeqNum = 0
+	oinfo.accFr = bls.ZERO
+	oinfo.base = nil
+
+	// save state
+	key := store.NewKey(pb.MetaType_ST_OrderStateKey, ocp.UserID, ocp.ProID)
+	data, err := oinfo.ns.Serialize()
+	if err != nil {
+		return err
+	}
+	err = s.ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, ocp.UserID, ocp.ProID, s.ceInfo.epoch)
+	err = s.ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
+	ocp := new(tx.OrderCommitParas)
+	err := ocp.Deserialize(msg.Params)
+	if err != nil {
+		return err
+	}
+	if msg.From != ocp.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, ocp.UserID)
+	}
+
+	okey := orderKey{
+		userID: ocp.UserID,
+		proID:  ocp.ProID,
+	}
+
+	oinfo, ok := s.validateOInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(ocp.UserID, ocp.ProID)
+		s.validateOInfo[okey] = oinfo
+	}
+
+	if ocp.Nonce != oinfo.ns.Nonce {
+		return xerrors.Errorf("commit order nonce wrong, got %d, expected %d", ocp.Nonce, oinfo.ns.Nonce)
+	}
+
+	if ocp.SeqNum != oinfo.ns.SeqNum {
+		return xerrors.Errorf("commit order seqnum wrong, got %d, expected %d", ocp.SeqNum, oinfo.ns.SeqNum)
+	}
+
+	oinfo.ns.Nonce++
+	oinfo.ns.SeqNum = 0
+	oinfo.accFr = bls.ZERO
+	oinfo.base = nil
 
 	return nil
 }

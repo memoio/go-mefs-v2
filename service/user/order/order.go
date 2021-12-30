@@ -496,6 +496,28 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		return err
 	}
 
+	ocp := tx.OrderCommitParas{
+		UserID: o.base.UserID,
+		ProID:  o.base.ProID,
+		Nonce:  o.base.Nonce,
+		SeqNum: o.seq.SeqNum,
+	}
+
+	data, err := ocp.Serialize()
+	if err != nil {
+		return err
+	}
+
+	msg := &tx.Message{
+		Version: 0,
+		From:    o.base.UserID,
+		To:      o.base.ProID,
+		Method:  tx.DataOrderCommit,
+		Params:  data,
+	}
+
+	m.msgChan <- msg
+
 	// reset
 	o.base = nil
 	o.orderState = Order_Init

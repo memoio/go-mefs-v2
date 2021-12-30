@@ -112,7 +112,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	delSize := uint64(0)
 
 	// always challenge latest one
-	if ns.Nonce > 0 {
+	if ns.SeqNum > 0 {
 		// load order
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce-1)
 		data, err = s.ds.Get(key)
@@ -164,8 +164,8 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		}
 	}
 
-	if ns.Nonce > 1 {
-		// todo: choose some from [0, ns.Nonce-1)
+	if ns.Nonce > 0 {
+		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
@@ -390,7 +390,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	delSize := uint64(0)
 
 	// always challenge latest one
-	if ns.Nonce > 0 {
+	if ns.SeqNum > 0 {
 		// load order
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce-1)
 		data, err = s.ds.Get(key)
@@ -441,8 +441,8 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		}
 	}
 
-	if ns.Nonce > 1 {
-		// todo: choose some from [0, ns.Nonce-1)
+	if ns.Nonce > 0 {
+		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
