@@ -189,7 +189,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 			UserID: of.localID,
 			ProID:  of.pro,
 			Nonce:  ns.Nonce,
-			SeqNum: ss.Number,
+			SeqNum: ss.Number + 1,
 		}
 
 		data, err := ocp.Serialize()
