@@ -129,7 +129,7 @@ var stateWithdrawCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("%d has balance %d", nid.ID, bal)
+		fmt.Printf("%d has balance %d \n", nid.ID, bal)
 
 		fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
 
@@ -149,7 +149,7 @@ var stateWithdrawCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("%d has balance %d", nid.ID, bal)
+		fmt.Printf("%d has balance %d \n", nid.ID, bal)
 
 		return nil
 	},
