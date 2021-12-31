@@ -67,8 +67,21 @@ func (m *OrderMgr) checkBalance() {
 				continue
 			}
 
+			ss := new(SeqState)
+			key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, proID, i)
+			val, err = m.ds.Get(key)
+			if err != nil {
+				logger.Debugf("user %d pro %d add order %d %d fail %w", m.localID, proID, i, ns.Nonce, err)
+				continue
+			}
+			err = ss.Deserialize(val)
+			if err != nil {
+				logger.Debugf("user %d pro %d add order %d %d fail %w", m.localID, proID, i, ns.Nonce, err)
+				continue
+			}
+
 			os := new(types.SignedOrderSeq)
-			key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, proID, i, ns.SeqNum)
+			key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, proID, i, ss.Number)
 			val, err = m.ds.Get(key)
 			if err != nil {
 				logger.Debugf("user %d pro %d add order %d %d fail %w", m.localID, proID, i, ns.Nonce, err)
