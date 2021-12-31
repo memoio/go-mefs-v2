@@ -57,17 +57,28 @@ func (m *OrderMgr) checkBalance() {
 			ob := new(types.SignedOrder)
 			key := store.NewKey(pb.MetaType_OrderBaseKey, m.localID, proID, i)
 			val, err := m.ds.Get(key)
-			if err == nil {
-				ob.Deserialize(val)
+			if err != nil {
+				logger.Debugf("user %d pro %d add order %d %d fail %w", m.localID, proID, i, ns.Nonce, err)
+				continue
+			}
+			err = ob.Deserialize(val)
+			if err != nil {
+				logger.Debugf("user %d pro %d add order %d %d fail %w", m.localID, proID, i, ns.Nonce, err)
+				continue
 			}
 
 			os := new(types.SignedOrderSeq)
 			key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, proID, i, ns.SeqNum)
 			val, err = m.ds.Get(key)
-			if err == nil {
-				os.Deserialize(val)
+			if err != nil {
+				logger.Debugf("user %d pro %d add order %d %d fail %w", m.localID, proID, i, ns.Nonce, err)
+				continue
 			}
-
+			err = os.Deserialize(val)
+			if err != nil {
+				logger.Debugf("user %d pro %d add order %d %d fail %w", m.localID, proID, i, ns.Nonce, err)
+				continue
+			}
 			os.Price.Mul(os.Price, big.NewInt(ob.End-ob.Start))
 			os.Price.Mul(os.Price, big.NewInt(12))
 			os.Price.Div(os.Price, big.NewInt(10))
