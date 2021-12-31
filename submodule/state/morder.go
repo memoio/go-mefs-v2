@@ -364,13 +364,8 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		s.oInfo[okey] = oinfo
 	}
 
-	uinfo, ok := s.sInfo[okey.userID]
-	if !ok {
-		uinfo, err = s.loadUser(okey.userID)
-		if err != nil {
-			return err
-		}
-		s.sInfo[okey.userID] = uinfo
+	if oinfo.base == nil {
+		return xerrors.Errorf("add order base empty")
 	}
 
 	if oinfo.ns.Nonce != so.Nonce {
@@ -379,6 +374,15 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 
 	if oinfo.ns.SeqNum != so.SeqNum {
 		return xerrors.Errorf("add seq seqnum err got %d, expected %d", so.SeqNum, oinfo.ns.SeqNum)
+	}
+
+	uinfo, ok := s.sInfo[okey.userID]
+	if !ok {
+		uinfo, err = s.loadUser(okey.userID)
+		if err != nil {
+			return err
+		}
+		s.sInfo[okey.userID] = uinfo
 	}
 
 	// verify size and price
@@ -556,6 +560,10 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 	if !ok {
 		oinfo = s.loadOrder(okey.userID, okey.proID)
 		s.validateOInfo[okey] = oinfo
+	}
+
+	if oinfo.base == nil {
+		return xerrors.Errorf("add order base empty")
 	}
 
 	if oinfo.ns.Nonce != so.Nonce {
