@@ -93,8 +93,8 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("chal has invalid orders %d %d at wrong epoch: %d ", scp.OrderStart, scp.OrderEnd, s.ceInfo.epoch)
 	}
 
-	if ns.Nonce != scp.OrderEnd+1 {
-		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce-1, s.ceInfo.epoch)
+	if ns.Nonce != scp.OrderEnd {
+		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
 	}
 
 	chalStart := build.BaseTime + int64(s.ceInfo.previous.Slot*build.SlotDuration)
@@ -114,7 +114,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	// always challenge latest one
 	if ns.SeqNum > 0 {
 		// load order
-		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce-1)
+		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
 		data, err = s.ds.Get(key)
 		if err != nil {
 			return err
@@ -137,7 +137,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 			}
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
-				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, i)
+				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
 				data, err = s.ds.Get(key)
 				if err != nil {
 					return err
@@ -371,8 +371,8 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		return xerrors.Errorf("chal has invalid orders %d %d at wrong epoch: %d ", scp.OrderStart, scp.OrderEnd, s.ceInfo.epoch)
 	}
 
-	if ns.Nonce != scp.OrderEnd+1 {
-		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce-1, s.ceInfo.epoch)
+	if ns.Nonce != scp.OrderEnd {
+		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
 	}
 
 	chalStart := build.BaseTime + int64(s.validateCeInfo.previous.Slot*build.SlotDuration)
@@ -392,7 +392,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	// always challenge latest one
 	if ns.SeqNum > 0 {
 		// load order
-		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce-1)
+		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
 		data, err = s.ds.Get(key)
 		if err != nil {
 			return err
@@ -415,7 +415,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 			}
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
-				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce-1, i)
+				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
 				data, err = s.ds.Get(key)
 				if err != nil {
 					return err
