@@ -11,6 +11,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -183,8 +184,9 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if (ob.End/types.Day)*types.Day != ob.End {
-		return nil, xerrors.Errorf("order end %d is not aligned", ob.End)
+	err = lib.CheckOrder(ob.OrderBase)
+	if err != nil {
+		return nil, err
 	}
 
 	// todo: fix user order start when start is too far

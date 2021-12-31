@@ -348,7 +348,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		}
 
 		start := time.Now().Unix()
-		end := (start/types.Day + 1) * types.Day
+		end := ((start+build.OrderDuration)/types.Day + 1) * types.Day
 
 		o.base = &types.SignedOrder{
 			OrderBase: types.OrderBase{

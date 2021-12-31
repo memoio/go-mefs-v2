@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib"
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -101,28 +102,13 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		return err
 	}
 
-	if or.SegPrice == nil {
-		return xerrors.Errorf("wrong paras seg price")
-	}
-
-	if or.PiecePrice == nil {
-		return xerrors.Errorf("wrong paras piece price")
-	}
-
 	if or.Price == nil {
 		return xerrors.Errorf("wrong paras price")
 	}
 
-	if or.End-or.Start < build.OrderMin {
-		return xerrors.Errorf("order duration %d is short than %d", or.End-or.Start, build.OrderMin)
-	}
-
-	if or.End-or.Start > build.OrderMax {
-		return xerrors.Errorf("order duration %d is greater than %d", or.End-or.Start, build.OrderMax)
-	}
-
-	if (or.End/types.Day)*types.Day != or.End {
-		return xerrors.Errorf("order end %d is not aligned", or.End)
+	err = lib.CheckOrder(or.OrderBase)
+	if err != nil {
+		return err
 	}
 
 	if msg.From != or.UserID {
@@ -262,14 +248,6 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 		return err
 	}
 
-	if or.SegPrice == nil {
-		return xerrors.Errorf("wrong paras seg price")
-	}
-
-	if or.PiecePrice == nil {
-		return xerrors.Errorf("wrong paras piece price")
-	}
-
 	if or.Price == nil {
 		return xerrors.Errorf("wrong paras price")
 	}
@@ -278,16 +256,9 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
 	}
 
-	if or.End-or.Start < build.OrderMin {
-		return xerrors.Errorf("order duration %d is short than %d", or.End-or.Start, build.OrderMin)
-	}
-
-	if or.End-or.Start > build.OrderMax {
-		return xerrors.Errorf("order duration %d is greater than %d", or.End-or.Start, build.OrderMax)
-	}
-
-	if (or.End/types.Day)*types.Day != or.End {
-		return xerrors.Errorf("order end %d is not aligned", or.End)
+	err = lib.CheckOrder(or.OrderBase)
+	if err != nil {
+		return err
 	}
 
 	// todo: verify sign
