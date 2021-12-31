@@ -90,8 +90,7 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
 	pay.Div(pay, big.NewInt(10))
 
 	if pay.Cmp(avil) > 0 {
-		logger.Debugf("user %d has balance %d, require %d", so.UserID, avil, pay)
-		return xerrors.Errorf("insufficiecnt funds in user %d", so.UserID)
+		return xerrors.Errorf("add order insufficiecnt funds user %d has balance %d, require %d", so.UserID, avil, pay)
 	}
 
 	err = cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)

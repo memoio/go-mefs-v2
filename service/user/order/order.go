@@ -347,6 +347,9 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 			return ErrPrice
 		}
 
+		start := time.Now().Unix()
+		end := (start/types.Day + 1) * types.Day
+
 		o.base = &types.SignedOrder{
 			OrderBase: types.OrderBase{
 				UserID:     o.localID,
@@ -355,8 +358,8 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 				TokenIndex: quo.TokenIndex,
 				SegPrice:   quo.SegPrice,
 				PiecePrice: quo.PiecePrice,
-				Start:      time.Now().Unix(),
-				End:        time.Now().Unix() + build.OrderDuration,
+				Start:      start,
+				End:        end,
 			},
 			Size:  0,
 			Price: big.NewInt(0),

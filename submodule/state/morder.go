@@ -121,6 +121,10 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 		return xerrors.Errorf("order duration %d is greater than %d", or.End-or.Start, build.OrderMax)
 	}
 
+	if (or.End/types.Day)*types.Day != or.End {
+		return xerrors.Errorf("order end %d is not aligned", or.End)
+	}
+
 	if msg.From != or.UserID {
 		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
 	}
@@ -280,6 +284,10 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 
 	if or.End-or.Start > build.OrderMax {
 		return xerrors.Errorf("order duration %d is greater than %d", or.End-or.Start, build.OrderMax)
+	}
+
+	if (or.End/types.Day)*types.Day != or.End {
+		return xerrors.Errorf("order end %d is not aligned", or.End)
 	}
 
 	// todo: verify sign

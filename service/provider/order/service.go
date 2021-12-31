@@ -183,6 +183,22 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	if (ob.End/types.Day)*types.Day != ob.End {
+		return nil, xerrors.Errorf("order end %d is not aligned", ob.End)
+	}
+
+	// todo: fix user order start when start is too far
+	nt := time.Now().Unix()
+	if ob.Start < nt {
+		if nt-ob.Start > types.Hour {
+			return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
+		}
+	} else if ob.Start > nt {
+		if ob.Start-nt > types.Hour {
+			return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
+		}
+	}
+
 	m.RLock()
 	or, ok := m.orders[ob.UserID]
 	m.RUnlock()
