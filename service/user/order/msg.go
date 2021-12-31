@@ -185,6 +185,12 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 		}
 
 		// commit
+		// todo: latest one
+		if ns.Nonce+1 == of.nonce {
+			if of.orderState != Order_Done {
+				return
+			}
+		}
 		ocp := tx.OrderCommitParas{
 			UserID: of.localID,
 			ProID:  of.pro,

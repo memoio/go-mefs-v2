@@ -487,15 +487,6 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		return ErrState
 	}
 
-	o.orderState = Order_Done
-	o.orderTime = time.Now().Unix()
-
-	// save nonce state
-	err := saveOrderState(o, m.ds)
-	if err != nil {
-		return err
-	}
-
 	ocp := tx.OrderCommitParas{
 		UserID: o.base.UserID,
 		ProID:  o.base.ProID,
@@ -517,6 +508,15 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	}
 
 	m.msgChan <- msg
+
+	o.orderState = Order_Done
+	o.orderTime = time.Now().Unix()
+
+	// save nonce state
+	err = saveOrderState(o, m.ds)
+	if err != nil {
+		return err
+	}
 
 	// reset
 	o.base = nil
