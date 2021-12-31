@@ -250,7 +250,7 @@ func (s *SegMgr) challenge(userID uint64) {
 			logger.Debug("not challenge latest one, duo to time is not up")
 		} else {
 			if so.End <= chalStart {
-				logger.Debug("chal order all expired: ", userID, si.nextChal, ns.Nonce-1)
+				logger.Debug("chal order all expired: ", userID, si.nextChal, ns.Nonce)
 				return
 			}
 
@@ -265,9 +265,9 @@ func (s *SegMgr) challenge(userID uint64) {
 			}
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
-				sf, err := s.GetOrderSeq(userID, s.localID, ns.Nonce-1, i)
+				sf, err := s.GetOrderSeq(userID, s.localID, ns.Nonce, i)
 				if err != nil {
-					logger.Debug("chal get order seq fails: ", userID, ns.Nonce-1, i, err)
+					logger.Debug("chal get order seq fails: ", userID, ns.Nonce, i, err)
 					return
 				}
 
