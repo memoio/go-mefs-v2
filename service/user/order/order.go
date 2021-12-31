@@ -500,7 +500,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		UserID: o.base.UserID,
 		ProID:  o.base.ProID,
 		Nonce:  o.base.Nonce,
-		SeqNum: o.seq.SeqNum,
+		SeqNum: o.seq.SeqNum + 1,
 	}
 
 	data, err := ocp.Serialize()
