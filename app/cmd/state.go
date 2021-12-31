@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/urfave/cli/v2"
 
@@ -137,6 +138,9 @@ var stateWithdrawCmd = &cli.Command{
 		for i := 0; i < spi.Sig.Len(); i++ {
 			ksign[i] = spi.Sig.Data[65*i : 65*(i+1)]
 		}
+
+		// for test
+		spi.Penalty = big.NewInt(1)
 
 		err = napi.Withdraw(cctx.Context, spi.Value, spi.Penalty, ksign)
 		if err != nil {
