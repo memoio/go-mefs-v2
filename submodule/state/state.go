@@ -310,7 +310,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	for i, msg := range blk.Msgs {
 		// apply message
 		msgDone := metrics.Timer(context.TODO(), metrics.TxMessageApply)
-		_, err = s.ApplyMsg(&msg.Message, &blk.Receipts[i])
+		_, err = s.applyMsg(&msg.Message, &blk.Receipts[i])
 		if err != nil {
 			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
 			return s.root, err
@@ -324,15 +324,12 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	return s.root, nil
 }
 
-func (s *StateMgr) ApplyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
+func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
 	if msg == nil {
 		return s.root, nil
 	}
 
 	logger.Debug("block apply message:", msg.From, msg.Nonce, msg.Method, s.root)
-
-	s.Lock()
-	defer s.Unlock()
 
 	ri, ok := s.rInfo[msg.From]
 	if !ok {

@@ -155,16 +155,16 @@ func (sp *SyncPool) load() {
 			sp.nonce[msg.From] = msg.Nonce + 1
 
 			// apply message
-			msgDone := metrics.Timer(sp.ctx, metrics.TxMessageApply)
-			newRoot, err = sp.ApplyMsg(&msg.Message, &sb.Receipts[mlen-i])
-			if err != nil {
-				// should not; todo
-				sp.DeleteTxBlock(bid)
-				sp.DeleteTxBlockHeight(sb.Height)
-				logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
-				panic("apply message fail, should re-sync")
-			}
-			msgDone()
+			// msgDone := metrics.Timer(sp.ctx, metrics.TxMessageApply)
+			// newRoot, err = sp.ApplyMsg(&msg.Message, &sb.Receipts[mlen-i])
+			// if err != nil {
+			// 	// should not; todo
+			// 	sp.DeleteTxBlock(bid)
+			// 	sp.DeleteTxBlockHeight(sb.Height)
+			// 	logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
+			// 	panic("apply message fail, should re-sync")
+			// }
+			// msgDone()
 
 			ms := &tx.MsgState{
 				BlockID: bid,
@@ -313,7 +313,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 
 	bid := sb.Hash()
 	logger.Debug("process block: ", sb.Height, bid)
-	oRoot, err := sp.ApplyMsg(nil, nil)
+	oRoot, err := sp.ApplyBlock(nil)
 	if err != nil {
 		return err
 	}
