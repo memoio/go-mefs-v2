@@ -500,7 +500,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		UserID: o.base.UserID,
 		ProID:  o.base.ProID,
 		Nonce:  o.base.Nonce,
-		SeqNum: o.seq.SeqNum + 1,
+		SeqNum: o.seqNum,
 	}
 
 	data, err := ocp.Serialize()
@@ -770,7 +770,6 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	// reset
 	o.seqState = OrderSeq_Init
-	o.seq = nil
 
 	// trigger new seq
 	return m.createSeq(o)
