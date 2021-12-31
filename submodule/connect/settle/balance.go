@@ -14,6 +14,7 @@ func (cm *ContractMgr) GetBalance(ctx context.Context, roleID uint64) (*big.Int,
 }
 
 func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int, ksigns [][]byte) error {
+	logger.Debugf("%d withdraw", cm.roleID)
 	err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, ksigns)
 	if err != nil {
 		return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
