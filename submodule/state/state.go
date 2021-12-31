@@ -240,6 +240,16 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, nil
 	}
 
+	// TEST: print root of state before and after
+	logger.Debug("Current root of the state", s.root)
+	defer func() {
+		err := recover()
+		logger.Error(err)
+		key := store.NewKey(pb.MetaType_ST_RootKey)
+		root, _ := s.ds.Get(key)
+		logger.Error("Current root of the state", string(root))
+	}()
+
 	// todo: create new transcation
 
 	if blk.Height != s.height {
@@ -316,6 +326,11 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 			return s.root, err
 		}
 		msgDone()
+
+		// TEST: trigger panic interruption randomly
+		if blk.Height > 0 && msg.Signature.Data[1]%3 == 0 {
+			panic("Trigger test panic during applying messages")
+		}
 	}
 
 	// apply block ok, commit all changes
