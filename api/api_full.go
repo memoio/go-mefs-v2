@@ -200,5 +200,5 @@ type ISettle interface {
 	GetThreshold(context.Context) int
 	GetRoleInfoAt(context.Context, uint64) (*pb.RoleInfo, error)
 	GetBalance(context.Context, uint64) (*big.Int, error)
-	Withdraw(context.Context, *big.Int, *big.Int) error
+	Withdraw(context.Context, *big.Int, *big.Int, [][]byte) error
 }

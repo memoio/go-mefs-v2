@@ -80,12 +80,12 @@ type CommonStruct struct {
 		GetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
 		GetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
 
-		GetRoleID     func(context.Context) uint64                        `perm:"read"`
-		GetGroupID    func(context.Context) uint64                        `perm:"read"`
-		GetThreshold  func(context.Context) int                           `perm:"read"`
-		GetRoleInfoAt func(context.Context, uint64) (*pb.RoleInfo, error) `perm:"read"`
-		GetBalance    func(context.Context, uint64) (*big.Int, error)     `perm:"read"`
-		Withdraw      func(context.Context, *big.Int, *big.Int) error     `perm:"read"`
+		GetRoleID     func(context.Context) uint64                              `perm:"read"`
+		GetGroupID    func(context.Context) uint64                              `perm:"read"`
+		GetThreshold  func(context.Context) int                                 `perm:"read"`
+		GetRoleInfoAt func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
+		GetBalance    func(context.Context, uint64) (*big.Int, error)           `perm:"read"`
+		Withdraw      func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"read"`
 
 		Shutdown func(context.Context) error `perm:"admin"`
 	}
@@ -291,8 +291,8 @@ func (s *CommonStruct) GetBalance(ctx context.Context, rid uint64) (*big.Int, er
 	return s.Internal.GetBalance(ctx, rid)
 }
 
-func (s *CommonStruct) Withdraw(ctx context.Context, val, penlty *big.Int) error {
-	return s.Internal.Withdraw(ctx, val, penlty)
+func (s *CommonStruct) Withdraw(ctx context.Context, val, penlty *big.Int, sig [][]byte) error {
+	return s.Internal.Withdraw(ctx, val, penlty, sig)
 }
 
 func (s *CommonStruct) Shutdown(ctx context.Context) error {

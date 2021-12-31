@@ -124,12 +124,32 @@ var stateWithdrawCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
-
-		err = napi.Withdraw(cctx.Context, spi.Value, spi.Penalty)
+		bal, err := napi.GetBalance(cctx.Context, nid.ID)
 		if err != nil {
 			return err
 		}
+
+		fmt.Printf("%d has balance %d", nid.ID, bal)
+
+		fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
+
+		ksign := make([][]byte, spi.Sig.Len())
+		for i := 0; i < spi.Sig.Len(); i++ {
+			ksign[i] = spi.Sig.Data[65*i : 65*(i+1)]
+		}
+
+		err = napi.Withdraw(cctx.Context, spi.Value, spi.Penalty, ksign)
+		if err != nil {
+			fmt.Println("withdraw fail", err)
+			return err
+		}
+
+		bal, err = napi.GetBalance(cctx.Context, nid.ID)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("%d has balance %d", nid.ID, bal)
 
 		return nil
 	},

@@ -11,8 +11,7 @@ func (cm *ContractMgr) GetBalance(ctx context.Context, roleID uint64) (*big.Int,
 	return avil, err
 }
 
-func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int) error {
-	ksigns := make([][]byte, 10)
+func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int, ksigns [][]byte) error {
 	err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, ksigns)
 	return err
 }
