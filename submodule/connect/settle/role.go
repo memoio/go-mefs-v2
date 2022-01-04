@@ -58,7 +58,6 @@ type ContractMgr struct {
 func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	logger.Debug("create contract mgr")
 	// set endpoint
-	callconts.EndPoint = "http://119.147.213.220:8193"
 
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
@@ -93,20 +92,20 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	}
 
 	rAddr := callconts.RoleAddr
-	iRole := callconts.NewR(rAddr, eAddr, hexSk, txopts)
+	iRole := callconts.NewR(rAddr, eAddr, hexSk, txopts, endpoint)
 
 	rtAddr, err := iRole.RToken()
 	if err != nil {
 		return nil, err
 	}
 
-	iRT := callconts.NewRT(rtAddr, eAddr, hexSk, txopts)
+	iRT := callconts.NewRT(rtAddr, eAddr, hexSk, txopts, endpoint)
 	tIndex := uint32(0)
 	tAddr, err := iRT.GetTA(tIndex)
 	if err != nil {
 		return nil, err
 	}
-	iERC := callconts.NewERC20(tAddr, eAddr, hexSk, txopts)
+	iERC := callconts.NewERC20(tAddr, eAddr, hexSk, txopts, endpoint)
 
 	// transfer erc20
 	val, err = iERC.BalanceOf(eAddr)
@@ -126,19 +125,19 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	if err != nil {
 		return nil, err
 	}
-	ipp := callconts.NewPledgePool(ppAddr, eAddr, hexSk, txopts)
+	ipp := callconts.NewPledgePool(ppAddr, eAddr, hexSk, txopts, endpoint)
 
 	rfsAddr, err := iRole.Rolefs()
 	if err != nil {
 		return nil, err
 	}
-	iRFS := callconts.NewRFS(rfsAddr, eAddr, hexSk, txopts)
+	iRFS := callconts.NewRFS(rfsAddr, eAddr, hexSk, txopts, endpoint)
 
 	isAddr, err := iRole.Issuance()
 	if err != nil {
 		return nil, err
 	}
-	iIS := callconts.NewIssu(isAddr, eAddr, hexSk, txopts)
+	iIS := callconts.NewIssu(isAddr, eAddr, hexSk, txopts, endpoint)
 
 	cm := &ContractMgr{
 		ctx: ctx,
@@ -321,7 +320,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 		cm.fsAddr = fsAddr
 		cm.level = level
-		cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts)
+		cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts, endpoint)
 		logger.Debug("fs contract address: ", fsAddr.Hex())
 	}
 

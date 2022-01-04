@@ -22,12 +22,13 @@ import (
 
 var logger = logging.Logger("settle")
 
-const RetryGetInfoSleepTime = 5 * time.Second
+var (
+	endpoint = "http://119.147.213.220:8193"
+)
 
 // TransferTo trans money
 func TransferTo(toAddress common.Address, value *big.Int) error {
-	eth := callconts.EndPoint
-	client, err := ethclient.Dial(eth)
+	client, err := ethclient.Dial(endpoint)
 	if err != nil {
 		return err
 	}
@@ -105,17 +106,14 @@ func TransferTo(toAddress common.Address, value *big.Int) error {
 }
 
 func QueryBalance(addr common.Address) *big.Int {
-	ethEndPoint := callconts.EndPoint
-
-	var result string
-	client, err := rpc.Dial(ethEndPoint)
+	client, err := rpc.Dial(endpoint)
 	if err != nil {
 		logger.Error("rpc.dial err:", err)
 		return big.NewInt(0)
 	}
-
 	defer client.Close()
 
+	var result string
 	err = client.Call(&result, "eth_getBalance", addr.String(), "latest")
 	if err != nil {
 		logger.Error("client.call err:", err)
@@ -132,7 +130,7 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
 		GasLimit: callconts.DefaultGasLimit,
 	}
-	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, callconts.AdminSk, txopts)
+	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint)
 
 	adminVal, err := erc20.BalanceOf(callconts.AdminAddr)
 	if err != nil {

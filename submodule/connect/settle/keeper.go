@@ -71,7 +71,7 @@ func (cm *ContractMgr) AddKeeperToGroup(gIndex uint64) error {
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
 		GasLimit: callconts.DefaultGasLimit,
 	}
-	ar := callconts.NewR(callconts.RoleAddr, callconts.AdminAddr, callconts.AdminSk, txopts)
+	ar := callconts.NewR(callconts.RoleAddr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint)
 
 	return ar.AddKeeperToGroup(cm.roleID, gIndex)
 }
