@@ -9,8 +9,11 @@ import (
 
 func (cm *ContractMgr) GetBalance(ctx context.Context, roleID uint64) (*big.Int, error) {
 	avil, tmp, err := cm.iFS.GetBalance(roleID, cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
 	avil.Add(avil, tmp)
-	return avil, err
+	return avil, nil
 }
 
 func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int, ksigns [][]byte) error {
