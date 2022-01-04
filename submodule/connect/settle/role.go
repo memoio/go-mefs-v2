@@ -246,6 +246,8 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 	}
 
+	time.Sleep(5 * time.Second)
+
 	_, _, rType, rid, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
@@ -264,6 +266,8 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			if err != nil {
 				return err
 			}
+
+			time.Sleep(5 * time.Second)
 
 			_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
 			if err != nil {
@@ -284,6 +288,8 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			if err != nil {
 				return err
 			}
+
+			time.Sleep(5 * time.Second)
 
 			_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
 			if err != nil {
