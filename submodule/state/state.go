@@ -334,9 +334,6 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error
 
 	logger.Debug("block apply message:", msg.From, msg.Nonce, msg.Method, s.root)
 
-	s.Lock()
-	defer s.Unlock()
-
 	ri, ok := s.rInfo[msg.From]
 	if !ok {
 		ri = s.loadRole(msg.From)
