@@ -1,11 +1,13 @@
 package state
 
 import (
+	"context"
 	"encoding/binary"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
+	"go.opencensus.io/stats"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -13,6 +15,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 // key: pb.MetaType_ST_RootKey; val: root []byte
@@ -23,7 +26,7 @@ type StateMgr struct {
 
 	// todo: add txn store
 	// need a different store
-	ds store.KVStore
+	ds store.TxnStore
 
 	msgNum uint16 // applied msg number of current height
 	height uint64 // next block height
@@ -59,9 +62,11 @@ func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *Stat
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, groupID)
 
+	tds, _ := ds.NewTxnStore(true)
+
 	s := &StateMgr{
 		IRole:        ir,
-		ds:           ds,
+		ds:           tds,
 		height:       0,
 		threshold:    thre,
 		keepers:      make([]uint64, 0, 16),
@@ -305,10 +310,24 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	s.newRoot(b)
 
+	for i, msg := range blk.Msgs {
+		// apply message
+		msgDone := metrics.Timer(context.TODO(), metrics.TxMessageApply)
+		_, err := s.applyMsg(&msg.Message, &blk.Receipts[i])
+		if err != nil {
+			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
+			return s.root, err
+		}
+		msgDone()
+
+	}
+
+	s.ds.Commit()
+
 	return s.root, nil
 }
 
-func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
+func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
 	if msg == nil {
 		return s.root, nil
 	}
@@ -344,8 +363,11 @@ func (s *StateMgr) AppleyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, erro
 
 	// not apply wrong message; but update its nonce
 	if tr.Err != 0 {
+		stats.Record(context.TODO(), metrics.TxMessageApplyFailure.M(1))
 		logger.Debug("not apply wrong message")
 		return s.root, nil
+	} else {
+		stats.Record(context.TODO(), metrics.TxMessageApplySuccess.M(1))
 	}
 
 	switch msg.Method {
