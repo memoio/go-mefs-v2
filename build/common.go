@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	DefaultSegSize      = 248 * 1024         // byte
-	DefaultChalDuration = 30                 // slot
-	SlotDuration        = 30                 // seconds
-	OrderDuration       = 10 * 86400         // 1 days
-	OrderMin            = OrderDuration      // min 100days
-	OrderMax            = 10 * OrderDuration // max 1000 days
+	DefaultSegSize      = 248 * 1024   // byte
+	DefaultChalDuration = 30           // slot
+	SlotDuration        = 30           // seconds
+	OrderDuration       = OrderMin     // 1 days
+	OrderMin            = 10 * 86400   // min 100days
+	OrderMax            = 1000 * 86400 // max 1000 days
 )
 
 var (
