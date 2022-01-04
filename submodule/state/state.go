@@ -240,17 +240,14 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, nil
 	}
 
-	// TEST: print root of state before and after
-	logger.Debug("Current root of the state", s.root)
-	defer func() {
-		err := recover()
-		logger.Error(err)
-		key := store.NewKey(pb.MetaType_ST_RootKey)
-		root, _ := s.ds.Get(key)
-		logger.Error("Current root of the state", string(root))
-	}()
-
-	// todo: create new transcation
+	var err error
+	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
+	// old txn may be put but not committed, which should be dropped
+	s.tds, err = s.ds.NewTxnStore(true)
+	if err != nil {
+		logger.Error("cannot create a new txn")
+		return s.root, err
+	}
 
 	if blk.Height != s.height {
 		return s.root, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
@@ -326,11 +323,6 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 			return s.root, err
 		}
 		msgDone()
-
-		// TEST: trigger panic interruption randomly
-		if blk.Height > 0 && msg.Signature.Data[1]%3 == 0 {
-			panic("Trigger test panic during applying messages")
-		}
 	}
 
 	// apply block ok, commit all changes
