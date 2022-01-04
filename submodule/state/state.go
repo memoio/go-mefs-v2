@@ -26,7 +26,7 @@ type StateMgr struct {
 
 	// todo: add txn store
 	// need a different store
-	ds store.TxnStore
+	ds store.KVStore
 
 	msgNum uint16 // applied msg number of current height
 	height uint64 // next block height
@@ -62,11 +62,9 @@ func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *Stat
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, groupID)
 
-	tds, _ := ds.NewTxnStore(true)
-
 	s := &StateMgr{
 		IRole:        ir,
-		ds:           tds,
+		ds:           ds,
 		height:       0,
 		threshold:    thre,
 		keepers:      make([]uint64, 0, 16),
@@ -91,6 +89,8 @@ func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *Stat
 	}
 
 	s.load()
+
+	logger.Debug("start state mgr")
 
 	return s
 }
@@ -321,8 +321,6 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		msgDone()
 
 	}
-
-	s.ds.Commit()
 
 	return s.root, nil
 }
