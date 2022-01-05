@@ -88,12 +88,12 @@ var statePayCmd = &cli.Command{
 
 		fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
 
-		val, err := napi.GetBalance(cctx.Context, nid.ID)
+		bi, err := napi.GetBalance(cctx.Context, nid.ID)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("pay info max: proID %d, expected income: %s \n", nid.ID, types.FormatWei(val))
+		fmt.Printf("pay info max: proID %d, expected income: %s, balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
 
 		return nil
 	},

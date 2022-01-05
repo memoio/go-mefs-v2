@@ -105,8 +105,8 @@ func (m *OrderMgr) checkBalance() {
 		return
 	}
 
-	if bal.Cmp(needPay) < 0 {
-		needPay.Sub(needPay, bal)
+	if bal.ErcValue.Cmp(needPay) < 0 {
+		needPay.Sub(needPay, bal.ErcValue)
 		m.is.Recharge(needPay)
 	}
 }

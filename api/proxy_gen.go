@@ -84,7 +84,7 @@ type CommonStruct struct {
 		GetGroupID    func(context.Context) uint64                              `perm:"read"`
 		GetThreshold  func(context.Context) int                                 `perm:"read"`
 		GetRoleInfoAt func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
-		GetBalance    func(context.Context, uint64) (*big.Int, error)           `perm:"read"`
+		GetBalance    func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
 		Withdraw      func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"read"`
 
 		Shutdown func(context.Context) error `perm:"admin"`
@@ -287,7 +287,7 @@ func (s *CommonStruct) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleI
 	return s.Internal.GetRoleInfoAt(ctx, rid)
 }
 
-func (s *CommonStruct) GetBalance(ctx context.Context, rid uint64) (*big.Int, error) {
+func (s *CommonStruct) GetBalance(ctx context.Context, rid uint64) (*BalanceInfo, error) {
 	return s.Internal.GetBalance(ctx, rid)
 }
 

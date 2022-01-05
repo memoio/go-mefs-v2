@@ -1,6 +1,7 @@
 package api
 
 import (
+	"math/big"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/network"
@@ -68,4 +69,10 @@ func (ci SwarmConnInfos) Len() int {
 
 func (ci SwarmConnInfos) Swap(i, j int) {
 	ci.Peers[i], ci.Peers[j] = ci.Peers[j], ci.Peers[i]
+}
+
+type BalanceInfo struct {
+	Value    *big.Int
+	FsValue  *big.Int
+	ErcValue *big.Int
 }

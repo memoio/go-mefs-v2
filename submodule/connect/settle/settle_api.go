@@ -42,7 +42,7 @@ func (f *fakeSettle) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInf
 func (f *fakeSettle) GetAllAddrs(context.Context, store.KVStore) {
 }
 
-func (f *fakeSettle) GetBalance(context.Context, uint64) (*big.Int, error) {
+func (f *fakeSettle) GetBalance(context.Context, uint64) (*api.BalanceInfo, error) {
 	return nil, nil
 }
 
