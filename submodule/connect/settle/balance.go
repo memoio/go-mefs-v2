@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"golang.org/x/xerrors"
 )
 
@@ -37,9 +38,24 @@ func (cm *ContractMgr) GetBalance(ctx context.Context, roleID uint64) (*api.Bala
 
 func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int, ksigns [][]byte) error {
 	logger.Debugf("%d withdraw", cm.roleID)
-	err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, ksigns)
+
+	ri, err := cm.GetRoleInfoAt(ctx, cm.roleID)
 	if err != nil {
-		return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
+		return err
 	}
+
+	switch ri.Type {
+	case pb.RoleInfo_Provider:
+		err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, ksigns)
+		if err != nil {
+			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
+		}
+	default:
+		err = cm.iRole.WithdrawFromFs(cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
+		if err != nil {
+			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
+		}
+	}
+
 	return nil
 }
