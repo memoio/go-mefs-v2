@@ -344,7 +344,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		// compare to set price
 		if quo != nil && quo.SegPrice.Cmp(m.segPrice) > 0 {
 			m.stopOrder(o)
-			return ErrPrice
+			return xerrors.Errorf("price is not right, expected less than %d got %d", m.segPrice, quo.SegPrice)
 		}
 
 		start := time.Now().Unix()
@@ -416,7 +416,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 	logger.Debug("handle run order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Wait {
-		return ErrState
+		return xerrors.Errorf("order state expectd %d, got %d", Order_Wait, o.orderState)
 	}
 
 	// validate
@@ -425,7 +425,7 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 		return err
 	}
 	if !ok {
-		return ErrDataSign
+		return xerrors.Errorf("%d order sign is wrong", o.pro)
 	}
 
 	// nonce is add
@@ -469,7 +469,7 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	logger.Debug("handle close order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
-		return ErrState
+		return xerrors.Errorf("order state expectd %d, got %d", Order_Running, o.orderState)
 	}
 
 	o.orderState = Order_Closing
@@ -489,12 +489,12 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	logger.Debug("handle done order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	// order is closing
 	if o.base == nil || o.orderState != Order_Closing {
-		return ErrState
+		return xerrors.Errorf("order state expectd %d, got %d", Order_Closing, o.orderState)
 	}
 
 	// seq finished
 	if o.seq != nil && o.seqState != OrderSeq_Init {
-		return ErrState
+		return xerrors.Errorf("order seq state expectd %d, got %d", OrderSeq_Init, o.seqState)
 	}
 
 	ocp := tx.OrderCommitParas{
@@ -571,7 +571,7 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 
 	if o.seqState == OrderSeq_Init {
 		if !o.hasSeg() {
-			return ErrEmpty
+			return nil
 		}
 
 		s := &types.SignedOrderSeq{
@@ -617,13 +617,13 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 		return nil
 	}
 
-	return ErrState
+	return xerrors.Errorf("create seq fail")
 }
 
 func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	logger.Debug("handle send seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
-		return ErrState
+		return xerrors.Errorf("order state expectd %d, got %d", Order_Running, o.orderState)
 	}
 
 	if o.seq != nil && o.seqState == OrderSeq_Prepare {
@@ -639,18 +639,18 @@ func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return nil
 	}
 
-	return ErrState
+	return xerrors.Errorf("send seq fail")
 }
 
 // time is up
 func (m *OrderMgr) commitSeq(o *OrderFull) error {
 	logger.Debug("handle commit seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState == Order_Init || o.orderState == Order_Wait || o.orderState == Order_Done {
-		return ErrState
+		return xerrors.Errorf("order state got %d", o.orderState)
 	}
 
 	if o.seq == nil {
-		return ErrState
+		return xerrors.Errorf("order seq state got %d", o.seqState)
 	}
 
 	if o.seqState == OrderSeq_Send {
@@ -712,29 +712,29 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 		return nil
 	}
 
-	return ErrState
+	return xerrors.Errorf("commit seq fail")
 }
 
 // when recieve pro seq done ack; confirm -> done
 func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	logger.Debug("handle finish seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil {
-		return ErrState
+		return xerrors.Errorf("order empty")
 	}
 
 	if o.seq == nil || o.seqState != OrderSeq_Commit {
-		return ErrState
+		return xerrors.Errorf("order seq state expected %d got %d", OrderSeq_Commit, o.seqState)
 	}
 
 	oHash := o.seq.Hash()
 	ok, _ := m.RoleVerify(m.ctx, o.pro, oHash.Bytes(), s.ProDataSig)
 	if !ok {
-		return ErrDataSign
+		return xerrors.Errorf("%d seq sign is wrong", o.pro)
 	}
 
 	ok, _ = m.RoleVerify(m.ctx, o.pro, o.base.Hash(), s.ProSig)
 	if !ok {
-		return ErrDataSign
+		return xerrors.Errorf("%d order sign is wrong", o.pro)
 	}
 
 	o.seq.ProDataSig = s.ProDataSig

@@ -1,8 +1,6 @@
 package order
 
 import (
-	"golang.org/x/xerrors"
-
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -10,15 +8,6 @@ import (
 )
 
 var logger = logging.Logger("user-order")
-
-var (
-	ErrDataAdded = xerrors.New("add data fails")
-	ErrState     = xerrors.New("state is wrong")
-	ErrDataSign  = xerrors.New("sign is wrong")
-	ErrEmpty     = xerrors.New("data is empty")
-	ErrNotFound  = xerrors.New("not found")
-	ErrPrice     = xerrors.New("price is not right")
-)
 
 const (
 	DefaultAckWaiting   = 30

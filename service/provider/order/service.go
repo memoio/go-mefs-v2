@@ -109,7 +109,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	defer or.Unlock()
 
 	if !or.ready {
-		return ErrService
+		return xerrors.Errorf("order service not ready for %d", userID)
 	}
 
 	if or.base == nil || or.seq == nil {
@@ -163,7 +163,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		return nil
 	}
 
-	return ErrState
+	return xerrors.Errorf("fail handle data user %d nonce %d seq %d state %d %d", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
 }
 
 func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
@@ -189,16 +189,12 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// todo: fix user order start when start is too far
 	nt := time.Now().Unix()
-	if ob.Start < nt {
-		if nt-ob.Start > types.Hour {
-			return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
-		}
-	} else if ob.Start > nt {
-		if ob.Start-nt > types.Hour {
-			return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
-		}
+	if ob.Start < nt && nt-ob.Start > types.Hour {
+		return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
+
+	} else if ob.Start > nt && ob.Start-nt > types.Hour {
+		return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
 	}
 
 	m.RLock()
@@ -217,7 +213,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 
 	if !or.ready {
 		go m.createOrder(or)
-		return nil, ErrService
+		return nil, xerrors.Errorf("order service not ready for %d", ob.UserID)
 	}
 
 	logger.Debug("handle create order: ", ob.UserID, or.nonce, or.seqNum, or.orderState, or.seqState)
@@ -312,7 +308,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return data, nil
 	}
 
-	return nil, ErrState
+	return nil, xerrors.Errorf("fail create order user %d nonce %d seq %d state %d %d, got %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, ob.Nonce)
 }
 
 func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
@@ -338,13 +334,13 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 
 	if !or.ready {
 		go m.createOrder(or)
-		return nil, ErrService
+		return nil, xerrors.Errorf("order service not ready for %d", userID)
 	}
 
 	logger.Debug("handle create seq: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
 
 	if or.base == nil || or.orderState != Order_Ack {
-		return nil, ErrState
+		return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %d %d, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 	}
 
 	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
@@ -398,7 +394,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		return data, nil
 	}
 
-	return nil, ErrState
+	return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %d %d, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 }
 
 func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
@@ -424,7 +420,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 	if !or.ready {
 		go m.createOrder(or)
-		return nil, ErrService
+		return nil, xerrors.Errorf("order service not ready for %d", userID)
 	}
 
 	logger.Debug("handle finish seq: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
@@ -493,7 +489,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				return nil, err
 			}
 			if !ok {
-				return nil, ErrDataSign
+				return nil, xerrors.Errorf("%d order seq sign is wrong", userID)
 			}
 
 			ssig, err := m.RoleSign(m.ctx, m.localID, lHash.Bytes(), types.SigSecp256k1)
@@ -511,7 +507,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				return nil, err
 			}
 			if !ok {
-				return nil, ErrDataSign
+				return nil, xerrors.Errorf("%d order sign is wrong", userID)
 			}
 
 			osig, err := m.RoleSign(m.ctx, m.localID, sHash, types.SigSecp256k1)
@@ -568,5 +564,5 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		}
 	}
 
-	return nil, ErrState
+	return nil, xerrors.Errorf("fail finish seq user %d nonce %d seq %d state %d %d, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 }

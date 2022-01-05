@@ -47,7 +47,7 @@ func (m *OrderMgr) getQuotation(proID uint64) error {
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
 		logger.Debug("fail get new quotation from: ", proID, string(resp.GetData().MsgInfo))
-		return ErrNotFound
+		return xerrors.Errorf("get new quotation from %d fail %s", proID, resp.GetData().MsgInfo)
 	}
 
 	quo := new(types.Quotation)
@@ -94,7 +94,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
 		logger.Debugf("fail get new order ack from %d %s ", proID, string(resp.GetData().MsgInfo))
-		return ErrNotFound
+		return xerrors.Errorf("get new order ack from %d fail %s", proID, resp.GetData().MsgInfo)
 	}
 
 	ob := new(types.SignedOrder)
@@ -140,7 +140,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
 		logger.Debug("fail get new seq ack from: ", proID, string(resp.GetData().MsgInfo))
-		return ErrNotFound
+		return xerrors.Errorf("get new seq ack from %d fail %s", proID, resp.GetData().MsgInfo)
 	}
 
 	os := new(types.SignedOrderSeq)
@@ -190,7 +190,7 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
 		logger.Debug("fail get finish seq ack from: ", proID, string(resp.GetData().MsgInfo))
-		return ErrNotFound
+		return xerrors.Errorf("get finish seq ack from %d fail %s", proID, resp.GetData().MsgInfo)
 	}
 
 	os := new(types.SignedOrderSeq)
