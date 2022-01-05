@@ -390,7 +390,7 @@ func (hsm *HotstuffManager) NewView() error {
 		// send hm message out
 		err = hsm.PublishHsMsg(hsm.ctx, hm)
 		if err != nil {
-			logger.Debugf("publish msg err %w", err)
+			logger.Debugf("publish msg err %s", err)
 		}
 	}
 
@@ -495,7 +495,7 @@ func (hsm *HotstuffManager) tryPropose() error {
 
 	err = hsm.PublishHsMsg(hsm.ctx, hm)
 	if err != nil {
-		logger.Debugf("publish msg err %w", err)
+		logger.Debugf("publish msg err %s", err)
 	}
 
 	return nil
@@ -553,7 +553,7 @@ func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 	// send to leader
 	err = hsm.PublishHsMsg(hsm.ctx, msg)
 	if err != nil {
-		logger.Debugf("publish msg err %w", err)
+		logger.Debugf("publish msg err %s", err)
 	}
 
 	return nil
@@ -621,7 +621,7 @@ func (hsm *HotstuffManager) tryPreCommit() error {
 
 	err = hsm.PublishHsMsg(hsm.ctx, hm)
 	if err != nil {
-		logger.Debugf("publish msg err %w", err)
+		logger.Debugf("publish msg err %s", err)
 	}
 
 	return nil
@@ -662,7 +662,7 @@ func (hsm *HotstuffManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
 	// send to leader
 	err = hsm.PublishHsMsg(hsm.ctx, msg)
 	if err != nil {
-		logger.Debugf("publish msg err %w", err)
+		logger.Debugf("publish msg err %s", err)
 	}
 
 	return nil
@@ -728,7 +728,7 @@ func (hsm *HotstuffManager) tryCommit() error {
 
 	err = hsm.PublishHsMsg(hsm.ctx, hm)
 	if err != nil {
-		logger.Debugf("publish msg err %w", err)
+		logger.Debugf("publish msg err %s", err)
 	}
 
 	return nil
@@ -764,7 +764,7 @@ func (hsm *HotstuffManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
 
 	err = hsm.PublishHsMsg(hsm.ctx, msg)
 	if err != nil {
-		logger.Debugf("publish msg err %w", err)
+		logger.Debugf("publish msg err %s", err)
 	}
 
 	return nil
@@ -829,7 +829,7 @@ func (hsm *HotstuffManager) tryDecide() error {
 	// send hm message out
 	err = hsm.PublishHsMsg(hsm.ctx, hm)
 	if err != nil {
-		logger.Debugf("publish msg err %w", err)
+		logger.Debugf("publish msg err %s", err)
 	}
 
 	// apply

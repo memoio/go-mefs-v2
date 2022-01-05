@@ -2,7 +2,6 @@ package order
 
 import (
 	"context"
-	"encoding/binary"
 	"math/big"
 	"sync"
 	"time"
@@ -12,7 +11,6 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -58,52 +56,19 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 		orders: make(map[uint64]*OrderFull),
 	}
 
-	om.load()
-
 	return om
-
 }
 
-func (m *OrderMgr) load() error {
-	key := store.NewKey(pb.MetaType_OrderUsersKey, m.localID)
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return err
+func (m *OrderMgr) Start() {
+	// load some
+	users := m.GetUsersForPro(m.ctx, m.localID)
+	for _, uid := range users {
+		m.getOrder(uid)
 	}
-
-	for i := 0; i < len(val)/8; i++ {
-		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		m.orders[pid] = m.loadOrder(pid)
-	}
-
-	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
-	for _, pid := range pros {
-		has := false
-		for pro := range m.orders {
-			if pid == pro {
-				has = true
-			}
-		}
-
-		if !has {
-			m.orders[pid] = m.loadOrder(pid)
-		}
-	}
-
-	return nil
 }
 
 func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
-	m.RLock()
-	or, ok := m.orders[userID]
-	m.RUnlock()
-	if !ok {
-		or = m.loadOrder(userID)
-
-		m.Lock()
-		m.orders[userID] = or
-		m.Unlock()
-	}
+	or := m.getOrder(userID)
 
 	or.Lock()
 	defer or.Unlock()
@@ -112,8 +77,12 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		return xerrors.Errorf("order service not ready for %d", userID)
 	}
 
-	if or.base == nil || or.seq == nil {
-		return xerrors.Errorf("no order base and seq")
+	if or.base == nil {
+		return xerrors.Errorf("no order base for %d", userID)
+	}
+
+	if or.seq == nil {
+		return xerrors.Errorf("no order seq for %d", userID)
 	}
 
 	logger.Debug("handle add data: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
@@ -149,13 +118,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		or.seq.Price.Add(or.seq.Price, or.segPrice)
 		or.seq.Size += build.DefaultSegSize
 
-		data, err = or.seq.Serialize()
-		if err != nil {
-			return err
-		}
-
-		key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, or.base.UserID, or.base.Nonce, or.seq.SeqNum)
-		err = m.ds.Put(key, data)
+		err = saveOrderSeq(or, m.ds)
 		if err != nil {
 			return err
 		}
@@ -197,17 +160,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
 	}
 
-	m.RLock()
-	or, ok := m.orders[ob.UserID]
-	m.RUnlock()
-	if !ok {
-		or = m.loadOrder(ob.UserID)
-
-		m.Lock()
-		m.orders[ob.UserID] = or
-		m.Unlock()
-	}
-
+	or := m.getOrder(ob.UserID)
 	or.Lock()
 	defer or.Unlock()
 
@@ -223,17 +176,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			or.orderState = Order_Done
 			or.orderTime = time.Now().Unix()
 
-			key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, or.base.UserID)
-			ns := &NonceState{
-				Nonce: or.base.Nonce,
-				Time:  or.orderTime,
-				State: or.orderState,
-			}
-			val, err := ns.Serialize()
-			if err != nil {
-				return nil, err
-			}
-			err = m.ds.Put(key, val)
+			err = saveOrderState(or, m.ds)
 			if err != nil {
 				return nil, err
 			}
@@ -268,33 +211,18 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			or.base.Psign = psig
 
 			// save order base
-			key := store.NewKey(pb.MetaType_OrderBaseKey, m.localID, or.base.UserID, or.base.Nonce)
-			data, err := or.base.Serialize()
-			if err != nil {
-				return nil, err
-			}
-			err = m.ds.Put(key, data)
+			err = saveOrderBase(or, m.ds)
 			if err != nil {
 				return nil, err
 			}
 
-			// save state
-			key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, or.base.UserID)
-			ns := &NonceState{
-				Nonce: or.base.Nonce,
-				Time:  or.orderTime,
-				State: or.orderState,
-			}
-			val, err := ns.Serialize()
-			if err != nil {
-				return nil, err
-			}
-			err = m.ds.Put(key, val)
+			// save order state
+			err = saveOrderState(or, m.ds)
 			if err != nil {
 				return nil, err
 			}
 
-			return data, nil
+			return or.base.Serialize()
 		}
 	}
 
@@ -318,22 +246,11 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	m.RLock()
-	or, ok := m.orders[userID]
-	m.RUnlock()
-	if !ok {
-		or = m.loadOrder(userID)
-
-		m.Lock()
-		m.orders[userID] = or
-		m.Unlock()
-	}
-
+	or := m.getOrder(userID)
 	or.Lock()
 	defer or.Unlock()
 
 	if !or.ready {
-		go m.createOrder(or)
 		return nil, xerrors.Errorf("order service not ready for %d", userID)
 	}
 
@@ -356,33 +273,18 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		or.seqNum++
 
 		// save seq
-		key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, or.base.UserID, or.base.Nonce, or.seq.SeqNum)
-		data, err := or.seq.Serialize()
-		if err != nil {
-			return nil, err
-		}
-		err = m.ds.Put(key, data)
+		err = saveOrderSeq(or, m.ds)
 		if err != nil {
 			return nil, err
 		}
 
 		// save seq state
-		key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, or.base.Nonce)
-		ss := SeqState{
-			Number: or.seq.SeqNum,
-			Time:   or.seqTime,
-			State:  or.seqState,
-		}
-		val, err := ss.Serialize()
-		if err != nil {
-			return nil, err
-		}
-		err = m.ds.Put(key, val)
+		err = saveSeqState(or, m.ds)
 		if err != nil {
 			return nil, err
 		}
 
-		return data, nil
+		return or.seq.Serialize()
 	}
 
 	// been acked
@@ -404,22 +306,12 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	m.RLock()
-	or, ok := m.orders[userID]
-	m.RUnlock()
-	if !ok {
-		or = m.loadOrder(userID)
-
-		m.Lock()
-		m.orders[userID] = or
-		m.Unlock()
-	}
+	or := m.getOrder(userID)
 
 	or.Lock()
 	defer or.Unlock()
 
 	if !or.ready {
-		go m.createOrder(or)
 		return nil, xerrors.Errorf("order service not ready for %d", userID)
 	}
 
@@ -525,33 +417,18 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			or.seqTime = time.Now().Unix()
 
 			// save order seq
-			key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, or.base.UserID, or.base.Nonce, os.SeqNum)
-			data, err := or.seq.Serialize()
-			if err != nil {
-				return nil, err
-			}
-			err = m.ds.Put(key, data)
+
+			err = saveOrderSeq(or, m.ds)
 			if err != nil {
 				return nil, err
 			}
 
-			// save seq state
-			key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, or.base.Nonce)
-			ss := SeqState{
-				Number: or.seq.SeqNum,
-				Time:   or.seqTime,
-				State:  or.seqState,
-			}
-			val, err := ss.Serialize()
-			if err != nil {
-				return nil, err
-			}
-			err = m.ds.Put(key, val)
+			err = saveSeqState(or, m.ds)
 			if err != nil {
 				return nil, err
 			}
 
-			return data, nil
+			return or.seq.Serialize()
 		}
 
 		if or.seqState == OrderSeq_Done {

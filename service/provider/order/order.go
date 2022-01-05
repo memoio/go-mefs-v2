@@ -60,8 +60,9 @@ func (ss *SeqState) Deserialize(b []byte) error {
 // todo: check order
 type OrderFull struct {
 	sync.Mutex
-	userID uint64
-	fsID   []byte
+	localID uint64
+	userID  uint64
+	fsID    []byte
 
 	base       *types.SignedOrder
 	orderTime  int64
@@ -81,7 +82,6 @@ type OrderFull struct {
 }
 
 func (m *OrderMgr) createOrder(op *OrderFull) {
-
 	pk, err := m.GetPDPPublicKey(m.ctx, op.userID)
 	if err != nil {
 		logger.Warnf("create order for user %d bls pk fail %s", op.userID, err)
@@ -99,10 +99,21 @@ func (m *OrderMgr) createOrder(op *OrderFull) {
 	op.ready = true
 }
 
-func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
-	op := &OrderFull{
-		userID: userID,
+func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
+	m.Lock()
+
+	op, ok := m.orders[userID]
+	if ok {
+		m.Unlock()
+		return op
 	}
+
+	op = &OrderFull{
+		localID: m.localID,
+		userID:  userID,
+	}
+	m.orders[userID] = op
+	m.Unlock()
 
 	pk, err := m.GetPDPPublicKey(m.ctx, userID)
 	if err == nil {
@@ -170,5 +181,50 @@ func (m *OrderMgr) loadOrder(userID uint64) *OrderFull {
 	op.seqNum = ss.Number + 1
 
 	return op
+}
 
+func saveOrderBase(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderBaseKey, o.localID, o.userID, o.base.Nonce)
+	data, err := o.base.Serialize()
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, data)
+}
+
+func saveOrderState(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderNonceKey, o.localID, o.userID)
+	ns := &NonceState{
+		Nonce: o.base.Nonce,
+		Time:  o.orderTime,
+		State: o.orderState,
+	}
+	val, err := ns.Serialize()
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, val)
+}
+
+func saveOrderSeq(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderSeqKey, o.localID, o.userID, o.base.Nonce, o.seq.SeqNum)
+	data, err := o.seq.Serialize()
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, data)
+}
+
+func saveSeqState(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderSeqNumKey, o.localID, o.userID, o.base.Nonce)
+	ss := SeqState{
+		Number: o.seq.SeqNum,
+		Time:   o.seqTime,
+		State:  o.seqState,
+	}
+	val, err := ss.Serialize()
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, val)
 }

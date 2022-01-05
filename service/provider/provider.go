@@ -135,7 +135,10 @@ func (p *ProviderNode) Start() error {
 		return err
 	}
 
-	// start challenge
+	// start order manager
+	p.pom.Start()
+
+	// start challenge manager
 	p.chalSeg.Start()
 
 	p.ready = true

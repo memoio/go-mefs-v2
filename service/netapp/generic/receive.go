@@ -140,10 +140,7 @@ func (service *GenericService) handleNewMessage(s network.Stream) bool {
 			return false
 		}
 
-		elapsedTime := time.Since(startTime)
-
-		logger.Debug("elapsed time: ", elapsedTime)
-
+		elapsedTime := time.Since(startTime).Milliseconds()
 		latencyMillis := float64(elapsedTime) / float64(time.Millisecond)
 		stats.Record(ctx, metrics.NetInboundRequestLatency.M(latencyMillis))
 	}
