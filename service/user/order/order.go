@@ -162,7 +162,12 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	op.base = ob
 	op.orderTime = ns.Time
 	op.orderState = ns.State
-	op.nonce = ns.Nonce + 1
+	if ns.State > Order_Wait {
+		op.nonce = ns.Nonce + 1
+	} else {
+		op.nonce = ns.Nonce
+	}
+
 	op.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 
 	ss := new(SeqState)
