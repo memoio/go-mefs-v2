@@ -373,7 +373,6 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		}
 		o.base.Usign = osig
 
-		o.nonce++
 		o.orderState = Order_Wait
 		o.orderTime = time.Now().Unix()
 
@@ -395,6 +394,13 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 	}
 
 	if o.orderState == Order_Wait {
+		nt := time.Now().Unix()
+		if (o.base.Start < nt && nt-o.base.Start > types.Hour/2) || (o.base.Start > nt && o.base.Start-nt > types.Hour/2) {
+			logger.Debugf("re-create order for %d at nonce %d", o.pro, o.nonce)
+			o.orderState = Order_Init
+			return nil
+		}
+
 		// send to pro
 		data, err := o.base.Serialize()
 		if err != nil {
@@ -422,9 +428,10 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 		return ErrDataSign
 	}
 
+	// nonce is add
+	o.nonce++
 	o.orderState = Order_Running
 	o.orderTime = time.Now().Unix()
-
 	o.base.Psign = ob.Psign
 
 	// save signed order base; todo

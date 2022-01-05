@@ -252,13 +252,13 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 		return xerrors.Errorf("wrong paras price")
 	}
 
-	if msg.From != or.UserID {
-		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
-	}
-
 	err = lib.CheckOrder(or.OrderBase)
 	if err != nil {
 		return err
+	}
+
+	if msg.From != or.UserID {
+		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
 	}
 
 	// todo: verify sign

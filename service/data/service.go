@@ -90,7 +90,7 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return xerrors.Errorf("send fails")
+		return xerrors.Errorf("send to %d fails %d", to, string(resp.GetData().MsgInfo))
 	}
 
 	return nil
@@ -165,7 +165,7 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 	}
 
 	if resp.Header.Type == pb.NetMessage_Err {
-		return nil, xerrors.Errorf("get segment from %d fails", from)
+		return nil, xerrors.Errorf("get segment from %d fails %s", from, string(resp.GetData().MsgInfo))
 	}
 
 	bs := new(segment.BaseSegment)

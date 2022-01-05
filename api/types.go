@@ -74,5 +74,5 @@ func (ci SwarmConnInfos) Swap(i, j int) {
 type BalanceInfo struct {
 	Value    *big.Int
 	FsValue  *big.Int
-	ErcValue *big.Int
+	ErcValue *big.Int // should be map?
 }
