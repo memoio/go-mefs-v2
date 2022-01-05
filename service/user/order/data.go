@@ -169,7 +169,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		return
 	}
 
-	logger.Infof("order bucket %d expected %d, got %d: ", lp.bucketID, lp.dc+lp.pc, cnt)
+	logger.Infof("order bucket %d expected %d, got %d", lp.bucketID, lp.dc+lp.pc, cnt)
 
 	otherPros := make([]uint64, 0, lp.dc+lp.pc)
 

@@ -93,7 +93,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		logger.Debug("fail get new order ack from: ", proID, string(resp.GetData().MsgInfo))
+		logger.Debugf("fail get new order ack from %d %s ", proID, string(resp.GetData().MsgInfo))
 		return ErrNotFound
 	}
 
