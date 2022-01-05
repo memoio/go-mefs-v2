@@ -369,7 +369,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	}
 
 	if oinfo.base == nil {
-		return xerrors.Errorf("add order base empty")
+		return xerrors.Errorf("add order base empty at nonce %d seq %d", oinfo.ns.Nonce, oinfo.ns.SeqNum)
 	}
 
 	if oinfo.ns.Nonce != so.Nonce {
@@ -567,7 +567,7 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 	}
 
 	if oinfo.base == nil {
-		return xerrors.Errorf("add order base empty")
+		return xerrors.Errorf("add order base empty at nonce %d seq %d", oinfo.ns.Nonce, oinfo.ns.SeqNum)
 	}
 
 	if oinfo.ns.Nonce != so.Nonce {

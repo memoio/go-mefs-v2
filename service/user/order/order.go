@@ -472,6 +472,13 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 		return xerrors.Errorf("%d order state expectd %d, got %d", o.pro, Order_Running, o.orderState)
 	}
 
+	if o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
+		// should not close empty seq
+		logger.Debug("should not close empty order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
+		o.orderTime += 600
+		return nil
+	}
+
 	o.orderState = Order_Closing
 	o.orderTime = time.Now().Unix()
 

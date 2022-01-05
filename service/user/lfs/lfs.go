@@ -172,8 +172,6 @@ func (l *LfsService) Start() error {
 				Params:  data,
 			}
 
-			// handle result and retry?
-
 			var mid types.MsgID
 			retry := 0
 			for retry < 60 {
@@ -208,7 +206,6 @@ func (l *LfsService) Start() error {
 
 					break
 				}
-
 			}(bid, mid)
 		}
 	}
