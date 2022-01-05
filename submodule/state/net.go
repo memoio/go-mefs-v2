@@ -6,9 +6,9 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (s *StateMgr) updateNetAddr(msg *tx.Message) error {
+func (s *StateMgr) updateNetAddr(msg *tx.Message, tds store.TxnStore) error {
 	key := store.NewKey(pb.MetaType_ST_NetKey, msg.From)
-	return s.ds.Put(key, msg.Params)
+	return tds.Put(key, msg.Params)
 }
 
 func (s *StateMgr) canUpdateNetAddr(msg *tx.Message) error {

@@ -1,7 +1,6 @@
 package state
 
 import (
-	"encoding/binary"
 	"math/big"
 
 	"github.com/bits-and-blooms/bitset"
@@ -52,13 +51,11 @@ type chalEpochInfo struct {
 	previous *types.ChalEpoch
 }
 
-func newChalEpoch(groupID uint64) *types.ChalEpoch {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, groupID)
+func newChalEpoch(seed types.MsgID) *types.ChalEpoch {
 	return &types.ChalEpoch{
 		Epoch: 0,
 		Slot:  0,
-		Seed:  types.NewMsgID(buf),
+		Seed:  seed,
 	}
 }
 

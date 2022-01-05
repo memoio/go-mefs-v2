@@ -59,9 +59,17 @@ type StateMgr struct {
 	handleCommitOrder HandleCommitOrderFunc
 }
 
-func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *StateMgr {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, groupID)
+// todo: add role contract address here
+func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api.IRole) *StateMgr {
+
+	buf := make([]byte, 8+len(base))
+	copy(buf[:len(base)], base)
+	binary.BigEndian.PutUint64(buf[len(base):len(base)+8], groupID)
+
+	/*
+		buf := make([]byte, 8)
+		binary.BigEndian.PutUint64(buf, groupID)
+	*/
 
 	s := &StateMgr{
 		IRole:        ir,
@@ -75,8 +83,8 @@ func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *Stat
 		validateRoot: types.NewMsgID(buf),
 		ceInfo: &chalEpochInfo{
 			epoch:    0,
-			current:  newChalEpoch(groupID),
-			previous: newChalEpoch(groupID),
+			current:  newChalEpoch(types.NewMsgID(buf)),
+			previous: newChalEpoch(types.NewMsgID(buf)),
 		},
 		oInfo: make(map[orderKey]*orderInfo),
 		sInfo: make(map[uint64]*segPerUser),
@@ -84,8 +92,8 @@ func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *Stat
 
 		validateCeInfo: &chalEpochInfo{
 			epoch:    0,
-			current:  newChalEpoch(groupID),
-			previous: newChalEpoch(groupID),
+			current:  newChalEpoch(types.NewMsgID(buf)),
+			previous: newChalEpoch(types.NewMsgID(buf)),
 		},
 	}
 
@@ -143,6 +151,7 @@ func (s *StateMgr) API() *stateAPI {
 }
 
 func (s *StateMgr) load() {
+	logger.Debug("load: ", s.height, s.slot, s.msgNum, s.root, s.ceInfo.epoch, s.users)
 	// load keepers
 	key := store.NewKey(pb.MetaType_ST_KeepersKey)
 	val, err := s.ds.Get(key)
@@ -179,6 +188,8 @@ func (s *StateMgr) load() {
 		s.msgNum = binary.BigEndian.Uint16(val[16:])
 	}
 
+	logger.Debug("load: ", s.height, s.slot, s.msgNum)
+
 	// load root
 	key = store.NewKey(pb.MetaType_ST_RootKey)
 	val, err = s.ds.Get(key)
@@ -196,6 +207,8 @@ func (s *StateMgr) load() {
 	if err == nil && len(val) >= 8 {
 		s.ceInfo.epoch = binary.BigEndian.Uint64(val)
 	}
+
+	logger.Debug("load: ", s.height, s.slot, s.msgNum, s.root, s.ceInfo.epoch, s.users)
 
 	if s.ceInfo.epoch == 0 {
 		return
@@ -219,7 +232,7 @@ func (s *StateMgr) load() {
 	}
 }
 
-func (s *StateMgr) newRoot(b []byte) {
+func (s *StateMgr) newRoot(b []byte, tds store.TxnStore) error {
 	h := blake3.New()
 	h.Write(s.root.Bytes())
 	h.Write(b)
@@ -228,7 +241,12 @@ func (s *StateMgr) newRoot(b []byte) {
 
 	// store
 	key := store.NewKey(pb.MetaType_ST_RootKey)
-	s.ds.Put(key, s.root.Bytes())
+	err := tds.Put(key, s.root.Bytes())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *StateMgr) getThreshold() int {
@@ -250,7 +268,14 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, nil
 	}
 
-	// todo: create new transcation
+	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
+	// old txn may be put but not committed, which should be dropped
+	tds, err := s.ds.NewTxnStore(true)
+	if err != nil {
+		logger.Error("cannot create a new txn")
+		return s.root, xerrors.Errorf("cannot create a new txn %s", err)
+	}
+	defer tds.Discard()
 
 	if blk.Height != s.height {
 		return s.root, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
@@ -310,29 +335,44 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	binary.BigEndian.PutUint64(buf[:8], s.height)
 	binary.BigEndian.PutUint64(buf[8:16], s.slot)
 	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
-	s.ds.Put(key, buf)
+	err = tds.Put(key, buf)
+	if err != nil {
+		return s.root, err
+	}
 
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
-	s.ds.Put(key, buf)
+	err = tds.Put(key, buf)
+	if err != nil {
+		return s.root, err
+	}
 
-	s.newRoot(b)
+	err = s.newRoot(b, tds)
+	if err != nil {
+		return s.root, err
+	}
 
 	for i, msg := range blk.Msgs {
 		// apply message
 		msgDone := metrics.Timer(context.TODO(), metrics.TxMessageApply)
-		_, err := s.applyMsg(&msg.Message, &blk.Receipts[i])
+		_, err = s.applyMsg(&msg.Message, &blk.Receipts[i], tds)
 		if err != nil {
 			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
 			return s.root, err
 		}
-		msgDone()
 
+		msgDone()
+	}
+
+	// apply block ok, commit all changes
+	err = tds.Commit()
+	if err != nil {
+		return s.root, err
 	}
 
 	return s.root, nil
 }
 
-func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
+func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore) (types.MsgID, error) {
 	if msg == nil {
 		return s.root, nil
 	}
@@ -349,8 +389,15 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error
 		return s.root, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.val.Nonce, msg.Nonce)
 	}
 	ri.val.Nonce++
-	s.saveVal(msg.From, ri.val)
-	s.newRoot(msg.Params)
+	err := s.saveVal(msg.From, ri.val, tds)
+	if err != nil {
+		return s.root, err
+	}
+
+	err = s.newRoot(msg.Params, tds)
+	if err != nil {
+		return s.root, err
+	}
 
 	s.msgNum--
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
@@ -358,10 +405,16 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error
 	binary.BigEndian.PutUint64(buf[:8], s.height)
 	binary.BigEndian.PutUint64(buf[8:16], s.slot)
 	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
-	s.ds.Put(key, buf)
+	err = tds.Put(key, buf)
+	if err != nil {
+		return s.root, err
+	}
 
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	s.ds.Put(key, buf)
+	err = tds.Put(key, buf)
+	if err != nil {
+		return s.root, err
+	}
 
 	// not apply wrong message; but update its nonce
 	if tr.Err != 0 {
@@ -374,59 +427,59 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error
 
 	switch msg.Method {
 	case tx.AddRole:
-		err := s.addRole(msg)
+		err := s.addRole(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.CreateFs:
-		err := s.addUser(msg)
+		err := s.addUser(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.CreateBucket:
-		err := s.addBucket(msg)
+		err := s.addBucket(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.PreDataOrder:
-		err := s.createOrder(msg)
+		err := s.createOrder(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.AddDataOrder:
-		err := s.addSeq(msg)
+		err := s.addSeq(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.CommitDataOrder:
-		err := s.commitOrder(msg)
+		err := s.commitOrder(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.SegmentFault:
-		err := s.removeSeg(msg)
+		err := s.removeSeg(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.UpdateChalEpoch:
-		err := s.updateChalEpoch(msg)
+		err := s.updateChalEpoch(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.SegmentProof:
-		err := s.addSegProof(msg)
+		err := s.addSegProof(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.ConfirmPostIncome:
-		err := s.addPay(msg)
+		err := s.addPay(msg, tds)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.UpdateNet:
-		err := s.updateNetAddr(msg)
+		err := s.updateNetAddr(msg, tds)
 		if err != nil {
-			return s.validateRoot, err
+			return s.root, err
 		}
 	default:
 		return s.root, xerrors.Errorf("unsupported method: %d", msg.Method)

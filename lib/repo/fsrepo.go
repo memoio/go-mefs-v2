@@ -331,7 +331,7 @@ func (r *FSRepo) openStateStore() error {
 		return err
 	}
 
-	r.stateDs = wrap.NewKVStore(stateStorePrefix, ds)
+	r.stateDs = ds
 
 	return nil
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (s *StateMgr) addSegProof(msg *tx.Message) error {
+func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	scp := new(tx.SegChalParams)
 	err := scp.Deserialize(msg.Params)
 	if err != nil {
@@ -80,7 +80,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		SeqNum: oinfo.ns.SeqNum,
 	}
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, scp.Epoch)
-	data, err := s.ds.Get(key)
+	data, err := tds.Get(key)
 	if err == nil {
 		ns.Deserialize(data)
 	}
@@ -115,7 +115,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if ns.SeqNum > 0 {
 		// load order
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
-		data, err = s.ds.Get(key)
+		data, err = tds.Get(key)
 		if err != nil {
 			return err
 		}
@@ -138,7 +138,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
-				data, err = s.ds.Get(key)
+				data, err = tds.Get(key)
 				if err != nil {
 					return err
 				}
@@ -168,7 +168,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
-			data, err = s.ds.Get(key)
+			data, err = tds.Get(key)
 			if err != nil {
 				return err
 			}
@@ -223,12 +223,18 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 
 	// save proof result
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID, scp.Epoch)
-	s.ds.Put(key, msg.Params)
+	err = tds.Put(key, msg.Params)
+	if err != nil {
+		return err
+	}
 
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID)
 	buf = make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, oinfo.prove)
-	s.ds.Put(key, buf)
+	err = tds.Put(key, buf)
+	if err != nil {
+		return err
+	}
 
 	// save postincome
 	data, err = oinfo.income.Serialize()
@@ -236,7 +242,10 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
-	s.ds.Put(key, data)
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
 
 	// save postincome at this epoch
 	pi := &types.PostIncome{
@@ -246,7 +255,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		Penalty: big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
-	data, err = s.ds.Get(key)
+	data, err = tds.Get(key)
 	if err == nil {
 		pi.Deserialize(data)
 	}
@@ -255,7 +264,10 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
 
 	// save acc income of this pro
 	spi := &types.AccPostIncome{
@@ -264,7 +276,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		Penalty: big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
-	data, err = s.ds.Get(key)
+	data, err = tds.Get(key)
 	if err == nil {
 		spi.Deserialize(data)
 	}
@@ -273,10 +285,16 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
 
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, scp.Epoch)
-	s.ds.Put(key, data)
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
 
 	// save for next
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, s.ceInfo.epoch)
@@ -284,7 +302,10 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
 
 	// keeper handle callback income
 	if s.handleAddPay != nil {

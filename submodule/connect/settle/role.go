@@ -91,7 +91,7 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 		return nil, xerrors.Errorf("val %d is not enough", val)
 	}
 
-	rAddr := callconts.RoleAddr
+	rAddr := RoleAddr
 	iRole := callconts.NewR(rAddr, eAddr, hexSk, txopts, endpoint)
 
 	rtAddr, err := iRole.RToken()

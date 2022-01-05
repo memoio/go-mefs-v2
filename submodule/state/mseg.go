@@ -96,7 +96,7 @@ func (s *StateMgr) getStripeBitMap(bm *bucketManage, userID, bucketID, proID uin
 	return ncm
 }
 
-func (s *StateMgr) addBucket(msg *tx.Message) error {
+func (s *StateMgr) addBucket(msg *tx.Message, tds store.TxnStore) error {
 	tbp := new(tx.BucketParams)
 	err := tbp.Deserialize(msg.Params)
 	if err != nil {
@@ -130,7 +130,7 @@ func (s *StateMgr) addBucket(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *StateMgr) addBucket(msg *tx.Message) error {
 	key = store.NewKey(pb.MetaType_ST_BucketOptKey, msg.From)
 	val := make([]byte, 8)
 	binary.BigEndian.PutUint64(val, uinfo.nextBucket)
-	err = s.ds.Put(key, val)
+	err = tds.Put(key, val)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (s *StateMgr) canAddBucket(msg *tx.Message) error {
 	return nil
 }
 
-func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
+func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32, tds store.TxnStore) error {
 	uinfo, ok := s.sInfo[userID]
 	if !ok {
 		var err error
@@ -231,13 +231,13 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID, s.ceInfo.epoch)
-	err = s.ds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	if err != nil {
 		return err
 	}
-	err = s.ds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	key = store.NewKey(pb.MetaType_ST_SegLocKey, userID, bucketID, chunkID)
 	val := make([]byte, 8)
 	binary.BigEndian.PutUint64(val, stripeStart)
-	err = s.ds.Put(key, val)
+	err = tds.Put(key, val)
 	if err != nil {
 		return err
 	}

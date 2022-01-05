@@ -24,6 +24,7 @@ var logger = logging.Logger("settle")
 
 var (
 	endpoint = "http://119.147.213.220:8193"
+	RoleAddr = callconts.RoleAddr
 )
 
 // TransferTo trans money

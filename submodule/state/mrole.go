@@ -23,13 +23,13 @@ func (s *StateMgr) loadVal(roleID uint64) *roleValue {
 	return rb
 }
 
-func (s *StateMgr) saveVal(roleID uint64, rv *roleValue) error {
+func (s *StateMgr) saveVal(roleID uint64, rv *roleValue, tds store.TxnStore) error {
 	key := store.NewKey(pb.MetaType_ST_RoleValueKey, roleID)
 	data, err := rv.Serialize()
 	if err != nil {
 		return err
 	}
-	return s.ds.Put(key, data)
+	return tds.Put(key, data)
 }
 
 func (s *StateMgr) loadRole(roleID uint64) *roleInfo {
@@ -50,7 +50,7 @@ func (s *StateMgr) loadRole(roleID uint64) *roleInfo {
 	return ri
 }
 
-func (s *StateMgr) addRole(msg *tx.Message) error {
+func (s *StateMgr) addRole(msg *tx.Message, tds store.TxnStore) error {
 	pri := new(pb.RoleInfo)
 	err := proto.Unmarshal(msg.Params, pri)
 	if err != nil {
@@ -63,7 +63,7 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 
 	// has?
 	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.ID)
-	ok, err := s.ds.Has(key)
+	ok, err := tds.Has(key)
 	if err == nil && ok {
 		return xerrors.Errorf("local already has role: %d", pri.ID)
 	}
@@ -84,7 +84,7 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 	}
 
 	// save
-	err = s.ds.Put(key, msg.Params)
+	err = tds.Put(key, msg.Params)
 	if err != nil {
 		return err
 	}
@@ -94,27 +94,36 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 	case pb.RoleInfo_Keeper:
 		s.keepers = append(s.keepers, msg.From)
 		key = store.NewKey(pb.MetaType_ST_KeepersKey)
-		val, _ := s.ds.Get(key)
+		val, _ := tds.Get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		s.ds.Put(key, buf)
+		err = tds.Put(key, buf)
+		if err != nil {
+			return err
+		}
 	case pb.RoleInfo_Provider:
 		s.pros = append(s.pros, msg.From)
 		key = store.NewKey(pb.MetaType_ST_ProsKey)
-		val, _ := s.ds.Get(key)
+		val, _ := tds.Get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		s.ds.Put(key, buf)
+		err = tds.Put(key, buf)
+		if err != nil {
+			return err
+		}
 	case pb.RoleInfo_User:
 		s.users = append(s.users, msg.From)
 		key = store.NewKey(pb.MetaType_ST_UsersKey)
-		val, _ := s.ds.Get(key)
+		val, _ := tds.Get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		s.ds.Put(key, buf)
+		err = tds.Put(key, buf)
+		if err != nil {
+			return err
+		}
 	}
 
 	if s.handleAddRole != nil {

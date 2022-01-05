@@ -8,7 +8,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (s *StateMgr) addPay(msg *tx.Message) error {
+func (s *StateMgr) addPay(msg *tx.Message, tds store.TxnStore) error {
 	pip := new(tx.PostIncomeParams)
 	err := pip.Deserialize(msg.Params)
 	if err != nil {
@@ -33,7 +33,7 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 
 	spi := new(types.AccPostIncome)
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, pip.Income.ProID, pip.Epoch)
-	data, err := s.ds.Get(key)
+	data, err := tds.Get(key)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 		Sig:           types.NewMultiSignature(types.SigSecp256k1),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayComfirmKey, pip.Income.ProID, pip.Epoch)
-	data, err = s.ds.Get(key)
+	data, err = tds.Get(key)
 	if err == nil {
 		sapi.Deserialize(data)
 	}
@@ -87,11 +87,17 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.ds.Put(key, data)
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
 
 	// save lastest
 	key = store.NewKey(pb.MetaType_ST_SegPayComfirmKey, pip.Income.ProID)
-	s.ds.Put(key, data)
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
