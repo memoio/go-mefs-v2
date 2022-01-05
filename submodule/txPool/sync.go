@@ -217,7 +217,7 @@ func (sp *SyncPool) syncBlock() {
 			err = sp.processTxBlock(sb)
 			if err != nil {
 				// clear all block above sp.nextHeight
-				logger.Debug("process block fail: %s", err)
+				logger.Debugf("process tx block fail: %s", err)
 
 				sp.Lock()
 				for j := i; j < sp.remoteHeight; j++ {
@@ -249,7 +249,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 	defer done()
 
 	bid := sb.Hash()
-	logger.Debug("process block: ", sb.Height, bid)
+	logger.Debug("process tx block: ", sb.Height, bid)
 	oRoot, err := sp.ApplyBlock(nil)
 	if err != nil {
 		return err
@@ -332,7 +332,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		sp.blkDone <- mds
 	}
 
-	logger.Debug("process block done: ", sb.Height, bid)
+	logger.Debug("process tx block done: ", sb.Height, bid)
 	return nil
 }
 

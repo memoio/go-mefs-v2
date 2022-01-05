@@ -59,7 +59,7 @@ func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
 		return nil, ErrBucketNotExist
 	}
 
-	if bucketID > l.sb.bucketVerify {
+	if bucketID >= l.sb.bucketVerify {
 		return nil, ErrBucketIsConfirm
 	}
 
