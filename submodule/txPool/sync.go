@@ -217,13 +217,15 @@ func (sp *SyncPool) syncBlock() {
 			err = sp.processTxBlock(sb)
 			if err != nil {
 				// clear all block above sp.nextHeight
+				logger.Debug("process block fail: %s", err)
+
 				sp.Lock()
 				for j := i; j < sp.remoteHeight; j++ {
 					delete(sp.blks, j)
 				}
 				sp.remoteHeight = i
 				sp.Unlock()
-				logger.Debug(err)
+
 				break
 			}
 

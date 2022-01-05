@@ -299,6 +299,10 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 		return xerrors.Errorf("add order nonce wrong, got %d, expected %d", or.Nonce, oinfo.ns.Nonce)
 	}
 
+	if oinfo.base != nil {
+		return xerrors.Errorf("add order base wrong, should be empty")
+	}
+
 	err = oinfo.od.Add(or.Start, or.End)
 	if err != nil {
 		return err
