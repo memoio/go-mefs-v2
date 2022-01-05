@@ -41,7 +41,7 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 	return spu, nil
 }
 
-func (s *StateMgr) addUser(msg *tx.Message) error {
+func (s *StateMgr) addUser(msg *tx.Message, tds store.TxnStore) error {
 	pk, err := pdp.DeserializePublicKey(msg.Params)
 	if err != nil {
 		return err
@@ -87,18 +87,18 @@ func (s *StateMgr) addUser(msg *tx.Message) error {
 	// save users
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, msg.From)
 	data := pk.Serialize()
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
 
 	// save all users
 	key = store.NewKey(pb.MetaType_ST_UsersKey)
-	val, _ := s.ds.Get(key)
+	val, _ := tds.Get(key)
 	buf := make([]byte, len(val)+8)
 	copy(buf[:len(val)], val)
 	binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-	s.tds.Put(key, buf)
+	tds.Put(key, buf)
 
 	if s.handleAddUser != nil {
 		s.handleAddUser(msg.From)

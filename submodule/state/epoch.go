@@ -13,7 +13,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
+func (s *StateMgr) updateChalEpoch(msg *tx.Message, tds store.TxnStore) error {
 	sep := new(tx.SignedEpochParams)
 	err := sep.Deserialize(msg.Params)
 	if err != nil {
@@ -47,12 +47,12 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.tds.Put(key, data)
+	tds.Put(key, data)
 
 	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, s.ceInfo.epoch)
-	s.tds.Put(key, buf)
+	tds.Put(key, buf)
 
 	return nil
 }

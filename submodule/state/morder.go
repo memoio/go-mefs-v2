@@ -98,7 +98,7 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	return oinfo
 }
 
-func (s *StateMgr) addOrder(msg *tx.Message) error {
+func (s *StateMgr) addOrder(msg *tx.Message, tds store.TxnStore) error {
 	or := new(types.SignedOrder)
 	err := or.Deserialize(msg.Params)
 	if err != nil {
@@ -189,7 +189,7 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -210,14 +210,14 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
 
 	// save for challenge
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID, s.ceInfo.epoch)
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -225,18 +225,18 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	// save up at first nonce
 	if or.Nonce == 0 {
 		key := store.NewKey(pb.MetaType_ST_ProsKey, or.UserID)
-		val, _ := s.ds.Get(key)
+		val, _ := tds.Get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], or.ProID)
-		s.tds.Put(key, buf)
+		tds.Put(key, buf)
 
 		key = store.NewKey(pb.MetaType_ST_UsersKey, or.ProID)
-		val, _ = s.ds.Get(key)
+		val, _ = tds.Get(key)
 		buf = make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], or.UserID)
-		s.tds.Put(key, buf)
+		tds.Put(key, buf)
 
 		// callback for user-pro relation
 		if s.handleAddUP != nil {
@@ -326,7 +326,7 @@ func (s *StateMgr) canAddOrder(msg *tx.Message) error {
 	return nil
 }
 
-func (s *StateMgr) addSeq(msg *tx.Message) error {
+func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 	so := new(types.SignedOrderSeq)
 	err := so.Deserialize(msg.Params)
 	if err != nil {
@@ -427,7 +427,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 
 	// verify segment
 	for _, seg := range so.Segments {
-		err := s.addChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
+		err := s.addChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID, tds)
 		if err != nil {
 			return err
 		}
@@ -454,7 +454,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 
 	// save order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, oinfo.base.Nonce)
-	data, err := s.ds.Get(key)
+	data, err := tds.Get(key)
 	if err != nil {
 		return err
 	}
@@ -470,7 +470,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -489,7 +489,7 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -500,13 +500,13 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID, s.ceInfo.epoch)
-	err = s.tds.Put(key, data)
+	err = tds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -637,7 +637,7 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 	return nil
 }
 
-func (s *StateMgr) removeSeg(msg *tx.Message) error {
+func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	so := new(tx.SegRemoveParas)
 	err := so.Deserialize(msg.Params)
 	if err != nil {
@@ -670,7 +670,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 
 	// load order seq
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
-	data, err := s.ds.Get(key)
+	data, err := tds.Get(key)
 	if err != nil {
 		return err
 	}
@@ -691,7 +691,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	data, err = s.ds.Get(key)
+	data, err = tds.Get(key)
 	if err != nil {
 		return err
 	}
@@ -735,7 +735,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
-	s.tds.Put(key, data)
+	tds.Put(key, data)
 
 	// save seq
 	sf.DelPart.Price.Add(sf.DelPart.Price, price)
@@ -751,7 +751,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	s.tds.Put(key, data)
+	tds.Put(key, data)
 
 	// save post income
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, so.UserID, so.ProID)
@@ -759,7 +759,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.tds.Put(key, data)
+	tds.Put(key, data)
 
 	// save penalty at epoch
 	pi := &types.PostIncome{
@@ -769,7 +769,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		Penalty: big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, so.UserID, so.ProID, s.ceInfo.current.Epoch)
-	data, err = s.ds.Get(key)
+	data, err = tds.Get(key)
 	if err == nil {
 		pi.Deserialize(data)
 	}
@@ -778,7 +778,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.tds.Put(key, data)
+	tds.Put(key, data)
 
 	// save acc
 	spi := &types.AccPostIncome{
@@ -787,7 +787,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		Penalty: big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
-	data, err = s.ds.Get(key)
+	data, err = tds.Get(key)
 	if err == nil {
 		spi.Deserialize(data)
 	}
@@ -796,10 +796,10 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	if err != nil {
 		return err
 	}
-	s.tds.Put(key, data)
+	tds.Put(key, data)
 
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, s.ceInfo.current.Epoch)
-	s.tds.Put(key, data)
+	tds.Put(key, data)
 
 	if s.handleDelSeg != nil {
 		s.handleDelSeg(so)
