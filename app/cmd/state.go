@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -147,6 +148,8 @@ var stateWithdrawCmd = &cli.Command{
 			fmt.Println("withdraw fail", err)
 			return err
 		}
+
+		time.Sleep(10 * time.Second)
 
 		bal, err = napi.GetBalance(cctx.Context, nid.ID)
 		if err != nil {
