@@ -61,14 +61,6 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 
 	ls.fsID = keyset.VerifyKey().Hash()
 
-	// load lfs info first
-	err := ls.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	go ls.persistMeta()
-
 	return ls, nil
 }
 
@@ -76,9 +68,17 @@ func (l *LfsService) Start() error {
 	// start order manager
 	l.om.Start()
 
+	// load lfs info first
+	err := l.load()
+	if err != nil {
+		return err
+	}
+
+	go l.persistMeta()
+
 	has := false
 
-	_, err := l.om.GetPDPPublicKey(l.ctx, l.userID)
+	_, err = l.om.GetPDPPublicKey(l.ctx, l.userID)
 	if err != nil {
 		time.Sleep(15 * time.Second)
 		logger.Debug("push create fs message for: ", l.userID)

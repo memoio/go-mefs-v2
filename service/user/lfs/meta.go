@@ -24,7 +24,6 @@ type superBlock struct {
 	bucketVerify   uint64            // Get from chain; in case create too mant buckets
 	bucketNameToID map[string]uint64 // bucketName -> bucketID
 	buckets        []*bucket         // 所有的bucket信息
-	waiting        bool
 }
 
 type bucket struct {
@@ -437,18 +436,8 @@ func loadOpRecord(userID uint64, bucketID, opID uint64, ds store.KVStore) (*pb.O
 	return or, nil
 }
 
-func saveOpRecord(userID uint64, bucketID uint64, or *pb.OpRecord, ds store.KVStore) error {
-	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bucketID, or.OpID)
-
-	data, err := proto.Marshal(or)
-	if err != nil {
-		return err
-	}
-	return ds.Put(key, data)
-}
-
 // wrap all above load
-func (l *LfsService) Load() error {
+func (l *LfsService) load() error {
 	l.sb.Lock()
 	defer l.sb.Unlock()
 	// 1. load super block
@@ -496,7 +485,7 @@ func (l *LfsService) Load() error {
 	return nil
 }
 
-func (l *LfsService) Save() error {
+func (l *LfsService) save() error {
 	ok := l.sw.TryAcquire(1)
 	if ok {
 		defer l.sw.Release(1)
@@ -546,14 +535,14 @@ func (l *LfsService) persistMeta() {
 			l.sb.Unlock()
 		case <-tick.C:
 			if l.Ready() {
-				err := l.Save()
+				err := l.save()
 				if err != nil {
 					logger.Warn("Cannot Persist Meta: ", err)
 				}
 			}
 		case <-l.ctx.Done():
 			if l.Ready() {
-				err := l.Save()
+				err := l.save()
 				if err != nil {
 					logger.Warn("Cannot Persist Meta: ", err)
 				}
