@@ -84,7 +84,7 @@ func (m *OrderMgr) createOrder(op *OrderFull) {
 
 	pk, err := m.GetPDPPublicKey(m.ctx, op.userID)
 	if err != nil {
-		logger.Warn("create order for user %d bls pk fail %s", op.userID, err)
+		logger.Warnf("create order for user %d bls pk fail %s", op.userID, err)
 		return
 	}
 

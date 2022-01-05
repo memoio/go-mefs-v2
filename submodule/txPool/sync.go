@@ -204,7 +204,7 @@ func (sp *SyncPool) syncBlock() {
 
 			sb, err := sp.GetTxBlock(bid)
 			if err != nil {
-				logger.Debugf("get tx block %d %s fail: %w", i, bid, err)
+				logger.Debugf("get tx block %d %s fail: %s", i, bid, err)
 				break
 			}
 
