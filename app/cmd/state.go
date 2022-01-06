@@ -180,7 +180,7 @@ var stateWithdrawCmd = &cli.Command{
 
 			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 
-			err = napi.Withdraw(cctx.Context, bal.FsValue, big.NewInt(0), nil)
+			err = napi.Withdraw(cctx.Context, big.NewInt(100), big.NewInt(0), nil)
 			if err != nil {
 				fmt.Println("withdraw fail", err)
 				return err
