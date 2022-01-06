@@ -50,12 +50,13 @@ type StateMgr struct {
 	validateSInfo  map[uint64]*segPerUser
 	validateRInfo  map[uint64]*roleInfo
 
-	handleAddRole HanderAddRoleFunc
-	handleAddUser HandleAddUserFunc
-	handleAddUP   HandleAddUPFunc
-	handleAddPay  HandleAddPayFunc
-	handleAddSeq  HandleAddSeqFunc
-	handleDelSeg  HandleDelSegFunc
+	handleAddRole     HanderAddRoleFunc
+	handleAddUser     HandleAddUserFunc
+	handleAddUP       HandleAddUPFunc
+	handleAddPay      HandleAddPayFunc
+	handleAddSeq      HandleAddSeqFunc
+	handleDelSeg      HandleDelSegFunc
+	handleCommitOrder HandleCommitOrderFunc
 }
 
 func NewStateMgr(groupID uint64, thre int, ds store.KVStore, ir api.IRole) *StateMgr {
@@ -128,6 +129,12 @@ func (s *StateMgr) RegisterDelSegFunc(h HandleDelSegFunc) {
 func (s *StateMgr) RegisterAddPayFunc(h HandleAddPayFunc) {
 	s.Lock()
 	s.handleAddPay = h
+	s.Unlock()
+}
+
+func (s *StateMgr) RegisterCommitOrderFunc(h HandleCommitOrderFunc) {
+	s.Lock()
+	s.handleCommitOrder = h
 	s.Unlock()
 }
 

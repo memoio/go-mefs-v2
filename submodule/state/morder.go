@@ -892,6 +892,7 @@ func (s *StateMgr) commitOrder(msg *tx.Message) error {
 	oinfo.ns.Nonce++
 	oinfo.ns.SeqNum = 0
 	oinfo.accFr = bls.ZERO
+	tmp := *oinfo.base
 	oinfo.base = nil
 
 	// save state
@@ -909,6 +910,10 @@ func (s *StateMgr) commitOrder(msg *tx.Message) error {
 	err = s.ds.Put(key, data)
 	if err != nil {
 		return err
+	}
+
+	if s.handleCommitOrder != nil {
+		s.handleCommitOrder(tmp)
 	}
 
 	return nil

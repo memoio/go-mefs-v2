@@ -25,6 +25,7 @@ type HandleAddUPFunc func(userID, proID uint64)
 type HandleAddPayFunc func(userID, proID, epoch uint64, pay, penaly *big.Int)
 type HandleAddSeqFunc func(types.OrderSeq)
 type HandleDelSegFunc func(*tx.SegRemoveParas)
+type HandleCommitOrderFunc func(types.SignedOrder)
 
 // todo: add msg fee here
 type roleInfo struct {
