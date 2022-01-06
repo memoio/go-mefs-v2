@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/api/client"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
@@ -110,53 +111,80 @@ var stateWithdrawCmd = &cli.Command{
 			return err
 		}
 
-		napi, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		ctx := cctx.Context
+
+		napi, closer, err := client.NewGenericNode(ctx, addr, headers)
 		if err != nil {
 			return err
 		}
 		defer closer()
 
-		nid, err := napi.RoleSelf(cctx.Context)
+		nid, err := napi.RoleSelf(ctx)
 		if err != nil {
 			return err
 		}
 
-		spi, err := napi.GetAccPostIncome(cctx.Context, nid.ID)
-		if err != nil {
-			return err
+		switch nid.Type {
+		case pb.RoleInfo_Provider:
+			spi, err := napi.GetAccPostIncome(cctx.Context, nid.ID)
+			if err != nil {
+				return err
+			}
+
+			bal, err := napi.GetBalance(cctx.Context, nid.ID)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+
+			fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
+
+			ksign := make([][]byte, spi.Sig.Len())
+			for i := 0; i < spi.Sig.Len(); i++ {
+				ksign[i] = spi.Sig.Data[65*i : 65*(i+1)]
+			}
+
+			// for test
+			spi.Penalty = big.NewInt(1)
+
+			err = napi.Withdraw(cctx.Context, spi.Value, spi.Penalty, ksign)
+			if err != nil {
+				fmt.Println("withdraw fail", err)
+				return err
+			}
+
+			time.Sleep(10 * time.Second)
+
+			bal, err = napi.GetBalance(cctx.Context, nid.ID)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+		default:
+			bal, err := napi.GetBalance(cctx.Context, nid.ID)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+
+			err = napi.Withdraw(cctx.Context, bal.FsValue, big.NewInt(0), nil)
+			if err != nil {
+				fmt.Println("withdraw fail", err)
+				return err
+			}
+
+			time.Sleep(10 * time.Second)
+
+			bal, err = napi.GetBalance(cctx.Context, nid.ID)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 		}
-
-		bal, err := napi.GetBalance(cctx.Context, nid.ID)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
-
-		fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
-
-		ksign := make([][]byte, spi.Sig.Len())
-		for i := 0; i < spi.Sig.Len(); i++ {
-			ksign[i] = spi.Sig.Data[65*i : 65*(i+1)]
-		}
-
-		// for test
-		spi.Penalty = big.NewInt(1)
-
-		err = napi.Withdraw(cctx.Context, spi.Value, spi.Penalty, ksign)
-		if err != nil {
-			fmt.Println("withdraw fail", err)
-			return err
-		}
-
-		time.Sleep(10 * time.Second)
-
-		bal, err = napi.GetBalance(cctx.Context, nid.ID)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 
 		return nil
 	},
