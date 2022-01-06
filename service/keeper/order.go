@@ -128,7 +128,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		if of.End < time.Now().Unix() {
+		if of.End >= time.Now().Unix() {
 			logger.Debug("subOrder time not up", userID, proID, of.End, time.Now().Unix(), err)
 			continue
 		}
