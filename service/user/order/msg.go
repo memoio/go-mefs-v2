@@ -27,7 +27,7 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 }
 
 func (m *OrderMgr) runCheck(proc goprocess.Process) {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for {

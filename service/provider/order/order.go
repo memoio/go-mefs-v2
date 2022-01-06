@@ -3,6 +3,7 @@ package order
 import (
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/build"
@@ -79,6 +80,56 @@ type OrderFull struct {
 	dv pdpcommon.DataVerifier
 
 	ready bool
+	pause bool // if nonce is far from now, not create order
+}
+
+func (m *OrderMgr) runCheck() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-m.ctx.Done():
+			return
+		case <-ticker.C:
+			m.check()
+		}
+	}
+}
+
+func (m *OrderMgr) check() error {
+	ulen := len(m.users)
+	for i := 0; i < ulen; i++ {
+		m.RLock()
+		uid := m.users[i]
+		of := m.orders[uid]
+		m.RUnlock()
+
+		if !of.ready {
+			continue
+		}
+
+		ns := m.GetOrderState(m.ctx, uid, m.localID)
+		cn, _, err := m.GetOrderInfo(uid, m.localID)
+		if err != nil {
+			continue
+		}
+
+		if ns.Nonce+1 < of.nonce || cn+2 < of.nonce {
+			of.Lock()
+			of.pause = true
+			of.Unlock()
+			logger.Debug("order is not submit to data or settle chain: ", of.nonce, ns.Nonce, cn)
+		}
+
+		if ns.Nonce+1 >= of.nonce && cn+2 >= of.nonce {
+			of.Lock()
+			of.pause = false
+			of.Unlock()
+		}
+	}
+
+	return nil
 }
 
 func (m *OrderMgr) createOrder(op *OrderFull) {
@@ -101,7 +152,6 @@ func (m *OrderMgr) createOrder(op *OrderFull) {
 
 func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	m.Lock()
-
 	op, ok := m.orders[userID]
 	if ok {
 		m.Unlock()
@@ -112,6 +162,7 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		localID: m.localID,
 		userID:  userID,
 	}
+	m.users = append(m.users, userID)
 	m.orders[userID] = op
 	m.Unlock()
 

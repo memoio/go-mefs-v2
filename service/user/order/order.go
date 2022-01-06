@@ -230,11 +230,11 @@ func (m *OrderMgr) check(o *OrderFull) {
 		}
 		o.RUnlock()
 	case Order_Wait:
-		if nt-o.orderTime > DefaultAckWaiting {
+		if nt-o.orderTime > defaultAckWaiting {
 			m.createOrder(o, nil)
 		}
 	case Order_Running:
-		if nt-o.orderTime > DefaultOrderLast {
+		if nt-o.orderTime > defaultOrderLast {
 			m.closeOrder(o)
 		}
 		switch o.seqState {
@@ -248,17 +248,17 @@ func (m *OrderMgr) check(o *OrderFull) {
 			o.RUnlock()
 		case OrderSeq_Prepare:
 			// not receive callback
-			if nt-o.seqTime > DefaultAckWaiting {
+			if nt-o.seqTime > defaultAckWaiting {
 				m.createSeq(o)
 			}
 		case OrderSeq_Send:
 			// time is up for next seq
-			if nt-o.seqTime > DefaultOrderSeqLast {
+			if nt-o.seqTime > defaultOrderSeqLast {
 				m.commitSeq(o)
 			}
 		case OrderSeq_Commit:
 			// not receive callback
-			if nt-o.seqTime > DefaultAckWaiting {
+			if nt-o.seqTime > defaultAckWaiting {
 				m.commitSeq(o)
 			}
 		case OrderSeq_Finish:
@@ -270,7 +270,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			m.commitSeq(o)
 		case OrderSeq_Commit:
 			// not receive callback
-			if nt-o.seqTime > DefaultAckWaiting {
+			if nt-o.seqTime > defaultAckWaiting {
 				m.commitSeq(o)
 			}
 		case OrderSeq_Init, OrderSeq_Prepare, OrderSeq_Finish:

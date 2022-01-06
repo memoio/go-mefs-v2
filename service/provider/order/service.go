@@ -14,6 +14,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 )
 
 type OrderMgr struct {
@@ -24,12 +25,15 @@ type OrderMgr struct {
 	api.IDataService
 	api.IChain
 
+	*settle.ContractMgr
+
 	ctx context.Context
 	ds  store.KVStore
 
 	localID uint64
 	quo     *types.Quotation
 
+	users  []uint64
 	orders map[uint64]*OrderFull // key: userID
 }
 
@@ -53,6 +57,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 		localID: roleID,
 		quo:     quo,
 
+		users:  make([]uint64, 0, 128),
 		orders: make(map[uint64]*OrderFull),
 	}
 
@@ -63,8 +68,11 @@ func (m *OrderMgr) Start() {
 	// load some
 	users := m.GetUsersForPro(m.ctx, m.localID)
 	for _, uid := range users {
+		m.users = append(m.users, uid)
 		m.getOrder(uid)
 	}
+
+	go m.runCheck()
 }
 
 func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
@@ -140,6 +148,7 @@ func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
 	return data, nil
 }
 
+// todo: verify nonce in data&settle chain
 func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	ob := new(types.SignedOrder)
 	err := ob.Deserialize(b)
@@ -167,6 +176,10 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	if !or.ready {
 		go m.createOrder(or)
 		return nil, xerrors.Errorf("order service not ready for %d", ob.UserID)
+	}
+
+	if or.pause {
+		return nil, xerrors.Errorf("order service pause for %d", ob.UserID)
 	}
 
 	logger.Debug("handle create order: ", ob.UserID, or.nonce, or.seqNum, or.orderState, or.seqState)

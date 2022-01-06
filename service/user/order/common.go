@@ -10,9 +10,9 @@ import (
 var logger = logging.Logger("user-order")
 
 const (
-	DefaultAckWaiting   = 30
-	DefaultOrderLast    = 600 // 1 day
-	DefaultOrderSeqLast = 180 // 1 hour
+	defaultAckWaiting   = 30
+	defaultOrderLast    = 600 // 1 day
+	defaultOrderSeqLast = 180 // 1 hour
 
 	// parallel number of net send
 	defaultWeighted = 50
