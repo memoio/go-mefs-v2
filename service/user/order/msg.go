@@ -301,7 +301,7 @@ func (m *OrderMgr) submitOrders() error {
 		logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, curNonce, subNonce, ns.Nonce)
 
 		if curNonce >= ns.Nonce {
-			break
+			continue
 		}
 
 		logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, curNonce)
@@ -310,13 +310,13 @@ func (m *OrderMgr) submitOrders() error {
 		of, err := m.GetOrder(m.localID, proID, curNonce)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info", m.localID, proID, err)
-			break
+			continue
 		}
 
 		err = m.addOrder(&of.SignedOrder)
 		if err != nil {
 			logger.Debug("addOrder fail to add order ", m.localID, proID, err)
-			break
+			continue
 		}
 	}
 
