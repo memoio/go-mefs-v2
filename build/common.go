@@ -7,7 +7,7 @@ import (
 
 const (
 	DefaultSegSize      = 248 * 1024   // byte
-	DefaultChalDuration = 30           // slot
+	DefaultChalDuration = 120          // slot
 	SlotDuration        = 30           // seconds
 	OrderDuration       = OrderMin     // 1 days
 	OrderMin            = 10 * 86400   // min 100days
