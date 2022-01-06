@@ -883,6 +883,12 @@ func (s *StateMgr) commitOrder(msg *tx.Message) error {
 		return xerrors.Errorf("commit order seqnum wrong, got %d, expected %d", ocp.SeqNum, oinfo.ns.SeqNum)
 	}
 
+	/*
+		if oinfo.base.Size == 0 {
+			return xerrors.Errorf("commit order size wrong, got %d, expected larger than zero", oinfo.base.Size)
+		}
+	*/
+
 	oinfo.ns.Nonce++
 	oinfo.ns.SeqNum = 0
 	oinfo.accFr = bls.ZERO
@@ -936,6 +942,12 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 	if ocp.SeqNum != oinfo.ns.SeqNum {
 		return xerrors.Errorf("commit order seqnum wrong, got %d, expected %d", ocp.SeqNum, oinfo.ns.SeqNum)
 	}
+
+	/*
+		if oinfo.base.Size == 0 {
+			return xerrors.Errorf("commit order size wrong, got %d, expected larger than zero", oinfo.base.Size)
+		}
+	*/
 
 	oinfo.ns.Nonce++
 	oinfo.ns.SeqNum = 0
