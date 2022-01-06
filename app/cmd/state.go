@@ -81,21 +81,31 @@ var statePayCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("pay info: ", nid.ID)
+		switch nid.Type {
+		case pb.RoleInfo_Provider:
+			fmt.Println("pay info: ", nid.ID)
 
-		spi, err := napi.GetAccPostIncome(cctx.Context, nid.ID)
-		if err != nil {
-			return err
+			spi, err := napi.GetAccPostIncome(cctx.Context, nid.ID)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
+
+			bi, err := napi.GetBalance(cctx.Context, nid.ID)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("pay info max: proID %d, expected income: %s, has balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
+		default:
+			bi, err := napi.GetBalance(cctx.Context, nid.ID)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("pay info max: roleID %d, expected income: %s, has balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
 		}
-
-		fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
-
-		bi, err := napi.GetBalance(cctx.Context, nid.ID)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("pay info max: proID %d, expected income: %s, balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
 
 		return nil
 	},
