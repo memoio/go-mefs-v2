@@ -24,6 +24,7 @@ func (k *KeeperNode) updateOrder() {
 			users := k.GetAllUsers(k.ctx)
 			for _, uid := range users {
 				k.addOrder(uid)
+				k.subOrder(uid)
 			}
 		}
 	}
@@ -93,6 +94,66 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 
 			logger.Debugf("addOrder pro %d has balance %d", proID, avail)
 		}
+	}
+
+	return nil
+}
+
+func (k *KeeperNode) subOrder(userID uint64) error {
+	logger.Debug("subOrder for user: ", userID)
+
+	pros := k.GetProsForUser(k.ctx, userID)
+	for _, proID := range pros {
+		ns := k.GetOrderState(k.ctx, userID, proID)
+		nonce, subNonce, err := k.ContractMgr.GetOrderInfo(userID, proID)
+		if err != nil {
+			logger.Debug("subOrder fail to get order info in chain", userID, proID, err)
+			continue
+		}
+
+		logger.Debugf("subOrder user %d pro %d has order %d %d %d", userID, proID, nonce, subNonce, ns.Nonce)
+
+		keepers := k.GetAllKeepers(k.ctx)
+		nt := time.Now().Unix() / (600)
+		// only one do this
+		kindex := (int(userID+proID) + int(nt)) % len(keepers)
+		if keepers[kindex] != k.RoleID() {
+			continue
+		}
+
+		// sub order here
+		of, err := k.GetOrder(userID, proID, subNonce)
+		if err != nil {
+			logger.Debug("addOrder fail to get order info", userID, proID, err)
+			break
+		}
+
+		if of.End < time.Now().Unix() {
+			continue
+		}
+
+		ksigns := make([][]byte, 7)
+		err = k.ContractMgr.SubOrder(&of.SignedOrder, ksigns)
+		if err != nil {
+			logger.Debug("subOrder fail to add order ", userID, proID, err)
+			break
+		}
+
+		avail, err := k.ContractMgr.GetBalance(k.ctx, userID)
+		if err != nil {
+			logger.Debug("subOrder fail to get balance ", userID, proID, err)
+			break
+		}
+
+		logger.Debugf("subOrder user %d has balance %d", userID, avail)
+
+		avail, err = k.ContractMgr.GetBalance(k.ctx, proID)
+		if err != nil {
+			logger.Debug("subOrder fail to get balance ", userID, proID, err)
+			break
+		}
+
+		logger.Debugf("subOrder pro %d has balance %d", proID, avail)
 	}
 
 	return nil
