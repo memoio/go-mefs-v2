@@ -16,6 +16,17 @@ import (
 )
 
 func (m *OrderMgr) runPush(proc goprocess.Process) {
+	for {
+		select {
+		case <-proc.Closing():
+			return
+		case msg := <-m.msgChan:
+			m.pushMessage(msg)
+		}
+	}
+}
+
+func (m *OrderMgr) runCheck(proc goprocess.Process) {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
@@ -23,8 +34,6 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 		select {
 		case <-proc.Closing():
 			return
-		case msg := <-m.msgChan:
-			m.pushMessage(msg)
 		case <-ticker.C:
 			if !m.inCheck {
 				m.inCheck = true
@@ -109,6 +118,10 @@ func (m *OrderMgr) checkBalance() {
 		needPay.Sub(needPay, bal.ErcValue)
 		m.is.Recharge(needPay)
 	}
+
+	// after recharge
+	// submit orders here
+	m.submitOrders()
 }
 
 func (m *OrderMgr) pushMessage(msg *tx.Message) {
@@ -271,4 +284,60 @@ func (m *OrderMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 			m.ds.Delete(key)
 		}
 	}
+}
+
+func (m *OrderMgr) submitOrders() error {
+	logger.Debug("addOrder for user: ", m.localID)
+
+	pros := m.GetProsForUser(m.ctx, m.localID)
+	for _, proID := range pros {
+		ns := m.GetOrderState(m.ctx, m.localID, proID)
+		curNonce, subNonce, err := m.is.GetOrderInfo(m.localID, proID)
+		if err != nil {
+			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
+			continue
+		}
+
+		logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, curNonce, subNonce, ns.Nonce)
+
+		if curNonce >= ns.Nonce {
+			break
+		}
+
+		logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, curNonce)
+
+		// add order here
+		of, err := m.GetOrder(m.localID, proID, curNonce)
+		if err != nil {
+			logger.Debug("addOrder fail to get order info", m.localID, proID, err)
+			break
+		}
+
+		err = m.addOrder(&of.SignedOrder)
+		if err != nil {
+			logger.Debug("addOrder fail to add order ", m.localID, proID, err)
+			break
+		}
+	}
+
+	return nil
+}
+
+func (m *OrderMgr) addOrder(so *types.SignedOrder) error {
+	avail, err := m.is.GetBalance(m.ctx, so.UserID)
+	if err != nil {
+		logger.Debug("addOrder fail to get balance ", so.UserID, so.ProID, err)
+		return err
+	}
+
+	logger.Debugf("addOrder user %d has balance %d", so.UserID, avail)
+
+	ksigns := make([][]byte, 7)
+	err = m.is.AddOrder(so, ksigns)
+	if err != nil {
+		logger.Debug("addOrder fail to add order ", so.UserID, so.ProID, so.Nonce, err)
+		return err
+	}
+
+	return nil
 }

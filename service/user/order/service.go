@@ -25,7 +25,7 @@ import (
 type OrderMgr struct {
 	api.IRole
 	api.IDataService
-	api.IChain
+	*txPool.PushPool
 
 	ctx     context.Context
 	proc    goprocess.Process
@@ -75,7 +75,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
-		IChain:       pp,
+		PushPool:     pp,
 
 		ds: ds,
 		ns: ns,
@@ -127,6 +127,7 @@ func (m *OrderMgr) Start() {
 	m.proc.Go(m.runSched)
 
 	m.proc.Go(m.runPush)
+	m.proc.Go(m.runCheck)
 
 	go m.dispatch()
 }
