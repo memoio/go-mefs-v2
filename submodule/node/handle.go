@@ -146,7 +146,7 @@ func (n *BaseNode) UpdateNetAddr() error {
 		Version: 0,
 		From:    n.RoleID(),
 		To:      n.RoleID(),
-		Method:  tx.UpdateNetAddr,
+		Method:  tx.UpdateNet,
 		Params:  data,
 	}
 

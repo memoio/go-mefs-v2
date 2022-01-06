@@ -95,7 +95,7 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	return oinfo
 }
 
-func (s *StateMgr) addOrder(msg *tx.Message) error {
+func (s *StateMgr) createOrder(msg *tx.Message) error {
 	or := new(types.SignedOrder)
 	err := or.Deserialize(msg.Params)
 	if err != nil {
@@ -241,7 +241,7 @@ func (s *StateMgr) addOrder(msg *tx.Message) error {
 	return nil
 }
 
-func (s *StateMgr) canAddOrder(msg *tx.Message) error {
+func (s *StateMgr) canCreateOrder(msg *tx.Message) error {
 	or := new(types.SignedOrder)
 	err := or.Deserialize(msg.Params)
 	if err != nil {
@@ -956,3 +956,5 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 
 	return nil
 }
+
+// todo: add confirmOrder

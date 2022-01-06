@@ -175,7 +175,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				Version: 0,
 				From:    of.localID,
 				To:      of.pro,
-				Method:  tx.DataPreOrder,
+				Method:  tx.PreDataOrder,
 				Params:  data,
 			}
 
@@ -204,7 +204,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				Version: 0,
 				From:    of.localID,
 				To:      of.pro,
-				Method:  tx.DataOrder,
+				Method:  tx.AddDataOrder,
 				Params:  data,
 			}
 			m.msgChan <- msg
@@ -233,7 +233,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 			Version: 0,
 			From:    of.localID,
 			To:      of.pro,
-			Method:  tx.DataOrderCommit,
+			Method:  tx.CommitDataOrder,
 			Params:  data,
 		}
 

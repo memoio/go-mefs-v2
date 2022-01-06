@@ -106,17 +106,17 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
-	case tx.DataPreOrder:
-		err := s.canAddOrder(msg)
+	case tx.PreDataOrder:
+		err := s.canCreateOrder(msg)
 		if err != nil {
 			return s.validateRoot, err
 		}
-	case tx.DataOrder:
+	case tx.AddDataOrder:
 		err := s.canAddSeq(msg)
 		if err != nil {
 			return s.validateRoot, err
 		}
-	case tx.DataOrderCommit:
+	case tx.CommitDataOrder:
 		err := s.canCommitOrder(msg)
 		if err != nil {
 			return s.validateRoot, err
@@ -136,12 +136,12 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
-	case tx.PostIncome:
+	case tx.ConfirmPostIncome:
 		err := s.canAddPay(msg)
 		if err != nil {
 			return s.validateRoot, err
 		}
-	case tx.UpdateNetAddr:
+	case tx.UpdateNet:
 		err := s.canUpdateNetAddr(msg)
 		if err != nil {
 			return s.validateRoot, err

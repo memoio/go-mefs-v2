@@ -381,17 +381,17 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error
 		if err != nil {
 			return s.root, err
 		}
-	case tx.DataPreOrder:
-		err := s.addOrder(msg)
+	case tx.PreDataOrder:
+		err := s.createOrder(msg)
 		if err != nil {
 			return s.root, err
 		}
-	case tx.DataOrder:
+	case tx.AddDataOrder:
 		err := s.addSeq(msg)
 		if err != nil {
 			return s.root, err
 		}
-	case tx.DataOrderCommit:
+	case tx.CommitDataOrder:
 		err := s.commitOrder(msg)
 		if err != nil {
 			return s.root, err
@@ -411,12 +411,12 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error
 		if err != nil {
 			return s.root, err
 		}
-	case tx.PostIncome:
+	case tx.ConfirmPostIncome:
 		err := s.addPay(msg)
 		if err != nil {
 			return s.root, err
 		}
-	case tx.UpdateNetAddr:
+	case tx.UpdateNet:
 		err := s.updateNetAddr(msg)
 		if err != nil {
 			return s.validateRoot, err

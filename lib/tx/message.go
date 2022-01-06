@@ -20,20 +20,23 @@ var (
 )
 
 const (
-	DataTxErr MsgType = iota
+	DataTxErr MsgType = 0
 
-	UpdateChalEpoch // next epoch, by keeper
-	AddRole         // by each role
-	CreateFs        // register, by user
-	CreateBucket    // by user
-	DataPreOrder    // by user
-	DataOrder       // contain piece and segment; by user
-	DataOrderCommit // commit
-	SegmentProof    // segment proof; by provider
-	SegmentFault    // segment remove; by provider
-	PostIncome      // add post income for provider; by keeper
+	AddRole   MsgType = 1 // by each role
+	UpdateNet MsgType = 2
 
-	UpdateNetAddr
+	UpdateChalEpoch   MsgType = 11 // next epoch, by keeper
+	ConfirmPostIncome MsgType = 12 // add post income for provider; by keeper
+	ConfirmDataOrder  MsgType = 13 // commit by keepers
+
+	CreateFs        MsgType = 21 // register, by user
+	CreateBucket    MsgType = 22 // by user
+	PreDataOrder    MsgType = 23 // by user
+	AddDataOrder    MsgType = 24 // contain piece and segment; by user
+	CommitDataOrder MsgType = 25 // commit by user
+
+	SegmentProof MsgType = 31 // segment proof; by provider
+	SegmentFault MsgType = 32 // segment remove; by provider
 )
 
 // MsgID(message) as key

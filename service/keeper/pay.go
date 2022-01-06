@@ -81,7 +81,7 @@ func (k *KeeperNode) updatePay() {
 					Version: 0,
 					From:    k.RoleID(),
 					To:      k.RoleID(),
-					Method:  tx.PostIncome,
+					Method:  tx.ConfirmPostIncome,
 					Params:  data,
 				}
 

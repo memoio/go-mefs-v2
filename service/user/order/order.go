@@ -461,7 +461,7 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 		Version: 0,
 		From:    o.base.UserID,
 		To:      o.base.ProID,
-		Method:  tx.DataPreOrder,
+		Method:  tx.PreDataOrder,
 		Params:  data,
 	}
 
@@ -525,7 +525,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		Version: 0,
 		From:    o.base.UserID,
 		To:      o.base.ProID,
-		Method:  tx.DataOrderCommit,
+		Method:  tx.CommitDataOrder,
 		Params:  data,
 	}
 
@@ -784,7 +784,7 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		Version: 0,
 		From:    m.localID,
 		To:      o.pro,
-		Method:  tx.DataOrder,
+		Method:  tx.AddDataOrder,
 		Params:  data,
 	}
 

@@ -194,17 +194,17 @@ func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (
 	}
 
 	switch msg.Method {
-	case tx.UpdateChalEpoch, tx.PostIncome:
+	case tx.UpdateChalEpoch, tx.ConfirmPostIncome, tx.ConfirmDataOrder:
 		// verift tx.From keeper
 		if ri.Type != pb.RoleInfo_Keeper {
 			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_Keeper, ri.Type)
 		}
-	case tx.CreateFs, tx.CreateBucket, tx.DataPreOrder, tx.DataOrder:
+	case tx.CreateFs, tx.CreateBucket, tx.PreDataOrder, tx.AddDataOrder, tx.CommitDataOrder:
 		// verify tx.From user
 		if ri.Type != pb.RoleInfo_User {
 			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_User, ri.Type)
 		}
-	case tx.SegmentProof:
+	case tx.SegmentProof, tx.SegmentFault:
 		// verify tx.From provider
 		if ri.Type != pb.RoleInfo_Provider {
 			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_Provider, ri.Type)
