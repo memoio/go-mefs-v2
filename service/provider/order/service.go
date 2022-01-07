@@ -351,6 +351,19 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 					if err != nil {
 						return nil, err
 					}
+
+					for _, seg := range os.Segments {
+						sid.SetBucketID(seg.BucketID)
+						for j := seg.Start; j < seg.Start+seg.Length; j++ {
+							sid.SetStripeID(j)
+							sid.SetChunkID(seg.ChunkID)
+							has, err := m.HasSegment(m.ctx, sid)
+							if err != nil || !has {
+								m.GetSegmentRemote(m.ctx, sid, userID, nil)
+							}
+						}
+					}
+
 					or.dv.Reset()
 
 					for _, seg := range os.Segments {

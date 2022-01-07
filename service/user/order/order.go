@@ -252,7 +252,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 				m.createSeq(o)
 			}
 		case OrderSeq_Send:
-			// time is up for next seq
+			// time is up for next seq, no new data
 			if nt-o.seqTime > defaultOrderSeqLast {
 				m.commitSeq(o)
 			}

@@ -84,7 +84,7 @@ type OrderFull struct {
 }
 
 func (m *OrderMgr) runCheck() {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -119,13 +119,14 @@ func (m *OrderMgr) check() error {
 			of.Lock()
 			of.pause = true
 			of.Unlock()
-			logger.Debug("order is not submit to data or settle chain: ", of.nonce, ns.Nonce, cn)
+			logger.Warn("order is not submit to data or settle chain: ", of.nonce, ns.Nonce, cn)
 		}
 
 		if ns.Nonce+1 >= of.nonce && cn+2 >= of.nonce {
 			of.Lock()
 			of.pause = false
 			of.Unlock()
+			logger.Debug("order is submit to data or settle chain: ", of.nonce, ns.Nonce, cn)
 		}
 	}
 

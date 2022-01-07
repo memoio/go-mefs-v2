@@ -22,10 +22,11 @@ type lastProsPerBucket struct {
 	bucketID uint64
 	dc, pc   int
 	pros     []uint64 // update and save to local
-	deleted  []uint64
+	deleted  []uint64 // todo: add del pro here
 }
 
 // todo: change pro when quotation price is too high
+// todo: fix order duplicated due to pro change
 
 func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
 	logger.Info("register order for bucket: ", bucketID, nextOpID)

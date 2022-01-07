@@ -23,7 +23,7 @@ func (k *KeeperNode) updateOrder() {
 		case <-ticker.C:
 			users := k.GetAllUsers(k.ctx)
 			for _, uid := range users {
-				k.addOrder(uid)
+				//k.addOrder(uid)
 				k.subOrder(uid)
 			}
 		}
