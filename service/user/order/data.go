@@ -682,7 +682,7 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 
 			o.Lock()
 
-			// update price and size
+			// update price an size
 			o.seq.Segments.Push(as)
 			o.seq.Segments.Merge()
 			o.seq.Price.Add(o.seq.Price, o.segPrice)

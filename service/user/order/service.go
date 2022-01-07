@@ -71,7 +71,6 @@ type OrderMgr struct {
 }
 
 func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is *settle.ContractMgr) *OrderMgr {
-
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
@@ -133,6 +132,7 @@ func (m *OrderMgr) Start() {
 }
 
 func (m *OrderMgr) Stop() {
+	m.ready = false
 	m.proc.Close()
 }
 
@@ -206,7 +206,6 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 
 		// handle order state
 		case quo := <-m.quoChan:
-
 			of, ok := m.orders[quo.ProID]
 			if ok {
 				if quo.SegPrice.Cmp(m.segPrice) > 0 {

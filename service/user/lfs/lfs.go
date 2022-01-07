@@ -227,6 +227,7 @@ func (l *LfsService) Start() error {
 
 func (l *LfsService) Stop() error {
 	l.ready = false
+	l.om.Stop()
 	return nil
 }
 

@@ -29,6 +29,8 @@ type UserNode struct {
 
 	*lfs.LfsService
 
+	api.IDataService
+
 	ctx context.Context
 }
 
@@ -72,9 +74,10 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 	}
 
 	un := &UserNode{
-		BaseNode:   bn,
-		LfsService: ls,
-		ctx:        ctx,
+		BaseNode:     bn,
+		LfsService:   ls,
+		IDataService: ids,
+		ctx:          ctx,
 	}
 
 	un.RegisterAddSeqFunc(om.AddOrderSeq)
@@ -124,4 +127,9 @@ func (u *UserNode) Start() error {
 
 	logger.Info("start user for: ", u.RoleID())
 	return nil
+}
+
+func (u *UserNode) Shutdown(ctx context.Context) error {
+	u.LfsService.Stop()
+	return u.BaseNode.Shutdown(ctx)
 }

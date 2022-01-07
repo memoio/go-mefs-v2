@@ -102,10 +102,13 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 			return nil
 		}
 
-		err := m.PutSegmentToLocal(m.ctx, seg)
-		if err != nil {
-			return err
-		}
+		/*
+			// put to local when received
+			err := m.PutSegmentToLocal(m.ctx, seg)
+			if err != nil {
+				return err
+			}
+		*/
 
 		id := seg.SegmentID().Bytes()
 		data, _ := seg.Content()
@@ -127,7 +130,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		or.seq.Price.Add(or.seq.Price, or.segPrice)
 		or.seq.Size += build.DefaultSegSize
 
-		err = saveOrderSeq(or, m.ds)
+		err := saveOrderSeq(or, m.ds)
 		if err != nil {
 			return err
 		}
@@ -352,18 +355,6 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 						return nil, err
 					}
 
-					for _, seg := range os.Segments {
-						sid.SetBucketID(seg.BucketID)
-						for j := seg.Start; j < seg.Start+seg.Length; j++ {
-							sid.SetStripeID(j)
-							sid.SetChunkID(seg.ChunkID)
-							has, err := m.HasSegment(m.ctx, sid)
-							if err != nil || !has {
-								m.GetSegmentRemote(m.ctx, sid, userID, nil)
-							}
-						}
-					}
-
 					or.dv.Reset()
 
 					for _, seg := range os.Segments {
@@ -373,6 +364,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 							sid.SetChunkID(seg.ChunkID)
 							segmt, err := m.GetSegmentFromLocal(m.ctx, sid)
 							if err != nil {
+								// should not, how to fix this by user?
 								return nil, err
 							}
 

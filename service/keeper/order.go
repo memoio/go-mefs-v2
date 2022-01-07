@@ -107,7 +107,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 		ns := k.GetOrderState(k.ctx, userID, proID)
 		nonce, subNonce, err := k.ContractMgr.GetOrderInfo(userID, proID)
 		if err != nil {
-			logger.Debug("subOrder fail to get order info in chain", userID, proID, err)
+			logger.Debug("subOrder fail to get order info in chain: ", userID, proID, err)
 			continue
 		}
 
@@ -124,25 +124,25 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 		// sub order here
 		of, err := k.GetOrder(userID, proID, subNonce)
 		if err != nil {
-			logger.Debug("subOrder fail to get order info", userID, proID, err)
+			logger.Debug("subOrder fail to get order info: ", userID, proID, err)
 			continue
 		}
 
 		if of.End >= time.Now().Unix() {
-			logger.Debug("subOrder time not up", userID, proID, of.End, time.Now().Unix(), err)
+			logger.Debug("subOrder time not up: ", userID, proID, of.End, time.Now().Unix())
 			continue
 		}
 
 		ksigns := make([][]byte, 7)
 		err = k.ContractMgr.SubOrder(&of.SignedOrder, ksigns)
 		if err != nil {
-			logger.Debug("subOrder fail to sub order ", userID, proID, err)
+			logger.Debug("subOrder fail to sub order: ", userID, proID, err)
 			continue
 		}
 
 		avail, err := k.ContractMgr.GetBalance(k.ctx, userID)
 		if err != nil {
-			logger.Debug("subOrder fail to get balance ", userID, proID, err)
+			logger.Debug("subOrder fail to get balance: ", userID, proID, err)
 			continue
 		}
 
@@ -150,7 +150,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 
 		avail, err = k.ContractMgr.GetBalance(k.ctx, proID)
 		if err != nil {
-			logger.Debug("subOrder fail to get balance ", userID, proID, err)
+			logger.Debug("subOrder fail to get balance: ", userID, proID, err)
 			continue
 		}
 
