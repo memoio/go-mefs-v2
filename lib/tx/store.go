@@ -202,7 +202,6 @@ func (ts *TxStoreImpl) GetTxBlockByHeight(ht uint64) (types.MsgID, error) {
 	}
 
 	key := store.NewKey(pb.MetaType_Tx_BlockHeightKey, ht)
-
 	res, err := ts.ds.Get(key)
 	if err != nil {
 		return bid, err

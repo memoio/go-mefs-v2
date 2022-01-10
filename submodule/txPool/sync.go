@@ -9,6 +9,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"go.opencensus.io/stats"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -118,7 +119,9 @@ func (sp *SyncPool) load() {
 
 	msglen := sp.GetMsgNum()
 	if msglen != 0 {
+		// should not
 		logger.Error("state is incomplete at: ", ht, msglen)
+		panic("state is incomplete")
 	}
 }
 
@@ -140,8 +143,28 @@ func (sp *SyncPool) syncBlock() {
 
 		logger.Debug("regular get block:", sp.nextHeight, sp.remoteHeight)
 
+		// if far from remote, parallel get it
+		if sp.remoteHeight > sp.nextHeight+128 {
+			var wg sync.WaitGroup
+			sm := semaphore.NewWeighted(128)
+			for i := sp.nextHeight; i < sp.remoteHeight; i++ {
+				err := sm.Acquire(sp.ctx, 1)
+				if err != nil {
+					break
+				}
+
+				wg.Add(1)
+				go func(ht uint64) {
+					defer sm.Release(1)
+					defer wg.Done()
+					sp.getTxBlockRemoteByHeight(ht)
+				}(i)
+			}
+			wg.Wait()
+		}
+
 		// sync all block from end -> begin
-		// todo: use prevID to find
+		// use prevID to find
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
 			sp.lk.RLock()
 			bid, ok := sp.blks[i]
@@ -184,15 +207,10 @@ func (sp *SyncPool) syncBlock() {
 			}
 		}
 
-		rh := sp.remoteHeight
-		if rh > sp.nextHeight+128 {
-			rh = sp.nextHeight + 128
-		}
-
-		logger.Debug("regular process block:", sp.nextHeight, rh, sp.remoteHeight)
+		logger.Debug("regular process block:", sp.nextHeight, sp.remoteHeight)
 
 		// process syncd blk
-		for i := sp.nextHeight; i < rh; i++ {
+		for i := sp.nextHeight; i < sp.remoteHeight; i++ {
 			sp.lk.RLock()
 			bid, ok := sp.blks[i]
 			sp.lk.RUnlock()
@@ -455,6 +473,28 @@ func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.SignedBlock, error) {
 	}
 
 	return tb, sp.AddTxBlock(tb)
+}
+
+func (sp *SyncPool) getTxBlockRemoteByHeight(ht uint64) {
+	bid, err := sp.GetTxBlockByHeight(ht)
+	if err != nil {
+		// fetch it over network
+		key := store.NewKey(pb.MetaType_Tx_BlockHeightKey, ht)
+		res, err := sp.INetService.Fetch(sp.ctx, key)
+		if err != nil {
+			return
+		}
+
+		bid, err = types.FromBytes(res)
+		if err != nil {
+			return
+		}
+	}
+
+	ok, err := sp.HasTxBlock(bid)
+	if err != nil || !ok {
+		sp.GetTxBlockRemote(bid)
+	}
 }
 
 func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
