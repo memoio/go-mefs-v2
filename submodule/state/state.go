@@ -268,6 +268,11 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, nil
 	}
 
+	if !s.root.Equal(blk.ParentRoot) {
+		logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, s.root, blk.ParentRoot)
+		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, s.root, blk.ParentRoot)
+	}
+
 	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
 	// old txn may be put but not committed, which should be dropped
 	tds, err := s.ds.NewTxnStore(true)
@@ -361,6 +366,11 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		}
 
 		msgDone()
+	}
+
+	if !s.root.Equal(blk.Root) {
+		logger.Error("apply has wrong block, state got: %s, expected: %s", s.root, blk.Root)
+		return s.root, xerrors.Errorf("apply has wrong block, state got: %s, expected: %s", s.root, blk.Root)
 	}
 
 	// apply block ok, commit all changes

@@ -1,7 +1,6 @@
 package txPool
 
 import (
-	"bytes"
 	"context"
 	"math"
 	"sync"
@@ -268,13 +267,15 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 
 	bid := sb.Hash()
 	logger.Debug("process tx block: ", sb.Height, bid)
-	oRoot, err := sp.ApplyBlock(nil)
+
+	_, err := sp.ApplyBlock(sb)
 	if err != nil {
+		logger.Debug("apply block fail: ", err)
 		return err
 	}
 
-	if !bytes.Equal(oRoot.Bytes(), sb.ParentRoot.Bytes()) {
-		logger.Warnf("apply wrong state at height %d, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
+	if err != nil {
+		logger.Warnf("apply wrong state at height %d, err: %s", sb.Height, err)
 		sp.DeleteTxBlock(bid)
 		sp.DeleteTxBlockHeight(sb.Height)
 
@@ -286,18 +287,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		if sp.retry > 10 {
 			panic("apply wrong state, should re-sync")
 		}
-		return xerrors.Errorf("apply wrong state, got: %s, expected: %s", oRoot, sb.ParentRoot)
-	}
-
-	newRoot, err := sp.ApplyBlock(sb)
-	if err != nil {
-		logger.Debug("apply block fail: ", err)
-		return err
-	}
-
-	// todo: fix this
-	if !bytes.Equal(newRoot.Bytes(), sb.Root.Bytes()) {
-		logger.Warnf("apply has wrong state, got: %s, expected: %s", newRoot, sb.Root)
+		return xerrors.Errorf("apply wrong state at height %d, got: %w", sb.Height, err)
 	}
 
 	mds := &blkDigest{
