@@ -268,26 +268,25 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 	bid := sb.Hash()
 	logger.Debug("process tx block: ", sb.Height, bid)
 
-	_, err := sp.ApplyBlock(sb)
-	if err != nil {
-		logger.Debug("apply block fail: ", err)
-		return err
-	}
-
+	newRoot, err := sp.ApplyBlock(sb)
 	if err != nil {
 		logger.Warnf("apply wrong state at height %d, err: %s", sb.Height, err)
-		sp.DeleteTxBlock(bid)
-		sp.DeleteTxBlockHeight(sb.Height)
+		if !newRoot.Equal(sb.Root) {
+			sp.DeleteTxBlock(bid)
+			sp.DeleteTxBlockHeight(sb.Height)
 
-		sp.lk.Lock()
-		sp.bads[bid] = struct{}{}
-		sp.retry++
-		sp.lk.Unlock()
+			sp.lk.Lock()
+			sp.bads[bid] = struct{}{}
+			sp.retry++
+			sp.lk.Unlock()
 
-		if sp.retry > 10 {
-			panic("apply wrong state, should re-sync")
+			if sp.retry > 10 {
+				panic("apply wrong state, should re-sync")
+			}
+			return xerrors.Errorf("apply wrong state at height %d, got: %w", sb.Height, err)
+		} else {
+			return xerrors.Errorf("apply wrong state at height %d, got: %w", sb.Height, err)
 		}
-		return xerrors.Errorf("apply wrong state at height %d, got: %w", sb.Height, err)
 	}
 
 	mds := &blkDigest{
@@ -296,15 +295,6 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 	}
 
 	for i, msg := range sb.Msgs {
-		nextNonce, ok := sp.nonce[msg.From]
-		if !ok {
-			nextNonce = sp.GetNonce(sp.ctx, msg.From)
-		}
-
-		if nextNonce != msg.Nonce {
-			logger.Debug("has wrong nonce: ", msg.From, msg.Nonce, nextNonce)
-		}
-
 		sp.nonce[msg.From] = msg.Nonce + 1
 
 		ms := &tx.MsgState{
@@ -318,11 +308,12 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 			return err
 		}
 
-		key := store.NewKey(pb.MetaType_Tx_MessageStateKey, msg.Hash().String())
+		mid := msg.Hash()
+		key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mid.String())
 		sp.ds.Put(key, msb)
 
 		md := tx.MessageDigest{
-			ID:    msg.Hash(),
+			ID:    mid,
 			From:  msg.From,
 			Nonce: msg.Nonce,
 		}

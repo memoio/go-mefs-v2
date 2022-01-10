@@ -277,8 +277,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	// old txn may be put but not committed, which should be dropped
 	tds, err := s.ds.NewTxnStore(true)
 	if err != nil {
-		logger.Error("cannot create a new txn")
-		return s.root, xerrors.Errorf("cannot create a new txn %s", err)
+		return s.root, xerrors.Errorf("create new txn fail: %w", err)
 	}
 	defer tds.Discard()
 
@@ -376,7 +375,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	// apply block ok, commit all changes
 	err = tds.Commit()
 	if err != nil {
-		return s.root, err
+		return s.root, xerrors.Errorf("txn commit fail %w", err)
 	}
 
 	return s.root, nil
