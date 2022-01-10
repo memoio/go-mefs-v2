@@ -16,7 +16,7 @@ import (
 )
 
 type LocalWallet struct {
-	sync.Mutex
+	lw       sync.Mutex
 	password string // used for decrypt; todo plaintext is not good
 	accounts map[address.Address]sig_common.PrivKey
 	keystore types.KeyStore // store
@@ -46,8 +46,8 @@ func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg 
 }
 
 func (w *LocalWallet) find(addr address.Address) (sig_common.PrivKey, error) {
-	w.Lock()
-	defer w.Unlock()
+	w.lw.Lock()
+	defer w.lw.Unlock()
 
 	pi, ok := w.accounts[addr]
 	if ok {
@@ -115,9 +115,9 @@ func (w *LocalWallet) WalletNew(ctx context.Context, kt types.KeyType) (address.
 		}
 	}
 
-	w.Lock()
+	w.lw.Lock()
 	w.accounts[addr] = privkey
-	w.Unlock()
+	w.lw.Unlock()
 
 	return addr, nil
 }
@@ -162,9 +162,9 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) er
 		return err
 	}
 
-	w.Lock()
+	w.lw.Lock()
 	delete(w.accounts, addr)
-	w.Unlock()
+	w.lw.Unlock()
 
 	return nil
 }
@@ -202,9 +202,9 @@ func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (addr
 			return address.Undef, err
 		}
 
-		w.Lock()
+		w.lw.Lock()
 		w.accounts[addr] = privkey
-		w.Unlock()
+		w.lw.Unlock()
 
 		// for eth short addr
 		if ki.Type == types.Secp256k1 {
@@ -219,9 +219,9 @@ func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (addr
 				return address.Undef, err
 			}
 
-			w.Lock()
+			w.lw.Lock()
 			w.accounts[eaddr] = privkey
-			w.Unlock()
+			w.lw.Unlock()
 		}
 
 		return addr, nil

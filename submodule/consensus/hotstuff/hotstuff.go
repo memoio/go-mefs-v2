@@ -36,10 +36,10 @@ type view struct {
 }
 
 type HotstuffManager struct {
-	sync.Mutex
 	api.IRole
 	api.INetService
 
+	lw  sync.Mutex
 	ctx context.Context
 
 	localID uint64
@@ -95,8 +95,8 @@ func (hsm *HotstuffManager) MineBlock() {
 func (hsm *HotstuffManager) HandleMessage(ctx context.Context, msg *hs.HotstuffMessage) error {
 	logger.Debug("HandleMessage got: ", msg.From, msg.Type, msg.Data.RawHeader)
 
-	hsm.Lock()
-	defer hsm.Unlock()
+	hsm.lw.Lock()
+	defer hsm.lw.Unlock()
 
 	var err error
 	switch msg.Type {
@@ -307,8 +307,8 @@ func (hsm *HotstuffManager) newView() error {
 // when time is up, enter into new view
 // replicas send to leader
 func (hsm *HotstuffManager) NewView() error {
-	hsm.Lock()
-	defer hsm.Unlock()
+	hsm.lw.Lock()
+	defer hsm.lw.Unlock()
 
 	err := hsm.newView()
 	if err != nil {

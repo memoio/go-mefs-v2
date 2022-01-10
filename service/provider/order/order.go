@@ -60,7 +60,7 @@ func (ss *SeqState) Deserialize(b []byte) error {
 
 // todo: check order
 type OrderFull struct {
-	sync.Mutex
+	lw      sync.Mutex
 	localID uint64
 	userID  uint64
 	fsID    []byte
@@ -116,16 +116,16 @@ func (m *OrderMgr) check() error {
 		}
 
 		if ns.Nonce+1 < of.nonce || cn+2 < of.nonce {
-			of.Lock()
+			of.lw.Lock()
 			of.pause = true
-			of.Unlock()
+			of.lw.Unlock()
 			logger.Warn("order is not submit to data or settle chain: ", of.nonce, ns.Nonce, cn)
 		}
 
 		if ns.Nonce+1 >= of.nonce && cn+2 >= of.nonce {
-			of.Lock()
+			of.lw.Lock()
 			of.pause = false
-			of.Unlock()
+			of.lw.Unlock()
 			logger.Debug("order is submit to data or settle chain: ", of.nonce, ns.Nonce, cn)
 		}
 	}

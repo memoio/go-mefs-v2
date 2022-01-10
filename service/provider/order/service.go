@@ -79,8 +79,8 @@ func (m *OrderMgr) Start() {
 func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	or := m.getOrder(userID)
 
-	or.Lock()
-	defer or.Unlock()
+	or.lw.Lock()
+	defer or.lw.Unlock()
 
 	if !or.ready {
 		return xerrors.Errorf("order service not ready for %d", userID)
@@ -174,8 +174,8 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	}
 
 	or := m.getOrder(ob.UserID)
-	or.Lock()
-	defer or.Unlock()
+	or.lw.Lock()
+	defer or.lw.Unlock()
 
 	if !or.ready {
 		go m.createOrder(or)
@@ -264,8 +264,8 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 	}
 
 	or := m.getOrder(userID)
-	or.Lock()
-	defer or.Unlock()
+	or.lw.Lock()
+	defer or.lw.Unlock()
 
 	if !or.ready {
 		return nil, xerrors.Errorf("order service not ready for %d", userID)
@@ -325,8 +325,8 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 	or := m.getOrder(userID)
 
-	or.Lock()
-	defer or.Unlock()
+	or.lw.Lock()
+	defer or.lw.Unlock()
 
 	if !or.ready {
 		return nil, xerrors.Errorf("order service not ready for %d", userID)

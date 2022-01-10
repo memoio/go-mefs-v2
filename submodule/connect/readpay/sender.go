@@ -16,7 +16,7 @@ import (
 var _ ISender = &SendPay{}
 
 type SendPay struct {
-	sync.Mutex
+	lw sync.Mutex
 	api.IWallet
 	localAddr address.Address
 	ds        store.KVStore
@@ -39,8 +39,8 @@ func NewSender(localAddr address.Address, iw api.IWallet, ds store.KVStore) *Sen
 }
 
 func (s *SendPay) Pay(to address.Address, val *big.Int) ([]byte, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.lw.Lock()
+	defer s.lw.Unlock()
 
 	if val.Sign() <= 0 {
 		return nil, xerrors.Errorf("pay value should be larger than zero")
