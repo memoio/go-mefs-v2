@@ -20,7 +20,7 @@ import (
 
 // key: pb.MetaType_ST_RootKey; val: root []byte
 type StateMgr struct {
-	sync.RWMutex
+	lk sync.RWMutex
 
 	api.IRole
 
@@ -105,45 +105,45 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 }
 
 func (s *StateMgr) RegisterAddRoleFunc(h HanderAddRoleFunc) {
-	s.Lock()
+	s.lk.Lock()
 	s.handleAddRole = h
-	s.Unlock()
+	s.lk.Unlock()
 }
 
 func (s *StateMgr) RegisterAddUserFunc(h HandleAddUserFunc) {
-	s.Lock()
+	s.lk.Lock()
 	s.handleAddUser = h
-	s.Unlock()
+	s.lk.Unlock()
 }
 
 func (s *StateMgr) RegisterAddUPFunc(h HandleAddUPFunc) {
-	s.Lock()
+	s.lk.Lock()
 	s.handleAddUP = h
-	s.Unlock()
+	s.lk.Unlock()
 }
 
 func (s *StateMgr) RegisterAddSeqFunc(h HandleAddSeqFunc) {
-	s.Lock()
+	s.lk.Lock()
 	s.handleAddSeq = h
-	s.Unlock()
+	s.lk.Unlock()
 }
 
 func (s *StateMgr) RegisterDelSegFunc(h HandleDelSegFunc) {
-	s.Lock()
+	s.lk.Lock()
 	s.handleDelSeg = h
-	s.Unlock()
+	s.lk.Unlock()
 }
 
 func (s *StateMgr) RegisterAddPayFunc(h HandleAddPayFunc) {
-	s.Lock()
+	s.lk.Lock()
 	s.handleAddPay = h
-	s.Unlock()
+	s.lk.Unlock()
 }
 
 func (s *StateMgr) RegisterCommitOrderFunc(h HandleCommitOrderFunc) {
-	s.Lock()
+	s.lk.Lock()
 	s.handleCommitOrder = h
-	s.Unlock()
+	s.lk.Unlock()
 }
 
 func (s *StateMgr) API() *stateAPI {
@@ -260,8 +260,8 @@ func (s *StateMgr) getThreshold() int {
 
 // block 0 is special: only accept addKeeper; and msg len >= threshold
 func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.lk.Lock()
+	defer s.lk.Unlock()
 
 	if blk == nil {
 		// todo: commmit for apply all changes

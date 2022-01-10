@@ -104,6 +104,14 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 
 	pros := k.GetProsForUser(k.ctx, userID)
 	for _, proID := range pros {
+		keepers := k.GetAllKeepers(k.ctx)
+		nt := time.Now().Unix() / (600)
+		// only one do this
+		kindex := (int(userID+proID) + int(nt)) % len(keepers)
+		if keepers[kindex] != k.RoleID() {
+			continue
+		}
+
 		ns := k.GetOrderState(k.ctx, userID, proID)
 		nonce, subNonce, err := k.ContractMgr.GetOrderInfo(userID, proID)
 		if err != nil {
@@ -113,11 +121,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 
 		logger.Debugf("subOrder user %d pro %d has order %d %d %d", userID, proID, nonce, subNonce, ns.Nonce)
 
-		keepers := k.GetAllKeepers(k.ctx)
-		nt := time.Now().Unix() / (600)
-		// only one do this
-		kindex := (int(userID+proID) + int(nt)) % len(keepers)
-		if keepers[kindex] != k.RoleID() {
+		if subNonce >= ns.Nonce {
 			continue
 		}
 

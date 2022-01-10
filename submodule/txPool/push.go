@@ -32,7 +32,7 @@ type pushAPI struct {
 }
 
 type PushPool struct {
-	sync.RWMutex
+	lw sync.RWMutex
 
 	*SyncPool
 
@@ -104,15 +104,15 @@ func (pp *PushPool) syncPush() {
 		case <-pp.ctx.Done():
 			return
 		case md := <-pp.msgDone:
-			pp.Lock()
+			pp.lk.Lock()
 			logger.Debug("tx message done: ", md.ID, md.From, md.Nonce)
 			lpending, ok := pp.pending[md.From]
 			if ok {
 				delete(lpending.msg, md.ID)
 			}
-			pp.Unlock()
+			pp.lk.Unlock()
 		case <-tc.C:
-			pp.Lock()
+			pp.lk.Lock()
 			lpending, ok := pp.pending[pp.localID]
 			if ok {
 				for _, pmsg := range lpending.msg {
@@ -123,7 +123,7 @@ func (pp *PushPool) syncPush() {
 					}
 				}
 			}
-			pp.Unlock()
+			pp.lk.Unlock()
 		}
 	}
 }
@@ -131,9 +131,9 @@ func (pp *PushPool) syncPush() {
 func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgID, error) {
 	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Method)
 
-	pp.Lock()
+	pp.lk.Lock()
 	if !pp.ready {
-		pp.Unlock()
+		pp.lk.Unlock()
 		return types.MsgID{}, xerrors.Errorf("push pool is not ready")
 	}
 
@@ -157,7 +157,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 	// sign
 	sig, err := pp.RoleSign(pp.ctx, pp.localID, mid.Bytes(), types.SigSecp256k1)
 	if err != nil {
-		pp.Unlock()
+		pp.lk.Unlock()
 		logger.Warn("add tx message to push pool: ", err)
 		return mid, err
 	}
@@ -166,7 +166,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 		Message:   *mes,
 		Signature: sig,
 	}
-	pp.Unlock()
+	pp.lk.Unlock()
 
 	return pp.PushSignedMessage(ctx, sm)
 }
@@ -176,7 +176,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 
 	mid := sm.Hash()
 
-	pp.Lock()
+	pp.lk.Lock()
 	lp, ok := pp.pending[sm.From]
 	if !ok {
 		lp = &pendingMsg{
@@ -192,7 +192,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 			msg:   sm,
 		}
 	}
-	pp.Unlock()
+	pp.lk.Unlock()
 
 	// store
 	if !ok {
@@ -231,8 +231,8 @@ func (pp *PushPool) ReplaceMsg(mes *tx.Message) error {
 }
 
 func (pp *PushPool) GetPendingNonce(ctx context.Context, id uint64) uint64 {
-	pp.RLock()
-	defer pp.RUnlock()
+	pp.lk.RLock()
+	defer pp.lk.RUnlock()
 	lp, ok := pp.pending[id]
 	if ok {
 		return lp.nonce
@@ -241,8 +241,8 @@ func (pp *PushPool) GetPendingNonce(ctx context.Context, id uint64) uint64 {
 }
 
 func (pp *PushPool) GetPendingMsg(ctx context.Context, id uint64) []types.MsgID {
-	pp.RLock()
-	defer pp.RUnlock()
+	pp.lk.RLock()
+	defer pp.lk.RUnlock()
 	lp, ok := pp.pending[id]
 	if ok {
 		res := make([]types.MsgID, len(lp.msg))

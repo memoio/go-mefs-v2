@@ -36,8 +36,8 @@ func (s *StateMgr) newValidateRoot(b []byte) {
 // only validate txs;
 // sign is valid outside; only valid sign len here
 func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.lk.Lock()
+	defer s.lk.Unlock()
 
 	s.reset()
 
@@ -68,8 +68,8 @@ func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 }
 
 func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.lk.Lock()
+	defer s.lk.Unlock()
 
 	if msg == nil {
 		return s.validateRoot, nil

@@ -28,7 +28,7 @@ type blkDigest struct {
 }
 
 type SyncPool struct {
-	sync.RWMutex
+	lk sync.RWMutex
 
 	api.INetService
 	api.IRole
@@ -100,9 +100,9 @@ func (sp *SyncPool) Start() {
 }
 
 func (sp *SyncPool) SetReady() {
-	sp.Lock()
+	sp.lk.Lock()
 	sp.ready = true
-	sp.Unlock()
+	sp.lk.Unlock()
 }
 
 func (sp *SyncPool) load() {
@@ -143,9 +143,9 @@ func (sp *SyncPool) syncBlock() {
 		// sync all block from end -> begin
 		// todo: use prevID to find
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
-			sp.RLock()
+			sp.lk.RLock()
 			bid, ok := sp.blks[i]
-			sp.RUnlock()
+			sp.lk.RUnlock()
 			if !ok {
 				// sync block from remote
 				nbid, err := sp.GetTxBlockByHeight(i)
@@ -157,10 +157,10 @@ func (sp *SyncPool) syncBlock() {
 				bid = nbid
 			} else {
 				if i > 0 && i > sp.nextHeight {
-					sp.RLock()
+					sp.lk.RLock()
 					// previous one exist, skip get?
 					_, ok = sp.blks[i-1]
-					sp.RUnlock()
+					sp.lk.RUnlock()
 					if ok {
 						continue
 					}
@@ -175,12 +175,12 @@ func (sp *SyncPool) syncBlock() {
 					continue
 				}
 			} else {
-				sp.Lock()
+				sp.lk.Lock()
 				sp.blks[blk.Height] = bid
 				if blk.Height > 0 {
 					sp.blks[blk.Height-1] = blk.PrevID
 				}
-				sp.Unlock()
+				sp.lk.Unlock()
 			}
 		}
 
@@ -193,9 +193,9 @@ func (sp *SyncPool) syncBlock() {
 
 		// process syncd blk
 		for i := sp.nextHeight; i < rh; i++ {
-			sp.RLock()
+			sp.lk.RLock()
 			bid, ok := sp.blks[i]
-			sp.RUnlock()
+			sp.lk.RUnlock()
 
 			if !ok {
 				logger.Debug("before process block, not have")
@@ -219,28 +219,28 @@ func (sp *SyncPool) syncBlock() {
 				// clear all block above sp.nextHeight
 				logger.Debugf("process tx block fail: %s", err)
 
-				sp.Lock()
+				sp.lk.Lock()
 				for j := i; j < sp.remoteHeight; j++ {
 					delete(sp.blks, j)
 				}
 				sp.remoteHeight = i
-				sp.Unlock()
+				sp.lk.Unlock()
 
 				break
 			}
 
-			sp.Lock()
+			sp.lk.Lock()
 			delete(sp.blks, i)
 			sp.nextHeight++
-			sp.Unlock()
+			sp.lk.Unlock()
 			stats.Record(sp.ctx, metrics.TxBlockSyncdHeight.M(int64(sp.nextHeight)))
 		}
 
-		sp.Lock()
+		sp.lk.Lock()
 		if sp.nextHeight > sp.remoteHeight {
 			sp.remoteHeight = sp.nextHeight
 		}
-		sp.Unlock()
+		sp.lk.Unlock()
 	}
 }
 
@@ -260,10 +260,10 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		sp.DeleteTxBlock(bid)
 		sp.DeleteTxBlockHeight(sb.Height)
 
-		sp.Lock()
+		sp.lk.Lock()
 		sp.bads[bid] = struct{}{}
 		sp.retry++
-		sp.Unlock()
+		sp.lk.Unlock()
 
 		if sp.retry > 10 {
 			panic("apply wrong state, should re-sync")
@@ -361,13 +361,13 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 
 	bid := tb.Hash()
 
-	sp.Lock()
+	sp.lk.Lock()
 	_, ok := sp.bads[bid]
 	if ok {
-		sp.Unlock()
+		sp.lk.Unlock()
 		return nil
 	}
-	sp.Unlock()
+	sp.lk.Unlock()
 
 	has, _ := sp.HasTxBlock(bid)
 	if has {
@@ -422,7 +422,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 
 	logger.Debug("add block ok: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 
-	sp.Lock()
+	sp.lk.Lock()
 	if tb.Height >= sp.nextHeight {
 		sp.blks[tb.Height] = bid
 		if tb.Height > 0 {
@@ -433,7 +433,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	if tb.Height >= sp.remoteHeight {
 		sp.remoteHeight = tb.Height + 1
 	}
-	sp.Unlock()
+	sp.lk.Unlock()
 
 	stats.Record(sp.ctx, metrics.TxBlockRemoteHeight.M(int64(sp.remoteHeight)))
 

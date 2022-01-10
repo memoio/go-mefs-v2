@@ -21,7 +21,7 @@ type msgSet struct {
 }
 
 type InPool struct {
-	sync.Mutex
+	lk sync.RWMutex
 
 	*SyncPool
 
@@ -64,7 +64,7 @@ func (mp *InPool) sync() {
 
 			logger.Debug("add tx message: ", id, m.From, m.Nonce, m.Method)
 
-			mp.Lock()
+			mp.lk.Lock()
 			ms, ok := mp.pending[m.From]
 			if !ok {
 				ms = &msgSet{
@@ -75,11 +75,11 @@ func (mp *InPool) sync() {
 				mp.pending[m.From] = ms
 			}
 			ms.info[m.Nonce] = m
-			mp.Unlock()
+			mp.lk.Unlock()
 		case bh := <-mp.blkDone:
 			logger.Debug("process new block after:", bh.height)
 
-			mp.Lock()
+			mp.lk.Lock()
 			for _, md := range bh.msgs {
 				ms, ok := mp.pending[md.From]
 				if !ok {
@@ -99,7 +99,7 @@ func (mp *InPool) sync() {
 
 				delete(ms.info, md.Nonce)
 			}
-			mp.Unlock()
+			mp.lk.Unlock()
 		}
 	}
 }
@@ -166,8 +166,8 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 }
 
 func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
-	mp.RLock()
-	defer mp.RUnlock()
+	mp.lk.RLock()
+	defer mp.lk.RUnlock()
 
 	logger.Debugf("create block propose at height %d", rh.Height)
 	msgSet := tx.MsgSet{
