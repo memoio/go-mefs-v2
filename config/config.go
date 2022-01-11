@@ -91,7 +91,7 @@ type BootstrapConfig struct {
 func newDefaultBootstrapConfig() BootstrapConfig {
 	return BootstrapConfig{
 		Addresses: []string{
-			"/ip4/121.37.158.192/tcp/23400/p2p/12D3KooWHXmKSneyGqE8fPrTmNTBs2rR9pWTdNcgVG3Tt5htJef7",
+			"/ip4/121.37.158.192/tcp/23456/p2p/12D3KooWHXmKSneyGqE8fPrTmNTBs2rR9pWTdNcgVG3Tt5htJef7",
 			"/ip4/192.168.1.46/tcp/4201/p2p/12D3KooWB5yMrUL6NG6wHrdR9V114mUDkpJ5Mp3c1sLPHwiFi6DN",
 		},
 	}
