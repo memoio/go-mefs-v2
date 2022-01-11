@@ -3,14 +3,12 @@ package settle
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/binary"
 	"encoding/hex"
 	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/gogo/protobuf/proto"
 	"golang.org/x/xerrors"
 
 	callconts "memoContract/callcontracts"
@@ -19,7 +17,6 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
@@ -415,142 +412,22 @@ func (cm *ContractMgr) GetThreshold(ctx context.Context) int {
 	return cm.level
 }
 
-func (cm *ContractMgr) GetAllAddrs(ds store.KVStore) {
-	//get all addrs and added it into roleMgr
-	tc := time.NewTicker(30 * time.Second)
-	defer tc.Stop()
+func (cm *ContractMgr) GetGKNum() (uint64, error) {
+	return cm.iRole.GetGKNum(cm.groupID)
+}
 
-	key := store.NewKey(pb.MetaType_RoleInfoKey)
+func (cm *ContractMgr) GetGUPNum() (uint64, uint64, error) {
+	return cm.iRole.GetGUPNum(cm.groupID)
+}
 
-	kCnt := uint64(0)
-	pCnt := uint64(0)
-	uCnt := uint64(0)
+func (cm *ContractMgr) GetGroupK(ki uint64) (uint64, error) {
+	return cm.iRole.GetGroupK(cm.groupID, ki)
+}
 
-	val, _ := ds.Get(key)
-	if len(val) >= 24 {
-		kCnt = binary.BigEndian.Uint64(val[:8])
-		pCnt = binary.BigEndian.Uint64(val[8:16])
-		uCnt = binary.BigEndian.Uint64(val[16:24])
-	}
+func (cm *ContractMgr) GetGroupP(pi uint64) (uint64, error) {
+	return cm.iRole.GetGroupP(cm.groupID, pi)
+}
 
-	for {
-		select {
-		case <-cm.ctx.Done():
-			return
-		case <-tc.C:
-			if cm.groupID == 0 {
-				continue
-			}
-
-			kcnt, err := cm.iRole.GetGKNum(cm.groupID)
-			if err != nil {
-				logger.Debugf("get group %d keeper count fail %w", cm.groupID, err)
-				continue
-			}
-			if kcnt > kCnt {
-				nkey := store.NewKey(pb.MetaType_RoleInfoKey, cm.groupID, pb.RoleInfo_Keeper.String())
-				data, _ := ds.Get(nkey)
-				for i := kCnt; i < kcnt; i++ {
-					kindex, err := cm.iRole.GetGroupK(cm.groupID, i)
-					if err != nil {
-						logger.Debugf("get group %d keeper %d fail %w", cm.groupID, i, err)
-						continue
-					}
-
-					buf := make([]byte, 8)
-					binary.BigEndian.PutUint64(buf, kindex)
-					data = append(data, buf...)
-
-					pri, err := cm.GetRoleInfoAt(context.TODO(), kindex)
-					if err != nil {
-						continue
-					}
-
-					val, err := proto.Marshal(pri)
-					if err != nil {
-						continue
-					}
-
-					// save to local
-					nrkey := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
-					ds.Put(nrkey, val)
-				}
-				kCnt = kcnt
-				ds.Put(nkey, data)
-			}
-
-			ucnt, pcnt, err := cm.iRole.GetGUPNum(cm.groupID)
-			if err != nil {
-				logger.Debugf("get group %d user-pro count fail %w", cm.groupID, err)
-				continue
-			}
-			if pcnt > pCnt {
-				nkey := store.NewKey(pb.MetaType_RoleInfoKey, cm.groupID, pb.RoleInfo_Provider.String())
-				data, _ := ds.Get(nkey)
-
-				for i := pCnt; i < pcnt; i++ {
-					pindex, err := cm.iRole.GetGroupP(cm.groupID, i)
-					if err != nil {
-						logger.Debugf("get group %d pro %d fail %w", cm.groupID, i, err)
-						continue
-					}
-
-					buf := make([]byte, 8)
-					binary.BigEndian.PutUint64(buf, pindex)
-					data = append(data, buf...)
-
-					pri, err := cm.GetRoleInfoAt(context.TODO(), pindex)
-					if err != nil {
-						continue
-					}
-
-					val, err := proto.Marshal(pri)
-					if err != nil {
-						continue
-					}
-
-					// save to local
-					nrkey := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
-					ds.Put(nrkey, val)
-				}
-				pCnt = pcnt
-
-				kCnt = kcnt
-				ds.Put(nkey, data)
-			}
-
-			if ucnt > uCnt {
-				for i := uCnt; i < ucnt; i++ {
-					uindex, err := cm.iRole.GetGroupU(cm.groupID, i)
-					if err != nil {
-						logger.Debugf("get group %d user %d fail %w", cm.groupID, i, err)
-						continue
-					}
-
-					pri, err := cm.GetRoleInfoAt(context.TODO(), uindex)
-					if err != nil {
-						continue
-					}
-
-					val, err := proto.Marshal(pri)
-					if err != nil {
-						continue
-					}
-
-					// save to local
-					nkey := store.NewKey(pb.MetaType_RoleInfoKey, pri.ID)
-					ds.Put(nkey, val)
-				}
-				uCnt = ucnt
-			}
-
-			logger.Debug("sync from chain: ", kCnt, pCnt, uCnt)
-
-			buf := make([]byte, 24)
-			binary.BigEndian.PutUint64(buf[:8], kCnt)
-			binary.BigEndian.PutUint64(buf[8:16], pCnt)
-			binary.BigEndian.PutUint64(buf[16:24], uCnt)
-			ds.Put(key, buf)
-		}
-	}
+func (cm *ContractMgr) GetGroupU(ui uint64) (uint64, error) {
+	return cm.iRole.GetGroupP(cm.groupID, ui)
 }

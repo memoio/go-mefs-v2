@@ -8,7 +8,6 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 var _ api.ISettle = &fakeSettle{}
@@ -37,9 +36,6 @@ func (f *fakeSettle) GetThreshold(ctx context.Context) int {
 
 func (f *fakeSettle) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
 	return nil, nil
-}
-
-func (f *fakeSettle) GetAllAddrs(context.Context, store.KVStore) {
 }
 
 func (f *fakeSettle) GetBalance(context.Context, uint64) (*api.BalanceInfo, error) {
