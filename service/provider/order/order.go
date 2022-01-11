@@ -151,6 +151,8 @@ func (m *OrderMgr) createOrder(op *OrderFull) {
 	op.ready = true
 }
 
+// todo: load from data chain
+// todo: fix missing if provider has fault
 func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	m.Lock()
 	op, ok := m.orders[userID]
@@ -177,15 +179,19 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.ready = true
 	}
 
+	dns := m.GetOrderState(m.ctx, userID, m.localID)
+
 	ns := new(NonceState)
 	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
 	val, err := m.ds.Get(key)
-	if err != nil {
-		return op
-	}
-	err = ns.Deserialize(val)
-	if err != nil {
-		return op
+	if err == nil {
+		err = ns.Deserialize(val)
+		if err != nil {
+			return op
+		}
+	} else {
+		ns.State = Order_Init
+		ns.Nonce = dns.Nonce
 	}
 
 	ob := new(types.SignedOrder)
@@ -208,12 +214,14 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	ss := new(SeqState)
 	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, ns.Nonce)
 	val, err = m.ds.Get(key)
-	if err != nil {
-		return op
-	}
-	err = ss.Deserialize(val)
-	if err != nil {
-		return op
+	if err == nil {
+		err = ss.Deserialize(val)
+		if err != nil {
+			return op
+		}
+	} else {
+		ss.State = OrderSeq_Init
+		ss.Number = dns.SeqNum
 	}
 
 	os := new(types.SignedOrderSeq)
