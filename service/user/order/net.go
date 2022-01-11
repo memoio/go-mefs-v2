@@ -16,9 +16,17 @@ func (m *OrderMgr) connect(proID uint64) error {
 	}
 
 	// test remote service is ready or not
-	_, err = m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
+	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
 		return err
+	}
+
+	if resp.GetHeader().GetFrom() != proID {
+		return xerrors.Errorf("wrong connect from expected %d, got %d", proID, resp.GetHeader().GetFrom())
+	}
+
+	if resp.GetHeader().GetType() == pb.NetMessage_Err {
+		return xerrors.Errorf("connect %d fail %s", proID, resp.GetData().MsgInfo)
 	}
 
 	return nil
