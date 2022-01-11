@@ -188,6 +188,11 @@ func (rm *RoleMgr) RoleVerifyMulti(ctx context.Context, msg []byte, sig types.Mu
 func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (bool, error) {
 	rm.Lock()
 	defer rm.Unlock()
+
+	if len(msg.Params) >= tx.MsgMaxLen {
+		return false, xerrors.Errorf("msg length too long")
+	}
+
 	ri, err := rm.get(msg.From)
 	if err != nil {
 		return false, err

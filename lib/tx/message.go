@@ -11,8 +11,8 @@ import (
 
 type MsgType = uint32
 
-// 1MB ok ?
-const MsgMaxLen = 1 << 20
+// 512KB ok ?
+const MsgMaxLen = 1 << 19
 
 var (
 	ErrMsgLen      = xerrors.New("message length too longth")
@@ -107,7 +107,14 @@ type SignedMessage struct {
 }
 
 func (sm *SignedMessage) Serialize() ([]byte, error) {
-	return cbor.Marshal(sm)
+	res, err := cbor.Marshal(sm)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) > int(MsgMaxLen) {
+		return nil, ErrMsgLen
+	}
+	return res, nil
 }
 
 func (sm *SignedMessage) Deserialize(b []byte) error {
