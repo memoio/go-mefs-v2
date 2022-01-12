@@ -128,6 +128,11 @@ func (pmgr *PeerMgr) Stop(ctx context.Context) error {
 
 func (pmgr *PeerMgr) Run(ctx context.Context) {
 	tick := time.NewTicker(time.Second * 60)
+	defer tick.Stop()
+
+	ltick := time.NewTicker(time.Second * 600)
+	defer ltick.Stop()
+
 	for {
 		select {
 		case <-tick.C:
@@ -138,6 +143,21 @@ func (pmgr *PeerMgr) Run(ctx context.Context) {
 				logger.Debugf("peer count about threshold: %d > %d", pcount, pmgr.maxPeers)
 			}
 			stats.Record(ctx, metrics.PeerCount.M(int64(pmgr.getPeerCount())))
+		case <-ltick.C:
+			if len(pmgr.bootstrappers) == 0 {
+				logger.Warn("no peers connected, and no bootstrappers configured")
+				return
+			}
+
+			logger.Info("connecting to bootstrap peers")
+
+			for _, bsp := range pmgr.bootstrappers {
+				ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+				if err := pmgr.h.Connect(ctx, bsp); err != nil {
+					logger.Warnf("failed to connect to bootstrap peer: %s", err)
+				}
+				cancel()
+			}
 		case <-pmgr.done:
 			logger.Warn("exiting peermgr run")
 			return

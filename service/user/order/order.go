@@ -93,13 +93,13 @@ type OrderFull struct {
 	seqState OrderSeqState
 
 	inflight bool // data is sending
-	inStop   bool // stop receiving data; duo to high price or long unavil
 	buckets  []uint64
 	jobs     map[uint64]*bucketJob // buf and persist?
 
 	segDoneChan chan *types.SegJob
 
-	ready bool
+	ready  bool // ready for service; network is ok
+	inStop bool // stop receiving data; duo to high price
 }
 
 func (m *OrderMgr) newProOrder(id uint64) {
@@ -203,21 +203,23 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 func (m *OrderMgr) check(o *OrderFull) {
 	nt := time.Now().Unix()
 
-	if nt-o.availTime < 30 {
+	if nt-o.availTime < 60 {
 		o.ready = true
-		o.inStop = false
+	} else {
+		if nt-o.availTime > 1800 {
+			o.ready = false
+			go m.update(o.pro)
+		}
+
+		if nt-o.availTime > 3600 {
+			m.stopOrder(o)
+		}
 	}
 
-	if nt-o.availTime > 1800 {
-		go m.update(o.pro)
-	}
+	logger.Debug("check state for: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
 
-	if nt-o.availTime > 3600 {
-		m.stopOrder(o)
-	}
-
-	if o.ready {
-		logger.Debug("check state for: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
+	if !o.ready {
+		return
 	}
 
 	switch o.orderState {

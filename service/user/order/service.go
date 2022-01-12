@@ -210,14 +210,16 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 			if ok {
 				if quo.SegPrice.Cmp(m.segPrice) > 0 {
 					of.quoretry += 1
-					continue
-				}
-
-				of.quoretry = 0
-				of.availTime = time.Now().Unix()
-				err := m.createOrder(of, quo)
-				if err != nil {
-					logger.Debug("fail create new order:", err)
+					if of.quoretry > 10 {
+						m.stopOrder(of)
+					}
+				} else {
+					of.quoretry = 0
+					of.availTime = time.Now().Unix()
+					err := m.createOrder(of, quo)
+					if err != nil {
+						logger.Debug("fail create new order:", err)
+					}
 				}
 			}
 		case ob := <-m.orderChan:
