@@ -77,7 +77,7 @@ func (mp *InPool) sync() {
 			ms.info[m.Nonce] = m
 			mp.lk.Unlock()
 		case bh := <-mp.blkDone:
-			logger.Debug("process new block after:", bh.height)
+			logger.Debug("process new block at:", bh.height)
 
 			mp.lk.Lock()
 			for _, md := range bh.msgs {
@@ -292,7 +292,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 		}
 	}
 
-	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d", rh.Height, msgCnt, rLen)
+	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d, cost %d", rh.Height, msgCnt, rLen, time.Since(nt).Seconds())
 
 	return msgSet, nil
 }

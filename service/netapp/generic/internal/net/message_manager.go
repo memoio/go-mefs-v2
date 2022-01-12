@@ -320,7 +320,7 @@ func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.NetMessage)
 			errc <- err
 			return
 		}
-		errc <- mes.XXX_Unmarshal(bytes)
+		errc <- mes.Unmarshal(bytes)
 	}(ms.r)
 
 	t := time.NewTimer(dhtReadMessageTimeout)

@@ -98,7 +98,7 @@ func (service *GenericService) handleNewMessage(s network.Stream) bool {
 
 			return false
 		}
-		err = req.XXX_Unmarshal(msgbytes)
+		err = req.Unmarshal(msgbytes)
 		r.ReleaseMsg(msgbytes)
 		if err != nil {
 			_ = stats.RecordWithTags(ctx,
