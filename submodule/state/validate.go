@@ -1,6 +1,8 @@
 package state
 
 import (
+	"math/big"
+
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
@@ -75,11 +77,24 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		return s.validateRoot, nil
 	}
 
-	logger.Debug("validate message:", msg.From, msg.Nonce, msg.Method, s.validateRoot)
+	logger.Debug("validate message:", s.validateHeight, msg.From, msg.Nonce, msg.Method, s.validateRoot)
 
 	ri, ok := s.validateRInfo[msg.From]
 	if !ok {
-		ri = s.loadRole(msg.From)
+		// load from
+		nri, ok := s.rInfo[msg.From]
+		if ok {
+			ri = &roleInfo{
+				base: nri.base,
+				val: &roleValue{
+					Nonce: nri.val.Nonce,
+					Value: new(big.Int).Set(nri.val.Value),
+				},
+			}
+			ri.val.Nonce = nri.val.Nonce
+		} else {
+			ri = s.loadRole(msg.From)
+		}
 		s.validateRInfo[msg.From] = ri
 	}
 

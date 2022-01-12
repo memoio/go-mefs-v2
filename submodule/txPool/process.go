@@ -166,8 +166,6 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 }
 
 func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
-	mp.lk.RLock()
-	defer mp.lk.RUnlock()
 
 	logger.Debugf("create block propose at height %d", rh.Height)
 	msgSet := tx.MsgSet{
@@ -195,6 +193,9 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 
 	msgSet.ParentRoot = oldRoot
 	msgSet.Root = newRoot
+
+	mp.lk.RLock()
+	defer mp.lk.RUnlock()
 
 	// todo: block 0 is special
 	if sb.Height == 0 {
@@ -249,11 +250,12 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	msgCnt := 0
 	rLen := 0
 	for from, ms := range mp.pending {
+		// should load from memory?
 		nc := mp.GetNonce(mp.ctx, from)
 		for i := nc; ; i++ {
 			m, ok := ms.info[i]
 			if ok {
-				if rLen+len(m.Params) > 1000_000 {
+				if rLen+len(m.Params) > 1_000_000 {
 					break
 				}
 
@@ -283,7 +285,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 			}
 		}
 
-		if rLen > 1000_000 {
+		if rLen > 1_000_000 {
 			break
 		}
 
@@ -347,6 +349,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 	// todo: should handle this
 	if !newRoot.Equal(sb.Root) {
 		logger.Warnf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
+		return xerrors.Errorf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 	}
 
 	logger.Debugf("create block OnPropose at height %d cost %d", sb.Height, time.Since(nt))
