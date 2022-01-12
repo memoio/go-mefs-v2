@@ -3,7 +3,14 @@ package settle
 import "math/big"
 
 func (cm *ContractMgr) ProWithdraw(proID uint64, pay, lost *big.Int, ksigns [][]byte) error {
-	return cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, proID, cm.tIndex, pay, lost, ksigns)
+	err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, proID, cm.tIndex, pay, lost, ksigns)
+	if err != nil {
+		return err
+	}
+	if err = <-cm.status; err != nil {
+		logger.Fatal("pro withdraw fail: ", err)
+	}
+	return err
 }
 
 // return nonce, subNonce

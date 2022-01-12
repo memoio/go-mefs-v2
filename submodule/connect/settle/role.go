@@ -31,6 +31,8 @@ type ContractMgr struct {
 	level   int
 	tIndex  uint32
 
+	status chan error
+
 	eAddr  common.Address // local address
 	txOpts *callconts.TxOpts
 
@@ -62,6 +64,8 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 		GasLimit: callconts.DefaultGasLimit,
 	}
 
+	status := make(chan error)
+
 	hexSk := hex.EncodeToString(sk)
 	privateKey, err := crypto.HexToECDSA(hexSk)
 	if err != nil {
@@ -89,7 +93,7 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	}
 
 	rAddr := RoleAddr
-	iRole := callconts.NewR(rAddr, eAddr, hexSk, txopts, endpoint)
+	iRole := callconts.NewR(rAddr, eAddr, hexSk, txopts, endpoint, status)
 
 	rtAddr, err := iRole.RToken()
 	if err != nil {
@@ -102,7 +106,7 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	if err != nil {
 		return nil, err
 	}
-	iERC := callconts.NewERC20(tAddr, eAddr, hexSk, txopts, endpoint)
+	iERC := callconts.NewERC20(tAddr, eAddr, hexSk, txopts, endpoint, status)
 
 	// transfer erc20
 	val, err = iERC.BalanceOf(eAddr)
@@ -122,22 +126,23 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	if err != nil {
 		return nil, err
 	}
-	ipp := callconts.NewPledgePool(ppAddr, eAddr, hexSk, txopts, endpoint)
+	ipp := callconts.NewPledgePool(ppAddr, eAddr, hexSk, txopts, endpoint, status)
 
 	rfsAddr, err := iRole.Rolefs()
 	if err != nil {
 		return nil, err
 	}
-	iRFS := callconts.NewRFS(rfsAddr, eAddr, hexSk, txopts, endpoint)
+	iRFS := callconts.NewRFS(rfsAddr, eAddr, hexSk, txopts, endpoint, status)
 
 	isAddr, err := iRole.Issuance()
 	if err != nil {
 		return nil, err
 	}
-	iIS := callconts.NewIssu(isAddr, eAddr, hexSk, txopts, endpoint)
+	iIS := callconts.NewIssu(isAddr, eAddr, hexSk, txopts, endpoint, status)
 
 	cm := &ContractMgr{
-		ctx: ctx,
+		ctx:    ctx,
+		status: status,
 
 		hexSK:  hexSk,
 		tIndex: tIndex,
@@ -323,7 +328,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 		cm.fsAddr = fsAddr
 		cm.level = level
-		cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts, endpoint)
+		cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts, endpoint, cm.status)
 		logger.Debug("fs contract address: ", fsAddr.Hex())
 	}
 
@@ -386,7 +391,14 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 
 func (cm *ContractMgr) RegisterRole() error {
 	logger.Debug("contract mgr register role")
-	return cm.iRole.Register(cm.eAddr, nil)
+	err := cm.iRole.Register(cm.eAddr, nil)
+	if err != nil {
+		return err
+	}
+	if err = <-cm.status; err != nil {
+		logger.Fatal("register role fail: ", err)
+	}
+	return err
 }
 
 func (cm *ContractMgr) getGroupInfo(gIndex uint64) (common.Address, int, error) {

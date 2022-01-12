@@ -1,9 +1,5 @@
 package settle
 
-import (
-	"log"
-)
-
 func (cm *ContractMgr) RegisterProvider() error {
 	logger.Debug("register provider")
 
@@ -34,15 +30,40 @@ func (cm *ContractMgr) RegisterProvider() error {
 
 		err = cm.iPP.Pledge(cm.tAddr, cm.rAddr, cm.roleID, pledgep, nil)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
+
+		if err = <-cm.status; err != nil {
+			logger.Fatal("provider pledge fail: ", err)
+			return err
+		}
+
 	}
 
 	logger.Debugf("provider register %d", pledgep)
 
-	return cm.iRole.RegisterProvider(cm.ppAddr, cm.roleID, nil)
+	err = cm.iRole.RegisterProvider(cm.ppAddr, cm.roleID, nil)
+	if err != nil {
+		return err
+	}
+
+	if err = <-cm.status; err != nil {
+		logger.Fatal("register pro fail: ", cm.roleID, err)
+		return err
+	}
+	return nil
 }
 
 func (cm *ContractMgr) AddProviderToGroup(gIndex uint64) error {
-	return cm.iRole.AddProviderToGroup(cm.roleID, gIndex, nil)
+	err := cm.iRole.AddProviderToGroup(cm.roleID, gIndex, nil)
+	if err != nil {
+		return err
+	}
+
+	if err = <-cm.status; err != nil {
+		logger.Fatal("add keeper to group fail: ", cm.roleID, gIndex, err)
+		return err
+	}
+
+	return nil
 }

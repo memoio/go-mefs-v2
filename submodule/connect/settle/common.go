@@ -131,7 +131,9 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
 		GasLimit: callconts.DefaultGasLimit,
 	}
-	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint)
+
+	status := make(chan error)
+	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint, status)
 
 	adminVal, err := erc20.BalanceOf(callconts.AdminAddr)
 	if err != nil {
@@ -145,6 +147,10 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 		logger.Debug("erc20 mintToken fail: ", callconts.ERC20Addr, callconts.AdminAddr, val)
 	}
 
+	if err = <-status; err != nil {
+		logger.Fatal("erc20 mintToken fail: ", err)
+	}
+
 	oldVal, err := erc20.BalanceOf(addr)
 	if err != nil {
 		return err
@@ -154,7 +160,11 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 	for retry < 10 {
 		err = erc20.Transfer(addr, val)
 		if err != nil {
-			logger.Debug("erc20 transfer fail: ", callconts.ERC20Addr, addr, val)
+			logger.Debug("erc20 transfer fail: ", callconts.ERC20Addr, addr, val, err)
+		}
+
+		if err = <-status; err != nil {
+			logger.Fatal("erc20 transfer fail: ", err)
 		}
 
 		newVal, err := erc20.BalanceOf(addr)

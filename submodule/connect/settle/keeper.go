@@ -43,7 +43,11 @@ func (cm *ContractMgr) RegisterKeeper() error {
 
 		err = cm.iPP.Pledge(cm.tAddr, cm.rAddr, cm.roleID, pledgek, nil)
 		if err != nil {
-			log.Fatal(err)
+			return err
+		}
+		if err = <-cm.status; err != nil {
+			logger.Fatal("keeper pledge fail: ", err)
+			return err
 		}
 	}
 
@@ -62,7 +66,14 @@ func (cm *ContractMgr) RegisterKeeper() error {
 		return err
 	}
 
-	return cm.iRole.RegisterKeeper(cm.ppAddr, cm.roleID, pk, nil)
+	err = cm.iRole.RegisterKeeper(cm.ppAddr, cm.roleID, pk, nil)
+	if err != nil {
+		return err
+	}
+	if err = <-cm.status; err != nil {
+		logger.Fatal("register keeper fail: ", err)
+	}
+	return err
 }
 
 func (cm *ContractMgr) AddKeeperToGroup(gIndex uint64) error {
@@ -71,9 +82,21 @@ func (cm *ContractMgr) AddKeeperToGroup(gIndex uint64) error {
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
 		GasLimit: callconts.DefaultGasLimit,
 	}
-	ar := callconts.NewR(callconts.RoleAddr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint)
 
-	return ar.AddKeeperToGroup(cm.roleID, gIndex)
+	status := make(chan error)
+	ar := callconts.NewR(callconts.RoleAddr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint, status)
+
+	err := ar.AddKeeperToGroup(cm.roleID, gIndex)
+	if err != nil {
+		return err
+	}
+
+	if err = <-status; err != nil {
+		logger.Fatal("add keeper to group fail: ", cm.roleID, gIndex, err)
+		return err
+	}
+
+	return nil
 }
 
 func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
@@ -97,6 +120,9 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
 	if err != nil {
 		return xerrors.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
 	}
+	if err = <-cm.status; err != nil {
+		return xerrors.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
+	}
 
 	logger.Debugf("add order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
 
@@ -108,6 +134,10 @@ func (cm *ContractMgr) SubOrder(so *types.SignedOrder, ksigns [][]byte) error {
 	err := cm.iRFS.SubOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
 	if err != nil {
 		return xerrors.Errorf("sub order user %d pro %d nonce %d size %d start %d end %d, price %d fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, err)
+	}
+
+	if err = <-cm.status; err != nil {
+		return xerrors.Errorf("sub order user %d pro %d nonce %d size %d start %d end %d, price %d tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, err)
 	}
 
 	logger.Debugf("sub order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)

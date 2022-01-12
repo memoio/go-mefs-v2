@@ -25,7 +25,16 @@ func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
 		return err
 	}
 
-	return cm.iRole.RegisterUser(cm.rtAddr, cm.roleID, gIndex, cm.tIndex, pdpKeySet.VerifyKey().Serialize(), nil)
+	err = cm.iRole.RegisterUser(cm.rtAddr, cm.roleID, gIndex, cm.tIndex, pdpKeySet.VerifyKey().Serialize(), nil)
+	if err != nil {
+		return err
+	}
+
+	if err = <-cm.status; err != nil {
+		logger.Fatal("register user fail: ", cm.roleID, gIndex, err)
+		return err
+	}
+	return nil
 }
 
 func (cm *ContractMgr) Recharge(val *big.Int) error {
@@ -56,10 +65,19 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 			return err
 		}
 
+		if err = <-cm.status; err != nil {
+			logger.Fatal("approve fail: ", cm.roleID, err)
+			return err
+		}
 		logger.Debug("recharge user charge: ", val)
 
 		err = cm.iRole.Recharge(cm.rtAddr, cm.roleID, 0, val, nil)
 		if err != nil {
+			return err
+		}
+
+		if err = <-cm.status; err != nil {
+			logger.Fatal("recharge fail: ", cm.roleID, err)
 			return err
 		}
 
