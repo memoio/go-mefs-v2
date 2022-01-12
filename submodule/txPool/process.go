@@ -352,7 +352,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		return xerrors.Errorf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 	}
 
-	logger.Debugf("create block OnPropose at height %d cost %d", sb.Height, time.Since(nt))
+	logger.Debugf("create block OnPropose at height %d cost %f", sb.Height, time.Since(nt).Seconds())
 
 	return nil
 }
