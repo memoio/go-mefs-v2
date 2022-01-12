@@ -30,6 +30,10 @@ func (m *OrderMgr) runCheck(proc goprocess.Process) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
+	// run once at start
+	m.inCheck = true
+	go m.checkBalance()
+
 	for {
 		select {
 		case <-proc.Closing():
