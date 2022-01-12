@@ -32,7 +32,7 @@ type pushAPI struct {
 }
 
 type PushPool struct {
-	lw sync.RWMutex
+	lk sync.RWMutex
 
 	*SyncPool
 
