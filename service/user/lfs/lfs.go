@@ -217,10 +217,14 @@ func (l *LfsService) Start() error {
 		}
 	}
 
+	logger.Debug("start lfs for: ", l.userID, l.ready)
 	if has {
 		l.ready = true
 	}
-	logger.Debug("start lfs for: ", l.userID, l.ready)
+
+	if l.ready {
+		logger.Debug("lfs is ready")
+	}
 
 	return nil
 }
