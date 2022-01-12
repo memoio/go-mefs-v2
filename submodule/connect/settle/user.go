@@ -7,6 +7,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"golang.org/x/xerrors"
 )
 
 func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
@@ -90,6 +91,59 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 	}
 
 	logger.Debug("recharge user has balance: ", avail)
+
+	return nil
+}
+
+func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
+	so.TokenIndex = cm.tIndex
+
+	avil, _, err := cm.iFS.GetBalance(so.UserID, so.TokenIndex)
+	if err != nil {
+		return err
+	}
+
+	pay := new(big.Int).Set(so.Price)
+	pay.Mul(pay, big.NewInt(so.End-so.Start))
+	pay.Mul(pay, big.NewInt(12))
+	pay.Div(pay, big.NewInt(10))
+
+	if pay.Cmp(avil) > 0 {
+		return xerrors.Errorf("add order insufficiecnt funds user %d has balance %s, require %s", so.UserID, types.FormatWei(avil), types.FormatWei(pay))
+	}
+
+	err = cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
+	if err != nil {
+		return xerrors.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
+	}
+
+	go func() {
+		err := <-cm.status
+		if err != nil {
+			logger.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
+		} else {
+			logger.Debugf("add order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
+		}
+	}()
+
+	return nil
+}
+
+func (cm *ContractMgr) SubOrder(so *types.SignedOrder, ksigns [][]byte) error {
+	so.TokenIndex = cm.tIndex
+	err := cm.iRFS.SubOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
+	if err != nil {
+		return xerrors.Errorf("sub order user %d pro %d nonce %d size %d start %d end %d, price %d fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, err)
+	}
+
+	go func() {
+		err := <-cm.status
+		if err != nil {
+			logger.Errorf("sub order user %d pro %d nonce %d size %d start %d end %d, price %d tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, err)
+		} else {
+			logger.Debugf("sub order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
+		}
+	}()
 
 	return nil
 }
