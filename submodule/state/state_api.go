@@ -16,7 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-var _ api.IState = &stateAPI{}
+var _ api.IChainState = &stateAPI{}
 
 type stateAPI struct {
 	*StateMgr

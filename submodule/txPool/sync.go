@@ -27,11 +27,14 @@ type blkDigest struct {
 	msgs   []tx.MessageDigest
 }
 
+var _ api.IChainSync = &SyncPool{}
+
 type SyncPool struct {
 	lk sync.RWMutex
 
 	api.INetService
 	api.IRole
+
 	tx.Store
 
 	*state.StateMgr

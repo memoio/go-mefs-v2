@@ -24,7 +24,7 @@ type FullNode interface {
 	IConfig
 	IWallet
 	IRole
-	IState
+	IChainState
 	INetwork
 	ISettle
 }
@@ -145,17 +145,25 @@ type ILfsService interface {
 	ShowBucketStorage(ctx context.Context, bucketName string) (uint64, error)
 }
 
-type IChain interface {
-	IState
-	GetSyncHeight(context.Context) (uint64, uint64)
+// process chain
+
+// push
+type IChainPush interface {
+	IChainSync
 	GetPendingNonce(context.Context, uint64) uint64
-	GetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
 
 	PushMessage(context.Context, *tx.Message) (types.MsgID, error)
 	PushSignedMessage(context.Context, *tx.SignedMessage) (types.MsgID, error)
 }
 
-type IState interface {
+// sync status
+type IChainSync interface {
+	IChainState
+	GetSyncHeight(context.Context) (uint64, uint64)
+	GetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
+}
+
+type IChainState interface {
 	GetRoot(context.Context) types.MsgID
 	GetHeight(context.Context) uint64
 	GetSlot(context.Context) uint64

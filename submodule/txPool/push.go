@@ -25,11 +25,7 @@ type pendingMsg struct {
 	msg   map[types.MsgID]*msgTo // to push
 }
 
-var _ api.IChain = &pushAPI{}
-
-type pushAPI struct {
-	*PushPool
-}
+var _ api.IChainPush = &PushPool{}
 
 type PushPool struct {
 	lk sync.RWMutex
@@ -68,10 +64,6 @@ func (pp *PushPool) Start() {
 
 func (pp *PushPool) Ready() bool {
 	return pp.ready
-}
-
-func (pp *PushPool) API() *pushAPI {
-	return &pushAPI{pp}
 }
 
 func (pp *PushPool) syncPush() {
