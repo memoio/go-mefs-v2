@@ -1,8 +1,6 @@
 package state
 
 import (
-	"math/big"
-
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
@@ -88,10 +86,9 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 				base: nri.base,
 				val: &roleValue{
 					Nonce: nri.val.Nonce,
-					Value: new(big.Int).Set(nri.val.Value),
+					//Value: new(big.Int).Set(nri.val.Value),
 				},
 			}
-			ri.val.Nonce = nri.val.Nonce
 		} else {
 			ri = s.loadRole(msg.From)
 		}
