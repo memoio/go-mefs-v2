@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/binary"
+	"math/big"
 
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/xerrors"
@@ -12,7 +13,10 @@ import (
 )
 
 func (s *StateMgr) loadVal(roleID uint64) *roleValue {
-	rb := new(roleValue)
+	rb := &roleValue{
+		Nonce: 0,
+		Value: big.NewInt(0),
+	}
 	key := store.NewKey(pb.MetaType_ST_RoleValueKey, roleID)
 	data, err := s.ds.Get(key)
 	if err != nil {

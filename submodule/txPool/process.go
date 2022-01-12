@@ -294,7 +294,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 		}
 	}
 
-	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d, cost %d", rh.Height, msgCnt, rLen, time.Since(nt).Seconds())
+	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d, cost %f", rh.Height, msgCnt, rLen, time.Since(nt).Seconds())
 
 	return msgSet, nil
 }
