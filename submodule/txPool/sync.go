@@ -395,6 +395,16 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 		return err
 	}
 
+	sbyte, err := tb.Serialize()
+	if err != nil {
+		logger.Debug("add block: ", err)
+		return err
+	}
+
+	stats.Record(context.TODO(),
+		metrics.TxBlockBytes.M(int64(len(sbyte))),
+	)
+
 	logger.Debug("add block ok: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 
 	sp.lk.Lock()

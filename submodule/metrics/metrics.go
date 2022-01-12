@@ -39,6 +39,7 @@ var (
 	TxMessageApply        = stats.Float64("message/apply_total_ms", "Time spent applying block messages", stats.UnitMilliseconds)
 	TxMessageApplySuccess = stats.Int64("message/apply_success", "Counter for message applied validation successes", stats.UnitDimensionless)
 	TxMessageApplyFailure = stats.Int64("message/apply_failure", "Counter for message applied validation failures", stats.UnitDimensionless)
+	TxMessageBytes        = stats.Int64("message/bytes", "Bytes per message", stats.UnitBytes)
 
 	// block
 	TxBlockSyncdHeight    = stats.Int64("block/synced_height", "Syned height of block", stats.UnitDimensionless)
@@ -50,6 +51,7 @@ var (
 	TxBlockApply          = stats.Float64("block/apply_total_ms", "Time spent applying block", stats.UnitMilliseconds)
 	TxBlockCreateExpected = stats.Int64("block/create_expected", "Counter for block create expected", stats.UnitDimensionless)
 	TxBlockCreateSuccess  = stats.Int64("block/create_success", "Counter for block create success", stats.UnitDimensionless)
+	TxBlockBytes          = stats.Int64("block/bytes", "Bytes per block", stats.UnitBytes)
 
 	NetReceivedMessages       = stats.Int64("net/received_messages", "Total number of messages received per RPC", stats.UnitDimensionless)
 	NetReceivedMessageErrors  = stats.Int64("net/received_message_errors", "Total number of errors for messages received per RPC", stats.UnitDimensionless)
@@ -103,6 +105,10 @@ var (
 		Measure:     TxMessageApplyFailure,
 		Aggregation: view.Count(),
 	}
+	TxMessageBytesView = &view.View{
+		Measure:     TxMessageBytes,
+		Aggregation: defaultBytesDistribution,
+	}
 
 	TxBlockSyncedHeightView = &view.View{
 		Measure:     TxBlockSyncdHeight,
@@ -135,6 +141,10 @@ var (
 	TxBlockCreateSuccessView = &view.View{
 		Measure:     TxBlockCreateSuccess,
 		Aggregation: view.Count(),
+	}
+	TxBlockBytesView = &view.View{
+		Measure:     TxBlockBytes,
+		Aggregation: defaultBytesDistribution,
 	}
 
 	NetReceivedMessagesView = &view.View{
@@ -191,6 +201,7 @@ var DefaultViews = func() []*view.View {
 		TxMessageApplyView,
 		TxMessageApplySuccessView,
 		TxMessageApplyFailureView,
+		TxMessageBytesView,
 
 		TxBlockSyncedHeightView,
 		TxBlockRemoteHeightView,
@@ -200,6 +211,7 @@ var DefaultViews = func() []*view.View {
 		TxBlockApplyView,
 		TxBlockCreateExpectedView,
 		TxBlockCreateSuccessView,
+		TxBlockBytesView,
 
 		NetReceivedMessagesView,
 		NetReceivedMessageErrorsView,
