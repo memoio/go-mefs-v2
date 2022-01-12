@@ -521,7 +521,7 @@ func (l *LfsService) persistMeta() {
 			l.ready = true
 			logger.Debug("lfs is ready")
 		case bid := <-l.bucketChan:
-			logger.Debug("lfs bucket is verify: ", bid)
+			logger.Debug("lfs bucket is verified: ", bid)
 			l.sb.Lock()
 			if bid < l.sb.NextBucketID {
 				if l.sb.bucketVerify == bid {
