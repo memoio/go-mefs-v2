@@ -67,7 +67,7 @@ func (pp *PushPool) Ready() bool {
 }
 
 func (pp *PushPool) syncPush() {
-	tc := time.NewTicker(5 * time.Second)
+	tc := time.NewTicker(30 * time.Second)
 	defer tc.Stop()
 
 	for {
@@ -108,7 +108,7 @@ func (pp *PushPool) syncPush() {
 			lpending, ok := pp.pending[pp.localID]
 			if ok {
 				for _, pmsg := range lpending.msg {
-					if time.Since(pmsg.mtime) > 3*time.Minute {
+					if time.Since(pmsg.mtime) > 5*time.Minute {
 						// publish again
 						pp.INetService.PublishTxMsg(pp.ctx, pmsg.msg)
 						pmsg.mtime = time.Now()
