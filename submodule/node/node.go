@@ -166,13 +166,17 @@ func (n *BaseNode) RunDaemon() error {
 
 		logger.Warn("shutdown...")
 		// stop api service
-		err = apiserv.Shutdown(context.TODO())
+		ctx, cancle1 := context.WithTimeout(context.TODO(), 1*time.Minute)
+		defer cancle1()
+		err = apiserv.Shutdown(ctx)
 		if err != nil {
 			logger.Errorf("shut down api server failed: %s", err)
 		}
 
+		ctx, cancle2 := context.WithTimeout(context.TODO(), 1*time.Minute)
+		defer cancle2()
 		// stop node
-		err = n.Stop(context.TODO())
+		err = n.Stop(ctx)
 		if err != nil {
 			logger.Errorf("shut down node failed: %s", err)
 		}
