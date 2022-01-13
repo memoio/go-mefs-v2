@@ -21,8 +21,9 @@ type msgTo struct {
 }
 
 type pendingMsg struct {
-	nonce uint64                 // pending
-	msg   map[types.MsgID]*msgTo // to push
+	chainNonce uint64                 // nonce on chain
+	nonce      uint64                 // pending nonce
+	msg        map[types.MsgID]*msgTo // to push
 }
 
 var _ api.IChainPush = &PushPool{}
@@ -34,9 +35,10 @@ type PushPool struct {
 
 	ctx context.Context
 
+	locals  []uint64
 	pending map[uint64]*pendingMsg
 
-	msgDone chan *tx.MessageDigest
+	msgDone chan *blkDigest
 
 	ready bool
 }
@@ -46,6 +48,7 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 		SyncPool: sp,
 		ctx:      ctx,
 
+		locals:  make([]uint64, 0, 16),
 		pending: make(map[uint64]*pendingMsg),
 
 		msgDone: sp.msgDone,
@@ -81,10 +84,7 @@ func (pp *PushPool) syncPush() {
 		time.Sleep(5 * time.Second)
 	}
 
-	pp.pending[pp.localID] = &pendingMsg{
-		nonce: pp.GetNonce(pp.ctx, pp.localID),
-		msg:   make(map[types.MsgID]*msgTo),
-	}
+	// need load pending msgs?
 
 	pp.ready = true
 	pp.inPush = true
@@ -95,23 +95,38 @@ func (pp *PushPool) syncPush() {
 		select {
 		case <-pp.ctx.Done():
 			return
-		case md := <-pp.msgDone:
+		case bh := <-pp.msgDone:
+			logger.Debug("process new block at:", bh.height)
+
 			pp.lk.Lock()
-			logger.Debug("tx message done: ", md.ID, md.From, md.Nonce)
-			lpending, ok := pp.pending[md.From]
-			if ok {
-				delete(lpending.msg, md.ID)
+			for _, md := range bh.msgs {
+				logger.Debug("tx message done: ", md.ID, md.From, md.Nonce)
+				lpending, ok := pp.pending[md.From]
+				if ok {
+					delete(lpending.msg, md.ID)
+					if lpending.chainNonce <= md.Nonce {
+						lpending.chainNonce = md.Nonce + 1
+					}
+				}
 			}
 			pp.lk.Unlock()
+
 		case <-tc.C:
 			pp.lk.Lock()
-			lpending, ok := pp.pending[pp.localID]
-			if ok {
-				for _, pmsg := range lpending.msg {
-					if time.Since(pmsg.mtime) > 5*time.Minute {
-						// publish again
-						pp.INetService.PublishTxMsg(pp.ctx, pmsg.msg)
-						pmsg.mtime = time.Now()
+			for _, lid := range pp.locals {
+				lpending, ok := pp.pending[lid]
+				if ok {
+					for _, pmsg := range lpending.msg {
+						if pmsg.msg.Nonce < lpending.chainNonce {
+							// remove it
+							delete(lpending.msg, pmsg.msg.Hash())
+							continue
+						}
+						if time.Since(pmsg.mtime) > 5*time.Minute {
+							// publish again
+							pp.INetService.PublishTxMsg(pp.ctx, pmsg.msg)
+							pmsg.mtime = time.Now()
+						}
 					}
 				}
 			}
@@ -123,6 +138,8 @@ func (pp *PushPool) syncPush() {
 func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgID, error) {
 	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Method)
 
+	mid := mes.Hash()
+
 	pp.lk.Lock()
 	if !pp.ready {
 		pp.lk.Unlock()
@@ -131,10 +148,13 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 
 	lp, ok := pp.pending[mes.From]
 	if !ok {
+		cNonce := pp.GetNonce(pp.ctx, mes.From)
 		lp = &pendingMsg{
-			nonce: pp.GetNonce(pp.ctx, mes.From),
-			msg:   make(map[types.MsgID]*msgTo),
+			chainNonce: cNonce,
+			nonce:      cNonce,
+			msg:        make(map[types.MsgID]*msgTo),
 		}
+		pp.locals = append(pp.locals, mes.From)
 		pp.pending[mes.From] = lp
 	}
 
@@ -144,21 +164,20 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 
 	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Nonce, mes.Method)
 
-	mid := mes.Hash()
-
 	// sign
-	sig, err := pp.RoleSign(pp.ctx, pp.localID, mid.Bytes(), types.SigSecp256k1)
+	sig, err := pp.RoleSign(pp.ctx, mes.From, mid.Bytes(), types.SigSecp256k1)
 	if err != nil {
 		pp.lk.Unlock()
 		logger.Warn("add tx message to push pool: ", err)
 		return mid, err
 	}
 
+	pp.lk.Unlock()
+
 	sm := &tx.SignedMessage{
 		Message:   *mes,
 		Signature: sig,
 	}
-	pp.lk.Unlock()
 
 	return pp.PushSignedMessage(ctx, sm)
 }
@@ -168,15 +187,35 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 
 	mid := sm.Hash()
 
+	// verify signature
+	valid, err := pp.RoleVerify(pp.ctx, sm.From, mid.Bytes(), sm.Signature)
+	if err != nil {
+		logger.Warn("add tx signed message to push pool: ", err)
+		return mid, err
+	}
+
+	if !valid {
+		logger.Warn("add tx signed message to push pool: invalid sig")
+		return mid, xerrors.Errorf("invalid sig")
+	}
+
 	pp.lk.Lock()
 	lp, ok := pp.pending[sm.From]
 	if !ok {
+		cNonce := pp.GetNonce(pp.ctx, sm.From)
 		lp = &pendingMsg{
-			nonce: pp.GetNonce(pp.ctx, sm.From),
-			msg:   make(map[types.MsgID]*msgTo),
+			chainNonce: cNonce,
+			nonce:      cNonce,
+			msg:        make(map[types.MsgID]*msgTo),
 		}
 		pp.pending[sm.From] = lp
 	}
+
+	// verify nonce
+	if sm.Nonce < lp.chainNonce {
+		return mid, xerrors.Errorf("nonce should be no less than %d, got %d", lp.chainNonce, sm.Nonce)
+	}
+
 	_, ok = lp.msg[mid]
 	if !ok {
 		lp.msg[mid] = &msgTo{
@@ -186,7 +225,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	}
 	pp.lk.Unlock()
 
-	// store
+	// store?
 	if !ok {
 		err := pp.PutTxMsg(sm)
 		if err != nil {
@@ -204,12 +243,13 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 		pp.ds.Put(key, buf)
 	}
 
+	// to process pool
 	if pp.inProcess {
 		pp.msgChan <- sm
 	}
 
 	// push out immediately
-	err := pp.INetService.PublishTxMsg(pp.ctx, sm)
+	err = pp.INetService.PublishTxMsg(pp.ctx, sm)
 	if err != nil {
 		logger.Warn("add tx signed message to push pool: ", err)
 		return mid, err

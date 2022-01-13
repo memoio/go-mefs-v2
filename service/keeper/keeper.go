@@ -38,7 +38,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		return nil, err
 	}
 
-	inp := txPool.NewInPool(ctx, bn.PushPool.SyncPool)
+	inp := txPool.NewInPool(ctx, bn.RoleID(), bn.PushPool.SyncPool)
 
 	kn := &KeeperNode{
 		BaseNode: bn,

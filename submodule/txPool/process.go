@@ -27,20 +27,24 @@ type InPool struct {
 
 	ctx context.Context
 
+	minerID uint64
+
 	pending map[uint64]*msgSet // key: from; all currently processable tx
 
-	msgChan chan *tx.SignedMessage
+	msgChan chan *tx.SignedMessage // received msg from push pool
 
 	blkDone chan *blkDigest
 }
 
-func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
+func NewInPool(ctx context.Context, localID uint64, sp *SyncPool) *InPool {
 	pl := &InPool{
-		ctx:      ctx,
 		SyncPool: sp,
-		pending:  make(map[uint64]*msgSet),
-		msgChan:  sp.msgChan,
-		blkDone:  sp.blkDone,
+
+		ctx:     ctx,
+		minerID: localID,
+		pending: make(map[uint64]*msgSet),
+		msgChan: sp.msgChan,
+		blkDone: sp.blkDone,
 	}
 
 	return pl
@@ -72,7 +76,6 @@ func (mp *InPool) sync() {
 			return
 		case m := <-mp.msgChan:
 			id := m.Hash()
-
 			logger.Debug("add tx message: ", id, m.From, m.Nonce, m.Method)
 
 			mp.lk.Lock()
@@ -85,7 +88,15 @@ func (mp *InPool) sync() {
 
 				mp.pending[m.From] = ms
 			}
-			ms.info[m.Nonce] = m
+
+			// not add low nonce
+			if ms.nextDelete <= m.Nonce {
+				_, has := ms.info[m.Nonce]
+				if !has {
+					ms.info[m.Nonce] = m
+				}
+			}
+
 			mp.lk.Unlock()
 		case bh := <-mp.blkDone:
 			logger.Debug("process new block at:", bh.height)
@@ -107,7 +118,6 @@ func (mp *InPool) sync() {
 				}
 
 				ms.nextDelete = md.Nonce + 1
-
 				delete(ms.info, md.Nonce)
 			}
 			mp.lk.Unlock()
@@ -116,20 +126,14 @@ func (mp *InPool) sync() {
 }
 
 func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
-	nonce := mp.SyncPool.GetNonce(mp.ctx, m.From)
-	if m.Nonce < nonce {
-		return xerrors.Errorf("nonce expected no less than %d, got %d", nonce, m.Nonce)
-	}
-
 	stats.Record(ctx, metrics.TxMessageReceived.M(1))
 
 	err := mp.SyncPool.AddTxMsg(mp.ctx, m)
 	if err != nil {
+		stats.Record(ctx, metrics.TxMessageFailure.M(1))
 		logger.Debug("add tx msg fails: ", err)
 		return err
 	}
-
-	// need valid its content with settle chain
 	stats.Record(ctx, metrics.TxMessageSuccess.M(1))
 
 	mp.msgChan <- m
@@ -379,7 +383,7 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 
 	stats.Record(mp.ctx, metrics.TxBlockPublished.M(1))
 
-	if tb.MinerID == mp.localID {
+	if tb.MinerID == mp.minerID {
 		logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))
 	}
 
@@ -395,7 +399,7 @@ func (mp *InPool) GetLeader(slot uint64) uint64 {
 	if len(mems) > 0 {
 		return mems[slot%uint64(len(mems))]
 	} else {
-		return mp.localID
+		return mp.minerID
 	}
 }
 

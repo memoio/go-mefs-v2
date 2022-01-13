@@ -32,10 +32,9 @@ var _ api.IChainSync = &SyncPool{}
 type SyncPool struct {
 	lk sync.RWMutex
 
-	api.INetService
-	api.IRole
-
 	tx.Store
+
+	api.INetService
 
 	*state.StateMgr
 
@@ -43,17 +42,15 @@ type SyncPool struct {
 	ds  store.KVStore
 
 	thre         int
-	localID      uint64
 	groupID      uint64
 	nextHeight   uint64 // next synced
 	remoteHeight uint64 // next remote
 
-	blks  map[uint64]types.MsgID // key: height
-	nonce map[uint64]uint64      // key: roleID
+	blks map[uint64]types.MsgID // key: height
 
 	ready bool
 
-	msgDone chan *tx.MessageDigest
+	msgDone chan *blkDigest
 	inPush  bool
 
 	msgChan   chan *tx.SignedMessage
@@ -62,10 +59,9 @@ type SyncPool struct {
 }
 
 // sync
-func NewSyncPool(ctx context.Context, roleID, groupID uint64, thre int, st *state.StateMgr, ds store.KVStore, ts tx.Store, ir api.IRole, ins api.INetService) *SyncPool {
+func NewSyncPool(ctx context.Context, groupID uint64, thre int, st *state.StateMgr, ds store.KVStore, ts tx.Store, ins api.INetService) *SyncPool {
 	sp := &SyncPool{
 		INetService: ins,
-		IRole:       ir,
 		Store:       ts,
 
 		StateMgr: st,
@@ -74,17 +70,16 @@ func NewSyncPool(ctx context.Context, roleID, groupID uint64, thre int, st *stat
 		ctx: ctx,
 
 		thre:         thre,
-		localID:      roleID,
 		groupID:      groupID,
 		nextHeight:   0,
 		remoteHeight: 0,
 
-		nonce: make(map[uint64]uint64),
-		blks:  make(map[uint64]types.MsgID),
+		blks: make(map[uint64]types.MsgID),
+
+		msgDone: make(chan *blkDigest, 64),
 
 		msgChan: make(chan *tx.SignedMessage, 128),
-		msgDone: make(chan *tx.MessageDigest, 16),
-		blkDone: make(chan *blkDigest, 8),
+		blkDone: make(chan *blkDigest, 64),
 	}
 
 	sp.load()
@@ -283,8 +278,6 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 	}
 
 	for i, msg := range sb.Msgs {
-		sp.nonce[msg.From] = msg.Nonce + 1
-
 		ms := &tx.MsgState{
 			BlockID: bid,
 			Height:  sb.Height,
@@ -307,12 +300,10 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		}
 
 		mds.msgs = append(mds.msgs, md)
+	}
 
-		if msg.From == sp.localID {
-			if sp.inPush {
-				sp.msgDone <- &md
-			}
-		}
+	if sp.inPush {
+		sp.msgDone <- mds
 	}
 
 	if sp.inProcess {
@@ -473,9 +464,15 @@ func (sp *SyncPool) getTxBlockRemoteByHeight(ht uint64) {
 }
 
 func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
+	nonce := sp.GetNonce(sp.ctx, msg.From)
+	if msg.Nonce < nonce {
+		return xerrors.Errorf("nonce expected no less than %d, got %d", nonce, msg.Nonce)
+	}
+
 	mid := msg.Hash()
 	ok, err := sp.HasTxMsg(mid)
 	if err != nil || !ok {
+		// need valid its content with settle chain
 		valid, err := sp.RoleSanityCheck(ctx, msg)
 		if err != nil {
 			return err
@@ -495,6 +492,7 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
 			return xerrors.Errorf("%d %d tx msg %s sign invalid", msg.From, msg.Nonce, mid)
 		}
 
+		// need store?
 		return sp.PutTxMsg(msg)
 	}
 	return nil

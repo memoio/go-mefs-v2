@@ -39,8 +39,9 @@ type NetServiceImpl struct {
 
 	lastFetch peer.ID
 
-	idMap map[uint64]peer.ID
-	wants map[uint64]time.Time
+	idMap   map[uint64]peer.ID
+	peerMap map[peer.ID]uint64
+	wants   map[uint64]time.Time
 
 	ns *network.NetworkSubmodule
 
@@ -94,6 +95,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		ds:             ds,
 		ns:             ns,
 		idMap:          make(map[uint64]peer.ID),
+		peerMap:        make(map[peer.ID]uint64),
 		wants:          make(map[uint64]time.Time),
 		related:        make([]uint64, 0, 128),
 		eventTopic:     eTopic,
@@ -156,6 +158,7 @@ func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
 
 	if pid.Validate() == nil {
 		c.idMap[id] = pid
+		c.peerMap[pid] = id
 		return
 	}
 
@@ -167,7 +170,6 @@ func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
 			c.FindPeerID(c.ctx, id)
 		}
 	}
-
 }
 
 func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
@@ -183,7 +185,7 @@ func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
 }
 
 func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
-	ticker := time.NewTicker(300 * time.Second)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
@@ -208,6 +210,12 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 			}
 
 			for _, pi := range pinfos {
+				c.RLock()
+				_, ok := c.peerMap[pi.ID]
+				c.RUnlock()
+				if ok {
+					continue
+				}
 				resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.roleID, pb.NetMessage_SayHello, nil, nil)
 				if err != nil {
 					continue
@@ -224,6 +232,7 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 				rid := binary.BigEndian.Uint64(resp.GetData().GetMsgInfo())
 				c.Lock()
 				c.idMap[rid] = pi.ID
+				c.peerMap[pi.ID] = rid
 				c.Unlock()
 			}
 
@@ -299,6 +308,7 @@ func (c *NetServiceImpl) handlePutPeer(ctx context.Context, mes *pb.EventMessage
 	_, ok := c.wants[ppi.GetRoleID()]
 	if ok {
 		c.idMap[ppi.RoleID] = netID
+		c.peerMap[netID] = ppi.RoleID
 		delete(c.wants, ppi.RoleID)
 	}
 	c.Unlock()

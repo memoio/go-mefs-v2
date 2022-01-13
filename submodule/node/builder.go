@@ -253,6 +253,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.ConfigModule = mconfig.NewConfigModule(b.repo)
 
+	// todo: move MetaStore to StateStore
 	txs, err := tx.NewTxStore(ctx, nd.MetaStore())
 	if err != nil {
 		return nil, err
@@ -261,7 +262,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	// use a different state store
 	stDB := state.NewStateMgr(settle.RoleAddr.Bytes(), b.groupID, nd.GetThreshold(ctx), nd.StateStore(), rm)
 
-	sp := txPool.NewSyncPool(ctx, b.roleID, b.groupID, nd.GetThreshold(ctx), stDB, nd.MetaStore(), txs, rm, cs)
+	sp := txPool.NewSyncPool(ctx, b.groupID, nd.GetThreshold(ctx), stDB, nd.MetaStore(), txs, cs)
 
 	nd.PushPool = txPool.NewPushPool(ctx, sp)
 
