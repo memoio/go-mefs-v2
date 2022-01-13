@@ -227,7 +227,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 
 	// store?
 	if !ok {
-		err := pp.PutTxMsg(sm)
+		err := pp.PutTxMsg(sm, true)
 		if err != nil {
 			logger.Warn("add tx signed message to push pool: ", err)
 			return mid, err

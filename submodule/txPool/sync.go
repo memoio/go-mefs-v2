@@ -340,71 +340,71 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	bid := tb.Hash()
 	has, _ := sp.HasTxBlock(bid)
 	if has {
-		logger.Debug("add tx block, already have")
+		logger.Debug("add block, already have")
 		sp.lk.Lock()
 		if tb.Height >= sp.remoteHeight {
 			sp.remoteHeight = tb.Height + 1
 		}
 		sp.lk.Unlock()
 		return nil
-	} else {
-		stats.Record(sp.ctx, metrics.TxBlockReceived.M(1))
+	}
 
-		if tb.GroupID != sp.groupID {
-			return xerrors.Errorf("wrong block, group expected %d, got %d", sp.groupID, tb.GroupID)
+	stats.Record(sp.ctx, metrics.TxBlockReceived.M(1))
+
+	if tb.GroupID != sp.groupID {
+		return xerrors.Errorf("wrong block, group expected %d, got %d", sp.groupID, tb.GroupID)
+	}
+
+	// verify signaturs len >= threshold
+	if tb.Height > 0 && tb.Len() < sp.thre {
+		return xerrors.Errorf("block has not enough signers")
+	}
+
+	// verify
+	ok, err := sp.RoleVerifyMulti(sp.ctx, hs.CalcHash(bid.Bytes(), hs.PhaseCommit), tb.MultiSignature)
+	if err != nil {
+		// for test
+		for _, signer := range tb.Signer {
+			go sp.getRoleInfoRemote(signer)
 		}
+		return err
+	}
+	if !ok {
+		return xerrors.Errorf("%s block at height %d sign is invalid", bid, tb.Height)
+	}
 
-		// verify signaturs len >= threshold
-		if tb.Height > 0 && tb.Len() < sp.thre {
-			return xerrors.Errorf("block has not enough signers")
-		}
-
-		// verify
-		ok, err := sp.RoleVerifyMulti(sp.ctx, hs.CalcHash(bid.Bytes(), hs.PhaseCommit), tb.MultiSignature)
+	// verify all msg
+	for _, msg := range tb.Msgs {
+		ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
 		if err != nil {
 			// for test
-			for _, signer := range tb.Signer {
-				go sp.getRoleInfoRemote(signer)
-			}
+			go sp.getRoleInfoRemote(msg.From)
 			return err
 		}
+
 		if !ok {
-			return xerrors.Errorf("%s block at height %d sign is invalid", bid, tb.Height)
+			return xerrors.Errorf("%s block at height %d msg %d sign is invalid", bid, tb.Height, msg.From)
 		}
-
-		// verify all msg
-		for _, msg := range tb.Msgs {
-			ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
-			if err != nil {
-				// for test
-				go sp.getRoleInfoRemote(msg.From)
-				return err
-			}
-
-			if !ok {
-				return xerrors.Errorf("%s block at height %d msg %d sign is invalid", bid, tb.Height, msg.From)
-			}
-		}
-
-		// store local
-		err = sp.PutTxBlock(tb)
-		if err != nil {
-			logger.Debug("add block: ", err)
-			return err
-		}
-
-		sbyte, err := tb.Serialize()
-		if err != nil {
-			logger.Debug("add block: ", err)
-			return err
-		}
-
-		stats.Record(context.TODO(),
-			metrics.TxBlockBytes.M(int64(len(sbyte))),
-		)
-
-		logger.Debug("add block ok: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 	}
+
+	// store local
+	err = sp.PutTxBlock(tb)
+	if err != nil {
+		logger.Debug("add block: ", err)
+		return err
+	}
+
+	sbyte, err := tb.Serialize()
+	if err != nil {
+		logger.Debug("add block: ", err)
+		return err
+	}
+
+	stats.Record(context.TODO(),
+		metrics.TxBlockBytes.M(int64(len(sbyte))),
+	)
+
+	logger.Debug("add block ok: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 
 	sp.lk.Lock()
 	if tb.Height >= sp.nextHeight {
@@ -493,7 +493,7 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
 		}
 
 		// need store?
-		return sp.PutTxMsg(msg)
+		return sp.PutTxMsg(msg, false)
 	}
 	return nil
 }

@@ -12,7 +12,7 @@ import (
 
 type Store interface {
 	GetTxMsg(mid types.MsgID) (*SignedMessage, error)
-	PutTxMsg(sm *SignedMessage) error
+	PutTxMsg(sm *SignedMessage, persist bool) error
 	HasTxMsg(mid types.MsgID) (bool, error)
 	GetTxMsgState(mid types.MsgID) (*MsgState, error)
 
@@ -100,7 +100,7 @@ func (ts *TxStoreImpl) GetTxMsg(mid types.MsgID) (*SignedMessage, error) {
 	return sm, nil
 }
 
-func (ts *TxStoreImpl) PutTxMsg(sm *SignedMessage) error {
+func (ts *TxStoreImpl) PutTxMsg(sm *SignedMessage, persist bool) error {
 	mid := sm.Hash()
 
 	ok := ts.msgCache.Contains(mid)
@@ -108,15 +108,18 @@ func (ts *TxStoreImpl) PutTxMsg(sm *SignedMessage) error {
 		return nil
 	}
 
-	key := store.NewKey(pb.MetaType_TX_MessageKey, mid.String())
-	sbyte, err := sm.Serialize()
-	if err != nil {
-		return err
-	}
-
 	ts.msgCache.Add(mid, sm)
 
-	return ts.ds.Put(key, sbyte)
+	if persist {
+		key := store.NewKey(pb.MetaType_TX_MessageKey, mid.String())
+		sbyte, err := sm.Serialize()
+		if err != nil {
+			return err
+		}
+
+		return ts.ds.Put(key, sbyte)
+	}
+	return nil
 }
 
 func (ts *TxStoreImpl) HasTxBlock(bid types.MsgID) (bool, error) {
@@ -187,9 +190,12 @@ func (ts *TxStoreImpl) PutTxBlock(tb *SignedBlock) error {
 	if err != nil {
 		return err
 	}
-	for _, mes := range tb.Msgs {
-		ts.PutTxMsg(&mes)
-	}
+
+	/*
+		for _, mes := range tb.Msgs {
+			ts.PutTxMsg(&mes)
+		}
+	*/
 
 	return nil
 }
