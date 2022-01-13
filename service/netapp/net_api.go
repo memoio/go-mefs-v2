@@ -36,23 +36,44 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 			logger.Warn("found no network id for roleID: ", id)
 			return nil, ctx.Err()
 		default:
-			c.RLock()
+			c.lk.RLock()
 			pid, ok := c.idMap[id]
-			c.RUnlock()
+			c.lk.RUnlock()
 			if !ok {
-				c.RLock()
+				c.lk.RLock()
 				_, has := c.wants[id]
-				c.RUnlock()
+				c.lk.RUnlock()
 				if !has {
-					c.Lock()
+					c.lk.Lock()
 					c.wants[id] = time.Now()
-					c.Unlock()
+					c.lk.Unlock()
 					c.FindPeerID(ctx, id)
 				}
 
 				time.Sleep(1 * time.Second)
 			} else {
-				return c.GenericService.SendNetRequest(context.TODO(), pid, c.roleID, typ, value, sig)
+				resp, err := c.GenericService.SendNetRequest(context.TODO(), pid, c.roleID, typ, value, sig)
+				if err != nil {
+					c.lk.Lock()
+					nt, ok := c.peerMap[pid]
+					if ok {
+						// remove
+						if nt.Add(10 * time.Minute).Before(time.Now()) {
+							delete(c.idMap, id)
+							delete(c.peerMap, pid)
+							c.wants[id] = time.Now()
+							go c.FindPeerID(c.ctx, id)
+						}
+					}
+					c.lk.Unlock()
+					return nil, err
+				}
+
+				c.lk.Lock()
+				c.peerMap[pid] = time.Now()
+				c.lk.Unlock()
+
+				return resp, nil
 			}
 		}
 	}

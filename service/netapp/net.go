@@ -24,7 +24,7 @@ import (
 
 // wrap net interface
 type NetServiceImpl struct {
-	sync.RWMutex
+	lk sync.RWMutex
 	*generic.GenericService
 	handler.TxMsgHandle // handle pubsub tx msg
 	handler.EventHandle // handle pubsub event msg
@@ -39,9 +39,9 @@ type NetServiceImpl struct {
 
 	lastFetch peer.ID
 
-	idMap   map[uint64]peer.ID
-	peerMap map[peer.ID]uint64
-	wants   map[uint64]time.Time
+	idMap   map[uint64]peer.ID    // record id to netID
+	peerMap map[peer.ID]time.Time // record netID avaliale time
+	wants   map[uint64]time.Time  // find netID for id
 
 	ns *network.NetworkSubmodule
 
@@ -95,7 +95,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		ds:             ds,
 		ns:             ns,
 		idMap:          make(map[uint64]peer.ID),
-		peerMap:        make(map[peer.ID]uint64),
+		peerMap:        make(map[peer.ID]time.Time),
 		wants:          make(map[uint64]time.Time),
 		related:        make([]uint64, 0, 128),
 		eventTopic:     eTopic,
@@ -142,8 +142,8 @@ func (c *NetServiceImpl) Stop() error {
 
 // add a new node
 func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
-	c.Lock()
-	defer c.Unlock()
+	c.lk.Lock()
+	defer c.lk.Unlock()
 
 	has := false
 	for _, uid := range c.related {
@@ -158,7 +158,7 @@ func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
 
 	if pid.Validate() == nil {
 		c.idMap[id] = pid
-		c.peerMap[pid] = id
+		c.peerMap[pid] = time.Now()
 		return
 	}
 
@@ -190,7 +190,7 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			c.Lock()
+			c.lk.Lock()
 			for id, t := range c.wants {
 				_, ok := c.idMap[id]
 				if ok {
@@ -202,7 +202,7 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 					c.wants[id] = nt
 				}
 			}
-			c.Unlock()
+			c.lk.Unlock()
 
 			pinfos, err := c.ns.NetPeers(ctx)
 			if err != nil {
@@ -210,12 +210,16 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 			}
 
 			for _, pi := range pinfos {
-				c.RLock()
+				c.lk.RLock()
 				_, ok := c.peerMap[pi.ID]
-				c.RUnlock()
+				c.lk.RUnlock()
 				if ok {
+					c.lk.Lock()
+					c.peerMap[pi.ID] = time.Now()
+					c.lk.Unlock()
 					continue
 				}
+
 				resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.roleID, pb.NetMessage_SayHello, nil, nil)
 				if err != nil {
 					continue
@@ -230,10 +234,10 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 				}
 
 				rid := binary.BigEndian.Uint64(resp.GetData().GetMsgInfo())
-				c.Lock()
+				c.lk.Lock()
 				c.idMap[rid] = pi.ID
-				c.peerMap[pi.ID] = rid
-				c.Unlock()
+				c.peerMap[pi.ID] = time.Now()
+				c.lk.Unlock()
 			}
 
 		case <-c.ctx.Done():
@@ -304,14 +308,14 @@ func (c *NetServiceImpl) handlePutPeer(ctx context.Context, mes *pb.EventMessage
 
 	logger.Debug(c.netID.Pretty(), "handle put peer:", netID.Pretty())
 
-	c.Lock()
+	c.lk.Lock()
 	_, ok := c.wants[ppi.GetRoleID()]
 	if ok {
 		c.idMap[ppi.RoleID] = netID
-		c.peerMap[netID] = ppi.RoleID
+		c.peerMap[netID] = time.Now()
 		delete(c.wants, ppi.RoleID)
 	}
-	c.Unlock()
+	c.lk.Unlock()
 	return nil
 }
 
