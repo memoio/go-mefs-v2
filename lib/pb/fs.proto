@@ -29,10 +29,11 @@ enum MetaType {
 	ST_ProsKey = 27;            // key: x/roleID; val: pros  
 	
 	
+	ST_PDPVerifyKey = 29;     // key: x/userID; val: Bls Prove verify key 
 	ST_RoleBaseKey = 30;      // key: x/roleID; val: pb.RoleInfo
 	ST_RoleValueKey = 31;     // key: x/roleID; val: nonce, val
-	ST_PDPPublicKey = 32;    // key: x/userID; val: Bls Prove key set
-	ST_NetKey = 33;             // key: x/roleID; val: NetInfo 
+	ST_PDPPublicKey = 32;     // key: x/userID; val: Bls Prove public key
+	ST_NetKey = 33;           // key: x/roleID; val: NetInfo 
 	
 	ST_BucketOptKey = 35;    // key: x/userID/bucketID; val: bucket option
 	ST_SegLocKey = 36;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce

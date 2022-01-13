@@ -7,6 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -14,22 +15,40 @@ import (
 
 // key: pb.MetaType_ST_PDPPublicKey/userID
 func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
-	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
+	var vk pdpcommon.VerifyKey
+	key := store.NewKey(pb.MetaType_ST_PDPVerifyKey, userID)
 	data, err := s.ds.Get(key)
 	if err != nil {
-		return nil, err
-	}
+		// should remove this
+		key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
+		data, err := s.ds.Get(key)
+		if err != nil {
+			return nil, err
+		}
+		pk, err := pdp.DeserializePublicKey(data)
+		if err != nil {
+			return nil, err
+		}
 
-	pk, err := pdp.DeserializePublicKey(data)
-	if err != nil {
-		return nil, err
+		vk = pk.VerifyKey()
+
+		key = store.NewKey(pb.MetaType_ST_PDPVerifyKey, userID)
+		err = s.ds.Put(key, vk.Serialize())
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		vk, err = pdp.DeserializeVerifyKey(data)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	spu := &segPerUser{
 		userID:    userID,
 		buckets:   make(map[uint64]*bucketManage),
-		fsID:      pk.VerifyKey().Hash(),
-		verifyKey: pk.VerifyKey(),
+		fsID:      vk.Hash(),
+		verifyKey: vk,
 	}
 
 	// load bucket
@@ -84,10 +103,16 @@ func (s *StateMgr) addUser(msg *tx.Message, tds store.TxnStore) error {
 	}
 	s.sInfo[msg.From] = spu
 
-	// save users
+	// save user public key
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, msg.From)
-	data := pk.Serialize()
-	err = tds.Put(key, data)
+	err = tds.Put(key, pk.Serialize())
+	if err != nil {
+		return err
+	}
+
+	// save user verify key
+	key = store.NewKey(pb.MetaType_ST_PDPVerifyKey, msg.From)
+	err = tds.Put(key, pk.VerifyKey().Serialize())
 	if err != nil {
 		return err
 	}

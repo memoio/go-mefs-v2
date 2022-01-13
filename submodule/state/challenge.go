@@ -360,11 +360,16 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 
 	uinfo, ok := s.validateSInfo[okey.userID]
 	if !ok {
-		uinfo, err = s.loadUser(okey.userID)
-		if err != nil {
-			return err
+		// load pk cost too much time
+		uinfo, ok = s.sInfo[okey.userID]
+		if !ok {
+			uinfo, err = s.loadUser(okey.userID)
+			if err != nil {
+				return err
+			}
+
+			s.validateSInfo[okey.userID] = uinfo
 		}
-		s.validateSInfo[okey.userID] = uinfo
 	}
 
 	chal, err := pdp.NewChallenge(uinfo.verifyKey, bh)
