@@ -50,9 +50,16 @@ func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int, ksig
 		if err != nil {
 			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 		}
+		if err = <-cm.status; err != nil {
+			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
+		}
 	default:
 		err = cm.iRole.WithdrawFromFs(cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
 		if err != nil {
+			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
+		}
+
+		if err = <-cm.status; err != nil {
 			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 		}
 	}

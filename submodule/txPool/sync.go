@@ -350,70 +350,75 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	has, _ := sp.HasTxBlock(bid)
 	if has {
 		logger.Debug("add tx block, already have")
-		return nil
-	}
-
-	stats.Record(sp.ctx, metrics.TxBlockReceived.M(1))
-
-	if tb.GroupID != sp.groupID {
-		return xerrors.Errorf("wrong block, group expected %d, got %d", sp.groupID, tb.GroupID)
-	}
-
-	// verify signaturs len >= threshold
-	if tb.Height > 0 && tb.Len() < sp.thre {
-		return xerrors.Errorf("block has not enough signers")
-	}
-
-	// verify
-	ok, err := sp.RoleVerifyMulti(sp.ctx, hs.CalcHash(bid.Bytes(), hs.PhaseCommit), tb.MultiSignature)
-	if err != nil {
-		// for test
-		for _, signer := range tb.Signer {
-			go sp.getRoleInfoRemote(signer)
+		sp.lk.Lock()
+		if tb.Height >= sp.remoteHeight {
+			sp.remoteHeight = tb.Height + 1
 		}
-		return err
-	}
-	if !ok {
-		return xerrors.Errorf("%s block at height %d sign is invalid", bid, tb.Height)
-	}
+		sp.lk.Unlock()
+		return nil
+	} else {
+		stats.Record(sp.ctx, metrics.TxBlockReceived.M(1))
 
-	// verify all msg
-	for _, msg := range tb.Msgs {
-		ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
+		if tb.GroupID != sp.groupID {
+			return xerrors.Errorf("wrong block, group expected %d, got %d", sp.groupID, tb.GroupID)
+		}
+
+		// verify signaturs len >= threshold
+		if tb.Height > 0 && tb.Len() < sp.thre {
+			return xerrors.Errorf("block has not enough signers")
+		}
+
+		// verify
+		ok, err := sp.RoleVerifyMulti(sp.ctx, hs.CalcHash(bid.Bytes(), hs.PhaseCommit), tb.MultiSignature)
 		if err != nil {
 			// for test
-			go sp.getRoleInfoRemote(msg.From)
+			for _, signer := range tb.Signer {
+				go sp.getRoleInfoRemote(signer)
+			}
+			return err
+		}
+		if !ok {
+			return xerrors.Errorf("%s block at height %d sign is invalid", bid, tb.Height)
+		}
+
+		// verify all msg
+		for _, msg := range tb.Msgs {
+			ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
+			if err != nil {
+				// for test
+				go sp.getRoleInfoRemote(msg.From)
+				return err
+			}
+
+			if !ok {
+				return xerrors.Errorf("%s block at height %d msg %d sign is invalid", bid, tb.Height, msg.From)
+			}
+		}
+
+		// store local
+		err = sp.PutTxBlock(tb)
+		if err != nil {
+			logger.Debug("add block: ", err)
 			return err
 		}
 
-		if !ok {
-			return xerrors.Errorf("%s block at height %d msg %d sign is invalid", bid, tb.Height, msg.From)
+		sbyte, err := tb.Serialize()
+		if err != nil {
+			logger.Debug("add block: ", err)
+			return err
 		}
+
+		stats.Record(context.TODO(),
+			metrics.TxBlockBytes.M(int64(len(sbyte))),
+		)
+
+		logger.Debug("add block ok: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 	}
-
-	// store local
-	err = sp.PutTxBlock(tb)
-	if err != nil {
-		logger.Debug("add block: ", err)
-		return err
-	}
-
-	sbyte, err := tb.Serialize()
-	if err != nil {
-		logger.Debug("add block: ", err)
-		return err
-	}
-
-	stats.Record(context.TODO(),
-		metrics.TxBlockBytes.M(int64(len(sbyte))),
-	)
-
-	logger.Debug("add block ok: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 
 	sp.lk.Lock()
 	if tb.Height >= sp.nextHeight {
 		sp.blks[tb.Height] = bid
-		if tb.Height > 0 {
+		if tb.Height > sp.nextHeight {
 			sp.blks[tb.Height-1] = tb.PrevID
 		}
 	}

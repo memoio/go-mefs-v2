@@ -49,6 +49,17 @@ func NewInPool(ctx context.Context, sp *SyncPool) *InPool {
 func (mp *InPool) Start() {
 	go mp.sync()
 
+	// load latest block and publish if exist
+	// due to exit at not applying latest block
+	lh, _ := mp.GetSyncHeight(mp.ctx)
+	bid, err := mp.GetTxBlockByHeight(lh)
+	if err == nil {
+		sb, err := mp.GetTxBlock(bid)
+		if err == nil {
+			mp.OnViewDone(sb)
+		}
+	}
+
 	// enable inprocess callback
 	mp.SyncPool.inProcess = true
 }
@@ -360,14 +371,19 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 	logger.Debugf("create block OnViewDone at height %d", tb.Height)
 
+	// add to local first
+	err := mp.SyncPool.AddTxBlock(tb)
+	if err != nil {
+		return err
+	}
+
 	stats.Record(mp.ctx, metrics.TxBlockPublished.M(1))
-	mp.INetService.PublishTxBlock(mp.ctx, tb)
 
 	if tb.MinerID == mp.localID {
 		logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))
 	}
 
-	return mp.SyncPool.AddTxBlock(tb)
+	return mp.INetService.PublishTxBlock(mp.ctx, tb)
 }
 
 func (mp *InPool) GetMembers() []uint64 {

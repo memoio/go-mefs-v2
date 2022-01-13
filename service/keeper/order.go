@@ -112,13 +112,17 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		ns := k.GetOrderState(k.ctx, userID, proID)
 		nonce, subNonce, err := k.ContractMgr.GetOrderInfo(userID, proID)
 		if err != nil {
 			logger.Debug("subOrder fail to get order info in chain: ", userID, proID, err)
 			continue
 		}
 
+		if nonce == subNonce {
+			continue
+		}
+
+		ns := k.GetOrderState(k.ctx, userID, proID)
 		logger.Debugf("subOrder user %d pro %d has order %d %d %d", userID, proID, nonce, subNonce, ns.Nonce)
 
 		if subNonce >= ns.Nonce {
