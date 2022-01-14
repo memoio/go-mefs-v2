@@ -14,6 +14,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api/httpio"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -254,7 +255,8 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.ConfigModule = mconfig.NewConfigModule(b.repo)
 
 	// todo: move MetaStore to StateStore
-	txs, err := tx.NewTxStore(ctx, nd.MetaStore())
+
+	txs, err := tx.NewTxStore(ctx, wrap.NewKVStore("tx", nd.StateStore()))
 	if err != nil {
 		return nil, err
 	}
