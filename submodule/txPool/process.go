@@ -56,6 +56,18 @@ func (mp *InPool) Start() {
 	// load latest block and publish if exist
 	// due to exit at not applying latest block
 	lh, _ := mp.GetSyncHeight(mp.ctx)
+
+	if lh > 0 {
+		// rebroadcast lastest
+		bid, err := mp.GetTxBlockByHeight(lh - 1)
+		if err == nil {
+			sb, err := mp.GetTxBlock(bid)
+			if err == nil {
+				mp.OnViewDone(sb)
+			}
+		}
+	}
+
 	bid, err := mp.GetTxBlockByHeight(lh)
 	if err == nil {
 		sb, err := mp.GetTxBlock(bid)
@@ -167,7 +179,7 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 
 	logger.Debugf("create block header at height %d, slot: %d", rh, slot)
 
-	bid, err := mp.GetTxBlockByHeight(rh - 1)
+	bid, err := mp.GetBlockIDAt(mp.ctx, rh-1)
 	if err != nil {
 		return nrh, err
 	}

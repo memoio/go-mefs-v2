@@ -129,11 +129,24 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 		return nil, err
 	}
 
+	allowTopics := []string{
+		build.MsgTopic(networkName),
+		build.BlockTopic(networkName),
+		build.HSMsgTopic(networkName),
+		build.EventTopic(networkName),
+	}
+
 	pubsub.GossipSubHeartbeatInterval = 100 * time.Millisecond
 	options := []pubsub.Option{
 		// Gossipsubv1.1 configuration
 		pubsub.WithFloodPublish(true),
+		pubsub.WithMessageIdFn(HashMsgId),
 		pubsub.WithDiscovery(topicdisc),
+		// set allow topics
+		pubsub.WithSubscriptionFilter(
+			pubsub.WrapLimitSubscriptionFilter(
+				pubsub.NewAllowlistSubscriptionFilter(allowTopics...),
+				100)),
 	}
 
 	gsub, err := pubsub.NewGossipSub(ctx, peerHost, options...)

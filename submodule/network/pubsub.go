@@ -1,17 +1,32 @@
 package network
 
 import (
-	"context"
+	"sync"
 
-	"github.com/libp2p/go-libp2p-core/discovery"
-	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-func GossipSub(ctx context.Context, host host.Host, disc discovery.Discovery, pubsubOptions ...pubsub.Option) (service *pubsub.PubSub, err error) {
-	return pubsub.NewGossipSub(ctx, host, append(
-		pubsubOptions,
-		pubsub.WithDiscovery(disc),
-		pubsub.WithFloodPublish(true))...,
-	)
+func HashMsgId(m *pubsub_pb.Message) string {
+	mid := types.NewMsgID(m.Data)
+	return mid.String()
+}
+
+type ScoreKeeper struct {
+	lk     sync.Mutex
+	scores map[peer.ID]*pubsub.PeerScoreSnapshot
+}
+
+func (sk *ScoreKeeper) Update(scores map[peer.ID]*pubsub.PeerScoreSnapshot) {
+	sk.lk.Lock()
+	sk.scores = scores
+	sk.lk.Unlock()
+}
+
+func (sk *ScoreKeeper) Get() map[peer.ID]*pubsub.PeerScoreSnapshot {
+	sk.lk.Lock()
+	defer sk.lk.Unlock()
+	return sk.scores
 }

@@ -172,6 +172,8 @@ type IChainState interface {
 	GetChalEpochInfo(context.Context) *types.ChalEpoch
 	GetChalEpochInfoAt(context.Context, uint64) (*types.ChalEpoch, error)
 
+	GetBlockIDAt(context.Context, uint64) (types.MsgID, error)
+
 	GetNonce(context.Context, uint64) uint64
 
 	GetAllKeepers(context.Context) []uint64

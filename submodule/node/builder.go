@@ -231,20 +231,6 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.isOnline = true
 
-	cs, err := netapp.New(ctx, b.roleID, nd.MetaStore(), nd.NetworkSubmodule)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to create core service %w", err)
-	}
-
-	nd.NetServiceImpl = cs
-
-	rm, err := role.New(ctx, b.roleID, nd.groupID, nd.MetaStore(), nd.LocalWallet, nd.ContractMgr)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to create role service %w", err)
-	}
-
-	nd.RoleMgr = rm
-
 	jauth, err := auth.NewJwtAuth(b.repo)
 	if err != nil {
 		return nil, err
@@ -254,18 +240,33 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 
 	nd.ConfigModule = mconfig.NewConfigModule(b.repo)
 
-	// todo: move MetaStore to StateStore
+	// network
+	cs, err := netapp.New(ctx, b.roleID, nd.MetaStore(), nd.NetworkSubmodule)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create core service %w", err)
+	}
 
+	nd.NetServiceImpl = cs
+
+	// role mgr
+	rm, err := role.New(ctx, b.roleID, nd.groupID, nd.MetaStore(), nd.LocalWallet, nd.ContractMgr)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create role service %w", err)
+	}
+
+	nd.RoleMgr = rm
 	txs, err := tx.NewTxStore(ctx, wrap.NewKVStore("tx", nd.StateStore()))
 	if err != nil {
 		return nil, err
 	}
 
-	// use a different state store
+	// state mgr
 	stDB := state.NewStateMgr(settle.RoleAddr.Bytes(), b.groupID, nd.GetThreshold(ctx), nd.StateStore(), rm)
 
-	sp := txPool.NewSyncPool(ctx, b.groupID, nd.GetThreshold(ctx), stDB, nd.MetaStore(), txs, cs)
+	// sync pool
+	sp := txPool.NewSyncPool(ctx, b.groupID, nd.GetThreshold(ctx), stDB, txs, cs)
 
+	// push pool
 	nd.PushPool = txPool.NewPushPool(ctx, sp)
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()

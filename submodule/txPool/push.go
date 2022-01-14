@@ -2,17 +2,14 @@ package txPool
 
 import (
 	"context"
-	"encoding/binary"
 	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 type msgTo struct {
@@ -232,15 +229,6 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 			logger.Warn("add tx signed message to push pool: ", err)
 			return mid, err
 		}
-
-		key := store.NewKey(pb.MetaType_TX_MessageKey, sm.From, sm.Nonce)
-		pp.ds.Put(key, mid.Bytes())
-
-		// for reload at beign?
-		key = store.NewKey(pb.MetaType_TX_MessageKey, sm.From)
-		buf := make([]byte, 8)
-		binary.BigEndian.PutUint64(buf, sm.Nonce+1)
-		pp.ds.Put(key, buf)
 	}
 
 	// to process pool

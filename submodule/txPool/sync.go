@@ -6,13 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"go.opencensus.io/stats"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/build"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -39,7 +37,6 @@ type SyncPool struct {
 	*state.StateMgr
 
 	ctx context.Context
-	ds  store.KVStore
 
 	thre         int
 	groupID      uint64
@@ -59,14 +56,13 @@ type SyncPool struct {
 }
 
 // sync
-func NewSyncPool(ctx context.Context, groupID uint64, thre int, st *state.StateMgr, ds store.KVStore, ts tx.Store, ins api.INetService) *SyncPool {
+func NewSyncPool(ctx context.Context, groupID uint64, thre int, st *state.StateMgr, ts tx.Store, ins api.INetService) *SyncPool {
 	sp := &SyncPool{
 		INetService: ins,
 		Store:       ts,
 
 		StateMgr: st,
 
-		ds:  ds,
 		ctx: ctx,
 
 		thre:         thre,
@@ -103,18 +99,8 @@ func (sp *SyncPool) load() {
 	ht := sp.GetHeight(sp.ctx)
 	sp.nextHeight = ht
 	sp.remoteHeight = ht
-	if sp.nextHeight == 0 {
-		sp.PutTxBlockHeight(math.MaxUint64, build.GenesisBlockID("test"))
-	}
 
 	logger.Debug("block synced to: ", sp.nextHeight)
-
-	msglen := sp.GetMsgNum()
-	if msglen != 0 {
-		// should not
-		logger.Error("state is incomplete at: ", ht, msglen)
-		panic("state is incomplete")
-	}
 }
 
 func (sp *SyncPool) syncBlock() {
@@ -284,14 +270,9 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 			Status:  sb.Receipts[i],
 		}
 
-		msb, err := ms.Serialize()
-		if err != nil {
-			return err
-		}
-
 		mid := msg.Hash()
-		key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mid.String())
-		sp.ds.Put(key, msb)
+
+		sp.PutTxMsgState(mid, ms)
 
 		md := tx.MessageDigest{
 			ID:    mid,
@@ -363,10 +344,6 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	// verify
 	ok, err := sp.RoleVerifyMulti(sp.ctx, hs.CalcHash(bid.Bytes(), hs.PhaseCommit), tb.MultiSignature)
 	if err != nil {
-		// for test
-		for _, signer := range tb.Signer {
-			go sp.getRoleInfoRemote(signer)
-		}
 		return err
 	}
 	if !ok {
@@ -377,8 +354,6 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	for _, msg := range tb.Msgs {
 		ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
 		if err != nil {
-			// for test
-			go sp.getRoleInfoRemote(msg.From)
 			return err
 		}
 
@@ -496,40 +471,4 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
 		return sp.PutTxMsg(msg, false)
 	}
 	return nil
-}
-
-// fetch msg over network
-func (sp *SyncPool) getTxMsgRemote(mid types.MsgID) (*tx.SignedMessage, error) {
-	key := store.NewKey(pb.MetaType_TX_MessageKey, mid.String())
-	res, err := sp.INetService.Fetch(sp.ctx, key)
-	if err != nil {
-		logger.Debug("get tx msg from remote: ", mid, err)
-		return nil, err
-	}
-	sm := new(tx.SignedMessage)
-	err = sm.Deserialize(res)
-	if err != nil {
-		logger.Debug("get tx msg from remote: ", mid, err)
-		return nil, err
-	}
-
-	logger.Debug("get tx msg from remote: ", mid)
-	return sm, sp.AddTxMsg(sp.ctx, sm)
-}
-
-func (sp *SyncPool) getRoleInfoRemote(roleID uint64) {
-	key := store.NewKey(pb.MetaType_RoleInfoKey, roleID)
-	ok, err := sp.ds.Has(key)
-	if err == nil && ok {
-		return
-	}
-
-	mes, err := sp.INetService.Fetch(sp.ctx, key)
-	if err == nil && len(mes) > 0 {
-		ri := new(pb.RoleInfo)
-		err := proto.Unmarshal(mes, ri)
-		if err == nil {
-			sp.ds.Put(key, mes)
-		}
-	}
 }

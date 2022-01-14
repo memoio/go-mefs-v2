@@ -28,7 +28,8 @@ type StateMgr struct {
 	// need a different store
 	ds store.KVStore
 
-	msgNum uint16 // applied msg number of current height
+	genesisBlockID types.MsgID
+
 	height uint64 // next block height
 	slot   uint64 // logical time
 
@@ -66,21 +67,17 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 	copy(buf[:len(base)], base)
 	binary.BigEndian.PutUint64(buf[len(base):len(base)+8], groupID)
 
-	/*
-		buf := make([]byte, 8)
-		binary.BigEndian.PutUint64(buf, groupID)
-	*/
-
 	s := &StateMgr{
-		IRole:        ir,
-		ds:           ds,
-		height:       0,
-		threshold:    thre,
-		keepers:      make([]uint64, 0, 16),
-		pros:         make([]uint64, 0, 128),
-		users:        make([]uint64, 0, 128),
-		root:         types.NewMsgID(buf),
-		validateRoot: types.NewMsgID(buf),
+		IRole:          ir,
+		ds:             ds,
+		height:         0,
+		threshold:      thre,
+		keepers:        make([]uint64, 0, 16),
+		pros:           make([]uint64, 0, 128),
+		users:          make([]uint64, 0, 128),
+		genesisBlockID: types.NewMsgID(buf),
+		root:           types.NewMsgID(buf),
+		validateRoot:   types.NewMsgID(buf),
 		ceInfo: &chalEpochInfo{
 			epoch:    0,
 			current:  newChalEpoch(types.NewMsgID(buf)),
@@ -151,7 +148,6 @@ func (s *StateMgr) API() *stateAPI {
 }
 
 func (s *StateMgr) load() {
-	logger.Debug("load: ", s.height, s.slot, s.msgNum, s.root, s.ceInfo.epoch, s.users)
 	// load keepers
 	key := store.NewKey(pb.MetaType_ST_KeepersKey)
 	val, err := s.ds.Get(key)
@@ -182,13 +178,12 @@ func (s *StateMgr) load() {
 	// load block height, epoch and uncompleted msgs
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey)
 	val, err = s.ds.Get(key)
-	if err == nil && len(val) >= 18 {
+	if err == nil && len(val) >= 16 {
 		s.height = binary.BigEndian.Uint64(val[:8])
 		s.slot = binary.BigEndian.Uint64(val[8:16])
-		s.msgNum = binary.BigEndian.Uint16(val[16:])
 	}
 
-	logger.Debug("load: ", s.height, s.slot, s.msgNum)
+	logger.Debug("load: ", s.height, s.slot)
 
 	// load root
 	key = store.NewKey(pb.MetaType_ST_RootKey)
@@ -207,8 +202,6 @@ func (s *StateMgr) load() {
 	if err == nil && len(val) >= 8 {
 		s.ceInfo.epoch = binary.BigEndian.Uint64(val)
 	}
-
-	logger.Debug("load: ", s.height, s.slot, s.msgNum, s.root, s.ceInfo.epoch, s.users)
 
 	if s.ceInfo.epoch == 0 {
 		return
@@ -332,20 +325,18 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	s.height++
 	s.slot = blk.Slot
-	s.msgNum = uint16(len(blk.Msgs))
 
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	buf := make([]byte, 18)
+	buf := make([]byte, 16)
 	binary.BigEndian.PutUint64(buf[:8], s.height)
 	binary.BigEndian.PutUint64(buf[8:16], s.slot)
-	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
 	err = tds.Put(key, buf)
 	if err != nil {
 		return s.root, err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
-	err = tds.Put(key, buf)
+	err = tds.Put(key, blk.Root.Bytes())
 	if err != nil {
 		return s.root, err
 	}
@@ -404,23 +395,6 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore)
 	}
 
 	err = s.newRoot(msg.Params, tds)
-	if err != nil {
-		return s.root, err
-	}
-
-	s.msgNum--
-	key := store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
-	buf := make([]byte, 18)
-	binary.BigEndian.PutUint64(buf[:8], s.height)
-	binary.BigEndian.PutUint64(buf[8:16], s.slot)
-	binary.BigEndian.PutUint16(buf[16:], s.msgNum)
-	err = tds.Put(key, buf)
-	if err != nil {
-		return s.root, err
-	}
-
-	key = store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	err = tds.Put(key, buf)
 	if err != nil {
 		return s.root, err
 	}

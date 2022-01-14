@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"encoding/binary"
+	"math"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -43,12 +44,6 @@ func (s *StateMgr) GetSlot(ctx context.Context) uint64 {
 	return s.slot
 }
 
-func (s *StateMgr) GetMsgNum() uint16 {
-	s.lk.RLock()
-	defer s.lk.RUnlock()
-	return s.msgNum
-}
-
 func (s *StateMgr) GetChalEpoch(ctx context.Context) uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
@@ -85,6 +80,23 @@ func (s *StateMgr) GetChalEpochInfoAt(ctx context.Context, epoch uint64) (*types
 	}
 
 	return ce, nil
+}
+
+func (s *StateMgr) GetBlockIDAt(ctx context.Context, ht uint64) (types.MsgID, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	if ht == math.MaxUint64 {
+		return s.genesisBlockID, nil
+	}
+
+	key := store.NewKey(pb.MetaType_ST_BlockHeightKey, ht)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return types.MsgIDUndef, err
+	}
+
+	return types.FromBytes(data)
 }
 
 func (s *StateMgr) GetNonce(ctx context.Context, roleID uint64) uint64 {

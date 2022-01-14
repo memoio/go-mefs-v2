@@ -14,7 +14,9 @@ type Store interface {
 	GetTxMsg(mid types.MsgID) (*SignedMessage, error)
 	PutTxMsg(sm *SignedMessage, persist bool) error
 	HasTxMsg(mid types.MsgID) (bool, error)
+
 	GetTxMsgState(mid types.MsgID) (*MsgState, error)
+	PutTxMsgState(mid types.MsgID, ms *MsgState) error
 
 	GetTxBlock(bid types.MsgID) (*SignedBlock, error)
 	PutTxBlock(tb *SignedBlock) error
@@ -244,6 +246,16 @@ func (ts *TxStoreImpl) PutTxBlockHeight(ht uint64, bid types.MsgID) error {
 	ts.htCache.Add(ht, bid)
 
 	return nil
+}
+
+func (ts *TxStoreImpl) PutTxMsgState(mid types.MsgID, ms *MsgState) error {
+	key := store.NewKey(pb.MetaType_Tx_MessageStateKey, mid.String())
+	msb, err := ms.Serialize()
+	if err != nil {
+		return err
+	}
+
+	return ts.ds.Put(key, msb)
 }
 
 func (ts *TxStoreImpl) GetTxMsgState(mid types.MsgID) (*MsgState, error) {

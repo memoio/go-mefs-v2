@@ -62,6 +62,8 @@ type CommonStruct struct {
 		GetChalEpochInfo   func(context.Context) *types.ChalEpoch                  `perm:"read"`
 		GetChalEpochInfoAt func(context.Context, uint64) (*types.ChalEpoch, error) `perm:"read"`
 
+		GetBlockIDAt func(ctx context.Context, ht uint64) (types.MsgID, error) `perm:"read"`
+
 		GetNonce func(context.Context, uint64) uint64 `perm:"read"`
 
 		GetUsersForPro  func(context.Context, uint64) []uint64 `perm:"read"`
@@ -213,6 +215,10 @@ func (s *CommonStruct) GetChalEpochInfo(ctx context.Context) *types.ChalEpoch {
 
 func (s *CommonStruct) GetChalEpochInfoAt(ctx context.Context, epoch uint64) (*types.ChalEpoch, error) {
 	return s.Internal.GetChalEpochInfoAt(ctx, epoch)
+}
+
+func (s *CommonStruct) GetBlockIDAt(ctx context.Context, ht uint64) (types.MsgID, error) {
+	return s.Internal.GetBlockIDAt(ctx, ht)
 }
 
 func (s *CommonStruct) GetNonce(ctx context.Context, roleID uint64) uint64 {
