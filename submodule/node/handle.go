@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"time"
@@ -44,6 +45,18 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 	}
 
 	key := mes.Data.MsgInfo
+	if bytes.HasPrefix(key, []byte("tx")) {
+		val, err := n.StateStore().Get(key)
+		if err != nil {
+			resp.Header.Type = pb.NetMessage_Err
+			resp.Data.MsgInfo = []byte(err.Error())
+			return resp, nil
+		}
+		resp.Data.MsgInfo = val
+
+		return resp, nil
+	}
+
 	val, err := n.MetaStore().Get(key)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
