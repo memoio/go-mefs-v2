@@ -135,8 +135,6 @@ func (pp *PushPool) syncPush() {
 func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgID, error) {
 	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Method)
 
-	mid := mes.Hash()
-
 	pp.lk.Lock()
 	if !pp.ready {
 		pp.lk.Unlock()
@@ -158,18 +156,17 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 	// get nonce
 	mes.Nonce = lp.nonce
 	lp.nonce++
+	pp.lk.Unlock()
 
 	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Nonce, mes.Method)
 
+	mid := mes.Hash()
 	// sign
 	sig, err := pp.RoleSign(pp.ctx, mes.From, mid.Bytes(), types.SigSecp256k1)
 	if err != nil {
-		pp.lk.Unlock()
 		logger.Warn("add tx message to push pool: ", err)
 		return mid, err
 	}
-
-	pp.lk.Unlock()
 
 	sm := &tx.SignedMessage{
 		Message:   *mes,
@@ -180,7 +177,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 }
 
 func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage) (types.MsgID, error) {
-	logger.Debug("add tx signed message to push pool: ", pp.ready)
+	logger.Debug("add tx message signed to push pool: ", pp.ready, sm.From, sm.Nonce, sm.Method)
 
 	mid := sm.Hash()
 
@@ -192,7 +189,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	}
 
 	if !valid {
-		logger.Warn("add tx signed message to push pool: invalid sig")
+		logger.Warn("add tx message signed to push pool invalid sig: ", pp.ready, sm.From, sm.Nonce, sm.Method)
 		return mid, xerrors.Errorf("invalid sig")
 	}
 

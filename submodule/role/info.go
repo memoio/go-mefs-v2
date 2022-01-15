@@ -39,6 +39,7 @@ type RoleMgr struct {
 }
 
 func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet, is *settle.ContractMgr) (*RoleMgr, error) {
+	// cureent node is registered
 	ri, err := is.GetRoleInfoAt(ctx, roleID)
 	if err != nil {
 		return nil, err
