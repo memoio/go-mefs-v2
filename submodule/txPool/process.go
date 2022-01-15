@@ -179,14 +179,9 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 
 	logger.Debugf("create block header at height %d, slot: %d", rh, slot)
 
-	bid, err := mp.GetBlockIDAt(mp.ctx, rh-1)
-	if err != nil {
-		return nrh, err
-	}
-
 	nrh.Height = rh
 	nrh.Slot = slot
-	nrh.PrevID = bid
+	nrh.PrevID = mp.GetBlockID(mp.ctx)
 	nrh.MinerID = mp.GetLeader(slot)
 
 	return nrh, nil

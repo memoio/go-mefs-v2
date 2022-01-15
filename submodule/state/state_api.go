@@ -44,6 +44,13 @@ func (s *StateMgr) GetSlot(ctx context.Context) uint64 {
 	return s.slot
 }
 
+func (s *StateMgr) GetBlockID(ctx context.Context) types.MsgID {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	return s.blkID
+}
+
 func (s *StateMgr) GetChalEpoch(ctx context.Context) uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()

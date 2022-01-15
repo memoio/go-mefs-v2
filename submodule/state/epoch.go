@@ -1,7 +1,6 @@
 package state
 
 import (
-	"bytes"
 	"encoding/binary"
 
 	"golang.org/x/xerrors"
@@ -24,7 +23,7 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message, tds store.TxnStore) error {
 		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.ceInfo.epoch)
 	}
 
-	if !bytes.Equal(sep.Prev.Bytes(), s.ceInfo.current.Seed.Bytes()) {
+	if !sep.Prev.Equal(s.ceInfo.current.Seed) {
 		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.ceInfo.current.Seed)
 	}
 
@@ -74,7 +73,7 @@ func (s *StateMgr) canUpdateChalEpoch(msg *tx.Message) error {
 		return xerrors.Errorf("add chal epoch err: got %d, expected %d", sep.Epoch, s.validateCeInfo.epoch)
 	}
 
-	if !bytes.Equal(sep.Prev.Bytes(), s.validateCeInfo.current.Seed.Bytes()) {
+	if !sep.Prev.Equal(s.validateCeInfo.current.Seed) {
 		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.validateCeInfo.current.Seed)
 	}
 

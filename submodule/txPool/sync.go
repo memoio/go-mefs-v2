@@ -403,6 +403,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.SignedBlock, error) {
 	// fetch it over network
 	key := store.NewKey("tx", pb.MetaType_TX_BlockKey, bid.String())
+	//key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
 	res, err := sp.INetService.Fetch(sp.ctx, key)
 	if err != nil {
 		return nil, err
@@ -421,6 +422,7 @@ func (sp *SyncPool) getTxBlockRemoteByHeight(ht uint64) {
 	if err != nil {
 		// fetch it over network
 		key := store.NewKey("tx", pb.MetaType_Tx_BlockHeightKey, ht)
+		//key := store.NewKey(pb.MetaType_Tx_BlockHeightKey, ht)
 		res, err := sp.INetService.Fetch(sp.ctx, key)
 		if err != nil {
 			return
@@ -428,8 +430,11 @@ func (sp *SyncPool) getTxBlockRemoteByHeight(ht uint64) {
 
 		bid, err = types.FromBytes(res)
 		if err != nil {
+			logger.Debug("get block id at height fail: ", err)
 			return
 		}
+
+		logger.Debugf("get block id %s at height %d", bid, ht)
 	}
 
 	ok, err := sp.HasTxBlock(bid)

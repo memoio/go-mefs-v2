@@ -165,6 +165,7 @@ type IChainSync interface {
 
 type IChainState interface {
 	GetRoot(context.Context) types.MsgID
+	GetBlockID(context.Context) types.MsgID
 	GetHeight(context.Context) uint64
 	GetSlot(context.Context) uint64
 

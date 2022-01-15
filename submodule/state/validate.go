@@ -46,12 +46,16 @@ func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.validateRoot, nil
 	}
 
+	if !blk.PrevID.Equal(s.blkID) {
+		return s.validateRoot, xerrors.Errorf("validate block prvID is wrong: got %s, expected %s", blk.PrevID, s.blkID)
+	}
+
 	if blk.Height != s.validateHeight {
-		return s.validateRoot, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
+		return s.validateRoot, xerrors.Errorf("validate block height is wrong: got %d, expected %d", blk.Height, s.height)
 	}
 
 	if blk.Slot <= s.validateSlot {
-		return s.validateRoot, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.validateSlot)
+		return s.validateRoot, xerrors.Errorf("validate block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.validateSlot)
 	}
 
 	b, err := blk.RawHeader.Serialize()
@@ -96,7 +100,7 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 	}
 
 	if msg.Nonce != ri.val.Nonce {
-		return s.validateRoot, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.val.Nonce, msg.Nonce)
+		return s.validateRoot, xerrors.Errorf("validate nonce is wrong for: %d, expeted %d, got %d", msg.From, ri.val.Nonce, msg.Nonce)
 	}
 
 	ri.val.Nonce++

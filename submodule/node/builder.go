@@ -255,10 +255,12 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 
 	nd.RoleMgr = rm
+
 	txs, err := tx.NewTxStore(ctx, wrap.NewKVStore("tx", nd.StateStore()))
 	if err != nil {
 		return nil, err
 	}
+	nd.Store = txs
 
 	// state mgr
 	stDB := state.NewStateMgr(settle.RoleAddr.Bytes(), b.groupID, nd.GetThreshold(ctx), nd.StateStore(), rm)

@@ -54,9 +54,10 @@ type CommonStruct struct {
 		RoleVerifyMulti func(context.Context, []byte, types.MultiSignature) (bool, error)             `perm:"read"`
 		RoleSanityCheck func(context.Context, *tx.SignedMessage) (bool, error)                        `perm:"read"`
 
-		GetRoot   func(context.Context) types.MsgID `perm:"read"`
-		GetHeight func(context.Context) uint64      `perm:"read"`
-		GetSlot   func(context.Context) uint64      `perm:"read"`
+		GetRoot    func(context.Context) types.MsgID `perm:"read"`
+		GetBlockID func(context.Context) types.MsgID `perm:"read"`
+		GetHeight  func(context.Context) uint64      `perm:"read"`
+		GetSlot    func(context.Context) uint64      `perm:"read"`
 
 		GetChalEpoch       func(context.Context) uint64                            `perm:"read"`
 		GetChalEpochInfo   func(context.Context) *types.ChalEpoch                  `perm:"read"`
@@ -195,6 +196,10 @@ func (s *CommonStruct) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessag
 
 func (s *CommonStruct) GetRoot(ctx context.Context) types.MsgID {
 	return s.Internal.GetRoot(ctx)
+}
+
+func (s *CommonStruct) GetBlockID(ctx context.Context) types.MsgID {
+	return s.Internal.GetBlockID(ctx)
 }
 
 func (s *CommonStruct) GetHeight(ctx context.Context) uint64 {

@@ -34,7 +34,9 @@ func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetM
 }
 
 func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle get net message from: ", pid.Pretty())
+	key := mes.Data.MsgInfo
+
+	logger.Debug("handle get net message from: ", pid.Pretty(), ", key: ", string(key))
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -44,7 +46,6 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 		Data: &pb.NetMessage_MsgData{},
 	}
 
-	key := mes.Data.MsgInfo
 	if bytes.HasPrefix(key, []byte("tx")) {
 		val, err := n.StateStore().Get(key)
 		if err != nil {
@@ -52,17 +53,41 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 			resp.Data.MsgInfo = []byte(err.Error())
 			return resp, nil
 		}
-		resp.Data.MsgInfo = val
 
+		logger.Debug("handle get net message from ok: ", pid.Pretty(), ", key: ", string(key))
+
+		resp.Data.MsgInfo = val
 		return resp, nil
 	}
 
 	val, err := n.MetaStore().Get(key)
-	if err != nil {
-		resp.Header.Type = pb.NetMessage_Err
-		resp.Data.MsgInfo = []byte(err.Error())
+	if err == nil {
+		logger.Debug("handle get net message from ok: ", pid.Pretty(), ", key: ", string(mes.Data.MsgInfo))
+		resp.Data.MsgInfo = val
 		return resp, nil
 	}
+
+	/*
+		val, err = n.StateStore().Get(key)
+		if err == nil {
+			logger.Debug("handle get net message from ok: ", pid.Pretty(), ", key: ", string(mes.Data.MsgInfo))
+			resp.Data.MsgInfo = val
+			return resp, nil
+		}
+
+		ds := wrap.NewKVStore("tx", n.StateStore())
+		val, err = ds.Get(key)
+		if err == nil {
+			logger.Debug("handle get net message from ok: ", pid.Pretty(), ", key: ", string(mes.Data.MsgInfo))
+			resp.Data.MsgInfo = val
+			return resp, nil
+		}
+	*/
+
+	logger.Debug("handle get net message from no: ", pid.Pretty(), ", key: ", string(mes.Data.MsgInfo))
+	resp.Header.Type = pb.NetMessage_Err
+	resp.Data.MsgInfo = []byte(err.Error())
+	return resp, nil
 
 	/*
 		msg := blake3.Sum256(val)
@@ -80,9 +105,6 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 		resp.Data.Sign = sigByte
 	*/
 
-	resp.Data.MsgInfo = val
-
-	return resp, nil
 }
 
 func (n *BaseNode) Register() error {

@@ -19,6 +19,7 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
@@ -52,6 +53,8 @@ type BaseNode struct {
 	*txPool.PushPool
 
 	*settle.ContractMgr
+
+	tx.Store
 
 	repo.Repo
 

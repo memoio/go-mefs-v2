@@ -30,18 +30,19 @@ type StateMgr struct {
 
 	genesisBlockID types.MsgID
 
-	height uint64 // next block height
-	slot   uint64 // logical time
-
 	keepers   []uint64
 	pros      []uint64
 	users     []uint64
 	threshold int
-	ceInfo    *chalEpochInfo
-	root      types.MsgID // for verify
-	oInfo     map[orderKey]*orderInfo
-	sInfo     map[uint64]*segPerUser // key: userID
-	rInfo     map[uint64]*roleInfo
+	blkID     types.MsgID
+
+	height uint64 // next block height
+	slot   uint64 // logical time
+	ceInfo *chalEpochInfo
+	root   types.MsgID // for verify
+	oInfo  map[orderKey]*orderInfo
+	sInfo  map[uint64]*segPerUser // key: userID
+	rInfo  map[uint64]*roleInfo
 
 	validateHeight uint64 // next block height
 	validateSlot   uint64 // logical time
@@ -76,8 +77,10 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 		pros:           make([]uint64, 0, 128),
 		users:          make([]uint64, 0, 128),
 		genesisBlockID: types.NewMsgID(buf),
-		root:           types.NewMsgID(buf),
-		validateRoot:   types.NewMsgID(buf),
+		blkID:          types.NewMsgID(buf),
+
+		root:         types.NewMsgID(buf),
+		validateRoot: types.NewMsgID(buf),
 		ceInfo: &chalEpochInfo{
 			epoch:    0,
 			current:  newChalEpoch(types.NewMsgID(buf)),
@@ -148,9 +151,42 @@ func (s *StateMgr) API() *stateAPI {
 }
 
 func (s *StateMgr) load() {
-	// load keepers
-	key := store.NewKey(pb.MetaType_ST_KeepersKey)
+	// load block height, epoch and uncompleted msgs
+	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 	val, err := s.ds.Get(key)
+	if err == nil && len(val) >= 16 {
+		s.height = binary.BigEndian.Uint64(val[:8]) + 1
+		s.slot = binary.BigEndian.Uint64(val[8:16])
+	}
+
+	logger.Debug("load: ", s.height, s.slot)
+
+	// load root
+	key = store.NewKey(pb.MetaType_ST_RootKey)
+	val, err = s.ds.Get(key)
+	if err == nil {
+		rt, err := types.FromBytes(val)
+		if err == nil {
+			s.root = rt
+			s.validateRoot = rt
+		}
+	}
+
+	// load blk root
+	if s.height > 0 {
+		key = store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
+		val, err = s.ds.Get(key)
+		if err == nil {
+			rt, err := types.FromBytes(val)
+			if err == nil {
+				s.blkID = rt
+			}
+		}
+	}
+
+	// load keepers
+	key = store.NewKey(pb.MetaType_ST_KeepersKey)
+	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
 			s.keepers = append(s.keepers, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
@@ -172,27 +208,6 @@ func (s *StateMgr) load() {
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
 			s.users = append(s.users, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
-		}
-	}
-
-	// load block height, epoch and uncompleted msgs
-	key = store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	val, err = s.ds.Get(key)
-	if err == nil && len(val) >= 16 {
-		s.height = binary.BigEndian.Uint64(val[:8])
-		s.slot = binary.BigEndian.Uint64(val[8:16])
-	}
-
-	logger.Debug("load: ", s.height, s.slot)
-
-	// load root
-	key = store.NewKey(pb.MetaType_ST_RootKey)
-	val, err = s.ds.Get(key)
-	if err == nil {
-		rt, err := types.FromBytes(val)
-		if err == nil {
-			s.root = rt
-			s.validateRoot = rt
 		}
 	}
 
@@ -261,9 +276,14 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, nil
 	}
 
-	if !s.root.Equal(blk.ParentRoot) {
-		logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, s.root, blk.ParentRoot)
+	if !blk.PrevID.Equal(s.blkID) {
+		logger.Errorf("apply wrong block at height %d, block prevID got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
 		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, s.root, blk.ParentRoot)
+	}
+
+	if !s.root.Equal(blk.ParentRoot) {
+		logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
+		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
 	}
 
 	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
@@ -286,7 +306,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		// verify sign
 		thr := s.getThreshold()
 		if blk.Len() < thr {
-			return s.root, xerrors.Errorf("not have enough signer, expected at least %d got %d", thr, blk.Len())
+			return s.root, xerrors.Errorf("apply block not have enough signer, expected at least %d got %d", thr, blk.Len())
 		}
 
 		sset := make(map[uint64]struct{}, blk.Len())
@@ -300,20 +320,20 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		}
 
 		if len(sset) < thr {
-			return s.root, xerrors.Errorf("not have enough valid signer, expected at least %d got %d", thr, len(sset))
+			return s.root, xerrors.Errorf("apply block not have enough valid signer, expected at least %d got %d", thr, len(sset))
 		}
 	} else {
 		for _, msg := range blk.MsgSet.Msgs {
 			if msg.Method != tx.AddRole {
-				return s.root, xerrors.Errorf("have invalid message at block zero")
+				return s.root, xerrors.Errorf("apply block have invalid message at block zero")
 			}
 			pri := new(pb.RoleInfo)
 			err := proto.Unmarshal(msg.Params, pri)
 			if err != nil {
-				return s.root, xerrors.Errorf("have invalid message at block zero %w", err)
+				return s.root, xerrors.Errorf("apply block have invalid message at block zero %w", err)
 			}
 			if pri.Type != pb.RoleInfo_Keeper {
-				return s.root, xerrors.Errorf("have invalid message at block zero")
+				return s.root, xerrors.Errorf("apply block have invalid message at block zero")
 			}
 		}
 	}
@@ -323,20 +343,17 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, err
 	}
 
-	s.height++
-	s.slot = blk.Slot
-
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 	buf := make([]byte, 16)
-	binary.BigEndian.PutUint64(buf[:8], s.height)
-	binary.BigEndian.PutUint64(buf[8:16], s.slot)
+	binary.BigEndian.PutUint64(buf[:8], blk.Height)
+	binary.BigEndian.PutUint64(buf[8:16], blk.Slot)
 	err = tds.Put(key, buf)
 	if err != nil {
 		return s.root, err
 	}
-
+	blkID := blk.Hash()
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
-	err = tds.Put(key, blk.Root.Bytes())
+	err = tds.Put(key, blkID.Bytes())
 	if err != nil {
 		return s.root, err
 	}
@@ -354,20 +371,23 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
 			return s.root, err
 		}
-
 		msgDone()
 	}
 
 	if !s.root.Equal(blk.Root) {
-		logger.Error("apply has wrong block, state got: %s, expected: %s", s.root, blk.Root)
-		return s.root, xerrors.Errorf("apply has wrong block, state got: %s, expected: %s", s.root, blk.Root)
+		logger.Error("apply block has wrong state end at height %d, state got: %s, expected: %s", blk.Height, blk.Root, s.root)
+		return s.root, xerrors.Errorf("apply has wrong state end at height %d, state got: %s, expected: %s", blk.Height, blk.Root, s.root)
 	}
 
 	// apply block ok, commit all changes
 	err = tds.Commit()
 	if err != nil {
-		return s.root, xerrors.Errorf("txn commit fail %w", err)
+		return s.root, xerrors.Errorf("apply block txn commit fail %w", err)
 	}
+
+	s.height++
+	s.slot = blk.Slot
+	s.blkID = blkID
 
 	return s.root, nil
 }

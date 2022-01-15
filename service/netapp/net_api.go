@@ -153,5 +153,5 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 		return resp.GetData().GetMsgInfo(), nil
 	}
 
-	return nil, xerrors.New("fetch time out")
+	return nil, xerrors.Errorf("fetch %s time out", string(key))
 }
