@@ -142,6 +142,8 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 		pubsub.WithFloodPublish(true),
 		pubsub.WithMessageIdFn(HashMsgId),
 		pubsub.WithDiscovery(topicdisc),
+		// public bootstrap node
+		pubsub.WithDirectPeers(bootNodes),
 		// set allow topics
 		pubsub.WithSubscriptionFilter(
 			pubsub.WrapLimitSubscriptionFilter(
