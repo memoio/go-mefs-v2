@@ -16,17 +16,9 @@ import (
 var logger = logging.Logger("mefs-user")
 
 func main() {
-	local := []*cli.Command{
-		cmd.DaemonCmd,
-		cmd.InitCmd,
-		cmd.AuthCmd,
-		cmd.WalletCmd,
-		cmd.RoleCmd,
-		cmd.NetCmd,
-		lfscmd.LfsCmd,
-		cmd.ConfigCmd,
-		cmd.StateCmd,
-	}
+	local := make([]*cli.Command, 0, len(cmd.CommonCmd))
+	local = append(local, cmd.CommonCmd...)
+	local = append(local, lfscmd.LfsCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-user",

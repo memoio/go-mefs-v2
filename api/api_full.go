@@ -210,6 +210,7 @@ type ISettle interface {
 	GetGroupID(context.Context) uint64
 	GetThreshold(context.Context) int
 	GetRoleInfoAt(context.Context, uint64) (*pb.RoleInfo, error)
+	GetGroupInfoAt(context.Context, uint64) (*GroupInfo, error)
 	GetBalance(context.Context, uint64) (*BalanceInfo, error)
 	Withdraw(context.Context, *big.Int, *big.Int, [][]byte) error
 }

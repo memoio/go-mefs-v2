@@ -83,12 +83,13 @@ type CommonStruct struct {
 		GetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
 		GetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
 
-		GetRoleID     func(context.Context) uint64                              `perm:"read"`
-		GetGroupID    func(context.Context) uint64                              `perm:"read"`
-		GetThreshold  func(context.Context) int                                 `perm:"read"`
-		GetRoleInfoAt func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
-		GetBalance    func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
-		Withdraw      func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"read"`
+		GetRoleID      func(context.Context) uint64                              `perm:"read"`
+		GetGroupID     func(context.Context) uint64                              `perm:"read"`
+		GetThreshold   func(context.Context) int                                 `perm:"read"`
+		GetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
+		GetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)         `perm:"read"`
+		GetBalance     func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
+		Withdraw       func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"read"`
 
 		Shutdown func(context.Context) error `perm:"admin"`
 	}
@@ -296,6 +297,10 @@ func (s *CommonStruct) GetThreshold(ctx context.Context) int {
 
 func (s *CommonStruct) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
 	return s.Internal.GetRoleInfoAt(ctx, rid)
+}
+
+func (s *CommonStruct) GetGroupInfoAt(ctx context.Context, gid uint64) (*GroupInfo, error) {
+	return s.Internal.GetGroupInfoAt(ctx, gid)
 }
 
 func (s *CommonStruct) GetBalance(ctx context.Context, rid uint64) (*BalanceInfo, error) {

@@ -38,6 +38,10 @@ func (f *fakeSettle) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInf
 	return nil, nil
 }
 
+func (f *fakeSettle) GetGroupInfoAt(ctx context.Context, rid uint64) (*api.GroupInfo, error) {
+	return nil, nil
+}
+
 func (f *fakeSettle) GetBalance(context.Context, uint64) (*api.BalanceInfo, error) {
 	return nil, nil
 }

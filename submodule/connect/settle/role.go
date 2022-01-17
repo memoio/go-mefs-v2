@@ -322,14 +322,14 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	cm.groupID = gIndex
 
 	if gIndex > 0 {
-		fsAddr, level, err := cm.getGroupInfo(gIndex)
+		gi, err := cm.GetGroupInfoAt(cm.ctx, gIndex)
 		if err != nil {
 			return err
 		}
-		cm.fsAddr = fsAddr
-		cm.level = level
-		cm.iFS = callconts.NewFileSys(fsAddr, cm.eAddr, cm.hexSK, cm.txOpts, endpoint, cm.status)
-		logger.Debug("fs contract address: ", fsAddr.Hex())
+		cm.fsAddr = common.HexToAddress(gi.FsAddr)
+		cm.level = int(gi.Level)
+		cm.iFS = callconts.NewFileSys(cm.fsAddr, cm.eAddr, cm.hexSK, cm.txOpts, endpoint, cm.status)
+		logger.Debug("fs contract address: ", cm.fsAddr.Hex())
 	}
 
 	if rType == 1 {
@@ -401,15 +401,23 @@ func (cm *ContractMgr) RegisterRole() error {
 	return err
 }
 
-func (cm *ContractMgr) getGroupInfo(gIndex uint64) (common.Address, int, error) {
-	isActive, isBanned, isReady, level, _, _, fsAddr, err := cm.iRole.GetGroupInfo(gIndex)
+func (cm *ContractMgr) GetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.GroupInfo, error) {
+	isActive, isBanned, isReady, level, size, price, fsAddr, err := cm.iRole.GetGroupInfo(gIndex)
 	if err != nil {
-		return common.Address{}, 0, err
+		return nil, err
 	}
 
 	logger.Debugf("group %d, state %v %v %v, level %d, fsAddr %s", gIndex, isActive, isBanned, isReady, level, fsAddr)
 
-	return fsAddr, int(level), nil
+	gi := &api.GroupInfo{
+		ID:     gIndex,
+		Level:  level,
+		FsAddr: fsAddr.Hex(),
+		Size:   size.Uint64(),
+		Price:  new(big.Int).Set(price),
+	}
+
+	return gi, nil
 }
 
 func (cm *ContractMgr) GetRoleID(ctx context.Context) uint64 {

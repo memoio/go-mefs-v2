@@ -8,6 +8,14 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
+type GroupInfo struct {
+	ID     uint64
+	Level  uint16
+	FsAddr string
+	Size   uint64
+	Price  *big.Int
+}
+
 type ExtendedPeerInfo struct {
 	ID          peer.ID
 	Agent       string

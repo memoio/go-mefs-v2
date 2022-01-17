@@ -51,8 +51,6 @@ type SyncPool struct {
 
 	blks map[uint64]types.MsgID // key: height
 
-	blkChan chan *blkWithID
-
 	ready bool
 
 	msgDone chan *blkDigest
@@ -78,8 +76,7 @@ func NewSyncPool(ctx context.Context, groupID uint64, thre int, st *state.StateM
 		nextHeight:   0,
 		remoteHeight: 0,
 
-		blks:    make(map[uint64]types.MsgID),
-		blkChan: make(chan *blkWithID, 64),
+		blks: make(map[uint64]types.MsgID),
 
 		msgDone: make(chan *blkDigest, 64),
 
@@ -120,22 +117,6 @@ func (sp *SyncPool) syncBlock() {
 		select {
 		case <-sp.ctx.Done():
 			return
-		case blk := <-sp.blkChan:
-			logger.Debug("add block ok: ", blk.height, sp.nextHeight, sp.remoteHeight)
-			if blk.height >= sp.nextHeight {
-				sp.blks[blk.height] = blk.id
-				if blk.height > sp.nextHeight {
-					sp.blks[blk.height-1] = blk.prevID
-				}
-			}
-
-			sp.lk.Lock()
-			if blk.height >= sp.remoteHeight {
-				sp.remoteHeight = blk.height + 1
-			}
-			sp.lk.Unlock()
-
-			stats.Record(sp.ctx, metrics.TxBlockRemoteHeight.M(int64(sp.remoteHeight)))
 		case <-tc.C:
 		}
 
@@ -160,7 +141,7 @@ func (sp *SyncPool) syncBlock() {
 				go func(ht uint64) {
 					defer sm.Release(1)
 					defer wg.Done()
-					sp.getTxBlockRemoteByHeight(ht)
+					sp.getTxBlockByHeight(ht)
 				}(i)
 			}
 			wg.Wait()
@@ -169,7 +150,9 @@ func (sp *SyncPool) syncBlock() {
 		// sync all block from end -> begin
 		// use prevID to find
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
+			sp.lk.RLock()
 			bid, ok := sp.blks[i]
+			sp.lk.RUnlock()
 			if !ok {
 				// sync block from remote
 				nbid, err := sp.GetTxBlockByHeight(i)
@@ -182,7 +165,9 @@ func (sp *SyncPool) syncBlock() {
 			} else {
 				if i > 0 && i > sp.nextHeight {
 					// previous one exist, skip get?
+					sp.lk.RLock()
 					_, ok = sp.blks[i-1]
+					sp.lk.RUnlock()
 					if ok {
 						continue
 					}
@@ -191,24 +176,28 @@ func (sp *SyncPool) syncBlock() {
 
 			blk, err := sp.GetTxBlock(bid)
 			if err != nil {
-				_, err := sp.GetTxBlockRemote(bid)
+				_, err := sp.getTxBlockRemote(bid)
 				if err != nil {
 					logger.Debug("get block remote fail: ", i, bid, err)
-					continue
 				}
-			} else {
-				sp.blks[blk.Height] = bid
-				if blk.Height > 0 {
-					sp.blks[blk.Height-1] = blk.PrevID
-				}
+				continue
 			}
+
+			sp.lk.Lock()
+			sp.blks[blk.Height] = bid
+			if blk.Height > 0 {
+				sp.blks[blk.Height-1] = blk.PrevID
+			}
+			sp.lk.Unlock()
 		}
 
 		logger.Debug("regular process block:", sp.nextHeight, sp.remoteHeight)
 
 		// process syncd blk
 		for i := sp.nextHeight; i < sp.remoteHeight; i++ {
+			sp.lk.RLock()
 			bid, ok := sp.blks[i]
+			sp.lk.RUnlock()
 			if !ok {
 				logger.Debug("before process block, not have")
 				break
@@ -222,7 +211,9 @@ func (sp *SyncPool) syncBlock() {
 
 			if sb.Height != i {
 				logger.Debugf("get tx block %d %s height not equal %d", i, bid, sb.Height)
+				sp.lk.Lock()
 				delete(sp.blks, i)
+				sp.lk.Unlock()
 				break
 			}
 
@@ -231,18 +222,19 @@ func (sp *SyncPool) syncBlock() {
 				// clear all block above sp.nextHeight
 				logger.Debugf("process tx block fail: %s", err)
 
+				sp.lk.Lock()
 				for j := i; j < sp.remoteHeight; j++ {
 					delete(sp.blks, j)
 				}
-
-				sp.lk.Lock()
 				sp.remoteHeight = i
 				sp.lk.Unlock()
 				break
 			}
 
+			sp.lk.Lock()
 			delete(sp.blks, i)
 			sp.nextHeight++
+			sp.lk.Unlock()
 			stats.Record(sp.ctx, metrics.TxBlockSyncdHeight.M(int64(sp.nextHeight)))
 		}
 
@@ -391,19 +383,27 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 		metrics.TxBlockBytes.M(int64(bLen)),
 	)
 
-	bwi := &blkWithID{
-		height: tb.Height,
-		id:     bid,
-		prevID: tb.PrevID,
-	}
+	logger.Debug("add block ok: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 
-	sp.blkChan <- bwi
+	sp.lk.Lock()
+	if tb.Height >= sp.nextHeight {
+		sp.blks[tb.Height] = bid
+		if tb.Height > sp.nextHeight {
+			sp.blks[tb.Height-1] = tb.PrevID
+		}
+	}
+	if tb.Height >= sp.remoteHeight {
+		sp.remoteHeight = tb.Height + 1
+	}
+	sp.lk.Unlock()
+
+	stats.Record(sp.ctx, metrics.TxBlockRemoteHeight.M(int64(sp.remoteHeight)))
 
 	return nil
 }
 
 // over network
-func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.SignedBlock, error) {
+func (sp *SyncPool) getTxBlockRemote(bid types.MsgID) (*tx.SignedBlock, error) {
 	// fetch it over network
 	key := store.NewKey("tx", pb.MetaType_TX_BlockKey, bid.String())
 	//key := store.NewKey(pb.MetaType_TX_BlockKey, bid.String())
@@ -417,10 +417,12 @@ func (sp *SyncPool) GetTxBlockRemote(bid types.MsgID) (*tx.SignedBlock, error) {
 		return nil, err
 	}
 
+	logger.Debugf("get block id from remote %s", bid)
+
 	return tb, sp.AddTxBlock(tb)
 }
 
-func (sp *SyncPool) getTxBlockRemoteByHeight(ht uint64) {
+func (sp *SyncPool) getTxBlockByHeight(ht uint64) {
 	bid, err := sp.GetTxBlockByHeight(ht)
 	if err != nil {
 		// fetch it over network
@@ -442,7 +444,7 @@ func (sp *SyncPool) getTxBlockRemoteByHeight(ht uint64) {
 
 	ok, err := sp.HasTxBlock(bid)
 	if err != nil || !ok {
-		sp.GetTxBlockRemote(bid)
+		sp.getTxBlockRemote(bid)
 	}
 }
 
