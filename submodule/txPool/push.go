@@ -97,7 +97,7 @@ func (pp *PushPool) syncPush() {
 
 			pp.lk.Lock()
 			for _, md := range bh.msgs {
-				logger.Debug("tx message done: ", md.ID, md.From, md.Nonce)
+				logger.Debug("tx message done: ", md.From, md.Nonce, md.ID)
 				lpending, ok := pp.pending[md.From]
 				if ok {
 					delete(lpending.msg, md.ID)
