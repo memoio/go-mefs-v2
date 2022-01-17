@@ -25,12 +25,6 @@ type blkDigest struct {
 	msgs   []tx.MessageDigest
 }
 
-type blkWithID struct {
-	height uint64
-	id     types.MsgID
-	prevID types.MsgID
-}
-
 var _ api.IChainSync = &SyncPool{}
 
 type SyncPool struct {
@@ -92,6 +86,7 @@ func NewSyncPool(ctx context.Context, groupID uint64, thre int, st *state.StateM
 func (sp *SyncPool) Start() {
 	logger.Debug("start sync pool")
 	go sp.syncBlock()
+	go sp.handleBlock()
 }
 
 func (sp *SyncPool) SetReady() {
@@ -109,8 +104,9 @@ func (sp *SyncPool) load() {
 	logger.Debug("block synced to: ", sp.nextHeight)
 }
 
+// far behind
 func (sp *SyncPool) syncBlock() {
-	tc := time.NewTicker(3 * time.Second)
+	tc := time.NewTicker(10 * time.Second)
 	defer tc.Stop()
 
 	for {
@@ -121,7 +117,7 @@ func (sp *SyncPool) syncBlock() {
 		}
 
 		if sp.remoteHeight == sp.nextHeight {
-			logger.Debug("regular handle block synced at:", sp.nextHeight)
+			logger.Debug("regular get block synced at:", sp.nextHeight)
 			continue
 		}
 
@@ -147,6 +143,26 @@ func (sp *SyncPool) syncBlock() {
 			wg.Wait()
 		}
 
+	}
+}
+
+func (sp *SyncPool) handleBlock() {
+	tc := time.NewTicker(3 * time.Second)
+	defer tc.Stop()
+
+	for {
+		select {
+		case <-sp.ctx.Done():
+			return
+		case <-tc.C:
+		}
+
+		if sp.remoteHeight == sp.nextHeight {
+			logger.Debug("regular process block synced at:", sp.nextHeight)
+			continue
+		}
+
+		logger.Debug("regular process block get:", sp.nextHeight, sp.remoteHeight)
 		// sync all block from end -> begin
 		// use prevID to find
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
