@@ -113,35 +113,37 @@ func (p *ProviderNode) Start() error {
 
 	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(metrics.MetricedProviderAPI(p)))
 
-	// wait for sync
-	p.PushPool.Start()
-	for {
-		if p.PushPool.Ready() {
-			break
-		} else {
-			logger.Debug("wait for sync")
-			time.Sleep(5 * time.Second)
+	go func() {
+		// wait for sync
+		p.PushPool.Start()
+		for {
+			if p.PushPool.Ready() {
+				break
+			} else {
+				logger.Debug("wait for sync")
+				time.Sleep(5 * time.Second)
+			}
 		}
-	}
 
-	// wait for register
-	err := p.Register()
-	if err != nil {
-		return err
-	}
+		// wait for register
+		err := p.Register()
+		if err != nil {
+			return
+		}
 
-	err = p.UpdateNetAddr()
-	if err != nil {
-		return err
-	}
+		err = p.UpdateNetAddr()
+		if err != nil {
+			return
+		}
 
-	// start order manager
-	p.pom.Start()
+		// start order manager
+		p.pom.Start()
 
-	// start challenge manager
-	p.chalSeg.Start()
+		// start challenge manager
+		p.chalSeg.Start()
 
-	p.ready = true
+		p.ready = true
+	}()
 
 	logger.Info("start provider for: ", p.RoleID())
 	return nil

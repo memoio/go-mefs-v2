@@ -78,35 +78,37 @@ func (k *KeeperNode) Start() error {
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
 
-	// wait for sync
-	k.PushPool.Start()
-	retry := 0
-	for {
-		if k.PushPool.Ready() {
-			break
-		} else {
-			logger.Debug("wait for sync")
-			retry++
-			if retry > 12 {
-				// no more new block, set to ready
-				k.SyncPool.SetReady()
+	go func() {
+		// wait for sync
+		k.PushPool.Start()
+		retry := 0
+		for {
+			if k.PushPool.Ready() {
+				break
+			} else {
+				logger.Debug("wait for sync")
+				retry++
+				if retry > 12 {
+					// no more new block, set to ready
+					k.SyncPool.SetReady()
+				}
+				time.Sleep(5 * time.Second)
 			}
-			time.Sleep(5 * time.Second)
 		}
-	}
 
-	k.inp.Start()
+		k.inp.Start()
 
-	go k.bc.MineBlock()
+		go k.bc.MineBlock()
 
-	err := k.Register()
-	if err != nil {
-		return err
-	}
+		err := k.Register()
+		if err != nil {
+			return
+		}
 
-	go k.updateChalEpoch()
-	go k.updatePay()
-	go k.updateOrder()
+		go k.updateChalEpoch()
+		go k.updatePay()
+		go k.updateOrder()
+	}()
 
 	logger.Info("start keeper for: ", k.RoleID())
 	return nil
