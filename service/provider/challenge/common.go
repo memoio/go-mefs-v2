@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -21,7 +20,7 @@ type chal struct {
 type segInfo struct {
 	userID uint64
 	fsID   []byte
-	pk     pdpcommon.PublicKey
+	//pk     pdpcommon.PublicKey
 
 	nextChal uint64
 	wait     bool

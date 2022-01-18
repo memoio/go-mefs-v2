@@ -93,8 +93,8 @@ func (s *SegMgr) loadFs(userID uint64) *segInfo {
 		// load from local
 		si = &segInfo{
 			userID: userID,
-			pk:     pk,
-			fsID:   pk.VerifyKey().Hash(),
+			//pk:     pk,
+			fsID: pk.VerifyKey().Hash(),
 		}
 
 		s.users = append(s.users, userID)
@@ -186,13 +186,19 @@ func (s *SegMgr) challenge(userID uint64) {
 	copy(buf[8:], s.eInfo.Seed.Bytes())
 	bh := blake3.Sum256(buf)
 
-	pchal, err := pdp.NewChallenge(si.pk.VerifyKey(), bh)
+	pk, err := s.GetPDPPublicKey(s.ctx, userID)
+	if err != nil {
+		logger.Debug("challenge not get fs")
+		return
+	}
+
+	pchal, err := pdp.NewChallenge(pk.VerifyKey(), bh)
 	if err != nil {
 		logger.Debug("challenge cannot create chal: ", userID, si.nextChal)
 		return
 	}
 
-	pf, err := pdp.NewProofAggregator(si.pk, bh)
+	pf, err := pdp.NewProofAggregator(pk, bh)
 	if err != nil {
 		logger.Debug("challenge cannot create proof: ", userID, si.nextChal)
 		return
@@ -479,7 +485,7 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	ok, err := si.pk.VerifyKey().VerifyProof(pchal, res)
+	ok, err := pk.VerifyKey().VerifyProof(pchal, res)
 	if err != nil {
 		logger.Debug("challenge generate wrong proof: ", userID, err)
 		return
