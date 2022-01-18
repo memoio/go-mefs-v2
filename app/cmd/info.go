@@ -68,7 +68,7 @@ var InfoCmd = &cli.Command{
 				if err != nil {
 					continue
 				}
-				size += size
+				size += si.Size
 				price.Add(price, si.Price)
 			}
 			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
