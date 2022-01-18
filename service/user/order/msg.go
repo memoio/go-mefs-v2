@@ -113,7 +113,7 @@ func (m *OrderMgr) checkBalance() {
 		}
 	}
 
-	bal, err := m.is.GetBalance(m.ctx, m.localID)
+	bal, err := m.is.GetBalanceInfo(m.ctx, m.localID)
 	if err != nil {
 		return
 	}
@@ -328,7 +328,7 @@ func (m *OrderMgr) submitOrders() error {
 }
 
 func (m *OrderMgr) addOrder(so *types.SignedOrder) error {
-	avail, err := m.is.GetBalance(m.ctx, so.UserID)
+	avail, err := m.is.GetBalanceInfo(m.ctx, so.UserID)
 	if err != nil {
 		logger.Debug("addOrder fail to get balance ", so.UserID, so.ProID, err)
 		return err

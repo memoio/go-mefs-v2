@@ -42,10 +42,26 @@ func (f *fakeSettle) GetGroupInfoAt(ctx context.Context, rid uint64) (*api.Group
 	return nil, nil
 }
 
-func (f *fakeSettle) GetBalance(context.Context, uint64) (*api.BalanceInfo, error) {
+func (f *fakeSettle) GetBalanceInfo(context.Context, uint64) (*api.BalanceInfo, error) {
+	return nil, nil
+}
+
+func (f *fakeSettle) GetPledgeInfo(context.Context, uint64) (*api.PledgeInfo, error) {
+	return nil, nil
+}
+
+func (f *fakeSettle) GetStoreInfo(context.Context, uint64, uint64) (*api.StoreInfo, error) {
 	return nil, nil
 }
 
 func (f *fakeSettle) Withdraw(context.Context, *big.Int, *big.Int, [][]byte) error {
+	return nil
+}
+
+func (f *fakeSettle) Pledge(context.Context, *big.Int) error {
+	return nil
+}
+
+func (f *fakeSettle) CanclePledge(context.Context, *big.Int) error {
 	return nil
 }

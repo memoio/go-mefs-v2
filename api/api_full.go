@@ -211,6 +211,11 @@ type ISettle interface {
 	GetThreshold(context.Context) int
 	GetRoleInfoAt(context.Context, uint64) (*pb.RoleInfo, error)
 	GetGroupInfoAt(context.Context, uint64) (*GroupInfo, error)
-	GetBalance(context.Context, uint64) (*BalanceInfo, error)
+	GetBalanceInfo(context.Context, uint64) (*BalanceInfo, error)
+	GetPledgeInfo(context.Context, uint64) (*PledgeInfo, error)
+	GetStoreInfo(context.Context, uint64, uint64) (*StoreInfo, error)
+
 	Withdraw(context.Context, *big.Int, *big.Int, [][]byte) error
+	Pledge(context.Context, *big.Int) error
+	CanclePledge(context.Context, *big.Int) error
 }

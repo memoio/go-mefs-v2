@@ -92,14 +92,14 @@ var statePayCmd = &cli.Command{
 
 			fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
 
-			bi, err := napi.GetBalance(cctx.Context, nid.ID)
+			bi, err := napi.GetBalanceInfo(cctx.Context, nid.ID)
 			if err != nil {
 				return err
 			}
 
 			fmt.Printf("pay info max: proID %d, expected income: %s, has balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
 		default:
-			bi, err := napi.GetBalance(cctx.Context, nid.ID)
+			bi, err := napi.GetBalanceInfo(cctx.Context, nid.ID)
 			if err != nil {
 				return err
 			}
@@ -141,7 +141,7 @@ var stateWithdrawCmd = &cli.Command{
 				return err
 			}
 
-			bal, err := napi.GetBalance(cctx.Context, nid.ID)
+			bal, err := napi.GetBalanceInfo(cctx.Context, nid.ID)
 			if err != nil {
 				return err
 			}
@@ -166,14 +166,14 @@ var stateWithdrawCmd = &cli.Command{
 
 			time.Sleep(10 * time.Second)
 
-			bal, err = napi.GetBalance(cctx.Context, nid.ID)
+			bal, err = napi.GetBalanceInfo(cctx.Context, nid.ID)
 			if err != nil {
 				return err
 			}
 
 			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 		default:
-			bal, err := napi.GetBalance(cctx.Context, nid.ID)
+			bal, err := napi.GetBalanceInfo(cctx.Context, nid.ID)
 			if err != nil {
 				return err
 			}
@@ -188,7 +188,7 @@ var stateWithdrawCmd = &cli.Command{
 
 			time.Sleep(10 * time.Second)
 
-			bal, err = napi.GetBalance(cctx.Context, nid.ID)
+			bal, err = napi.GetBalanceInfo(cctx.Context, nid.ID)
 			if err != nil {
 				return err
 			}

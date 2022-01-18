@@ -88,8 +88,12 @@ type CommonStruct struct {
 		GetThreshold   func(context.Context) int                                 `perm:"read"`
 		GetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
 		GetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)         `perm:"read"`
-		GetBalance     func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
-		Withdraw       func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"read"`
+		GetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
+		GetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)        `perm:"read"`
+		GetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error) `perm:"read"`
+		Withdraw       func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"write"`
+		Pledge         func(context.Context, *big.Int) error                     `perm:"write"`
+		CanclePledge   func(context.Context, *big.Int) error                     `perm:"write"`
 
 		Shutdown func(context.Context) error `perm:"admin"`
 	}
@@ -303,12 +307,28 @@ func (s *CommonStruct) GetGroupInfoAt(ctx context.Context, gid uint64) (*GroupIn
 	return s.Internal.GetGroupInfoAt(ctx, gid)
 }
 
-func (s *CommonStruct) GetBalance(ctx context.Context, rid uint64) (*BalanceInfo, error) {
-	return s.Internal.GetBalance(ctx, rid)
+func (s *CommonStruct) GetBalanceInfo(ctx context.Context, rid uint64) (*BalanceInfo, error) {
+	return s.Internal.GetBalanceInfo(ctx, rid)
+}
+
+func (s *CommonStruct) GetPledgeInfo(ctx context.Context, rid uint64) (*PledgeInfo, error) {
+	return s.Internal.GetPledgeInfo(ctx, rid)
+}
+
+func (s *CommonStruct) GetStoreInfo(ctx context.Context, uid, pid uint64) (*StoreInfo, error) {
+	return s.Internal.GetStoreInfo(ctx, uid, pid)
 }
 
 func (s *CommonStruct) Withdraw(ctx context.Context, val, penlty *big.Int, sig [][]byte) error {
 	return s.Internal.Withdraw(ctx, val, penlty, sig)
+}
+
+func (s *CommonStruct) Pledge(ctx context.Context, val *big.Int) error {
+	return s.Internal.Pledge(ctx, val)
+}
+
+func (s *CommonStruct) CanclePledge(ctx context.Context, val *big.Int) error {
+	return s.Internal.CanclePledge(ctx, val)
 }
 
 func (s *CommonStruct) Shutdown(ctx context.Context) error {

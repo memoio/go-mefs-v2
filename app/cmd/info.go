@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 
 	"github.com/memoio/go-mefs-v2/api/client"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/urfave/cli/v2"
 )
@@ -35,12 +38,41 @@ var InfoCmd = &cli.Command{
 		fmt.Println("Type: ", pri.Type.String())
 		fmt.Printf("Wallet Address: %s \n", "0x"+hex.EncodeToString(pri.ChainVerifyKey))
 
-		bi, err := api.GetBalance(cctx.Context, pri.ID)
+		bi, err := api.GetBalanceInfo(cctx.Context, pri.ID)
 		if err != nil {
 			return err
 		}
 
 		fmt.Printf("Balance: %s (on chain), %s (Erc20), %s (in fs)\n", types.FormatWei(bi.Value), types.FormatWei(bi.ErcValue), types.FormatWei(bi.FsValue))
+
+		switch pri.Type {
+		case pb.RoleInfo_Provider:
+			size := uint64(0)
+			price := big.NewInt(0)
+			users := api.GetUsersForPro(context.TODO(), pri.ID)
+			for _, uid := range users {
+				si, err := api.GetStoreInfo(context.TODO(), uid, pri.ID)
+				if err != nil {
+					continue
+				}
+				size += size
+				price.Add(price, si.Price)
+			}
+			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
+		case pb.RoleInfo_User:
+			size := uint64(0)
+			price := big.NewInt(0)
+			pros := api.GetProsForUser(context.TODO(), pri.ID)
+			for _, pid := range pros {
+				si, err := api.GetStoreInfo(context.TODO(), pri.ID, pid)
+				if err != nil {
+					continue
+				}
+				size += size
+				price.Add(price, si.Price)
+			}
+			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
+		}
 
 		fmt.Println("-----------")
 
@@ -55,6 +87,15 @@ var InfoCmd = &cli.Command{
 		fmt.Println("Security Level: ", gi.Level)
 		fmt.Println("Size ", types.FormatBytes(gi.Size))
 		fmt.Println("Price ", gi.Price)
+
+		fmt.Println("-----------")
+
+		fmt.Println("Pledge Infomation")
+		pi, err := api.GetPledgeInfo(cctx.Context, pri.ID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Pledge: %s, %s (total pledge), %s (total in pool)\n", types.FormatWei(pi.Value), types.FormatWei(pi.Total), types.FormatWei(pi.ErcTotal))
 
 		return nil
 	},

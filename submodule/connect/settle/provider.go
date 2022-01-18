@@ -14,30 +14,10 @@ func (cm *ContractMgr) RegisterProvider() error {
 	}
 
 	if ple.Cmp(pledgep) < 0 {
-		bal, err := cm.iErc.BalanceOf(cm.eAddr)
-		if err != nil {
-			logger.Debug(err)
-			return err
-		}
-
-		logger.Debugf("erc20 balance is %d", bal)
-
-		if bal.Cmp(pledgep) < 0 {
-			erc20Transfer(cm.eAddr, pledgep)
-		}
-
-		logger.Debugf("provider pledge %d", pledgep)
-
-		err = cm.iPP.Pledge(cm.tAddr, cm.rAddr, cm.roleID, pledgep, nil)
+		err = cm.pledge(pledgep)
 		if err != nil {
 			return err
 		}
-
-		if err = <-cm.status; err != nil {
-			logger.Fatal("provider pledge fail: ", err)
-			return err
-		}
-
 	}
 
 	logger.Debugf("provider register %d", pledgep)

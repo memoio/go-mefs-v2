@@ -26,26 +26,8 @@ func (cm *ContractMgr) RegisterKeeper() error {
 	}
 
 	if ple.Cmp(pledgek) < 0 {
-		bal, err := cm.iErc.BalanceOf(cm.eAddr)
+		err = cm.pledge(pledgek)
 		if err != nil {
-			logger.Debug(err)
-			return err
-		}
-
-		logger.Debugf("erc20 balance is %d", bal)
-
-		if bal.Cmp(pledgek) < 0 {
-			erc20Transfer(cm.eAddr, pledgek)
-		}
-
-		logger.Debugf("keeper pledge %d", pledgek)
-
-		err = cm.iPP.Pledge(cm.tAddr, cm.rAddr, cm.roleID, pledgek, nil)
-		if err != nil {
-			return err
-		}
-		if err = <-cm.status; err != nil {
-			logger.Fatal("keeper pledge fail: ", err)
 			return err
 		}
 	}

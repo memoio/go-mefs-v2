@@ -84,3 +84,15 @@ type BalanceInfo struct {
 	FsValue  *big.Int
 	ErcValue *big.Int // should be map?
 }
+
+type PledgeInfo struct {
+	Value    *big.Int
+	ErcTotal *big.Int
+	Total    *big.Int
+}
+
+type StoreInfo struct {
+	Time  int64
+	Size  uint64
+	Price *big.Int
+}

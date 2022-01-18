@@ -78,7 +78,7 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 				break
 			}
 
-			avail, err := k.ContractMgr.GetBalance(k.ctx, userID)
+			avail, err := k.ContractMgr.GetBalanceInfo(k.ctx, userID)
 			if err != nil {
 				logger.Debug("addOrder fail to get balance ", userID, proID, err)
 				break
@@ -86,7 +86,7 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 
 			logger.Debugf("addOrder user %d has balance %d", userID, avail)
 
-			avail, err = k.ContractMgr.GetBalance(k.ctx, proID)
+			avail, err = k.ContractMgr.GetBalanceInfo(k.ctx, proID)
 			if err != nil {
 				logger.Debug("addOrder fail to get balance ", userID, proID, err)
 				break
@@ -148,7 +148,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		avail, err := k.ContractMgr.GetBalance(k.ctx, userID)
+		avail, err := k.ContractMgr.GetBalanceInfo(k.ctx, userID)
 		if err != nil {
 			logger.Debug("subOrder fail to get balance: ", userID, proID, err)
 			continue
@@ -156,7 +156,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 
 		logger.Debugf("subOrder user %d has balance %d", userID, avail)
 
-		avail, err = k.ContractMgr.GetBalance(k.ctx, proID)
+		avail, err = k.ContractMgr.GetBalanceInfo(k.ctx, proID)
 		if err != nil {
 			logger.Debug("subOrder fail to get balance: ", userID, proID, err)
 			continue

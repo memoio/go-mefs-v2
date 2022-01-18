@@ -9,7 +9,34 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (cm *ContractMgr) GetBalance(ctx context.Context, roleID uint64) (*api.BalanceInfo, error) {
+func (cm *ContractMgr) pledge(val *big.Int) error {
+	bal, err := cm.iErc.BalanceOf(cm.eAddr)
+	if err != nil {
+		logger.Debug(err)
+		return err
+	}
+
+	logger.Debugf("erc20 balance is %d", bal)
+
+	if bal.Cmp(val) < 0 {
+		erc20Transfer(cm.eAddr, val)
+	}
+
+	logger.Debugf("role pledge %d", val)
+
+	err = cm.iPP.Pledge(cm.tAddr, cm.rAddr, cm.roleID, val, nil)
+	if err != nil {
+		return err
+	}
+	if err = <-cm.status; err != nil {
+		logger.Fatal("keeper pledge fail: ", err)
+		return err
+	}
+
+	return nil
+}
+
+func (cm *ContractMgr) GetBalanceInfo(ctx context.Context, roleID uint64) (*api.BalanceInfo, error) {
 	gotAddr, err := cm.iRole.GetAddr(roleID)
 	if err != nil {
 		return nil, err
@@ -62,6 +89,50 @@ func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int, ksig
 		if err = <-cm.status; err != nil {
 			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 		}
+	}
+
+	return nil
+}
+
+func (cm *ContractMgr) Pledge(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d pledge %d", cm.roleID, val)
+	return cm.pledge(val)
+}
+
+func (cm *ContractMgr) GetPledgeInfo(ctx context.Context, roleID uint64) (*api.PledgeInfo, error) {
+	tp, err := cm.iPP.TotalPledge()
+	if err != nil {
+		return nil, err
+	}
+
+	ep, err := cm.iPP.GetPledge(cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	pv, err := cm.iPP.GetBalanceInPPool(roleID, cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	pi := &api.PledgeInfo{
+		Value:    pv,
+		ErcTotal: ep,
+		Total:    tp,
+	}
+	return pi, nil
+}
+
+func (cm *ContractMgr) CanclePledge(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d cancle pledge %d", cm.roleID, val)
+
+	err := cm.iPP.Withdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
+	if err != nil {
+		return err
+	}
+
+	if err = <-cm.status; err != nil {
+		return xerrors.Errorf("%d cancle pledge fail %s", cm.roleID, err)
 	}
 
 	return nil

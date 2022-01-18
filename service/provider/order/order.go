@@ -79,8 +79,9 @@ type OrderFull struct {
 
 	dv pdpcommon.DataVerifier
 
-	ready bool
-	pause bool // if nonce is far from now, not create order
+	active time.Time // remove it when it inactive for long time
+	ready  bool
+	pause  bool // if nonce is far from now, not create order
 }
 
 func (m *OrderMgr) runCheck() {
@@ -164,6 +165,7 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	op = &OrderFull{
 		localID: m.localID,
 		userID:  userID,
+		active:  time.Now(),
 	}
 	m.users = append(m.users, userID)
 	m.orders[userID] = op
