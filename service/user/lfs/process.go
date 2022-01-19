@@ -176,7 +176,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 					logger.Warn("Process data error:", dp.segID, err)
 				}
 
-				err = l.om.PutSegmentToLocal(ctx, seg)
+				err = l.OrderMgr.PutSegmentToLocal(ctx, seg)
 				if err != nil {
 					logger.Warn("Process data error:", dp.segID, err)
 					return err
@@ -217,7 +217,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				}
 
 				logger.Debug("send job to order manager: ", sj.BucketID, opID, sj.Start, sj.Length, sj.ChunkID)
-				l.om.AddSegJob(sj)
+				l.OrderMgr.AddSegJob(sj)
 
 				sendCount = 0
 
@@ -245,7 +245,10 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 					Payload: payload,
 				}
 
+				// todo: add used bytes
 				bucket.Length += uint64(dp.stripeSize * stripeCount)
+				bucket.UsedBytes += uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
+
 				err = bucket.addOpRecord(l.userID, op, l.ds)
 				if err != nil {
 					return err
@@ -327,7 +330,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 						return
 					}
 
-					seg, err := l.om.GetSegment(ctx, segID)
+					seg, err := l.OrderMgr.GetSegment(ctx, segID)
 					if err != nil {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)

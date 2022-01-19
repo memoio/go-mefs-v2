@@ -361,6 +361,10 @@ type UserNodeStruct struct {
 
 		ShowStorage       func(ctx context.Context) (uint64, error)                    `perm:"read"`
 		ShowBucketStorage func(ctx context.Context, bucketName string) (uint64, error) `perm:"read"`
+
+		OrderListPros  func(ctx context.Context) ([]uint64, error)                 `perm:"read"`
+		OrderGetInfo   func(ctx context.Context) ([]*OrderInfo, error)             `perm:"read"`
+		OrderGetInfoAt func(ctx context.Context, proID uint64) (*OrderInfo, error) `perm:"read"`
 	}
 }
 
@@ -406,6 +410,18 @@ func (s *UserNodeStruct) ShowStorage(ctx context.Context) (uint64, error) {
 
 func (s *UserNodeStruct) ShowBucketStorage(ctx context.Context, bucketName string) (uint64, error) {
 	return s.Internal.ShowBucketStorage(ctx, bucketName)
+}
+
+func (s *UserNodeStruct) OrderGetInfo(ctx context.Context) ([]*OrderInfo, error) {
+	return s.Internal.OrderGetInfo(ctx)
+}
+
+func (s *UserNodeStruct) OrderGetInfoAt(ctx context.Context, proID uint64) (*OrderInfo, error) {
+	return s.Internal.OrderGetInfoAt(ctx, proID)
+}
+
+func (s *UserNodeStruct) OrderListPros(ctx context.Context) ([]uint64, error) {
+	return s.Internal.OrderListPros(ctx)
 }
 
 type KeeperNodeStruct struct {

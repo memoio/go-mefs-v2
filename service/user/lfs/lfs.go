@@ -19,7 +19,7 @@ import (
 type LfsService struct {
 	sync.RWMutex
 
-	om *uorder.OrderMgr
+	*uorder.OrderMgr
 
 	ctx    context.Context
 	keyset pdpcommon.KeySet
@@ -40,16 +40,16 @@ type LfsService struct {
 	ready      bool
 }
 
-func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, om *uorder.OrderMgr) (*LfsService, error) {
+func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
 	ls := &LfsService{
 		ctx: ctx,
 
 		userID: userID,
 		fsID:   make([]byte, 20),
 
-		om:     om,
-		ds:     ds,
-		keyset: keyset,
+		OrderMgr: OrderMgr,
+		ds:       ds,
+		keyset:   keyset,
 
 		sb:  newSuperBlock(),
 		dps: make(map[uint64]*dataProcess),
@@ -66,7 +66,7 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 
 func (l *LfsService) Start() error {
 	// start order manager
-	l.om.Start()
+	l.OrderMgr.Start()
 
 	// load lfs info first
 	err := l.load()
@@ -78,7 +78,7 @@ func (l *LfsService) Start() error {
 
 	has := false
 
-	_, err = l.om.GetPDPPublicKey(l.ctx, l.userID)
+	_, err = l.OrderMgr.GetPDPPublicKey(l.ctx, l.userID)
 	if err != nil {
 		time.Sleep(15 * time.Second)
 		logger.Debug("push create fs message for: ", l.userID)
@@ -93,7 +93,7 @@ func (l *LfsService) Start() error {
 
 		var mid types.MsgID
 		for {
-			id, err := l.om.PushMessage(l.ctx, msg)
+			id, err := l.OrderMgr.PushMessage(l.ctx, msg)
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				continue
@@ -106,7 +106,7 @@ func (l *LfsService) Start() error {
 			ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancle()
 			for {
-				st, err := l.om.GetTxMsgStatus(ctx, mid)
+				st, err := l.OrderMgr.GetTxMsgStatus(ctx, mid)
 				if err != nil {
 					time.Sleep(5 * time.Second)
 					continue
@@ -127,7 +127,7 @@ func (l *LfsService) Start() error {
 	}
 
 	// load bucket
-	l.sb.bucketVerify = l.om.GetBucket(l.ctx, l.userID)
+	l.sb.bucketVerify = l.OrderMgr.GetBucket(l.ctx, l.userID)
 
 	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
 		if uint64(len(l.sb.buckets)) > bid {
@@ -176,7 +176,7 @@ func (l *LfsService) Start() error {
 			retry := 0
 			for retry < 60 {
 				retry++
-				id, err := l.om.PushMessage(l.ctx, msg)
+				id, err := l.OrderMgr.PushMessage(l.ctx, msg)
 				if err != nil {
 					time.Sleep(10 * time.Second)
 					continue
@@ -191,7 +191,7 @@ func (l *LfsService) Start() error {
 				logger.Debug("waiting tx message done: ", mid)
 
 				for {
-					st, err := l.om.GetTxMsgStatus(ctx, mid)
+					st, err := l.OrderMgr.GetTxMsgStatus(ctx, mid)
 					if err != nil {
 						time.Sleep(5 * time.Second)
 						continue
@@ -213,7 +213,7 @@ func (l *LfsService) Start() error {
 	for i := 0; i < int(l.sb.NextBucketID); i++ {
 		bu := l.sb.buckets[i]
 		if !bu.Deletion {
-			go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+			go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 		}
 	}
 
@@ -231,7 +231,7 @@ func (l *LfsService) Start() error {
 
 func (l *LfsService) Stop() error {
 	l.ready = false
-	l.om.Stop()
+	l.OrderMgr.Stop()
 	return nil
 }
 

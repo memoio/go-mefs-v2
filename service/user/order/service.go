@@ -27,6 +27,7 @@ type OrderMgr struct {
 	api.IDataService
 	*txPool.PushPool
 
+	lk      sync.RWMutex
 	ctx     context.Context
 	proc    goprocess.Process
 	sendCtr *semaphore.Weighted
@@ -132,6 +133,8 @@ func (m *OrderMgr) Start() {
 }
 
 func (m *OrderMgr) Stop() {
+	m.lk.Lock()
+	defer m.lk.Unlock()
 	m.ready = false
 	m.proc.Close()
 }

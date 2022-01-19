@@ -19,7 +19,6 @@ import (
 )
 
 type FullNode interface {
-	Shutdown(context.Context) error
 	IAuth
 	IConfig
 	IWallet
@@ -27,12 +26,15 @@ type FullNode interface {
 	IChainState
 	INetwork
 	ISettle
+
+	Shutdown(context.Context) error
 }
 
 type UserNode interface {
 	FullNode
 
 	ILfsService
+	IOrder
 }
 
 type ProviderNode interface {
@@ -218,4 +220,10 @@ type ISettle interface {
 	Withdraw(context.Context, *big.Int, *big.Int, [][]byte) error
 	Pledge(context.Context, *big.Int) error
 	CanclePledge(context.Context, *big.Int) error
+}
+
+type IOrder interface {
+	OrderListPros(context.Context) ([]uint64, error)
+	OrderGetInfo(context.Context) ([]*OrderInfo, error)
+	OrderGetInfoAt(context.Context, uint64) (*OrderInfo, error)
 }

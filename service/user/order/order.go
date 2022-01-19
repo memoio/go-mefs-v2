@@ -16,14 +16,14 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type OrderState uint8
+type OrderState string
 
 const (
-	Order_Init    OrderState = iota //
-	Order_Wait                      // wait pro ack -> running
-	Order_Running                   // time up -> close
-	Order_Closing                   // all seq done -> done
-	Order_Done                      // new data -> init
+	Order_Init    OrderState = "init"    //
+	Order_Wait    OrderState = "wait"    // wait pro ack -> running
+	Order_Running OrderState = "running" // time up -> close
+	Order_Closing OrderState = "closing" // all seq done -> done
+	Order_Done    OrderState = "done"    // new data -> init
 )
 
 type NonceState struct {
@@ -40,14 +40,14 @@ func (ns *NonceState) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, ns)
 }
 
-type OrderSeqState uint8
+type OrderSeqState string
 
 const (
-	OrderSeq_Init    OrderSeqState = iota
-	OrderSeq_Prepare               // wait pro ack -> send
-	OrderSeq_Send                  // can add data and send; time up -> commit
-	OrderSeq_Commit                // wait pro ack -> finish
-	OrderSeq_Finish                // new data -> prepare
+	OrderSeq_Init    OrderSeqState = "init"
+	OrderSeq_Prepare OrderSeqState = "prepare" // wait pro ack -> send
+	OrderSeq_Send    OrderSeqState = "send"    // can add data and send; time up -> commit
+	OrderSeq_Commit  OrderSeqState = "commit"  // wait pro ack -> finish
+	OrderSeq_Finish  OrderSeqState = "finish"  // new data -> prepare
 )
 
 type SeqState struct {

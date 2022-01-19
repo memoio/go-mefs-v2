@@ -96,3 +96,20 @@ type StoreInfo struct {
 	Size  uint64
 	Price *big.Int
 }
+
+type OrderInfo struct {
+	ProID uint64
+
+	AvailTime int64
+
+	Nonce      uint64
+	OrderTime  int64
+	OrderState string
+
+	SeqNum   uint32
+	SeqTime  int64
+	SeqState string
+
+	Ready  bool
+	InStop bool
+}

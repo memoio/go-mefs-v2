@@ -20,7 +20,7 @@ func FormatObjectInfo(object *types.ObjectInfo) string {
 	return fmt.Sprintf(
 		`Name: %s
 BucketID: %d
-ObjectId: %d
+ObjectID: %d
 Etag: %s
 CTime: %s
 MTime: %s
@@ -181,7 +181,7 @@ var headObjectCmd = &cli.Command{
 		fmt.Println(FormatObjectInfo(oi))
 
 		for i, part := range oi.Parts {
-			fmt.Println("part: ", i, part)
+			fmt.Println("Part: ", i, part)
 		}
 
 		return nil

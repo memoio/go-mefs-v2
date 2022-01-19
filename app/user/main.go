@@ -19,6 +19,7 @@ func main() {
 	local := make([]*cli.Command, 0, len(cmd.CommonCmd))
 	local = append(local, cmd.CommonCmd...)
 	local = append(local, lfscmd.LfsCmd)
+	local = append(local, OrderCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-user",

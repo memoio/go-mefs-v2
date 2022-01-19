@@ -150,7 +150,7 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 	retry := 0
 	for retry < 60 {
 		retry++
-		id, err := l.om.PushMessage(l.ctx, msg)
+		id, err := l.OrderMgr.PushMessage(l.ctx, msg)
 		if err != nil {
 			time.Sleep(10 * time.Second)
 			continue
@@ -165,7 +165,7 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 		logger.Debug("waiting tx message done: ", mid)
 
 		for {
-			st, err := l.om.GetTxMsgStatus(ctx, mid)
+			st, err := l.OrderMgr.GetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				continue
@@ -529,7 +529,7 @@ func (l *LfsService) persistMeta() {
 					bu := l.sb.buckets[bid]
 					bu.Confirmed = true
 					// register in order
-					go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+					go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 				}
 			}
 			l.sb.Unlock()
