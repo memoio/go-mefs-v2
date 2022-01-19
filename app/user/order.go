@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/urfave/cli/v2"
 )
 
@@ -38,7 +40,7 @@ var orderListCmd = &cli.Command{
 		}
 
 		for _, oi := range ois {
-			fmt.Println(oi)
+			fmt.Printf("proID %d, order %d %s seq %d %s, avail %s", oi.ProID, oi.Nonce, oi.OrderState, oi.SeqNum, oi.SeqState, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
 		}
 
 		return nil
