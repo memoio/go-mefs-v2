@@ -14,12 +14,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-type OrderState uint8
+type OrderState string
 
 const (
-	Order_Init OrderState = iota //
-	Order_Ack                    // order is acked
-	Order_Done                   // order is done
+	Order_Init OrderState = "init" //
+	Order_Ack  OrderState = "ack"  // order is acked
+	Order_Done OrderState = "done" // order is done
 )
 
 type NonceState struct {
@@ -36,12 +36,12 @@ func (ns *NonceState) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, ns)
 }
 
-type OrderSeqState uint8
+type OrderSeqState string
 
 const (
-	OrderSeq_Init OrderSeqState = iota // can receiving data
-	OrderSeq_Ack                       // seq is acked
-	OrderSeq_Done                      // finished
+	OrderSeq_Init OrderSeqState = "init" // can receiving data
+	OrderSeq_Ack  OrderSeqState = "ack"  // seq is acked
+	OrderSeq_Done OrderSeqState = "done" // finished
 )
 
 type SeqState struct {
@@ -60,10 +60,11 @@ func (ss *SeqState) Deserialize(b []byte) error {
 
 // todo: check order
 type OrderFull struct {
-	lw      sync.Mutex
-	localID uint64
-	userID  uint64
-	fsID    []byte
+	lw        sync.Mutex
+	localID   uint64
+	userID    uint64
+	fsID      []byte
+	availTime int64
 
 	base       *types.SignedOrder
 	orderTime  int64
@@ -101,33 +102,33 @@ func (m *OrderMgr) runCheck() {
 func (m *OrderMgr) check() error {
 	ulen := len(m.users)
 	for i := 0; i < ulen; i++ {
-		m.RLock()
+		m.lk.RLock()
 		uid := m.users[i]
 		of := m.orders[uid]
-		m.RUnlock()
+		m.lk.RUnlock()
 
 		if !of.ready {
 			continue
 		}
 
-		ns := m.GetOrderState(m.ctx, uid, m.localID)
-		cn, _, err := m.GetOrderInfo(uid, m.localID)
+		ns := m.ics.GetOrderState(m.ctx, uid, m.localID)
+		oi, err := m.is.GetStoreInfo(m.ctx, uid, m.localID)
 		if err != nil {
 			continue
 		}
 
-		if ns.Nonce+1 < of.nonce || cn+2 < of.nonce {
+		if ns.Nonce+1 < of.nonce || oi.Nonce+2 < of.nonce {
 			of.lw.Lock()
 			of.pause = true
 			of.lw.Unlock()
-			logger.Warn("order is not submit to data or settle chain: ", of.nonce, ns.Nonce, cn)
+			logger.Warn("order is not submit to data or settle chain: ", of.nonce, ns.Nonce, oi.Nonce)
 		}
 
-		if ns.Nonce+1 >= of.nonce && cn+2 >= of.nonce {
+		if ns.Nonce+1 >= of.nonce && oi.Nonce+2 >= of.nonce {
 			of.lw.Lock()
 			of.pause = false
 			of.lw.Unlock()
-			logger.Debug("order is submit to data or settle chain: ", of.nonce, ns.Nonce, cn)
+			logger.Debug("order is submit to data or settle chain: ", of.nonce, ns.Nonce, oi.Nonce)
 		}
 	}
 
@@ -135,7 +136,7 @@ func (m *OrderMgr) check() error {
 }
 
 func (m *OrderMgr) createOrder(op *OrderFull) {
-	pk, err := m.GetPDPPublicKey(m.ctx, op.userID)
+	pk, err := m.ics.GetPDPPublicKey(m.ctx, op.userID)
 	if err != nil {
 		logger.Warnf("create order for user %d bls pk fail %s", op.userID, err)
 		return
@@ -155,10 +156,10 @@ func (m *OrderMgr) createOrder(op *OrderFull) {
 // todo: load from data chain
 // todo: fix missing if provider has fault
 func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
-	m.Lock()
+	m.lk.Lock()
 	op, ok := m.orders[userID]
 	if ok {
-		m.Unlock()
+		m.lk.Unlock()
 		return op
 	}
 
@@ -169,9 +170,9 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	}
 	m.users = append(m.users, userID)
 	m.orders[userID] = op
-	m.Unlock()
+	m.lk.Unlock()
 
-	pk, err := m.GetPDPPublicKey(m.ctx, userID)
+	pk, err := m.ics.GetPDPPublicKey(m.ctx, userID)
 	if err == nil {
 		op.dv, err = pdp.NewDataVerifier(pk, nil)
 		if err != nil {
@@ -181,7 +182,7 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.ready = true
 	}
 
-	dns := m.GetOrderState(m.ctx, userID, m.localID)
+	dns := m.ics.GetOrderState(m.ctx, userID, m.localID)
 
 	ns := new(NonceState)
 	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)

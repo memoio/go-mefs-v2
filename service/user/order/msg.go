@@ -56,14 +56,14 @@ func (m *OrderMgr) checkBalance() {
 	pros := m.GetProsForUser(m.ctx, m.localID)
 	for _, proID := range pros {
 		ns := m.GetOrderState(m.ctx, m.localID, proID)
-		nonce, subNonce, err := m.is.GetOrderInfo(m.localID, proID)
+		si, err := m.is.GetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("fail to get order info in chain", m.localID, proID, err)
 			continue
 		}
 
-		logger.Debugf("user %d pro %d has order %d %d %d", m.localID, proID, nonce, subNonce, ns.Nonce)
-		for i := nonce; i < ns.Nonce; i++ {
+		logger.Debugf("user %d pro %d has order %d %d %d", m.localID, proID, si.Nonce, si.SubNonce, ns.Nonce)
+		for i := si.Nonce; i < ns.Nonce; i++ {
 			logger.Debugf("user %d pro %d add order %d %d", m.localID, proID, i, ns.Nonce)
 
 			// load order
@@ -296,22 +296,22 @@ func (m *OrderMgr) submitOrders() error {
 	pros := m.GetProsForUser(m.ctx, m.localID)
 	for _, proID := range pros {
 		ns := m.GetOrderState(m.ctx, m.localID, proID)
-		curNonce, subNonce, err := m.is.GetOrderInfo(m.localID, proID)
+		si, err := m.is.GetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
 			continue
 		}
 
-		logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, curNonce, subNonce, ns.Nonce)
+		logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 
-		if curNonce >= ns.Nonce {
+		if si.Nonce >= ns.Nonce {
 			continue
 		}
 
-		logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, curNonce)
+		logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, si.Nonce)
 
 		// add order here
-		of, err := m.GetOrder(m.localID, proID, curNonce)
+		of, err := m.GetOrder(m.localID, proID, si.Nonce)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info", m.localID, proID, err)
 			continue

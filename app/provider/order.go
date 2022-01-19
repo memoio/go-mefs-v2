@@ -40,7 +40,7 @@ var orderListCmd = &cli.Command{
 		}
 
 		for _, oi := range ois {
-			fmt.Printf("proID: %d, order: %d %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Nonce, oi.OrderState, oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
+			fmt.Printf("userID: %d, order: %d %s, seq: %d %s, ready: %t, pause: %t, avail: %s\n", oi.ID, oi.Nonce, oi.OrderState, oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
 		}
 
 		return nil

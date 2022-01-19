@@ -14,21 +14,18 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 )
 
 type OrderMgr struct {
-	sync.RWMutex
-
-	api.IRole
-	api.INetService
-	api.IDataService
-	api.IChainPush
-
-	*settle.ContractMgr
-
-	ctx context.Context
+	ir  api.IRole
+	ids api.IDataService
+	ics api.IChainState
+	ins api.INetService
+	is  api.ISettle
 	ds  store.KVStore
+
+	lk  sync.RWMutex
+	ctx context.Context
 
 	localID uint64
 	quo     *types.Quotation
@@ -37,7 +34,7 @@ type OrderMgr struct {
 	orders map[uint64]*OrderFull // key: userID
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService, ic api.IChainPush, scm *settle.ContractMgr) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService, pp api.IChainState, scm api.ISettle) *OrderMgr {
 	quo := &types.Quotation{
 		ProID:      roleID,
 		TokenIndex: 0,
@@ -46,11 +43,12 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 	}
 
 	om := &OrderMgr{
-		IRole:        ir,
-		IDataService: id,
-		INetService:  in,
-		IChainPush:   ic,
-		ContractMgr:  scm,
+		ir:  ir,
+		ids: id,
+
+		ics: pp,
+		ins: in,
+		is:  scm,
 
 		ctx: ctx,
 		ds:  ds,
@@ -67,7 +65,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 
 func (m *OrderMgr) Start() {
 	// load some
-	users := m.GetUsersForPro(m.ctx, m.localID)
+	users := m.ics.GetUsersForPro(m.ctx, m.localID)
 	for _, uid := range users {
 		m.users = append(m.users, uid)
 		m.getOrder(uid)
@@ -93,6 +91,8 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	if or.seq == nil {
 		return xerrors.Errorf("no order seq for %d", userID)
 	}
+
+	or.availTime = time.Now().Unix()
 
 	logger.Debug("handle add data: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
 
@@ -138,12 +138,12 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		return nil
 	}
 
-	return xerrors.Errorf("fail handle data user %d nonce %d seq %d state %d %d", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
+	return xerrors.Errorf("fail handle data user %d nonce %d seq %d state %s %s", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
 }
 
 func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
-	m.RLock()
-	defer m.RUnlock()
+	m.lk.RLock()
+	defer m.lk.RUnlock()
 	data, err := m.quo.Serialize()
 	if err != nil {
 		return nil, err
@@ -186,6 +186,8 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("order service pause for %d", ob.UserID)
 	}
 
+	or.availTime = time.Now().Unix()
+
 	logger.Debug("handle create order: ", ob.UserID, or.nonce, or.seqNum, or.orderState, or.seqState)
 	if or.nonce == ob.Nonce {
 		// handle previous
@@ -221,7 +223,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			// reset data verifier
 			or.dv.Reset()
 
-			psig, err := m.RoleSign(m.ctx, m.localID, or.base.Hash(), types.SigSecp256k1)
+			psig, err := m.ir.RoleSign(m.ctx, m.localID, or.base.Hash(), types.SigSecp256k1)
 			if err != nil {
 				return nil, err
 			}
@@ -253,7 +255,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return data, nil
 	}
 
-	return nil, xerrors.Errorf("fail create order user %d nonce %d seq %d state %d %d, got %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, ob.Nonce)
+	return nil, xerrors.Errorf("fail create order user %d nonce %d seq %d state %s %s, got %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, ob.Nonce)
 }
 
 func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
@@ -271,10 +273,12 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("order service not ready for %d", userID)
 	}
 
+	or.availTime = time.Now().Unix()
+
 	logger.Debug("handle create seq: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
 
 	if or.base == nil || or.orderState != Order_Ack {
-		return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %d %d, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
+		return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 	}
 
 	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
@@ -313,7 +317,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		return data, nil
 	}
 
-	return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %d %d, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
+	return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 }
 
 func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
@@ -331,6 +335,8 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 	if !or.ready {
 		return nil, xerrors.Errorf("order service not ready for %d", userID)
 	}
+
+	or.availTime = time.Now().Unix()
 
 	logger.Debug("handle finish seq: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
 
@@ -362,7 +368,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 						for j := seg.Start; j < seg.Start+seg.Length; j++ {
 							sid.SetStripeID(j)
 							sid.SetChunkID(seg.ChunkID)
-							segmt, err := m.GetSegmentFromLocal(m.ctx, sid)
+							segmt, err := m.ids.GetSegmentFromLocal(m.ctx, sid)
 							if err != nil {
 								// should not, how to fix this by user?
 								return nil, err
@@ -395,7 +401,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				return nil, xerrors.Errorf("data verify is wrong")
 			}
 
-			ok, err = m.RoleVerify(m.ctx, userID, lHash.Bytes(), os.UserDataSig)
+			ok, err = m.ir.RoleVerify(m.ctx, userID, lHash.Bytes(), os.UserDataSig)
 			if err != nil {
 				return nil, err
 			}
@@ -403,7 +409,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				return nil, xerrors.Errorf("%d order seq sign is wrong", userID)
 			}
 
-			ssig, err := m.RoleSign(m.ctx, m.localID, lHash.Bytes(), types.SigSecp256k1)
+			ssig, err := m.ir.RoleSign(m.ctx, m.localID, lHash.Bytes(), types.SigSecp256k1)
 			if err != nil {
 				return nil, err
 			}
@@ -413,7 +419,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			or.base.Price.Set(or.seq.Price)
 			sHash := or.base.Hash()
 
-			ok, err = m.RoleVerify(m.ctx, userID, sHash, os.UserSig)
+			ok, err = m.ir.RoleVerify(m.ctx, userID, sHash, os.UserSig)
 			if err != nil {
 				return nil, err
 			}
@@ -421,7 +427,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 				return nil, xerrors.Errorf("%d order sign is wrong", userID)
 			}
 
-			osig, err := m.RoleSign(m.ctx, m.localID, sHash, types.SigSecp256k1)
+			osig, err := m.ir.RoleSign(m.ctx, m.localID, sHash, types.SigSecp256k1)
 			if err != nil {
 				return nil, err
 			}
@@ -460,5 +466,5 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		}
 	}
 
-	return nil, xerrors.Errorf("fail finish seq user %d nonce %d seq %d state %d %d, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
+	return nil, xerrors.Errorf("fail finish seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 }

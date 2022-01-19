@@ -36,14 +36,14 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 	pros := k.GetProsForUser(k.ctx, userID)
 	for _, proID := range pros {
 		ns := k.GetOrderState(k.ctx, userID, proID)
-		nonce, subNonce, err := k.ContractMgr.GetOrderInfo(userID, proID)
+		si, err := k.ContractMgr.GetStoreInfo(k.ctx, userID, proID)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info in chain", userID, proID, err)
 			continue
 		}
 
-		logger.Debugf("addOrder user %d pro %d has order %d %d %d", userID, proID, nonce, subNonce, ns.Nonce)
-		for i := nonce; i < ns.Nonce; i++ {
+		logger.Debugf("addOrder user %d pro %d has order %d %d %d", userID, proID, si.Nonce, si.SubNonce, ns.Nonce)
+		for i := si.Nonce; i < ns.Nonce; i++ {
 			keepers := k.GetAllKeepers(k.ctx)
 			nt := time.Now().Unix() / (600)
 			// only one do this
@@ -52,13 +52,13 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 				continue
 			}
 
-			curNonce, _, err := k.ContractMgr.GetOrderInfo(userID, proID)
+			si, err := k.ContractMgr.GetStoreInfo(k.ctx, userID, proID)
 			if err != nil {
 				logger.Debug("addOrder fail to get order info in chain", userID, proID, err)
 				break
 			}
 
-			if curNonce > i {
+			if si.Nonce > i {
 				break
 			}
 
@@ -112,25 +112,25 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		nonce, subNonce, err := k.ContractMgr.GetOrderInfo(userID, proID)
+		si, err := k.ContractMgr.GetStoreInfo(k.ctx, userID, proID)
 		if err != nil {
 			logger.Debug("subOrder fail to get order info in chain: ", userID, proID, err)
 			continue
 		}
 
-		if nonce == subNonce {
+		if si.Nonce == si.SubNonce {
 			continue
 		}
 
 		ns := k.GetOrderState(k.ctx, userID, proID)
-		logger.Debugf("subOrder user %d pro %d has order %d %d %d", userID, proID, nonce, subNonce, ns.Nonce)
+		logger.Debugf("subOrder user %d pro %d has order %d %d %d", userID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 
-		if subNonce >= ns.Nonce {
+		if si.SubNonce >= ns.Nonce {
 			continue
 		}
 
 		// sub order here
-		of, err := k.GetOrder(userID, proID, subNonce)
+		of, err := k.GetOrder(userID, proID, si.SubNonce)
 		if err != nil {
 			logger.Debug("subOrder fail to get order info: ", userID, proID, err)
 			continue

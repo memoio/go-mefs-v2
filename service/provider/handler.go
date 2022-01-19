@@ -86,7 +86,7 @@ func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb
 		return resp, nil
 	}
 
-	res, err := p.pom.HandleQuotation(mes.Header.From)
+	res, err := p.OrderMgr.HandleQuotation(mes.Header.From)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
@@ -164,7 +164,7 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 		}
 	}
 
-	go p.pom.HandleData(mes.Header.From, seg)
+	go p.OrderMgr.HandleData(mes.Header.From, seg)
 
 	return resp, nil
 }
@@ -210,7 +210,7 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 		return resp, nil
 	}
 
-	res, err := p.pom.HandleCreateOrder(dataFrom)
+	res, err := p.OrderMgr.HandleCreateOrder(dataFrom)
 	if err != nil {
 		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
@@ -275,7 +275,7 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 		return resp, nil
 	}
 
-	res, err := p.pom.HandleCreateSeq(mes.Header.From, dataFrom)
+	res, err := p.OrderMgr.HandleCreateSeq(mes.Header.From, dataFrom)
 	if err != nil {
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
@@ -339,7 +339,7 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 		return resp, nil
 	}
 
-	res, err := p.pom.HandleFinishSeq(mes.Header.From, dataFrom)
+	res, err := p.OrderMgr.HandleFinishSeq(mes.Header.From, dataFrom)
 	if err != nil {
 		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err

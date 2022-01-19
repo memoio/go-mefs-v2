@@ -29,7 +29,7 @@ type ProviderNode struct {
 
 	api.IDataService
 
-	pom *porder.OrderMgr
+	*porder.OrderMgr
 
 	chalSeg *pchal.SegMgr
 
@@ -77,7 +77,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 		BaseNode:     bn,
 		IDataService: ids,
 		ctx:          ctx,
-		pom:          por,
+		OrderMgr:     por,
 		chalSeg:      sm,
 		rp:           rp,
 	}
@@ -137,7 +137,7 @@ func (p *ProviderNode) Start() error {
 		}
 
 		// start order manager
-		p.pom.Start()
+		p.OrderMgr.Start()
 
 		// start challenge manager
 		p.chalSeg.Start()

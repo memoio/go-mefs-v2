@@ -92,13 +92,15 @@ type PledgeInfo struct {
 }
 
 type StoreInfo struct {
-	Time  int64
-	Size  uint64
-	Price *big.Int
+	Time     int64
+	Nonce    uint64
+	SubNonce uint64
+	Size     uint64
+	Price    *big.Int
 }
 
 type OrderInfo struct {
-	ProID uint64
+	ID uint64
 
 	AvailTime int64
 

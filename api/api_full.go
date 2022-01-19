@@ -39,6 +39,8 @@ type UserNode interface {
 
 type ProviderNode interface {
 	FullNode
+
+	IOrder
 }
 
 type KeeperNode interface {
@@ -223,7 +225,7 @@ type ISettle interface {
 }
 
 type IOrder interface {
-	OrderListPros(context.Context) ([]uint64, error)
+	OrderList(context.Context) ([]uint64, error)
 	OrderGetInfo(context.Context) ([]*OrderInfo, error)
 	OrderGetInfoAt(context.Context, uint64) (*OrderInfo, error)
 }

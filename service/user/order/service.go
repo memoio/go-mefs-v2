@@ -27,15 +27,15 @@ type OrderMgr struct {
 	api.IDataService
 	*txPool.PushPool
 
+	is *settle.ContractMgr
+	ns *netapp.NetServiceImpl
+	ds store.KVStore // save order info
+
 	lk      sync.RWMutex
 	ctx     context.Context
 	proc    goprocess.Process
 	sendCtr *semaphore.Weighted
 
-	ds store.KVStore // save order info
-
-	is      *settle.ContractMgr
-	ns      *netapp.NetServiceImpl
 	localID uint64
 	fsID    []byte
 
