@@ -38,7 +38,7 @@ var InfoCmd = &cli.Command{
 		fmt.Println(ansi.Color("----------- Role Information -----------", "green"))
 		fmt.Println("ID: ", pri.ID)
 		fmt.Println("Type: ", pri.Type.String())
-		fmt.Printf("Wallet Address: %s \n", "0x"+hex.EncodeToString(pri.ChainVerifyKey))
+		fmt.Printf("Wallet: %s \n", "0x"+hex.EncodeToString(pri.ChainVerifyKey))
 
 		bi, err := api.GetBalanceInfo(cctx.Context, pri.ID)
 		if err != nil {

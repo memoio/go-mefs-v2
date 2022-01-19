@@ -43,7 +43,7 @@ func init() {
 
 	mLogger = logger.Sugar()
 
-	mLogger.Info("mefs logger init success")
+	//mLogger.Info("mefs logger init success")
 }
 
 func getEncoder() zapcore.Encoder {
