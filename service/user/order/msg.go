@@ -63,7 +63,7 @@ func (m *OrderMgr) checkBalance() {
 		}
 
 		logger.Debugf("user %d pro %d has order %d %d %d", m.localID, proID, nonce, subNonce, ns.Nonce)
-		for i := nonce; i <= ns.Nonce; i++ {
+		for i := nonce; i < ns.Nonce; i++ {
 			logger.Debugf("user %d pro %d add order %d %d", m.localID, proID, i, ns.Nonce)
 
 			// load order

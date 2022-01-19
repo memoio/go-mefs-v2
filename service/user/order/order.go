@@ -426,7 +426,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 	logger.Debug("handle run order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Wait {
-		return xerrors.Errorf("%d order state expectd %d, got %d", o.pro, Order_Wait, o.orderState)
+		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Wait, o.orderState)
 	}
 
 	// validate
@@ -479,7 +479,7 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	logger.Debug("handle close order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
-		return xerrors.Errorf("%d order state expectd %d, got %d", o.pro, Order_Running, o.orderState)
+		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
 	}
 
 	if o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
@@ -506,12 +506,12 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	logger.Debug("handle done order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	// order is closing
 	if o.base == nil || o.orderState != Order_Closing {
-		return xerrors.Errorf("%d order state expectd %d, got %d", o.pro, Order_Closing, o.orderState)
+		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Closing, o.orderState)
 	}
 
 	// seq finished
 	if o.seq != nil && o.seqState != OrderSeq_Init {
-		return xerrors.Errorf("%d order seq state expectd %d, got %d", o.pro, OrderSeq_Init, o.seqState)
+		return xerrors.Errorf("%d order seq state expectd %s, got %s", o.pro, OrderSeq_Init, o.seqState)
 	}
 
 	ocp := tx.OrderCommitParas{
@@ -583,7 +583,7 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 func (m *OrderMgr) createSeq(o *OrderFull) error {
 	logger.Debug("handle create seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
-		return xerrors.Errorf("%d state: %d %d is not running", o.pro, o.orderState, o.seqState)
+		return xerrors.Errorf("%d state: %s is not running", o.pro, o.orderState)
 	}
 
 	if o.seqState == OrderSeq_Init {
@@ -640,7 +640,7 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	logger.Debug("handle send seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
-		return xerrors.Errorf("%d order state expectd %d, got %d", o.pro, Order_Running, o.orderState)
+		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
 	}
 
 	if o.seq != nil && o.seqState == OrderSeq_Prepare {
@@ -663,11 +663,11 @@ func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 func (m *OrderMgr) commitSeq(o *OrderFull) error {
 	logger.Debug("handle commit seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState == Order_Init || o.orderState == Order_Wait || o.orderState == Order_Done {
-		return xerrors.Errorf("%d order state got %d", o.pro, o.orderState)
+		return xerrors.Errorf("%d order state got %s", o.pro, o.orderState)
 	}
 
 	if o.seq == nil {
-		return xerrors.Errorf("%d order seq state got %d", o.pro, o.seqState)
+		return xerrors.Errorf("%d order seq state got %s", o.pro, o.seqState)
 	}
 
 	if o.seqState == OrderSeq_Send {
@@ -740,7 +740,7 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	}
 
 	if o.seq == nil || o.seqState != OrderSeq_Commit {
-		return xerrors.Errorf("%d order seq state expected %d got %d", o.pro, OrderSeq_Commit, o.seqState)
+		return xerrors.Errorf("%d order seq state expected %s got %s", o.pro, OrderSeq_Commit, o.seqState)
 	}
 
 	oHash := o.seq.Hash()
