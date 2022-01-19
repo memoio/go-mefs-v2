@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/mgutz/ansi"
+	"github.com/urfave/cli/v2"
+
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/urfave/cli/v2"
 )
 
 var InfoCmd = &cli.Command{
@@ -33,7 +35,7 @@ var InfoCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("Role Infomation")
+		fmt.Println(ansi.Color("----------- Role Information -----------", "green"))
 		fmt.Println("ID: ", pri.ID)
 		fmt.Println("Type: ", pri.Type.String())
 		fmt.Printf("Wallet Address: %s \n", "0x"+hex.EncodeToString(pri.ChainVerifyKey))
@@ -74,23 +76,20 @@ var InfoCmd = &cli.Command{
 			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
 		}
 
-		fmt.Println("-----------")
-
 		gid := api.GetGroupID(cctx.Context)
 		gi, err := api.GetGroupInfoAt(cctx.Context, gid)
 		if err != nil {
 			return err
 		}
 
-		fmt.Println("Group Infomation")
+		fmt.Println(ansi.Color("----------- Group Information -----------", "green"))
 		fmt.Println("ID: ", gid)
 		fmt.Println("Security Level: ", gi.Level)
 		fmt.Println("Size ", types.FormatBytes(gi.Size))
 		fmt.Println("Price ", gi.Price)
 
-		fmt.Println("-----------")
+		fmt.Println(ansi.Color("----------- Pledge Information ----------", "green"))
 
-		fmt.Println("Pledge Infomation")
 		pi, err := api.GetPledgeInfo(cctx.Context, pri.ID)
 		if err != nil {
 			return err
