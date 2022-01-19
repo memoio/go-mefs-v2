@@ -124,6 +124,9 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 		availTime: time.Now().Unix() - 300,
 
+		orderState: Order_Init,
+		seqState:   OrderSeq_Init,
+
 		buckets: make([]uint64, 0, 8),
 		jobs:    make(map[uint64]*bucketJob),
 
