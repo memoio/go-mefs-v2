@@ -146,6 +146,12 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		op.ready = true
 	}
 
+	// todo: add getOrderRemote, getSeqRemote if local has missing
+	if false {
+		m.getOrderRemote(id)
+		m.getSeqRemote(id)
+	}
+
 	go m.sendData(op)
 
 	ns := new(NonceState)

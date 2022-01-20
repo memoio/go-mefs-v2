@@ -24,7 +24,9 @@ message NetMessage {
 		DoneOrder = 12; 
 		CreateSeq = 13;
 		FinishSeq = 14;
-    	OrderSegment = 15;    // handle segment; by provider	
+    	OrderSegment = 15;    // handle segment; by provider
+		GetOrder = 16;        // get order meta info from provider
+		GetSeq = 17;	      // get order seq meta info from provider
 	}
 
 	message MsgHeader {
