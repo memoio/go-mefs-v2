@@ -164,9 +164,11 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	}
 
 	op = &OrderFull{
-		localID: m.localID,
-		userID:  userID,
-		active:  time.Now(),
+		localID:    m.localID,
+		userID:     userID,
+		active:     time.Now(),
+		orderState: Order_Init,
+		seqState:   OrderSeq_Init,
 	}
 	m.users = append(m.users, userID)
 	m.orders[userID] = op
