@@ -33,6 +33,10 @@ var InfoCmd = &cli.Command{
 		}
 		defer closer()
 
+		fmt.Println(ansi.Color("----------- Information -----------", "green"))
+
+		fmt.Println(time.Now())
+
 		fmt.Println(ansi.Color("----------- Sync Information -----------", "green"))
 		si, err := api.SyncGetInfo(cctx.Context)
 		if err != nil {
@@ -44,9 +48,11 @@ var InfoCmd = &cli.Command{
 			return err
 		}
 
-		nt := build.BaseTime + int64(sgi.Slot*build.SlotDuration)
+		nt := time.Now().Unix()
+		st := build.BaseTime + int64(sgi.Slot*build.SlotDuration)
+		lag := (nt - st) / build.SlotDuration
 
-		fmt.Printf("Status: %t, Time: %s\n", si.Status && (si.SyncedHeight == si.RemoteHeight), time.Unix(nt, 0).Format(utils.SHOWTIME))
+		fmt.Printf("Status: %t, Time: %s\n", si.Status && (si.SyncedHeight+5 > si.RemoteHeight) && (lag < 10), time.Unix(st, 0).Format(utils.SHOWTIME))
 		fmt.Printf("Height Synced: %d, Remote: %d\n", si.SyncedHeight, si.RemoteHeight)
 
 		fmt.Println(ansi.Color("----------- Role Information -----------", "green"))
