@@ -112,7 +112,7 @@ func (m *OrderMgr) check() error {
 		}
 
 		ns := m.ics.StateGetOrderState(m.ctx, uid, m.localID)
-		oi, err := m.is.GetStoreInfo(m.ctx, uid, m.localID)
+		oi, err := m.is.SettleGetStoreInfo(m.ctx, uid, m.localID)
 		if err != nil {
 			continue
 		}

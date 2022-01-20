@@ -36,7 +36,7 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 	return nil
 }
 
-func (cm *ContractMgr) GetBalanceInfo(ctx context.Context, roleID uint64) (*api.BalanceInfo, error) {
+func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) (*api.BalanceInfo, error) {
 	gotAddr, err := cm.iRole.GetAddr(roleID)
 	if err != nil {
 		return nil, err
@@ -63,10 +63,10 @@ func (cm *ContractMgr) GetBalanceInfo(ctx context.Context, roleID uint64) (*api.
 	return bi, nil
 }
 
-func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int, ksigns [][]byte) error {
+func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int, ksigns [][]byte) error {
 	logger.Debugf("%d withdraw", cm.roleID)
 
-	ri, err := cm.GetRoleInfoAt(ctx, cm.roleID)
+	ri, err := cm.SettleGetRoleInfoAt(ctx, cm.roleID)
 	if err != nil {
 		return err
 	}
@@ -94,12 +94,12 @@ func (cm *ContractMgr) Withdraw(ctx context.Context, val, penalty *big.Int, ksig
 	return nil
 }
 
-func (cm *ContractMgr) Pledge(ctx context.Context, val *big.Int) error {
+func (cm *ContractMgr) SettlePledge(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d pledge %d", cm.roleID, val)
 	return cm.pledge(val)
 }
 
-func (cm *ContractMgr) GetPledgeInfo(ctx context.Context, roleID uint64) (*api.PledgeInfo, error) {
+func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (*api.PledgeInfo, error) {
 	tp, err := cm.iPP.TotalPledge()
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func (cm *ContractMgr) GetPledgeInfo(ctx context.Context, roleID uint64) (*api.P
 	return pi, nil
 }
 
-func (cm *ContractMgr) CanclePledge(ctx context.Context, val *big.Int) error {
+func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d cancle pledge %d", cm.roleID, val)
 
 	err := cm.iPP.Withdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, nil)

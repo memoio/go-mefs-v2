@@ -42,7 +42,7 @@ var InfoCmd = &cli.Command{
 		fmt.Println("Type: ", pri.Type.String())
 		fmt.Printf("Wallet: %s \n", "0x"+hex.EncodeToString(pri.ChainVerifyKey))
 
-		bi, err := api.GetBalanceInfo(cctx.Context, pri.ID)
+		bi, err := api.SettleGetBalanceInfo(cctx.Context, pri.ID)
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ var InfoCmd = &cli.Command{
 			price := big.NewInt(0)
 			users := api.StateGetUsersAt(context.TODO(), pri.ID)
 			for _, uid := range users {
-				si, err := api.GetStoreInfo(context.TODO(), uid, pri.ID)
+				si, err := api.SettleGetStoreInfo(context.TODO(), uid, pri.ID)
 				if err != nil {
 					continue
 				}
@@ -68,7 +68,7 @@ var InfoCmd = &cli.Command{
 			price := big.NewInt(0)
 			pros := api.StateGetProsAt(context.TODO(), pri.ID)
 			for _, pid := range pros {
-				si, err := api.GetStoreInfo(context.TODO(), pri.ID, pid)
+				si, err := api.SettleGetStoreInfo(context.TODO(), pri.ID, pid)
 				if err != nil {
 					continue
 				}
@@ -78,8 +78,8 @@ var InfoCmd = &cli.Command{
 			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
 		}
 
-		gid := api.GetGroupID(cctx.Context)
-		gi, err := api.GetGroupInfoAt(cctx.Context, gid)
+		gid := api.SettleGetGroupID(cctx.Context)
+		gi, err := api.SettleGetGroupInfoAt(cctx.Context, gid)
 		if err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ var InfoCmd = &cli.Command{
 
 		fmt.Println(ansi.Color("----------- Pledge Information ----------", "green"))
 
-		pi, err := api.GetPledgeInfo(cctx.Context, pri.ID)
+		pi, err := api.SettleGetPledgeInfo(cctx.Context, pri.ID)
 		if err != nil {
 			return err
 		}

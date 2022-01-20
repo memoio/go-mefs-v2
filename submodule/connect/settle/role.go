@@ -322,7 +322,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	cm.groupID = gIndex
 
 	if gIndex > 0 {
-		gi, err := cm.GetGroupInfoAt(cm.ctx, gIndex)
+		gi, err := cm.SettleGetGroupInfoAt(cm.ctx, gIndex)
 		if err != nil {
 			return err
 		}
@@ -340,12 +340,12 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 }
 
 // get info
-func (cm *ContractMgr) GetRoleInfo(addr address.Address) (*pb.RoleInfo, error) {
+func (cm *ContractMgr) SettleGetRoleInfo(addr address.Address) (*pb.RoleInfo, error) {
 	eAddr := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
 	return cm.getRoleInfo(eAddr)
 }
 
-func (cm *ContractMgr) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
+func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
 	gotAddr, err := cm.iRole.GetAddr(rid)
 	if err != nil {
 		return nil, err
@@ -401,7 +401,7 @@ func (cm *ContractMgr) RegisterRole() error {
 	return err
 }
 
-func (cm *ContractMgr) GetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.GroupInfo, error) {
+func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.GroupInfo, error) {
 	isActive, isBanned, isReady, level, size, price, fsAddr, err := cm.iRole.GetGroupInfo(gIndex)
 	if err != nil {
 		return nil, err
@@ -420,15 +420,15 @@ func (cm *ContractMgr) GetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.
 	return gi, nil
 }
 
-func (cm *ContractMgr) GetRoleID(ctx context.Context) uint64 {
+func (cm *ContractMgr) SettleGetRoleID(ctx context.Context) uint64 {
 	return cm.roleID
 }
 
-func (cm *ContractMgr) GetGroupID(ctx context.Context) uint64 {
+func (cm *ContractMgr) SettleGetGroupID(ctx context.Context) uint64 {
 	return cm.groupID
 }
 
-func (cm *ContractMgr) GetThreshold(ctx context.Context) int {
+func (cm *ContractMgr) SettleGetThreshold(ctx context.Context) int {
 	return cm.level
 }
 

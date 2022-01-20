@@ -19,7 +19,7 @@ func (cm *ContractMgr) ProWithdraw(proID uint64, pay, lost *big.Int, ksigns [][]
 }
 
 // return time, size, price
-func (cm *ContractMgr) GetStoreInfo(ctx context.Context, userID, proID uint64) (*api.StoreInfo, error) {
+func (cm *ContractMgr) SettleGetStoreInfo(ctx context.Context, userID, proID uint64) (*api.StoreInfo, error) {
 	ti, size, price, err := cm.iFS.GetStoreInfo(userID, proID, cm.tIndex)
 	if err != nil {
 		return nil, err

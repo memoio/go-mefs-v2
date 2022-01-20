@@ -35,7 +35,7 @@ var pledgeGetCmd = &cli.Command{
 		}
 		defer closer()
 
-		pi, err := api.GetPledgeInfo(cctx.Context, api.GetRoleID(cctx.Context))
+		pi, err := api.SettleGetPledgeInfo(cctx.Context, api.SettleGetRoleID(cctx.Context))
 		if err != nil {
 			return err
 		}
@@ -70,7 +70,7 @@ var pledgeAddCmd = &cli.Command{
 		}
 		defer closer()
 
-		pi, err := api.GetPledgeInfo(cctx.Context, api.GetRoleID(cctx.Context))
+		pi, err := api.SettleGetPledgeInfo(cctx.Context, api.SettleGetRoleID(cctx.Context))
 		if err != nil {
 			return err
 		}
@@ -78,12 +78,12 @@ var pledgeAddCmd = &cli.Command{
 
 		fmt.Println("Pledge: ", types.FormatWei(val))
 
-		err = api.Pledge(cctx.Context, val)
+		err = api.SettlePledge(cctx.Context, val)
 		if err != nil {
 			return err
 		}
 
-		pi, err = api.GetPledgeInfo(cctx.Context, api.GetRoleID(cctx.Context))
+		pi, err = api.SettleGetPledgeInfo(cctx.Context, api.SettleGetRoleID(cctx.Context))
 		if err != nil {
 			return err
 		}
@@ -110,7 +110,7 @@ var pledgeWithdrawCmd = &cli.Command{
 		}
 		defer closer()
 
-		pi, err := api.GetPledgeInfo(cctx.Context, api.GetRoleID(cctx.Context))
+		pi, err := api.SettleGetPledgeInfo(cctx.Context, api.SettleGetRoleID(cctx.Context))
 		if err != nil {
 			return err
 		}
@@ -126,12 +126,12 @@ var pledgeWithdrawCmd = &cli.Command{
 
 		fmt.Println("Withdraw: ", types.FormatWei(pi.Value))
 
-		err = api.CanclePledge(cctx.Context, pi.Value)
+		err = api.SettleCanclePledge(cctx.Context, pi.Value)
 		if err != nil {
 			return err
 		}
 
-		pi, err = api.GetPledgeInfo(cctx.Context, api.GetRoleID(cctx.Context))
+		pi, err = api.SettleGetPledgeInfo(cctx.Context, api.SettleGetRoleID(cctx.Context))
 		if err != nil {
 			return err
 		}

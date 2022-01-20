@@ -22,46 +22,46 @@ func NewFakeSettle(lAddr address.Address) api.ISettle {
 	}
 }
 
-func (f *fakeSettle) GetRoleID(ctx context.Context) uint64 {
+func (f *fakeSettle) SettleGetRoleID(ctx context.Context) uint64 {
 	return binary.BigEndian.Uint64(f.localAddr.Bytes())
 }
 
-func (f *fakeSettle) GetGroupID(ctx context.Context) uint64 {
+func (f *fakeSettle) SettleGetGroupID(ctx context.Context) uint64 {
 	return 0
 }
 
-func (f *fakeSettle) GetThreshold(ctx context.Context) int {
+func (f *fakeSettle) SettleGetThreshold(ctx context.Context) int {
 	return 7
 }
 
-func (f *fakeSettle) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
+func (f *fakeSettle) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeSettle) GetGroupInfoAt(ctx context.Context, rid uint64) (*api.GroupInfo, error) {
+func (f *fakeSettle) SettleGetGroupInfoAt(ctx context.Context, rid uint64) (*api.GroupInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeSettle) GetBalanceInfo(context.Context, uint64) (*api.BalanceInfo, error) {
+func (f *fakeSettle) SettleGetBalanceInfo(context.Context, uint64) (*api.BalanceInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeSettle) GetPledgeInfo(context.Context, uint64) (*api.PledgeInfo, error) {
+func (f *fakeSettle) SettleGetPledgeInfo(context.Context, uint64) (*api.PledgeInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeSettle) GetStoreInfo(context.Context, uint64, uint64) (*api.StoreInfo, error) {
+func (f *fakeSettle) SettleGetStoreInfo(context.Context, uint64, uint64) (*api.StoreInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeSettle) Withdraw(context.Context, *big.Int, *big.Int, [][]byte) error {
+func (f *fakeSettle) SettleWithdraw(context.Context, *big.Int, *big.Int, [][]byte) error {
 	return nil
 }
 
-func (f *fakeSettle) Pledge(context.Context, *big.Int) error {
+func (f *fakeSettle) SettlePledge(context.Context, *big.Int) error {
 	return nil
 }
 
-func (f *fakeSettle) CanclePledge(context.Context, *big.Int) error {
+func (f *fakeSettle) SettleCanclePledge(context.Context, *big.Int) error {
 	return nil
 }

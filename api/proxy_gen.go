@@ -74,17 +74,17 @@ type CommonStruct struct {
 		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
 		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
 
-		GetRoleID      func(context.Context) uint64                              `perm:"read"`
-		GetGroupID     func(context.Context) uint64                              `perm:"read"`
-		GetThreshold   func(context.Context) int                                 `perm:"read"`
-		GetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
-		GetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)         `perm:"read"`
-		GetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
-		GetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)        `perm:"read"`
-		GetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error) `perm:"read"`
-		Withdraw       func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"write"`
-		Pledge         func(context.Context, *big.Int) error                     `perm:"write"`
-		CanclePledge   func(context.Context, *big.Int) error                     `perm:"write"`
+		SettleGetRoleID      func(context.Context) uint64                              `perm:"read"`
+		SettleGetGroupID     func(context.Context) uint64                              `perm:"read"`
+		SettleGetThreshold   func(context.Context) int                                 `perm:"read"`
+		SettleGetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
+		SettleGetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)         `perm:"read"`
+		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
+		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)        `perm:"read"`
+		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error) `perm:"read"`
+		SettleWithdraw       func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"write"`
+		SettlePledge         func(context.Context, *big.Int) error                     `perm:"write"`
+		SettleCanclePledge   func(context.Context, *big.Int) error                     `perm:"write"`
 
 		Shutdown func(context.Context) error `perm:"admin"`
 	}
@@ -250,48 +250,48 @@ func (s *CommonStruct) StateGetAccPostIncomeAt(ctx context.Context, proID, epoch
 	return s.Internal.StateGetAccPostIncomeAt(ctx, proID, epoch)
 }
 
-func (s *CommonStruct) GetRoleID(ctx context.Context) uint64 {
-	return s.Internal.GetRoleID(ctx)
+func (s *CommonStruct) SettleGetRoleID(ctx context.Context) uint64 {
+	return s.Internal.SettleGetRoleID(ctx)
 }
 
-func (s *CommonStruct) GetGroupID(ctx context.Context) uint64 {
-	return s.Internal.GetGroupID(ctx)
+func (s *CommonStruct) SettleGetGroupID(ctx context.Context) uint64 {
+	return s.Internal.SettleGetGroupID(ctx)
 }
 
-func (s *CommonStruct) GetThreshold(ctx context.Context) int {
-	return s.Internal.GetThreshold(ctx)
+func (s *CommonStruct) SettleGetThreshold(ctx context.Context) int {
+	return s.Internal.SettleGetThreshold(ctx)
 }
 
-func (s *CommonStruct) GetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
-	return s.Internal.GetRoleInfoAt(ctx, rid)
+func (s *CommonStruct) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
+	return s.Internal.SettleGetRoleInfoAt(ctx, rid)
 }
 
-func (s *CommonStruct) GetGroupInfoAt(ctx context.Context, gid uint64) (*GroupInfo, error) {
-	return s.Internal.GetGroupInfoAt(ctx, gid)
+func (s *CommonStruct) SettleGetGroupInfoAt(ctx context.Context, gid uint64) (*GroupInfo, error) {
+	return s.Internal.SettleGetGroupInfoAt(ctx, gid)
 }
 
-func (s *CommonStruct) GetBalanceInfo(ctx context.Context, rid uint64) (*BalanceInfo, error) {
-	return s.Internal.GetBalanceInfo(ctx, rid)
+func (s *CommonStruct) SettleGetBalanceInfo(ctx context.Context, rid uint64) (*BalanceInfo, error) {
+	return s.Internal.SettleGetBalanceInfo(ctx, rid)
 }
 
-func (s *CommonStruct) GetPledgeInfo(ctx context.Context, rid uint64) (*PledgeInfo, error) {
-	return s.Internal.GetPledgeInfo(ctx, rid)
+func (s *CommonStruct) SettleGetPledgeInfo(ctx context.Context, rid uint64) (*PledgeInfo, error) {
+	return s.Internal.SettleGetPledgeInfo(ctx, rid)
 }
 
-func (s *CommonStruct) GetStoreInfo(ctx context.Context, uid, pid uint64) (*StoreInfo, error) {
-	return s.Internal.GetStoreInfo(ctx, uid, pid)
+func (s *CommonStruct) SettleGetStoreInfo(ctx context.Context, uid, pid uint64) (*StoreInfo, error) {
+	return s.Internal.SettleGetStoreInfo(ctx, uid, pid)
 }
 
-func (s *CommonStruct) Withdraw(ctx context.Context, val, penlty *big.Int, sig [][]byte) error {
-	return s.Internal.Withdraw(ctx, val, penlty, sig)
+func (s *CommonStruct) SettleWithdraw(ctx context.Context, val, penlty *big.Int, sig [][]byte) error {
+	return s.Internal.SettleWithdraw(ctx, val, penlty, sig)
 }
 
-func (s *CommonStruct) Pledge(ctx context.Context, val *big.Int) error {
-	return s.Internal.Pledge(ctx, val)
+func (s *CommonStruct) SettlePledge(ctx context.Context, val *big.Int) error {
+	return s.Internal.SettlePledge(ctx, val)
 }
 
-func (s *CommonStruct) CanclePledge(ctx context.Context, val *big.Int) error {
-	return s.Internal.CanclePledge(ctx, val)
+func (s *CommonStruct) SettleCanclePledge(ctx context.Context, val *big.Int) error {
+	return s.Internal.SettleCanclePledge(ctx, val)
 }
 
 func (s *CommonStruct) Shutdown(ctx context.Context) error {

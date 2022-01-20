@@ -40,7 +40,7 @@ type RoleMgr struct {
 
 func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet, is *settle.ContractMgr) (*RoleMgr, error) {
 	// cureent node is registered
-	ri, err := is.GetRoleInfoAt(ctx, roleID)
+	ri, err := is.SettleGetRoleInfoAt(ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (rm *RoleMgr) syncFromChain() {
 					binary.BigEndian.PutUint64(buf, kindex)
 					data = append(data, buf...)
 
-					pri, err := rm.is.GetRoleInfoAt(context.TODO(), kindex)
+					pri, err := rm.is.SettleGetRoleInfoAt(context.TODO(), kindex)
 					if err != nil {
 						continue
 					}
@@ -176,7 +176,7 @@ func (rm *RoleMgr) syncFromChain() {
 					binary.BigEndian.PutUint64(buf, pindex)
 					data = append(data, buf...)
 
-					pri, err := rm.is.GetRoleInfoAt(context.TODO(), pindex)
+					pri, err := rm.is.SettleGetRoleInfoAt(context.TODO(), pindex)
 					if err != nil {
 						continue
 					}
@@ -197,7 +197,7 @@ func (rm *RoleMgr) syncFromChain() {
 						continue
 					}
 
-					pri, err := rm.is.GetRoleInfoAt(context.TODO(), uindex)
+					pri, err := rm.is.SettleGetRoleInfoAt(context.TODO(), uindex)
 					if err != nil {
 						continue
 					}
@@ -235,7 +235,7 @@ func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
 		}
 	}
 
-	ri, err = rm.is.GetRoleInfoAt(rm.ctx, roleID)
+	ri, err = rm.is.SettleGetRoleInfoAt(rm.ctx, roleID)
 	if err != nil {
 		return nil, err
 	}

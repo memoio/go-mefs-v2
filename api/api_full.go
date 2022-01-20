@@ -190,18 +190,18 @@ type IChainState interface {
 }
 
 type ISettle interface {
-	GetRoleID(context.Context) uint64
-	GetGroupID(context.Context) uint64
-	GetThreshold(context.Context) int
-	GetRoleInfoAt(context.Context, uint64) (*pb.RoleInfo, error)
-	GetGroupInfoAt(context.Context, uint64) (*GroupInfo, error)
-	GetBalanceInfo(context.Context, uint64) (*BalanceInfo, error)
-	GetPledgeInfo(context.Context, uint64) (*PledgeInfo, error)
-	GetStoreInfo(context.Context, uint64, uint64) (*StoreInfo, error)
+	SettleGetRoleID(context.Context) uint64
+	SettleGetGroupID(context.Context) uint64
+	SettleGetThreshold(context.Context) int
+	SettleGetRoleInfoAt(context.Context, uint64) (*pb.RoleInfo, error)
+	SettleGetGroupInfoAt(context.Context, uint64) (*GroupInfo, error)
+	SettleGetBalanceInfo(context.Context, uint64) (*BalanceInfo, error)
+	SettleGetPledgeInfo(context.Context, uint64) (*PledgeInfo, error)
+	SettleGetStoreInfo(context.Context, uint64, uint64) (*StoreInfo, error)
 
-	Withdraw(context.Context, *big.Int, *big.Int, [][]byte) error
-	Pledge(context.Context, *big.Int) error
-	CanclePledge(context.Context, *big.Int) error
+	SettleWithdraw(context.Context, *big.Int, *big.Int, [][]byte) error
+	SettlePledge(context.Context, *big.Int) error
+	SettleCanclePledge(context.Context, *big.Int) error
 }
 
 type IOrder interface {
