@@ -103,8 +103,8 @@ var InfoCmd = &cli.Command{
 
 		fmt.Println("ID: ", gid)
 		fmt.Println("Security Level: ", gi.Level)
-		fmt.Println("Size ", types.FormatBytes(gi.Size))
-		fmt.Println("Price ", gi.Price)
+		fmt.Println("Size: ", types.FormatBytes(gi.Size))
+		fmt.Println("Price: ", gi.Price)
 
 		fmt.Println(ansi.Color("----------- Pledge Information ----------", "green"))
 
