@@ -246,6 +246,23 @@ func (l *LfsService) Writeable() bool {
 	return l.sb.write
 }
 
+func (l *LfsService) LfsGetInfo(ctx context.Context) (*types.LfsInfo, error) {
+	l.sb.RLock()
+	defer l.sb.RUnlock()
+
+	li := &types.LfsInfo{
+		Status: l.Ready(),
+		Bucket: l.sb.bucketVerify,
+		Used:   0,
+	}
+
+	for _, bu := range l.sb.buckets {
+		li.Used += bu.UsedBytes
+	}
+
+	return li, nil
+}
+
 // ShowStorage show lfs used space without appointed bucket
 func (l *LfsService) ShowStorage(ctx context.Context) (uint64, error) {
 	ok := l.sw.TryAcquire(1)

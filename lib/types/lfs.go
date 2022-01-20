@@ -6,6 +6,12 @@ const (
 	MaxListKeys = 1000
 )
 
+type LfsInfo struct {
+	Status bool
+	Bucket uint64
+	Used   uint64
+}
+
 type BucketInfo struct {
 	pb.BucketOption
 	pb.BucketInfo

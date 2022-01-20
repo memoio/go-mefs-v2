@@ -145,6 +145,8 @@ type ILfsService interface {
 	HeadObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)
 	DeleteObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)
 
+	LfsGetInfo(ctx context.Context) (*types.LfsInfo, error)
+
 	ShowStorage(ctx context.Context) (uint64, error)
 	ShowBucketStorage(ctx context.Context, bucketName string) (uint64, error)
 }

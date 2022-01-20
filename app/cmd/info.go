@@ -120,6 +120,23 @@ var InfoCmd = &cli.Command{
 		}
 		fmt.Printf("Pledge: %s, %s (total pledge), %s (total in pool)\n", types.FormatWei(pi.Value), types.FormatWei(pi.Total), types.FormatWei(pi.ErcTotal))
 
+		if pri.Type == pb.RoleInfo_User {
+			uapi, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+			if err != nil {
+				return err
+			}
+			defer closer()
+			fmt.Println(ansi.Color("----------- Lfs Information ----------", "green"))
+			li, err := uapi.LfsGetInfo(cctx.Context)
+			if err != nil {
+				return err
+			}
+
+			fmt.Println("Status: ", li.Status)
+			fmt.Println("Bucket: ", li.Bucket)
+			fmt.Println("Used:", types.FormatBytes(li.Used))
+		}
+
 		return nil
 	},
 }
