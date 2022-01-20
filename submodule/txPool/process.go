@@ -55,7 +55,7 @@ func (mp *InPool) Start() {
 
 	// load latest block and publish if exist
 	// due to exit at not applying latest block
-	si, err := mp.GetSyncHeight(mp.ctx)
+	si, err := mp.SyncGetInfo(mp.ctx)
 	if err != nil {
 		return
 	}
@@ -163,7 +163,7 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	}
 
 	// synced; should get from state
-	si, err := mp.GetSyncHeight(mp.ctx)
+	si, err := mp.SyncGetInfo(mp.ctx)
 	if err != nil {
 		return nrh, err
 	}

@@ -86,6 +86,13 @@ type CommonStruct struct {
 		SettlePledge         func(context.Context, *big.Int) error                     `perm:"write"`
 		SettleCanclePledge   func(context.Context, *big.Int) error                     `perm:"write"`
 
+		SyncGetInfo        func(context.Context) (*SyncInfo, error)                 `perm:"read"`
+		SyncGetTxMsgStatus func(context.Context, types.MsgID) (*tx.MsgState, error) `perm:"read"`
+
+		PushGetPendingNonce func(context.Context, uint64) uint64                          `perm:"read"`
+		PushMessage         func(context.Context, *tx.Message) (types.MsgID, error)       `perm:"write"`
+		PushSignedMessage   func(context.Context, *tx.SignedMessage) (types.MsgID, error) `perm:"write"`
+
 		Shutdown func(context.Context) error `perm:"admin"`
 	}
 }
@@ -292,6 +299,26 @@ func (s *CommonStruct) SettlePledge(ctx context.Context, val *big.Int) error {
 
 func (s *CommonStruct) SettleCanclePledge(ctx context.Context, val *big.Int) error {
 	return s.Internal.SettleCanclePledge(ctx, val)
+}
+
+func (s *CommonStruct) SyncGetInfo(ctx context.Context) (*SyncInfo, error) {
+	return s.Internal.SyncGetInfo(ctx)
+}
+
+func (s *CommonStruct) SyncGetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.MsgState, error) {
+	return s.Internal.SyncGetTxMsgStatus(ctx, mid)
+}
+
+func (s *CommonStruct) PushGetPendingNonce(ctx context.Context, rid uint64) uint64 {
+	return s.Internal.PushGetPendingNonce(ctx, rid)
+}
+
+func (s *CommonStruct) PushMessage(ctx context.Context, msg *tx.Message) (types.MsgID, error) {
+	return s.Internal.PushMessage(ctx, msg)
+}
+
+func (s *CommonStruct) PushSignedMessage(ctx context.Context, smsg *tx.SignedMessage) (types.MsgID, error) {
+	return s.Internal.PushSignedMessage(ctx, smsg)
 }
 
 func (s *CommonStruct) Shutdown(ctx context.Context) error {

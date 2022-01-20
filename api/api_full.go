@@ -23,7 +23,7 @@ type FullNode interface {
 	IConfig
 	IWallet
 	IRole
-	IChainState
+	IChainPush
 	INetwork
 	ISettle
 
@@ -154,8 +154,8 @@ type ILfsService interface {
 // push
 type IChainPush interface {
 	IChainSync
-	GetPendingNonce(context.Context, uint64) uint64
 
+	PushGetPendingNonce(context.Context, uint64) uint64
 	PushMessage(context.Context, *tx.Message) (types.MsgID, error)
 	PushSignedMessage(context.Context, *tx.SignedMessage) (types.MsgID, error)
 }
@@ -163,8 +163,8 @@ type IChainPush interface {
 // sync status
 type IChainSync interface {
 	IChainState
-	GetSyncHeight(context.Context) (*SyncInfo, error)
-	GetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
+	SyncGetInfo(context.Context) (*SyncInfo, error)
+	SyncGetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
 }
 
 type IChainState interface {

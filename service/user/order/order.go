@@ -26,6 +26,10 @@ const (
 	Order_Done    OrderState = "done"    // new data -> init
 )
 
+func (os OrderState) String() string {
+	return string(os)
+}
+
 type NonceState struct {
 	Nonce uint64
 	Time  int64

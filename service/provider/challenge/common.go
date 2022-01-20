@@ -43,7 +43,7 @@ func (s *SegMgr) pushMessage(msg *tx.Message, epoch uint64) {
 		ctx, cancle := context.WithTimeout(s.ctx, 10*time.Minute)
 		defer cancle()
 		for {
-			st, err := s.GetTxMsgStatus(ctx, mid)
+			st, err := s.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				continue
@@ -92,7 +92,7 @@ func (s *SegMgr) pushAndWaitMessage(msg *tx.Message) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			st, err := s.GetTxMsgStatus(ctx, mid)
+			st, err := s.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				continue

@@ -137,7 +137,7 @@ func (n *BaseNode) Register() error {
 			ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
 			defer cancle()
 			for {
-				st, err := n.PushPool.GetTxMsgStatus(ctx, mid)
+				st, err := n.PushPool.SyncGetTxMsgStatus(ctx, mid)
 				if err != nil {
 					time.Sleep(10 * time.Second)
 					continue
@@ -195,7 +195,7 @@ func (n *BaseNode) UpdateNetAddr() error {
 		ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
 		defer cancle()
 		for {
-			st, err := n.PushPool.GetTxMsgStatus(ctx, mid)
+			st, err := n.PushPool.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(10 * time.Second)
 				continue

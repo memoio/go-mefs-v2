@@ -326,10 +326,11 @@ func (sp *SyncPool) GetSyncStatus(ctx context.Context) bool {
 	return false
 }
 
-func (sp *SyncPool) GetSyncHeight(ctx context.Context) (*api.SyncInfo, error) {
+func (sp *SyncPool) SyncGetInfo(ctx context.Context) (*api.SyncInfo, error) {
 	sp.lk.RLock()
 	defer sp.lk.RUnlock()
 	si := &api.SyncInfo{
+		Status:       sp.ready,
 		SyncedHeight: sp.nextHeight,
 		RemoteHeight: sp.remoteHeight,
 	}
@@ -337,7 +338,7 @@ func (sp *SyncPool) GetSyncHeight(ctx context.Context) (*api.SyncInfo, error) {
 	return si, nil
 }
 
-func (sp *SyncPool) GetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.MsgState, error) {
+func (sp *SyncPool) SyncGetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.MsgState, error) {
 	return sp.Store.GetTxMsgState(mid)
 }
 

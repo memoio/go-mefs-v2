@@ -76,7 +76,7 @@ func (pp *PushPool) syncPush() {
 			break
 		}
 
-		si, err := pp.GetSyncHeight(pp.ctx)
+		si, err := pp.SyncGetInfo(pp.ctx)
 		if err != nil {
 			continue
 		}
@@ -250,7 +250,7 @@ func (pp *PushPool) ReplaceMsg(mes *tx.Message) error {
 	return nil
 }
 
-func (pp *PushPool) GetPendingNonce(ctx context.Context, id uint64) uint64 {
+func (pp *PushPool) PushGetPendingNonce(ctx context.Context, id uint64) uint64 {
 	pp.lk.RLock()
 	defer pp.lk.RUnlock()
 	lp, ok := pp.pending[id]

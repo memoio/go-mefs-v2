@@ -63,7 +63,6 @@ type StateMgr struct {
 
 // todo: add role contract address here
 func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api.IRole) *StateMgr {
-
 	buf := make([]byte, 8+len(base))
 	copy(buf[:len(base)], base)
 	binary.BigEndian.PutUint64(buf[len(base):len(base)+8], groupID)

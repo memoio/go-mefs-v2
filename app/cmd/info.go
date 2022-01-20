@@ -5,13 +5,16 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/api/client"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var InfoCmd = &cli.Command{
@@ -31,13 +34,26 @@ var InfoCmd = &cli.Command{
 		defer closer()
 
 		fmt.Println(ansi.Color("----------- Sync Information -----------", "green"))
-
-		pri, err := api.RoleSelf(cctx.Context)
+		si, err := api.SyncGetInfo(cctx.Context)
 		if err != nil {
 			return err
 		}
 
+		sgi, err := api.StateGetInfo(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		nt := build.BaseTime + int64(sgi.Slot*build.SlotDuration)
+
+		fmt.Printf("Synced Height: %d, Time: %s Status: %t\n", sgi.Height, time.Unix(nt, 0).Format(utils.SHOWTIME), si.Status && (si.SyncedHeight == si.RemoteHeight))
+		fmt.Println("Remote Height: ", si.RemoteHeight)
+
 		fmt.Println(ansi.Color("----------- Role Information -----------", "green"))
+		pri, err := api.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
 		fmt.Println("ID: ", pri.ID)
 		fmt.Println("Type: ", pri.Type.String())
 		fmt.Printf("Wallet: %s \n", "0x"+hex.EncodeToString(pri.ChainVerifyKey))
@@ -78,13 +94,13 @@ var InfoCmd = &cli.Command{
 			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
 		}
 
+		fmt.Println(ansi.Color("----------- Group Information -----------", "green"))
 		gid := api.SettleGetGroupID(cctx.Context)
 		gi, err := api.SettleGetGroupInfoAt(cctx.Context, gid)
 		if err != nil {
 			return err
 		}
 
-		fmt.Println(ansi.Color("----------- Group Information -----------", "green"))
 		fmt.Println("ID: ", gid)
 		fmt.Println("Security Level: ", gi.Level)
 		fmt.Println("Size ", types.FormatBytes(gi.Size))

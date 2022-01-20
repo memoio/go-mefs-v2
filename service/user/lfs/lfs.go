@@ -106,7 +106,7 @@ func (l *LfsService) Start() error {
 			ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancle()
 			for {
-				st, err := l.OrderMgr.GetTxMsgStatus(ctx, mid)
+				st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
 				if err != nil {
 					time.Sleep(5 * time.Second)
 					continue
@@ -191,7 +191,7 @@ func (l *LfsService) Start() error {
 				logger.Debug("waiting tx message done: ", mid)
 
 				for {
-					st, err := l.OrderMgr.GetTxMsgStatus(ctx, mid)
+					st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
 					if err != nil {
 						time.Sleep(5 * time.Second)
 						continue

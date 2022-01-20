@@ -263,10 +263,10 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.Store = txs
 
 	// state mgr
-	stDB := state.NewStateMgr(settle.RoleAddr.Bytes(), b.groupID, nd.GetThreshold(ctx), nd.StateStore(), rm)
+	stDB := state.NewStateMgr(settle.RoleAddr.Bytes(), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
 
 	// sync pool
-	sp := txPool.NewSyncPool(ctx, b.groupID, nd.GetThreshold(ctx), stDB, txs, cs)
+	sp := txPool.NewSyncPool(ctx, b.groupID, nd.SettleGetThreshold(ctx), stDB, txs, cs)
 
 	// push pool
 	nd.PushPool = txPool.NewPushPool(ctx, sp)

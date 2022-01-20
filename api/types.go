@@ -118,6 +118,7 @@ type OrderInfo struct {
 }
 
 type SyncInfo struct {
+	Status       bool
 	SyncedHeight uint64
 	RemoteHeight uint64
 }
