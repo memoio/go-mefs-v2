@@ -19,6 +19,7 @@ import (
 )
 
 type lastProsPerBucket struct {
+	lk       sync.RWMutex
 	bucketID uint64
 	dc, pc   int
 	pros     []uint64 // update and save to local
@@ -153,6 +154,9 @@ func removeDup(a []uint64) []uint64 {
 }
 
 func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
+	lp.lk.Lock()
+	defer lp.lk.Unlock()
+
 	cnt := 0
 	for _, pid := range lp.pros {
 		if pid == math.MaxUint64 {
@@ -513,12 +517,17 @@ func (m *OrderMgr) dispatch() {
 		}
 		m.updateProsForBucket(lp)
 
-		if len(lp.pros) == 0 {
-			logger.Debug("fail get providers dispatch for bucket:", seg.BucketID, len(lp.pros))
+		lp.lk.RLock()
+		pros := make([]uint64, 0, len(lp.pros))
+		pros = append(pros, lp.pros...)
+		lp.lk.RUnlock()
+
+		if len(pros) == 0 {
+			logger.Debug("fail get providers dispatch for bucket:", seg.BucketID, len(pros))
 			continue
 		}
 
-		for i, pid := range lp.pros {
+		for i, pid := range pros {
 			if pid == math.MaxUint64 {
 				logger.Debug("fail dispatch to wrong pro:", pid)
 				continue
@@ -553,9 +562,7 @@ func (m *OrderMgr) dispatch() {
 			if err != nil {
 				continue
 			}
-
 			key := store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, seg.BucketID, seg.JobID)
-
 			m.ds.Put(key, data)
 		}
 	}

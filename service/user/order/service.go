@@ -42,9 +42,10 @@ type OrderMgr struct {
 	segPrice *big.Int
 	needPay  *big.Int
 
-	pros   []uint64
-	orders map[uint64]*OrderFull         // key: proID
-	proMap map[uint64]*lastProsPerBucket // key: bucketID
+	pros    []uint64
+	orders  map[uint64]*OrderFull // key: proID
+	buckets []uint64
+	proMap  map[uint64]*lastProsPerBucket // key: bucketID
 
 	segs    map[jobKey]*segJob
 	segLock sync.RWMutex // for get state of job
@@ -89,8 +90,10 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		segPrice: new(big.Int).Set(build.DefaultSegPrice),
 		needPay:  big.NewInt(0),
 
-		orders: make(map[uint64]*OrderFull),
-		proMap: make(map[uint64]*lastProsPerBucket),
+		pros:    make([]uint64, 0, 128),
+		orders:  make(map[uint64]*OrderFull),
+		buckets: make([]uint64, 0, 16),
+		proMap:  make(map[uint64]*lastProsPerBucket),
 
 		segs: make(map[jobKey]*segJob),
 
@@ -264,6 +267,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 		case lp := <-m.bucketChan:
 			_, ok := m.proMap[lp.bucketID]
 			if !ok {
+				m.buckets = append(m.buckets, lp.bucketID)
 				m.proMap[lp.bucketID] = lp
 			}
 
@@ -287,8 +291,11 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 
 			m.save()
 
-			for _, lp := range m.proMap {
-				m.saveLastProsPerBucket(lp)
+			for _, bid := range m.pros {
+				lp, ok := m.proMap[bid]
+				if ok {
+					m.updateProsForBucket(lp)
+				}
 			}
 		case <-proc.Closing():
 			return

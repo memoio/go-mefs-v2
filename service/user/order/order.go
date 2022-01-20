@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -285,6 +286,12 @@ func (m *OrderMgr) check(o *OrderFull) {
 			o.seqState = OrderSeq_Init
 		}
 	case Order_Closing:
+		o.RLock()
+		if o.inStop {
+			o.seqState = OrderSeq_Init
+			m.doneOrder(o)
+		}
+		o.RUnlock()
 		switch o.seqState {
 		case OrderSeq_Send:
 			m.commitSeq(o)
@@ -499,11 +506,15 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
 	}
 
-	if o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
+	if !o.inStop && o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
 		// should not close empty seq
 		logger.Debug("should not close empty order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
-		o.orderTime += 600
-		return nil
+		if o.base.End > time.Now().Unix()+600 {
+			o.orderTime = time.Now().Unix()
+			return nil
+		} else {
+			m.stopOrder(o)
+		}
 	}
 
 	o.orderState = Order_Closing
@@ -529,6 +540,10 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	// seq finished
 	if o.seq != nil && o.seqState != OrderSeq_Init {
 		return xerrors.Errorf("%d order seq state expectd %s, got %s", o.pro, OrderSeq_Init, o.seqState)
+	}
+
+	if o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
+		return xerrors.Errorf("%d has empty data at order %d", o.pro, o.base.Nonce)
 	}
 
 	ocp := tx.OrderCommitParas{
@@ -589,6 +604,21 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 	logger.Debug("handle stop order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	o.Lock()
 	o.inStop = true
+
+	// add redo current seq
+	if o.seq != nil {
+		for _, seg := range o.seq.Segments {
+			sj := &types.SegJob{
+				JobID:    math.MaxUint64,
+				BucketID: seg.BucketID,
+				Start:    seg.Start,
+				Length:   seg.Length,
+				ChunkID:  seg.ChunkID,
+			}
+			m.redoSegJob(sj)
+		}
+	}
+
 	for _, bid := range o.buckets {
 		bjob, ok := o.jobs[bid]
 		if ok {
@@ -598,6 +628,7 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 		}
 		bjob.jobs = bjob.jobs[:0]
 	}
+
 	o.Unlock()
 
 	m.closeOrder(o)
