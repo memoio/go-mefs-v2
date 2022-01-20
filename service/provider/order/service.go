@@ -65,7 +65,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IR
 
 func (m *OrderMgr) Start() {
 	// load some
-	users := m.ics.GetUsersForPro(m.ctx, m.localID)
+	users := m.ics.StateGetUsersAt(m.ctx, m.localID)
 	for _, uid := range users {
 		m.users = append(m.users, uid)
 		m.getOrder(uid)

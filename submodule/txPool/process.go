@@ -55,11 +55,14 @@ func (mp *InPool) Start() {
 
 	// load latest block and publish if exist
 	// due to exit at not applying latest block
-	lh, _ := mp.GetSyncHeight(mp.ctx)
+	si, err := mp.GetSyncHeight(mp.ctx)
+	if err != nil {
+		return
+	}
 
-	if lh > 0 {
+	if si.SyncedHeight > 0 {
 		// rebroadcast lastest
-		bid, err := mp.GetTxBlockByHeight(lh - 1)
+		bid, err := mp.GetTxBlockByHeight(si.SyncedHeight - 1)
 		if err == nil {
 			sb, err := mp.GetTxBlock(bid)
 			if err == nil {
@@ -68,7 +71,7 @@ func (mp *InPool) Start() {
 		}
 	}
 
-	bid, err := mp.GetTxBlockByHeight(lh)
+	bid, err := mp.GetTxBlockByHeight(si.SyncedHeight)
 	if err == nil {
 		sb, err := mp.GetTxBlock(bid)
 		if err == nil {
@@ -160,14 +163,19 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	}
 
 	// synced; should get from state
-	lh, rh := mp.GetSyncHeight(mp.ctx)
-	if lh < rh {
-		return nrh, xerrors.Errorf("sync height expected %d, got %d", rh, lh)
+	si, err := mp.GetSyncHeight(mp.ctx)
+	if err != nil {
+		return nrh, err
+	}
+
+	if si.SyncedHeight < si.RemoteHeight {
+		return nrh, xerrors.Errorf("sync height expected %d, got %d", si.RemoteHeight, si.SyncedHeight)
 	}
 
 	appliedHeight := mp.GetHeight(mp.ctx)
-	if appliedHeight != lh {
+	if appliedHeight != si.SyncedHeight {
 		logger.Debug("create block state height is not equal")
+		return nrh, xerrors.Errorf("create block state height is not equal")
 	}
 
 	nt := time.Now().Unix()
@@ -177,9 +185,9 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 		return nrh, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, appliedSlot)
 	}
 
-	logger.Debugf("create block header at height %d, slot: %d", rh, slot)
+	logger.Debugf("create block header at height %d, slot: %d", si.SyncedHeight, slot)
 
-	nrh.Height = rh
+	nrh.Height = si.SyncedHeight
 	nrh.Slot = slot
 	nrh.PrevID = mp.GetBlockID(mp.ctx)
 	nrh.MinerID = mp.GetLeader(slot)
@@ -223,7 +231,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	if sb.Height == 0 {
 		cnt := 0
 		for from, ms := range mp.pending {
-			nc := mp.GetNonce(mp.ctx, from)
+			nc := mp.StateGetNonce(mp.ctx, from)
 			for i := nc; ; i++ {
 				m, ok := ms.info[i]
 				if ok {
@@ -273,7 +281,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	rLen := 0
 	for from, ms := range mp.pending {
 		// should load from memory?
-		nc := mp.GetNonce(mp.ctx, from)
+		nc := mp.StateGetNonce(mp.ctx, from)
 		for i := nc; ; i++ {
 			m, ok := ms.info[i]
 			if ok {
@@ -398,11 +406,11 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 }
 
 func (mp *InPool) GetMembers() []uint64 {
-	return mp.GetAllKeepers(mp.ctx)
+	return mp.StateGetAllKeepers(mp.ctx)
 }
 
 func (mp *InPool) GetLeader(slot uint64) uint64 {
-	mems := mp.GetAllKeepers(mp.ctx)
+	mems := mp.StateGetAllKeepers(mp.ctx)
 	if len(mems) > 0 {
 		return mems[slot%uint64(len(mems))]
 	} else {

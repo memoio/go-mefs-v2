@@ -76,8 +76,11 @@ func (pp *PushPool) syncPush() {
 			break
 		}
 
-		sh, rh := pp.GetSyncHeight(pp.ctx)
-		logger.Debug("wait sync; pool state: ", sh, rh, pp.SyncPool.ready)
+		si, err := pp.GetSyncHeight(pp.ctx)
+		if err != nil {
+			continue
+		}
+		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, pp.SyncPool.ready)
 		time.Sleep(5 * time.Second)
 	}
 
@@ -143,7 +146,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 
 	lp, ok := pp.pending[mes.From]
 	if !ok {
-		cNonce := pp.GetNonce(pp.ctx, mes.From)
+		cNonce := pp.StateGetNonce(pp.ctx, mes.From)
 		lp = &pendingMsg{
 			chainNonce: cNonce,
 			nonce:      cNonce,
@@ -196,7 +199,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	pp.lk.Lock()
 	lp, ok := pp.pending[sm.From]
 	if !ok {
-		cNonce := pp.GetNonce(pp.ctx, sm.From)
+		cNonce := pp.StateGetNonce(pp.ctx, sm.From)
 		lp = &pendingMsg{
 			chainNonce: cNonce,
 			nonce:      cNonce,

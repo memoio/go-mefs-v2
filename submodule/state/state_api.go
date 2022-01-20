@@ -23,6 +23,53 @@ type stateAPI struct {
 	*StateMgr
 }
 
+func (s *StateMgr) StateGetInfo(ctx context.Context) (*api.StateInfo, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	si := &api.StateInfo{
+		Height:  s.height,
+		Slot:    s.slot,
+		Epoch:   s.ceInfo.epoch,
+		Root:    s.root,
+		BlockID: s.blkID,
+	}
+
+	return si, nil
+}
+
+func (s *StateMgr) StateGetChalEpochInfo(ctx context.Context) (*types.ChalEpoch, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	return &types.ChalEpoch{
+		Epoch: s.ceInfo.current.Epoch,
+		Slot:  s.ceInfo.current.Slot,
+		Seed:  s.ceInfo.current.Seed,
+	}, nil
+}
+
+func (s *StateMgr) StateGetChalEpochInfoAt(ctx context.Context, epoch uint64) (*types.ChalEpoch, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+	ce := new(types.ChalEpoch)
+	if epoch >= s.ceInfo.epoch {
+		return ce, xerrors.Errorf("epoch expected lower than %d, got %d", s.ceInfo.epoch, epoch)
+	}
+
+	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, epoch)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return ce, err
+	}
+	err = ce.Deserialize(data)
+	if err != nil {
+		return ce, err
+	}
+
+	return ce, nil
+}
+
 func (s *StateMgr) GetRoot(ctx context.Context) types.MsgID {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
@@ -57,38 +104,6 @@ func (s *StateMgr) GetChalEpoch(ctx context.Context) uint64 {
 	return s.ceInfo.epoch
 }
 
-func (s *StateMgr) GetChalEpochInfo(ctx context.Context) *types.ChalEpoch {
-	s.lk.RLock()
-	defer s.lk.RUnlock()
-
-	return &types.ChalEpoch{
-		Epoch: s.ceInfo.current.Epoch,
-		Slot:  s.ceInfo.current.Slot,
-		Seed:  s.ceInfo.current.Seed,
-	}
-}
-
-func (s *StateMgr) GetChalEpochInfoAt(ctx context.Context, epoch uint64) (*types.ChalEpoch, error) {
-	s.lk.RLock()
-	defer s.lk.RUnlock()
-	ce := new(types.ChalEpoch)
-	if epoch >= s.ceInfo.epoch {
-		return ce, xerrors.Errorf("epoch expected lower than %d, got %d", s.ceInfo.epoch, epoch)
-	}
-
-	key := store.NewKey(pb.MetaType_ST_ChalEpochKey, epoch)
-	data, err := s.ds.Get(key)
-	if err != nil {
-		return ce, err
-	}
-	err = ce.Deserialize(data)
-	if err != nil {
-		return ce, err
-	}
-
-	return ce, nil
-}
-
 func (s *StateMgr) GetBlockIDAt(ctx context.Context, ht uint64) (types.MsgID, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
@@ -106,7 +121,7 @@ func (s *StateMgr) GetBlockIDAt(ctx context.Context, ht uint64) (types.MsgID, er
 	return types.FromBytes(data)
 }
 
-func (s *StateMgr) GetNonce(ctx context.Context, roleID uint64) uint64 {
+func (s *StateMgr) StateGetNonce(ctx context.Context, roleID uint64) uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -160,7 +175,7 @@ func (s *StateMgr) GetThreshold(ctx context.Context) int {
 	return s.getThreshold()
 }
 
-func (s *StateMgr) GetAllKeepers(ctx context.Context) []uint64 {
+func (s *StateMgr) StateGetAllKeepers(ctx context.Context) []uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -170,7 +185,7 @@ func (s *StateMgr) GetAllKeepers(ctx context.Context) []uint64 {
 	return res
 }
 
-func (s *StateMgr) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
+func (s *StateMgr) StateGetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -183,7 +198,7 @@ func (s *StateMgr) GetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommo
 	return pdp.DeserializePublicKey(data)
 }
 
-func (s *StateMgr) GetProsForUser(ctx context.Context, userID uint64) []uint64 {
+func (s *StateMgr) StateGetProsAt(ctx context.Context, userID uint64) []uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -201,7 +216,7 @@ func (s *StateMgr) GetProsForUser(ctx context.Context, userID uint64) []uint64 {
 	return res
 }
 
-func (s *StateMgr) GetUsersForPro(ctx context.Context, proID uint64) []uint64 {
+func (s *StateMgr) StateGetUsersAt(ctx context.Context, proID uint64) []uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -219,7 +234,7 @@ func (s *StateMgr) GetUsersForPro(ctx context.Context, proID uint64) []uint64 {
 	return res
 }
 
-func (s *StateMgr) GetAllUsers(ctx context.Context) []uint64 {
+func (s *StateMgr) StateGetAllUsers(ctx context.Context) []uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -229,7 +244,7 @@ func (s *StateMgr) GetAllUsers(ctx context.Context) []uint64 {
 	return res
 }
 
-func (s *StateMgr) GetAllProviders(ctx context.Context) []uint64 {
+func (s *StateMgr) StateGetAllProviders(ctx context.Context) []uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -281,7 +296,7 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 	return proved
 }
 
-func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {
+func (s *StateMgr) StateGetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -298,7 +313,7 @@ func (s *StateMgr) GetPostIncome(ctx context.Context, userID, proID uint64) (*ty
 	return nil, xerrors.Errorf("not found")
 }
 
-func (s *StateMgr) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.PostIncome, error) {
+func (s *StateMgr) StateGetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.PostIncome, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -315,7 +330,7 @@ func (s *StateMgr) GetPostIncomeAt(ctx context.Context, userID, proID, epoch uin
 	return nil, xerrors.Errorf("not found")
 }
 
-func (s *StateMgr) GetAccPostIncomeAt(ctx context.Context, proID, epoch uint64) (*types.AccPostIncome, error) {
+func (s *StateMgr) StateGetAccPostIncomeAt(ctx context.Context, proID, epoch uint64) (*types.AccPostIncome, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -332,7 +347,7 @@ func (s *StateMgr) GetAccPostIncomeAt(ctx context.Context, proID, epoch uint64) 
 	return nil, xerrors.Errorf("not found")
 }
 
-func (s *StateMgr) GetAccPostIncome(ctx context.Context, proID uint64) (*types.SignedAccPostIncome, error) {
+func (s *StateMgr) StateGetAccPostIncome(ctx context.Context, proID uint64) (*types.SignedAccPostIncome, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -349,7 +364,7 @@ func (s *StateMgr) GetAccPostIncome(ctx context.Context, proID uint64) (*types.S
 	return nil, xerrors.Errorf("not found")
 }
 
-func (s *StateMgr) GetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
+func (s *StateMgr) StateGetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 

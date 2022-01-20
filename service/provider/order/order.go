@@ -111,7 +111,7 @@ func (m *OrderMgr) check() error {
 			continue
 		}
 
-		ns := m.ics.GetOrderState(m.ctx, uid, m.localID)
+		ns := m.ics.StateGetOrderState(m.ctx, uid, m.localID)
 		oi, err := m.is.GetStoreInfo(m.ctx, uid, m.localID)
 		if err != nil {
 			continue
@@ -136,7 +136,7 @@ func (m *OrderMgr) check() error {
 }
 
 func (m *OrderMgr) createOrder(op *OrderFull) {
-	pk, err := m.ics.GetPDPPublicKey(m.ctx, op.userID)
+	pk, err := m.ics.StateGetPDPPublicKey(m.ctx, op.userID)
 	if err != nil {
 		logger.Warnf("create order for user %d bls pk fail %s", op.userID, err)
 		return
@@ -174,7 +174,7 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	m.orders[userID] = op
 	m.lk.Unlock()
 
-	pk, err := m.ics.GetPDPPublicKey(m.ctx, userID)
+	pk, err := m.ics.StateGetPDPPublicKey(m.ctx, userID)
 	if err == nil {
 		op.dv, err = pdp.NewDataVerifier(pk, nil)
 		if err != nil {
@@ -184,7 +184,7 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.ready = true
 	}
 
-	dns := m.ics.GetOrderState(m.ctx, userID, m.localID)
+	dns := m.ics.StateGetOrderState(m.ctx, userID, m.localID)
 
 	ns := new(NonceState)
 	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)

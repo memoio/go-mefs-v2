@@ -78,7 +78,7 @@ func (l *LfsService) Start() error {
 
 	has := false
 
-	_, err = l.OrderMgr.GetPDPPublicKey(l.ctx, l.userID)
+	_, err = l.OrderMgr.StateGetPDPPublicKey(l.ctx, l.userID)
 	if err != nil {
 		time.Sleep(15 * time.Second)
 		logger.Debug("push create fs message for: ", l.userID)

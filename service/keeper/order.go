@@ -21,7 +21,7 @@ func (k *KeeperNode) updateOrder() {
 			logger.Warn("update order context done ", k.ctx.Err())
 			return
 		case <-ticker.C:
-			users := k.GetAllUsers(k.ctx)
+			users := k.StateGetAllUsers(k.ctx)
 			for _, uid := range users {
 				//k.addOrder(uid)
 				k.subOrder(uid)
@@ -33,9 +33,9 @@ func (k *KeeperNode) updateOrder() {
 func (k *KeeperNode) addOrder(userID uint64) error {
 	logger.Debug("addOrder for user: ", userID)
 
-	pros := k.GetProsForUser(k.ctx, userID)
+	pros := k.StateGetProsAt(k.ctx, userID)
 	for _, proID := range pros {
-		ns := k.GetOrderState(k.ctx, userID, proID)
+		ns := k.StateGetOrderState(k.ctx, userID, proID)
 		si, err := k.ContractMgr.GetStoreInfo(k.ctx, userID, proID)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info in chain", userID, proID, err)
@@ -44,7 +44,7 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 
 		logger.Debugf("addOrder user %d pro %d has order %d %d %d", userID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 		for i := si.Nonce; i < ns.Nonce; i++ {
-			keepers := k.GetAllKeepers(k.ctx)
+			keepers := k.StateGetAllKeepers(k.ctx)
 			nt := time.Now().Unix() / (600)
 			// only one do this
 			kindex := (int(userID+proID) + int(nt)) % len(keepers)
@@ -102,9 +102,9 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 func (k *KeeperNode) subOrder(userID uint64) error {
 	logger.Debug("subOrder for user: ", userID)
 
-	pros := k.GetProsForUser(k.ctx, userID)
+	pros := k.StateGetProsAt(k.ctx, userID)
 	for _, proID := range pros {
-		keepers := k.GetAllKeepers(k.ctx)
+		keepers := k.StateGetAllKeepers(k.ctx)
 		nt := time.Now().Unix() / (600)
 		// only one do this
 		kindex := (int(userID+proID) + int(nt)) % len(keepers)
@@ -122,7 +122,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		ns := k.GetOrderState(k.ctx, userID, proID)
+		ns := k.StateGetOrderState(k.ctx, userID, proID)
 		logger.Debugf("subOrder user %d pro %d has order %d %d %d", userID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 
 		if si.SubNonce >= ns.Nonce {

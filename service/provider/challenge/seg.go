@@ -65,7 +65,7 @@ func (s *SegMgr) Start() {
 
 // load from state
 func (s *SegMgr) load() {
-	users := s.GetUsersForPro(s.ctx, s.localID)
+	users := s.StateGetUsersAt(s.ctx, s.localID)
 	for _, pid := range users {
 		s.loadFs(pid)
 	}
@@ -84,7 +84,7 @@ func (s *SegMgr) AddUP(userID, proID uint64) {
 func (s *SegMgr) loadFs(userID uint64) *segInfo {
 	si, ok := s.sInfo[userID]
 	if !ok {
-		pk, err := s.GetPDPPublicKey(s.ctx, userID)
+		pk, err := s.StateGetPDPPublicKey(s.ctx, userID)
 		if err != nil {
 			logger.Debug("challenge not get fs")
 			return nil
@@ -109,7 +109,7 @@ func (s *SegMgr) regularChallenge() {
 	defer tc.Stop()
 
 	s.epoch = s.GetChalEpoch(s.ctx)
-	s.eInfo = s.GetChalEpochInfo(s.ctx)
+	s.eInfo, _ = s.StateGetChalEpochInfo(s.ctx)
 
 	i := 0
 	for {
@@ -129,7 +129,7 @@ func (s *SegMgr) regularChallenge() {
 			si.nextChal++
 		case <-tc.C:
 			s.epoch = s.GetChalEpoch(s.ctx)
-			s.eInfo = s.GetChalEpochInfo(s.ctx)
+			s.eInfo, _ = s.StateGetChalEpochInfo(s.ctx)
 			logger.Debug("challenge update epoch: ", s.eInfo.Epoch, s.epoch)
 		default:
 			if len(s.users) == 0 {
@@ -186,7 +186,7 @@ func (s *SegMgr) challenge(userID uint64) {
 	copy(buf[8:], s.eInfo.Seed.Bytes())
 	bh := blake3.Sum256(buf)
 
-	pk, err := s.GetPDPPublicKey(s.ctx, userID)
+	pk, err := s.StateGetPDPPublicKey(s.ctx, userID)
 	if err != nil {
 		logger.Debug("challenge not get fs")
 		return
@@ -219,7 +219,7 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	pce, err := s.GetChalEpochInfoAt(s.ctx, si.nextChal-1)
+	pce, err := s.StateGetChalEpochInfoAt(s.ctx, si.nextChal-1)
 	if err != nil {
 		logger.Debug("chal at wrong epoch: ", userID, si.nextChal, err)
 		return

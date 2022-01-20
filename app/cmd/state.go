@@ -45,11 +45,11 @@ var statePostIncomeCmd = &cli.Command{
 
 		fmt.Println("post income: ", nid.ID)
 
-		users := napi.GetUsersForPro(cctx.Context, nid.ID)
+		users := napi.StateGetUsersAt(cctx.Context, nid.ID)
 		fmt.Println("post income: ", nid.ID, users)
 
 		for _, uid := range users {
-			pi, err := napi.GetPostIncome(cctx.Context, uid, nid.ID)
+			pi, err := napi.StateGetPostIncome(cctx.Context, uid, nid.ID)
 			if err != nil {
 				continue
 			}
@@ -85,7 +85,7 @@ var statePayCmd = &cli.Command{
 		case pb.RoleInfo_Provider:
 			fmt.Println("pay info: ", nid.ID)
 
-			spi, err := napi.GetAccPostIncome(cctx.Context, nid.ID)
+			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.ID)
 			if err != nil {
 				return err
 			}
@@ -136,7 +136,7 @@ var stateWithdrawCmd = &cli.Command{
 
 		switch nid.Type {
 		case pb.RoleInfo_Provider:
-			spi, err := napi.GetAccPostIncome(cctx.Context, nid.ID)
+			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.ID)
 			if err != nil {
 				return err
 			}

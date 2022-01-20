@@ -163,50 +163,30 @@ type IChainPush interface {
 // sync status
 type IChainSync interface {
 	IChainState
-	GetSyncHeight(context.Context) (uint64, uint64)
+	GetSyncHeight(context.Context) (*SyncInfo, error)
 	GetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
 }
 
 type IChainState interface {
-	GetRoot(context.Context) types.MsgID
-	GetBlockID(context.Context) types.MsgID
-	GetHeight(context.Context) uint64
-	GetSlot(context.Context) uint64
+	StateGetInfo(context.Context) (*StateInfo, error)
+	StateGetChalEpochInfo(context.Context) (*types.ChalEpoch, error)
+	StateGetChalEpochInfoAt(context.Context, uint64) (*types.ChalEpoch, error)
 
-	GetChalEpoch(context.Context) uint64
-	GetChalEpochInfo(context.Context) *types.ChalEpoch
-	GetChalEpochInfoAt(context.Context, uint64) (*types.ChalEpoch, error)
+	StateGetNonce(context.Context, uint64) uint64
 
-	GetBlockIDAt(context.Context, uint64) (types.MsgID, error)
+	StateGetAllKeepers(context.Context) []uint64
+	StateGetAllUsers(context.Context) []uint64
+	StateGetAllProviders(context.Context) []uint64
+	StateGetUsersAt(context.Context, uint64) []uint64
+	StateGetProsAt(context.Context, uint64) []uint64
 
-	GetNonce(context.Context, uint64) uint64
+	StateGetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
 
-	GetAllKeepers(context.Context) []uint64
-	GetNetInfo(context.Context, uint64) (peer.AddrInfo, error)
-
-	GetUsersForPro(context.Context, uint64) []uint64
-	GetProsForUser(context.Context, uint64) []uint64
-	GetAllUsers(context.Context) []uint64
-	GetAllProviders(context.Context) []uint64
-
-	GetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
-	GetBucket(context.Context, uint64) uint64
-
-	GetOrderState(context.Context, uint64, uint64) *types.NonceSeq
-	GetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)
-	GetPostIncomeAt(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)
-	GetAccPostIncome(context.Context, uint64) (*types.SignedAccPostIncome, error)
-	GetAccPostIncomeAt(context.Context, uint64, uint64) (*types.AccPostIncome, error)
-
-	/*
-		GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error)
-		GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq
-		GetOrder(userID, proID, nonce uint64) (*types.SignedOrder, []byte, uint32, error)
-		GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.OrderSeq, []byte, error)
-		GetProof(userID, proID, epoch uint64) bool
-
-		GetOrderDuration(userID, proID uint64) *types.OrderDuration
-	*/
+	StateGetOrderState(context.Context, uint64, uint64) *types.NonceSeq
+	StateGetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)
+	StateGetPostIncomeAt(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)
+	StateGetAccPostIncome(context.Context, uint64) (*types.SignedAccPostIncome, error)
+	StateGetAccPostIncomeAt(context.Context, uint64, uint64) (*types.AccPostIncome, error)
 }
 
 type ISettle interface {

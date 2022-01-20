@@ -53,9 +53,9 @@ func (m *OrderMgr) checkBalance() {
 	}()
 
 	needPay := big.NewInt(0)
-	pros := m.GetProsForUser(m.ctx, m.localID)
+	pros := m.StateGetProsAt(m.ctx, m.localID)
 	for _, proID := range pros {
-		ns := m.GetOrderState(m.ctx, m.localID, proID)
+		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
 		si, err := m.is.GetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("fail to get order info in chain", m.localID, proID, err)
@@ -162,7 +162,7 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 }
 
 func (m *OrderMgr) loadUnfinished(of *OrderFull) {
-	ns := m.GetOrderState(m.ctx, of.localID, of.pro)
+	ns := m.StateGetOrderState(m.ctx, of.localID, of.pro)
 	logger.Debug("resend message for : ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
 
 	seqNum := ns.SeqNum
@@ -293,9 +293,9 @@ func (m *OrderMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 func (m *OrderMgr) submitOrders() error {
 	logger.Debug("addOrder for user: ", m.localID)
 
-	pros := m.GetProsForUser(m.ctx, m.localID)
+	pros := m.StateGetProsAt(m.ctx, m.localID)
 	for _, proID := range pros {
-		ns := m.GetOrderState(m.ctx, m.localID, proID)
+		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
 		si, err := m.is.GetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)

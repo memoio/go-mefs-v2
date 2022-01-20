@@ -6,6 +6,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 type GroupInfo struct {
@@ -114,4 +115,17 @@ type OrderInfo struct {
 
 	Ready  bool
 	InStop bool
+}
+
+type SyncInfo struct {
+	SyncedHeight uint64
+	RemoteHeight uint64
+}
+
+type StateInfo struct {
+	Height  uint64      // block next height
+	Slot    uint64      // distance from basetime
+	Epoch   uint64      // challenge
+	Root    types.MsgID // state root
+	BlockID types.MsgID
 }

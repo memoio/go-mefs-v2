@@ -46,16 +46,16 @@ func (k *KeeperNode) updatePay() {
 
 			logger.Debugf("pay at epoch %d", payEpoch)
 
-			pros := k.GetAllProviders(k.ctx)
+			pros := k.StateGetAllProviders(k.ctx)
 			for _, pid := range pros {
 				logger.Debugf("pay for %d at epoch %d", pid, payEpoch)
-				users := k.GetUsersForPro(k.ctx, pid)
+				users := k.StateGetUsersAt(k.ctx, pid)
 				if len(users) == 0 {
 					logger.Debugf("pay for %d at epoch %d, not have users", pid, payEpoch)
 					continue
 				}
 
-				spi, err := k.PushPool.GetAccPostIncomeAt(k.ctx, pid, payEpoch)
+				spi, err := k.PushPool.StateGetAccPostIncomeAt(k.ctx, pid, payEpoch)
 				if err != nil {
 					logger.Debugf("pay for %d at epoch %d, not have challenge or declare fault", pid, payEpoch)
 					continue

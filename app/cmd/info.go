@@ -30,6 +30,8 @@ var InfoCmd = &cli.Command{
 		}
 		defer closer()
 
+		fmt.Println(ansi.Color("----------- Sync Information -----------", "green"))
+
 		pri, err := api.RoleSelf(cctx.Context)
 		if err != nil {
 			return err
@@ -51,7 +53,7 @@ var InfoCmd = &cli.Command{
 		case pb.RoleInfo_Provider:
 			size := uint64(0)
 			price := big.NewInt(0)
-			users := api.GetUsersForPro(context.TODO(), pri.ID)
+			users := api.StateGetUsersAt(context.TODO(), pri.ID)
 			for _, uid := range users {
 				si, err := api.GetStoreInfo(context.TODO(), uid, pri.ID)
 				if err != nil {
@@ -64,7 +66,7 @@ var InfoCmd = &cli.Command{
 		case pb.RoleInfo_User:
 			size := uint64(0)
 			price := big.NewInt(0)
-			pros := api.GetProsForUser(context.TODO(), pri.ID)
+			pros := api.StateGetProsAt(context.TODO(), pri.ID)
 			for _, pid := range pros {
 				si, err := api.GetStoreInfo(context.TODO(), pri.ID, pid)
 				if err != nil {

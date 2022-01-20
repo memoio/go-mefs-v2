@@ -326,10 +326,15 @@ func (sp *SyncPool) GetSyncStatus(ctx context.Context) bool {
 	return false
 }
 
-func (sp *SyncPool) GetSyncHeight(ctx context.Context) (uint64, uint64) {
+func (sp *SyncPool) GetSyncHeight(ctx context.Context) (*api.SyncInfo, error) {
 	sp.lk.RLock()
 	defer sp.lk.RUnlock()
-	return sp.nextHeight, sp.remoteHeight
+	si := &api.SyncInfo{
+		SyncedHeight: sp.nextHeight,
+		RemoteHeight: sp.remoteHeight,
+	}
+
+	return si, nil
 }
 
 func (sp *SyncPool) GetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.MsgState, error) {
@@ -465,7 +470,7 @@ func (sp *SyncPool) getTxBlockByHeight(ht uint64) {
 }
 
 func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
-	nonce := sp.GetNonce(sp.ctx, msg.From)
+	nonce := sp.StateGetNonce(sp.ctx, msg.From)
 	if msg.Nonce < nonce {
 		return xerrors.Errorf("nonce expected no less than %d, got %d", nonce, msg.Nonce)
 	}

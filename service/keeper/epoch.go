@@ -26,7 +26,10 @@ func (k *KeeperNode) updateChalEpoch() {
 		case <-ticker.C:
 			slot := k.GetSlot(k.ctx)
 			ne := k.GetChalEpoch(k.ctx)
-			ce := k.GetChalEpochInfo(k.ctx)
+			ce, err := k.StateGetChalEpochInfo(k.ctx)
+			if err != nil {
+				continue
+			}
 			if ce.Slot < slot && slot-ce.Slot > build.DefaultChalDuration {
 				// update
 				logger.Debug("update epoch to: ", ce.Epoch, ne, ce.Slot, slot)
