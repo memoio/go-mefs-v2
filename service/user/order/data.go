@@ -629,6 +629,11 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 		case <-m.ctx.Done():
 			return
 		default:
+			if o.inStop {
+				time.Sleep(time.Minute)
+				continue
+			}
+
 			if o.base == nil || o.orderState != Order_Running {
 				time.Sleep(time.Second)
 				continue
