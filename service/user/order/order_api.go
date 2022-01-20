@@ -43,8 +43,18 @@ func (m *OrderMgr) OrderGetInfoAt(_ context.Context, proID uint64) (*api.OrderIn
 			SeqTime:  of.seqTime,
 			SeqState: string(of.seqState),
 
+			Jobs: of.segCount(),
+
 			Ready:  of.ready,
 			InStop: of.inStop,
+		}
+
+		if of.base != nil {
+			oi.Nonce = of.base.Nonce
+		}
+
+		if of.seq != nil {
+			oi.SeqNum = of.seq.SeqNum
 		}
 
 		return oi, nil

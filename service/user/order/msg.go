@@ -165,10 +165,9 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 	ns := m.StateGetOrderState(m.ctx, of.localID, of.pro)
 	logger.Debug("resend message for : ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
 
-	seqNum := ns.SeqNum
 	for ns.Nonce < of.nonce {
 		// add order base
-		if seqNum == 0 {
+		if ns.SeqNum == 0 {
 			key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
 			data, err := m.ds.Get(key)
 			if err != nil {
@@ -198,12 +197,26 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 		}
 
 		// add seq
-		for i := uint32(seqNum); i <= ss.Number; i++ {
+		for i := uint32(ns.SeqNum); i <= ss.Number; i++ {
 			key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, ns.Nonce, i)
 			data, err := m.ds.Get(key)
 			if err != nil {
 				return
 			}
+
+			// verify last one
+			if i == ss.Number {
+				os := new(types.SignedOrderSeq)
+				err = os.Deserialize(data)
+				if err != nil {
+					return
+				}
+
+				if os.ProDataSig.Type == 0 || os.ProSig.Type == 0 {
+					return
+				}
+			}
+
 			msg := &tx.Message{
 				Version: 0,
 				From:    of.localID,
@@ -244,6 +257,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 		m.msgChan <- msg
 
 		ns.Nonce++
+		ns.SeqNum = 0
 	}
 }
 

@@ -113,6 +113,8 @@ type OrderInfo struct {
 	SeqTime  int64
 	SeqState string
 
+	Jobs int
+
 	Ready  bool
 	InStop bool
 }

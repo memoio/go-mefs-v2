@@ -27,7 +27,7 @@ const (
 )
 
 func (os OrderState) String() string {
-	return string(os)
+	return " " + string(os) + " "
 }
 
 type NonceState struct {
@@ -53,6 +53,10 @@ const (
 	OrderSeq_Commit  OrderSeqState = "commit"  // wait pro ack -> finish
 	OrderSeq_Finish  OrderSeqState = "finish"  // new data -> prepare
 )
+
+func (oss OrderSeqState) String() string {
+	return " " + string(oss) + " "
+}
 
 type SeqState struct {
 	Number uint32
@@ -169,10 +173,10 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	op.base = ob
 	op.orderTime = ns.Time
 	op.orderState = ns.State
-	if ns.State > Order_Wait {
-		op.nonce = ns.Nonce + 1
-	} else {
+	if ns.State == Order_Init || ns.State == Order_Wait {
 		op.nonce = ns.Nonce
+	} else {
+		op.nonce = ns.Nonce + 1
 	}
 
 	op.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
@@ -213,17 +217,18 @@ func (m *OrderMgr) check(o *OrderFull) {
 	if nt-o.availTime < 60 {
 		o.ready = true
 	} else {
-		if nt-o.availTime > 1800 {
+		if nt-o.availTime > 300 {
 			o.ready = false
 			go m.update(o.pro)
 		}
 
-		if nt-o.availTime > 3600 {
+		// for test
+		if nt-o.availTime > 600 {
 			m.stopOrder(o)
 		}
 	}
 
-	logger.Debug("check state for: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
+	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
 
 	if !o.ready {
 		return
@@ -439,6 +444,8 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 		return err
 	}
 	if !ok {
+		logger.Debug("order sign is wrong:", ob)
+		logger.Debug("order sign is wrong:", o.base)
 		return xerrors.Errorf("%d order sign is wrong", o.pro)
 	}
 
@@ -549,13 +556,20 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		return err
 	}
 
-	// reset
-	o.base = nil
+	// save and reset
 	o.orderState = Order_Init
+	o.orderTime = time.Now().Unix()
+	o.base.Nonce++
+	saveOrderState(o, m.ds)
 
+	o.seqState = OrderSeq_Init
+	o.seqTime = time.Now().Unix()
+	o.seq.SeqNum = 0
+	saveSeqState(o, m.ds)
+
+	o.base = nil
 	o.seq = nil
 	o.seqNum = 0
-	o.seqState = OrderSeq_Init
 
 	// trigger a new order
 	if o.hasSeg() && !o.inStop {

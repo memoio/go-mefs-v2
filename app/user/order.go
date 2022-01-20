@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/utils"
+	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 var OrderCmd = &cli.Command{
@@ -15,6 +18,7 @@ var OrderCmd = &cli.Command{
 	Usage: "Interact with order",
 	Subcommands: []*cli.Command{
 		orderListCmd,
+		orderGetCmd,
 	},
 }
 
@@ -40,8 +44,44 @@ var orderListCmd = &cli.Command{
 		}
 
 		for _, oi := range ois {
-			fmt.Printf("proID: %d, order: %d %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Nonce, oi.OrderState, oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
+			fmt.Printf("proID: %d, jobs: %d, order: %d %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Jobs, oi.Nonce, ansi.Color(oi.OrderState, "green"), oi.SeqNum, ansi.Color(oi.SeqState, "green"), oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
 		}
+
+		return nil
+	},
+}
+
+var orderGetCmd = &cli.Command{
+	Name:      "get",
+	Usage:     "get order info of one provider",
+	ArgsUsage: "[provider index required]",
+	Action: func(cctx *cli.Context) error {
+		if !cctx.Args().Present() {
+			return xerrors.Errorf("need amount")
+		}
+		pid, err := strconv.ParseUint(cctx.Args().First(), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'amount' argument: %w", err)
+		}
+
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		oi, err := api.OrderGetInfoAt(cctx.Context, pid)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("proID: %d, order: %d %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Nonce, oi.OrderState, oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
 
 		return nil
 	},

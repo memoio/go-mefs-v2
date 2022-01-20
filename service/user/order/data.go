@@ -172,27 +172,34 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 
 	logger.Infof("order bucket %d expected %d, got %d", lp.bucketID, lp.dc+lp.pc, cnt)
 
-	otherPros := make([]uint64, 0, lp.dc+lp.pc)
-
-	pros := make([]uint64, 0, len(m.pros))
-	pros = append(pros, m.pros...)
-
-	// todo:
-	// 1. skip deleted first
-	// 2. if not enough, add deleted?
-	utils.DisorderUint(pros)
-
-	for _, pid := range pros {
+	otherPros := make([]uint64, 0, len(m.pros))
+	for _, pid := range m.pros {
 		has := false
-		for _, hasPid := range lp.pros {
-			if pid == hasPid {
+		for _, dpid := range lp.deleted {
+			if pid == dpid {
 				has = true
+				break
 			}
 		}
 
 		if has {
 			continue
 		}
+
+		// not deleted
+		for _, hasPid := range lp.pros {
+			if pid == hasPid {
+				has = true
+				break
+			}
+		}
+
+		if has {
+			continue
+		}
+
+		// not have
+
 		or, ok := m.orders[pid]
 		if ok {
 			if or.ready && !or.inStop {
@@ -200,6 +207,11 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 			}
 		}
 	}
+
+	// todo:
+	// 1. skip deleted first
+	// 2. if not enough, add deleted?
+	utils.DisorderUint(otherPros)
 
 	change := false
 
@@ -233,7 +245,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	if change {
 		m.saveLastProsPerBucket(lp)
 	}
-	logger.Info("order bucket: ", lp.bucketID, lp.pros)
+	logger.Info("order bucket: ", lp.bucketID, lp.pros, lp.deleted)
 }
 
 // disptach, done, total
