@@ -166,6 +166,15 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		return op
 	}
 
+	if ns.State == Order_Init || ns.State == Order_Wait {
+		op.nonce = ns.Nonce
+	} else {
+		op.nonce = ns.Nonce + 1
+	}
+
+	op.orderTime = ns.Time
+	op.orderState = ns.State
+
 	ob := new(types.SignedOrder)
 	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, id, ns.Nonce)
 	val, err = m.ds.Get(key)
@@ -176,16 +185,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	if err != nil {
 		return op
 	}
-
 	op.base = ob
-	op.orderTime = ns.Time
-	op.orderState = ns.State
-	if ns.State == Order_Init || ns.State == Order_Wait {
-		op.nonce = ns.Nonce
-	} else {
-		op.nonce = ns.Nonce + 1
-	}
-
 	op.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 
 	ss := new(SeqState)
