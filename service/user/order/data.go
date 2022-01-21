@@ -91,6 +91,8 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 	m.updateProsForBucket(lp)
 
+	m.saveLastProsPerBucket(lp)
+
 	logger.Info("order bucket: ", lp.bucketID, lp.pros)
 
 	m.bucketChan <- lp
