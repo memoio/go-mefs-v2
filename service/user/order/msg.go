@@ -106,12 +106,12 @@ func (m *OrderMgr) checkBalance() {
 				continue
 			}
 			os.Price.Mul(os.Price, big.NewInt(ob.End-ob.Start))
-			os.Price.Mul(os.Price, big.NewInt(12))
-			os.Price.Div(os.Price, big.NewInt(10))
-
 			needPay.Add(needPay, os.Price)
 		}
 	}
+
+	needPay.Mul(needPay, big.NewInt(12))
+	needPay.Div(needPay, big.NewInt(10))
 
 	bal, err := m.is.SettleGetBalanceInfo(m.ctx, m.localID)
 	if err != nil {
@@ -119,7 +119,6 @@ func (m *OrderMgr) checkBalance() {
 	}
 
 	if bal.ErcValue.Cmp(needPay) < 0 {
-		needPay.Sub(needPay, bal.ErcValue)
 		m.is.Recharge(needPay)
 	}
 
