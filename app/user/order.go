@@ -81,7 +81,14 @@ var orderGetCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("proID: %d, order: %d %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Nonce, oi.OrderState, oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
+		ns := api.StateGetOrderState(cctx.Context, api.SettleGetRoleID(cctx.Context), pid)
+
+		si, err := api.SettleGetStoreInfo(cctx.Context, api.SettleGetRoleID(cctx.Context), pid)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("proID: %d, jobs: %d, order: %d %d %d %s %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Jobs, si.Nonce, ns.Nonce, oi.Nonce, ansi.Color(oi.OrderState, "green"), time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, ansi.Color(oi.SeqState, "green"), oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
 
 		return nil
 	},
