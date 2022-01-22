@@ -168,21 +168,25 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 	for ns.Nonce < of.nonce {
 		// add order base
 		if ns.SeqNum == 0 {
-			key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
-			data, err := m.ds.Get(key)
+			_, err := m.StateMgr.GetOrder(of.localID, of.pro, ns.Nonce)
 			if err != nil {
-				return
-			}
+				key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
+				data, err := m.ds.Get(key)
+				if err != nil {
+					return
+				}
 
-			msg := &tx.Message{
-				Version: 0,
-				From:    of.localID,
-				To:      of.pro,
-				Method:  tx.PreDataOrder,
-				Params:  data,
-			}
+				msg := &tx.Message{
+					Version: 0,
+					From:    of.localID,
+					To:      of.pro,
+					Method:  tx.PreDataOrder,
+					Params:  data,
+				}
 
-			m.msgChan <- msg
+				m.msgChan <- msg
+				logger.Debugf("%d submit msg for create order %d", of.pro, ns.Nonce)
+			}
 		}
 
 		ss := new(SeqState)
@@ -225,6 +229,8 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				Params:  data,
 			}
 			m.msgChan <- msg
+
+			logger.Debugf("%d submit msg for add order %d seq", of.pro, ns.Nonce, i)
 		}
 
 		// commit
@@ -255,6 +261,8 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 		}
 
 		m.msgChan <- msg
+
+		logger.Debugf("%d submit msg for commit order %d", of.pro, ns.Nonce)
 
 		ns.Nonce++
 		ns.SeqNum = 0
