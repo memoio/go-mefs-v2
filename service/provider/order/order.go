@@ -121,14 +121,14 @@ func (m *OrderMgr) check() error {
 			of.lw.Lock()
 			of.pause = true
 			of.lw.Unlock()
-			logger.Warn("order is not submit to data or settle chain: ", of.nonce, ns.Nonce, oi.Nonce)
+			logger.Warnf("%d order is not submit to data or settle chain: %d %d %d ", uid, of.nonce, ns.Nonce, oi.Nonce)
 		}
 
 		if ns.Nonce+1 >= of.nonce && oi.Nonce+2 >= of.nonce {
 			of.lw.Lock()
 			of.pause = false
 			of.lw.Unlock()
-			logger.Debug("order is submit to data or settle chain: ", of.nonce, ns.Nonce, oi.Nonce)
+			logger.Debug("%d order is submitted to data or settle chain: %d %d %d ", uid, of.nonce, ns.Nonce, oi.Nonce)
 		}
 	}
 

@@ -256,7 +256,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 					if err != nil {
 						logger.Debug("block message invalid:", m.From, m.Nonce, err)
 						tr.Err = 1
-						tr.Extra = []byte(err.Error())
+						tr.Extra = err.Error()
 					} else {
 						cnt++
 					}
@@ -297,7 +297,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 				if err != nil {
 					logger.Debug("block message invalid:", m.From, m.Nonce, err)
 					tr.Err = 1
-					tr.Extra = []byte(err.Error())
+					tr.Extra = err.Error()
 				}
 
 				msgSet.Root = nroot

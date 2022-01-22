@@ -1,6 +1,7 @@
 package order
 
 import (
+	"bytes"
 	"context"
 	"math/big"
 	"sync"
@@ -165,6 +166,10 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	if ob.SegPrice.Cmp(m.quo.SegPrice) < 0 {
+		return nil, xerrors.Errorf("seg price is lower than expected %d, got %d", m.quo.SegPrice, ob.SegPrice)
+	}
+
 	nt := time.Now().Unix()
 	if ob.Start < nt && nt-ob.Start > types.Hour {
 		return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
@@ -247,12 +252,52 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 
 	// been acked
 	if or.base != nil && or.base.Nonce == ob.Nonce && or.orderState == Order_Ack {
-		data, err := or.base.Serialize()
-		if err != nil {
-			return nil, err
-		}
 
-		return data, nil
+		if bytes.Equal(ob.Hash(), or.base.Hash()) {
+			data, err := or.base.Serialize()
+			if err != nil {
+				return nil, err
+			}
+
+			return data, nil
+		} else {
+			// can replace old order if its size is zero
+			if or.base.Size == 0 && (or.seq == nil || (or.seq != nil && or.seq.Size == 0)) {
+				or.base = ob
+				or.orderState = Order_Ack
+				or.orderTime = time.Now().Unix()
+				or.nonce++
+
+				or.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
+
+				// reset seq
+				or.seqNum = 0
+				or.seqState = OrderSeq_Init
+
+				// reset data verifier
+				or.dv.Reset()
+
+				psig, err := m.ir.RoleSign(m.ctx, m.localID, or.base.Hash(), types.SigSecp256k1)
+				if err != nil {
+					return nil, err
+				}
+				or.base.Psign = psig
+
+				// save order base
+				err = saveOrderBase(or, m.ds)
+				if err != nil {
+					return nil, err
+				}
+
+				// save order state
+				err = saveOrderState(or, m.ds)
+				if err != nil {
+					return nil, err
+				}
+
+				return or.base.Serialize()
+			}
+		}
 	}
 
 	return nil, xerrors.Errorf("fail create order user %d nonce %d seq %d state %s %s, got %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, ob.Nonce)

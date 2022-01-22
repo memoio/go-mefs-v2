@@ -97,7 +97,7 @@ func (k *KeeperNode) pushMsg(msg *tx.Message) {
 			if st.Status.Err == 0 {
 				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
 			} else {
-				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, string(st.Status.Extra))
+				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
 			}
 			break
 		}
