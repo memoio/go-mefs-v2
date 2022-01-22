@@ -11,8 +11,8 @@ var logger = logging.Logger("user-order")
 
 const (
 	defaultAckWaiting   = 30
-	defaultOrderLast    = 1800 // 1 day
-	defaultOrderSeqLast = 300  // 1 hour
+	defaultOrderLast    = 800 // 1 day
+	defaultOrderSeqLast = 300 // 1 hour
 
 	// parallel number of net send
 	defaultWeighted = 50
