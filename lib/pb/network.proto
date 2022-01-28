@@ -1,0 +1,63 @@
+// sudo apt install protobuf-compiler
+// go get github.com/gogo/protobuf/protoc-gen-gofast
+// `protoc --gofast_out=. *.proto`
+syntax = "proto3";
+package pb;
+
+// trans over network
+// persist value for tx in kv op db; verify sign before put
+message NetMessage {	
+	enum MsgType {
+		Err = 0;
+		SayHello = 1;
+		Get = 2;
+		Put = 3;
+		PutPeer = 4;
+		SubmitTX = 5;
+		PutSegment = 6;
+		GetSegment = 7;
+		GetPubKey = 8;
+
+    	// data message; user<->provider; offline ops
+		AskPrice = 10;     // 询价
+    	CreateOrder = 11; 
+		DoneOrder = 12; 
+		CreateSeq = 13;
+		FinishSeq = 14;
+    	OrderSegment = 15;    // handle segment; by provider
+		GetOrder = 16;        // get order meta info from provider
+		GetSeq = 17;	      // get order seq meta info from provider
+	}
+
+	message MsgHeader {
+		uint32 version = 1;
+		MsgType type = 2;
+		uint64 from = 3; 
+		uint64 seq = 4; // for ?
+	}
+
+	message MsgData {
+		bytes msgInfo = 1;
+		bytes sign = 2; 
+	}
+
+	MsgHeader header = 1;
+	MsgData data = 2;
+}
+
+// pubsub message content
+message EventMessage {
+	enum Type {
+		Unknown = 0;
+		GetPeer = 1;  // data is roleID
+		PutPeer = 2;  // data is roleID + netID 
+	}
+
+	Type type = 1;
+	bytes data = 2;
+}
+
+message PutPeerInfo {
+	uint64 roleID = 1;
+	bytes netID = 2;
+}

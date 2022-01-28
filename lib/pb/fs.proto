@@ -1,0 +1,163 @@
+// `protoc --gofast_out=. *.proto`
+syntax = "proto3";
+package pb;
+
+// kv key type 
+enum MetaType {
+    Unknown = 0;
+
+	RoleInfoKey = 1;          // key: x/roleID; val: RoleInfo
+	NetInfoKey = 2;           // key: x/roleID; val: NetInfo
+
+   	// lfs meta
+	LFS_SuperBlockInfoKey = 10; // key: x/userID; val: SuperBlockInfo
+	LFS_BucketInfoKey = 11;     // key: x/userID/bucketID; val: BucketInfo
+	LFS_ObjectInfoKey = 12;     // key: x/userID/bucketID/objectID; val: OpIDs
+    LFS_BucketOptionKey = 13;   // key: x/userID/bucketID; val: BucketOption 
+    LFS_OpInfoKey = 14;         // key: x/userID/bucketID/opID; val: BucketRecord
+	LFS_OpJobsKey = 15;         // key: x/userID/bucketID/opID; val: stripes
+    LFS_OpStateKey = 16;	    // key: x/userID/bucketID/opID; val: opstate	 
+    LFS_OpCountKey = 17;        // key: x/userID/bucketID; val: op number
+
+	// key in state
+	ST_RootKey = 20;          // key: x; val: root of state	
+	ST_BlockHeightKey = 21;   // key: x; val: height
+	ST_ChalEpochKey = 22;     // key: x; val: epoch; key: x/epoch; val: content
+
+	ST_KeepersKey = 25;         // key: x; val: keepers
+	ST_UsersKey = 26;           // key: x/roleID; val: users
+	ST_ProsKey = 27;            // key: x/roleID; val: pros  
+	
+	
+	ST_PDPVerifyKey = 29;     // key: x/userID; val: Bls Prove verify key 
+	ST_RoleBaseKey = 30;      // key: x/roleID; val: pb.RoleInfo
+	ST_RoleValueKey = 31;     // key: x/roleID; val: nonce, val
+	ST_PDPPublicKey = 32;     // key: x/userID; val: Bls Prove public key
+	ST_NetKey = 33;           // key: x/roleID; val: NetInfo 
+	
+	ST_BucketOptKey = 35;    // key: x/userID/bucketID; val: bucket option
+	ST_SegLocKey = 36;       // key: x/userID/bucketID/chunkID/stripeID; value: length, proID, order nonce
+	ST_SegMapKey = 37;          // key: x/userID/bucketID/proID; val: accFr, bitmap
+	ST_OrderCommitKey = 38;     // key: x/userID/proID; val: OrderNonce;
+	ST_OrderStateKey = 39;      // key: x/userID/proID/epoch; val: Order Seq;
+	ST_OrderBaseKey = 40;       // key: x/userID/proID/nonce; val: SignedOrderBase;
+	ST_OrderSeqKey = 41;        // key: x/userID/proID/nonce/seq; val: SignedOrderSeq
+	ST_OrderDurationKey = 42;   // key: x/userID/proID/epoch; val: proof
+	
+	ST_SegProofKey = 45;        // key: x/userID/proID/epoch; val: proof
+	ST_SegPayKey = 46;          // key: x/userID/proID; val: payinfo
+	ST_SegPayComfirmKey = 47;   // key: x/proID; val: payinfo  
+
+	// order 
+	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
+	OrderBaseKey = 51;       // key: x/userID/proID/nonce; value: OrderBase
+	OrderSeqNumKey = 52;     // key: x/userID/proID/nonce; value: seqnum, OrderSeqState
+	OrderSeqKey = 53;        // key: x/userID/proID/nonce/seqnum; value: SignedOrderSeq
+	OrderProsKey = 54;       // key: x/userID; value: pros; x/userID/bucketID
+	OrderUsersKey = 55;      // key: x/proID; value: users
+	OrderProsDeleteKey = 56; // key: x/userID/bucketID; val: deleted pros
+
+	// tx message and block
+	Tx_BlockSyncedKey = 60;   // key: x; value: blk height	
+	TX_BlockKey = 61;         // key: x/blockHash; value: blk content, 
+	Tx_BlockHeightKey = 62;	  // key: x/blockHeight; value: blk hash
+	TX_MessageKey = 64;       // key: x/messageHash; value: SignedMessage
+	Tx_MessageStateKey = 65;  // key: x/messageHash; value: blkID, height	
+
+
+	// data meta
+	SegLocationKey = 70;     // key: x/segID; val: proID; on user
+	Chal_ProofKey = 71;      // key: x/userID; val: proof
+	Chal_BucketInfoKey = 72; // key: x/userID/bucketID; val: BucketInfo
+	ConfirmPayKey = 73;      // key: x; val: epoch
+	Chal_UsersKey = 74;      // key: x/roleID; val: users
+	Chal_ProsKey = 75;       // key: x/roleID; val: pros  
+}
+
+//    =============  lfs information  ================
+
+// 'SuperBlockInfoKey'/fsID
+message SuperBlockInfo {
+	uint32 Version      = 1;         
+	uint32 ReplicaNum = 2;
+	uint64 NextBucketID = 3;
+}
+
+// 'BucketCountKey'/fsID
+// 'StripeCountKey'/fsID/bucketID
+// key: 'BucketOptionKey'/fsID/bucketID
+message BucketOption {
+	uint32 Version = 1;
+	uint32 Policy = 2;
+	uint32 DataCount = 3;
+	uint32 ParityCount = 4;
+	uint32 TagFlag = 5;
+	uint32 SegSize = 6;
+} 
+
+// key: 'BucketInfoKey'/fsID/bucketID
+message BucketInfo {
+	uint64 BucketID = 1;
+	int64 CTime = 2;      // create time
+	int64 MTime = 3;      // modify time
+	uint64 Length = 4;     // data_count * segSize 
+	uint64 UsedBytes = 5;  // chunk_count * (segSize + prefix + tagCount*tagSize)
+	uint64 NextObjectID = 6;
+	uint64 NextOpID = 7;  
+	bool deletion = 8;
+	string Name = 9;
+	bytes Root = 10;  // merkle root of ops; used for verify
+}
+
+message ObjectForm {
+	repeated uint64 OpRecord = 1;
+}
+
+// object information; when create object 
+message ObjectInfo {
+	uint64 ObjectID = 1;
+	uint64 BucketID = 2;
+	int64 Time = 3;  
+	uint64 Expire = 4;
+	string Name = 5;
+	string Encryption = 6; // enc method
+}
+
+// object delete information; when delete object 
+message ObjectDeleteInfo {
+    uint64  ObjectID = 1;
+    int64  Time     = 2;
+}
+
+// opart informations, insert into object when add data to an existing object
+message ObjectPartInfo {
+	uint64 ObjectID = 1;          // 此分块所属的ObjectID
+	int64 Time = 2;               // append此Part的时间
+	uint64 Offset = 3;            // offset in bucket space; per stripe  
+	uint64 Length = 4;            // mod stripeSize; stripeCount
+	uint64 RawLength = 5;         // actual size of this part  
+	bytes ETag = 7;               // MD5 of this part
+}
+
+// 'OpDoneKey'/fsID/bucketID
+// 'OpCountKey'/fsID/bucketID
+// key: 'OpInfoKey'/fsID/bucketID/opID
+message OpRecord {
+    enum OpType {
+	    Unknown = 0; 
+	    CreateObject = 1;     // create an object; payload is ObjectInfo
+	    AddData = 2;          // add data to objec; payload is PartInfo
+	    DeleteObject = 3;     // delete an object; payload is DeleteObject
+    }
+
+	OpType Type = 1;
+	uint64 OpID = 2;
+	int64 Time = 3;  // time of this op, need ?
+	bytes Payload = 4;    
+}
+
+// key: 'SegExpireKey'/fsID_bucketID_stripeID
+message SegExpire {
+	uint64 Length = 1;
+	uint64 Expire = 2; // expire time
+}

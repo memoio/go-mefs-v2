@@ -1,0 +1,68 @@
+module github.com/memoio/go-mefs-v2
+
+go 1.15
+
+require (
+	contrib.go.opencensus.io/exporter/prometheus v0.4.0
+	github.com/OneOfOne/xxhash v1.2.5 // indirect
+	github.com/bits-and-blooms/bitset v1.2.1
+	github.com/btcsuite/btcd v0.22.0-beta
+	github.com/chrislusf/seaweedfs v0.0.0-20211012155459-7700bf62f0ce
+	github.com/dgraph-io/badger/v2 v2.2007.4
+	github.com/ethereum/go-ethereum v1.10.12
+	github.com/filecoin-project/go-jsonrpc v0.1.5
+	github.com/fxamacker/cbor/v2 v2.3.0
+	github.com/gbrlsnchs/jwt/v3 v3.0.1
+	github.com/go-errors/errors v1.4.1 // indirect
+	github.com/gogo/protobuf v1.3.2
+	github.com/golang/protobuf v1.5.2
+	github.com/google/uuid v1.3.0
+	github.com/gorilla/mux v1.8.0
+	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
+	github.com/herumi/bls-eth-go-binary v0.0.0-20210917013441-d37c07cfda4e
+	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
+	github.com/ipfs/go-cid v0.1.0 // indirect
+	github.com/ipfs/go-datastore v0.4.6
+	github.com/ipfs/go-ds-leveldb v0.4.2
+	github.com/ipfs/go-fs-lock v0.0.7
+	github.com/jbenet/goprocess v0.1.4
+	github.com/kilic/bls12-381 v0.1.0
+	github.com/klauspost/reedsolomon v1.9.13
+	github.com/libp2p/go-eventbus v0.2.1
+	github.com/libp2p/go-libp2p v0.14.0
+	github.com/libp2p/go-libp2p-core v0.8.6
+	github.com/libp2p/go-libp2p-discovery v0.5.0
+	github.com/libp2p/go-libp2p-kad-dht v0.12.0
+	github.com/libp2p/go-libp2p-mplex v0.4.1
+	github.com/libp2p/go-libp2p-noise v0.2.0
+	github.com/libp2p/go-libp2p-peerstore v0.3.0
+	github.com/libp2p/go-libp2p-pubsub v0.4.2
+	github.com/libp2p/go-libp2p-swarm v0.5.0
+	github.com/libp2p/go-libp2p-tls v0.1.3
+	github.com/libp2p/go-libp2p-yamux v0.5.3
+	github.com/libp2p/go-msgio v0.0.6
+	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
+	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
+	github.com/minio/minio-go/v6 v6.0.57
+	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mr-tron/base58 v1.2.0
+	github.com/multiformats/go-multiaddr v0.3.3
+	github.com/multiformats/go-multiaddr-dns v0.3.1
+	github.com/multiformats/go-multihash v0.0.15
+	github.com/prometheus/client_golang v1.11.0
+	github.com/sakeven/RbTree v0.0.0-20190505104653-18ee3093df2f
+	github.com/stretchr/testify v1.7.0
+	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
+	github.com/urfave/cli/v2 v2.3.0
+	github.com/zeebo/blake3 v0.2.1
+	go.opencensus.io v0.23.0
+	go.uber.org/zap v1.19.1
+	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	lukechampine.com/frand v1.4.2
+	memoContract v0.0.0-00010101000000-000000000000
+)
+
+replace memoContract => ../memo-go-contracts-v2
