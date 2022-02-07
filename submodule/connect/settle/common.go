@@ -163,6 +163,8 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 		err = erc20.Transfer(addr, val)
 		if err != nil {
 			logger.Debug("erc20 transfer fail: ", callconts.ERC20Addr, addr, val, err)
+			retry++
+			continue
 		}
 
 		if err = <-status; err != nil {
