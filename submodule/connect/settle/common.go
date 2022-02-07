@@ -142,13 +142,15 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 
 	logger.Debug("admin has erc20 balance: ", adminVal)
 
-	err = erc20.MintToken(callconts.AdminAddr, val)
-	if err != nil {
-		logger.Debug("erc20 mintToken fail: ", callconts.ERC20Addr, callconts.AdminAddr, val)
-	}
-
-	if err = <-status; err != nil {
-		logger.Fatal("erc20 mintToken fail: ", err)
+	if adminVal.Cmp(val) < 0 {
+		err = erc20.MintToken(callconts.AdminAddr, val)
+		if err != nil {
+			logger.Debug("erc20 mintToken fail: ", callconts.ERC20Addr, callconts.AdminAddr, val)
+		} else {
+			if err = <-status; err != nil {
+				logger.Fatal("erc20 mintToken fail: ", err)
+			}
+		}
 	}
 
 	oldVal, err := erc20.BalanceOf(addr)
