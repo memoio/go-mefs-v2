@@ -489,16 +489,19 @@ func (m *OrderMgr) redoSegJob(sj *types.SegJob) {
 	if ok {
 		id := uint(sj.Start-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
 		seg.dispatchBits.Clear(id)
-	}
 
-	data, err := seg.Serialize()
-	if err != nil {
+		data, err := seg.Serialize()
+		if err != nil {
+			return
+		}
+
+		key := store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, seg.BucketID, seg.JobID)
+
+		m.ds.Put(key, data)
 		return
 	}
 
-	key := store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, seg.BucketID, seg.JobID)
-
-	m.ds.Put(key, data)
+	logger.Debug("fail redo job: ", sj)
 }
 
 func (m *OrderMgr) dispatch() {
