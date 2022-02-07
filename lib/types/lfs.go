@@ -6,9 +6,16 @@ const (
 	MaxListKeys = 1000
 )
 
+type LfsInfo struct {
+	Status bool
+	Bucket uint64
+	Used   uint64
+}
+
 type BucketInfo struct {
 	pb.BucketOption
 	pb.BucketInfo
+	Confirmed bool `json:"Confirmed"`
 }
 
 type ObjectInfo struct {
@@ -19,9 +26,6 @@ type ObjectInfo struct {
 	State  string               `json:"State"`
 	Etag   []byte               `json:"MD5"`
 }
-
-// CompleteFunc is a function type that is called when the download completed.
-type CompleteFunc func(error) error
 
 type DownloadObjectOptions struct {
 	Start, Length int64
@@ -45,10 +49,6 @@ func DefaultListOption() *ListObjectsOptions {
 		MaxKeys:   MaxListKeys,
 		Recursive: true,
 	}
-}
-
-type ListObjectsResult struct {
-	Objects []*pb.ObjectInfo
 }
 
 type PutObjectOptions struct {

@@ -2,37 +2,34 @@ package role
 
 import (
 	"context"
-	"errors"
-	"strconv"
+	"encoding/binary"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 )
-
-var logger = logging.Logger("roleinfo")
-
-var ErrNotFound = errors.New("not found")
 
 type RoleMgr struct {
 	sync.RWMutex
 	api.IWallet
 
+	is *settle.ContractMgr
+
 	ctx     context.Context
 	roleID  uint64
 	groupID uint64
 
-	localAddr address.Address
-	blsAddr   address.Address
-
-	infos map[uint64]pb.RoleInfo // get from chain
+	infos map[uint64]*pb.RoleInfo // get from chain
 
 	users     []uint64 // related role
 	keepers   []uint64
@@ -41,38 +38,24 @@ type RoleMgr struct {
 	ds store.KVStore
 }
 
-func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet) (*RoleMgr, error) {
-
-	data, err := ds.Get([]byte(strconv.Itoa(int(pb.MetaType_RoleInfoKey))))
+func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet, is *settle.ContractMgr) (*RoleMgr, error) {
+	// cureent node is registered
+	ri, err := is.SettleGetRoleInfoAt(ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
-
-	ri := new(pb.RoleInfo)
-	err = proto.Unmarshal(data, ri)
-	if err != nil {
-		return nil, err
-	}
-
-	if ri.ID != roleID {
-		logger.Debug("roleID not equal")
-	}
-
-	localAddr, _ := address.NewAddress(ri.ChainVerifyKey)
-	blsAddr, _ := address.NewAddress(ri.BlsVerifyKey)
 
 	rm := &RoleMgr{
-		IWallet:   iw,
-		ctx:       ctx,
-		roleID:    roleID,
-		groupID:   groupID,
-		infos:     make(map[uint64]pb.RoleInfo),
-		ds:        ds,
-		localAddr: localAddr,
-		blsAddr:   blsAddr,
+		IWallet: iw,
+		is:      is,
+		ctx:     ctx,
+		roleID:  roleID,
+		groupID: groupID,
+		infos:   make(map[uint64]*pb.RoleInfo),
+		ds:      ds,
 	}
 
-	rm.infos[roleID] = *ri
+	rm.addRoleInfo(ri, true)
 
 	return rm, nil
 }
@@ -81,41 +64,197 @@ func (rm *RoleMgr) API() *roleAPI {
 	return &roleAPI{rm}
 }
 
-// load infos from local store
-func (rm *RoleMgr) load() {
-	// load pb.NodeInfo from local
+func (rm *RoleMgr) loadpro() {
+	key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
+	val, err := rm.ds.Get(key)
+	if err != nil {
+		return
+	}
+
+	for i := 0; i < len(val)/8; i++ {
+		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+		rm.get(pid)
+	}
 }
 
-// save infos to local store
-func (rm *RoleMgr) save() {
+func (rm *RoleMgr) loadkeeper() {
+	key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Keeper.String())
+	val, err := rm.ds.Get(key)
+	if err != nil {
+		return
+	}
 
+	for i := 0; i < len(val)/8; i++ {
+		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+		rm.get(pid)
+	}
 }
 
-func (rm *RoleMgr) Sync(ctx context.Context) {
-	t := time.NewTicker(60 * time.Second)
-	defer t.Stop()
+func (rm *RoleMgr) Start() {
+	logger.Debug("start sync from remote chain")
+
+	rm.loadkeeper()
+	rm.loadpro()
+
+	go rm.syncFromChain()
+}
+
+func (rm *RoleMgr) syncFromChain() {
+	//get all addrs and added it into roleMgr
+	tc := time.NewTicker(30 * time.Second)
+	defer tc.Stop()
+
+	key := store.NewKey(pb.MetaType_RoleInfoKey)
+
+	kCnt := uint64(0)
+	pCnt := uint64(0)
+	uCnt := uint64(0)
+
+	val, _ := rm.ds.Get(key)
+	if len(val) >= 24 {
+		kCnt = binary.BigEndian.Uint64(val[:8])
+		pCnt = binary.BigEndian.Uint64(val[8:16])
+		uCnt = binary.BigEndian.Uint64(val[16:24])
+	}
+
 	for {
 		select {
-		case <-t.C:
-			// load from chain
-			rm.SyncFromChain(ctx)
-		case <-ctx.Done():
+		case <-rm.ctx.Done():
 			return
+		case <-tc.C:
+			if rm.groupID == 0 {
+				continue
+			}
+
+			kcnt, err := rm.is.GetGKNum()
+			if err != nil {
+				logger.Debugf("get group %d keeper count fail %w", rm.groupID, err)
+				continue
+			}
+			if kcnt > kCnt {
+				nkey := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Keeper.String())
+				data, _ := rm.ds.Get(nkey)
+				for i := kCnt; i < kcnt; i++ {
+					kindex, err := rm.is.GetGroupK(i)
+					if err != nil {
+						logger.Debugf("get group %d keeper %d fail %w", rm.groupID, i, err)
+						continue
+					}
+
+					buf := make([]byte, 8)
+					binary.BigEndian.PutUint64(buf, kindex)
+					data = append(data, buf...)
+
+					pri, err := rm.is.SettleGetRoleInfoAt(context.TODO(), kindex)
+					if err != nil {
+						continue
+					}
+
+					rm.AddRoleInfo(pri)
+				}
+				kCnt = kcnt
+				rm.ds.Put(nkey, data)
+			}
+
+			ucnt, pcnt, err := rm.is.GetGUPNum()
+			if err != nil {
+				logger.Debugf("get group %d user-pro count fail %w", rm.groupID, err)
+				continue
+			}
+			if pcnt > pCnt {
+				nkey := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
+				data, _ := rm.ds.Get(nkey)
+
+				for i := pCnt; i < pcnt; i++ {
+					pindex, err := rm.is.GetGroupP(i)
+					if err != nil {
+						logger.Debugf("get group %d pro %d fail %w", rm.groupID, i, err)
+						continue
+					}
+
+					buf := make([]byte, 8)
+					binary.BigEndian.PutUint64(buf, pindex)
+					data = append(data, buf...)
+
+					pri, err := rm.is.SettleGetRoleInfoAt(context.TODO(), pindex)
+					if err != nil {
+						continue
+					}
+
+					rm.AddRoleInfo(pri)
+				}
+				pCnt = pcnt
+
+				kCnt = kcnt
+				rm.ds.Put(nkey, data)
+			}
+
+			if ucnt > uCnt {
+				for i := uCnt; i < ucnt; i++ {
+					uindex, err := rm.is.GetGroupU(i)
+					if err != nil {
+						logger.Debugf("get group %d user %d fail %w", rm.groupID, i, err)
+						continue
+					}
+
+					pri, err := rm.is.SettleGetRoleInfoAt(context.TODO(), uindex)
+					if err != nil {
+						continue
+					}
+
+					rm.AddRoleInfo(pri)
+				}
+				uCnt = ucnt
+			}
+
+			logger.Debug("sync from chain: ", kCnt, pCnt, uCnt)
+
+			buf := make([]byte, 24)
+			binary.BigEndian.PutUint64(buf[:8], kCnt)
+			binary.BigEndian.PutUint64(buf[8:16], pCnt)
+			binary.BigEndian.PutUint64(buf[16:24], uCnt)
+			rm.ds.Put(key, buf)
 		}
 	}
 }
 
-func (rm *RoleMgr) SyncFromChain(ctx context.Context) {
+func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
+	ri, ok := rm.infos[roleID]
+	if ok {
+		return ri, nil
+	}
 
+	key := store.NewKey(pb.MetaType_RoleInfoKey, roleID)
+	val, err := rm.ds.Get(key)
+	if err == nil {
+		ri = new(pb.RoleInfo)
+		err = proto.Unmarshal(val, ri)
+		if err == nil {
+			rm.addRoleInfo(ri, false)
+			return ri, nil
+		}
+	}
+
+	ri, err = rm.is.SettleGetRoleInfoAt(rm.ctx, roleID)
+	if err != nil {
+		return nil, err
+	}
+
+	if ri.GroupID != rm.groupID {
+		return nil, xerrors.Errorf("not my group")
+	}
+
+	rm.addRoleInfo(ri, true)
+
+	return ri, nil
 }
 
-func (rm *RoleMgr) AddRoleInfo(ri pb.RoleInfo) {
-	rm.Lock()
-	defer rm.Unlock()
-	logger.Debug("add role info for: ", ri.ID)
+func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo, save bool) {
 	_, ok := rm.infos[ri.ID]
 	if !ok {
+		logger.Debug("add role info for: ", ri.ID)
 		rm.infos[ri.ID] = ri
+
 		switch ri.Type {
 		case pb.RoleInfo_Keeper:
 			rm.keepers = append(rm.keepers, ri.ID)
@@ -126,39 +265,59 @@ func (rm *RoleMgr) AddRoleInfo(ri pb.RoleInfo) {
 		default:
 			return
 		}
+
+		if save {
+			key := store.NewKey(pb.MetaType_RoleInfoKey, ri.ID)
+
+			pbyte, err := proto.Marshal(ri)
+			if err != nil {
+				return
+			}
+			rm.ds.Put(key, pbyte)
+		}
 	}
 }
 
-func (rm *RoleMgr) GetPubKey(roleID uint64) []byte {
-	rm.RLock()
-	defer rm.RUnlock()
-	ri, ok := rm.infos[roleID]
-	if ok {
-		return ri.ChainVerifyKey
-	}
-	return nil
+func (rm *RoleMgr) AddRoleInfo(ri *pb.RoleInfo) {
+	rm.Lock()
+	defer rm.Unlock()
+	rm.addRoleInfo(ri, true)
 }
 
-func (rm *RoleMgr) GetBlsPubKey(roleID uint64) []byte {
-	rm.RLock()
-	defer rm.RUnlock()
-
-	ri, ok := rm.infos[roleID]
-	if ok {
-		return ri.BlsVerifyKey
+func (rm *RoleMgr) GetPubKey(roleID uint64, typ types.KeyType) (address.Address, error) {
+	rm.Lock()
+	defer rm.Unlock()
+	ri, err := rm.get(roleID)
+	if err != nil {
+		return address.Undef, err
 	}
-	return nil
+
+	switch typ {
+	case types.Secp256k1:
+		return address.NewAddress(ri.ChainVerifyKey)
+	case types.BLS:
+		return address.NewAddress(ri.BlsVerifyKey)
+	default:
+		return address.Undef, xerrors.New("key not supported")
+	}
 }
 
-func (rm *RoleMgr) RoleGetKeyset() (pdpcommon.KeySet, error) {
-	ki, err := rm.WalletExport(rm.ctx, rm.localAddr)
+func (rm *RoleMgr) RoleGetKeyset(roleID uint64) (pdpcommon.KeySet, error) {
+	addr, err := rm.GetPubKey(roleID, types.Secp256k1)
+	if err != nil {
+		return nil, err
+	}
+
+	ki, err := rm.WalletExport(rm.ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 
 	privBytes := ki.SecretKey
 
-	keyset, err := pdpv2.GenKeySetWithSeed(privBytes, pdpv2.SCount)
+	privBytes = append(privBytes, byte(types.PDP))
+
+	keyset, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, privBytes)
 	if err != nil {
 		return nil, err
 	}

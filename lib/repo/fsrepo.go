@@ -1,10 +1,8 @@
 package repo
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,9 +17,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 
+	"github.com/ipfs/go-datastore"
+	levelds "github.com/ipfs/go-ds-leveldb"
 	lockfile "github.com/ipfs/go-fs-lock"
 	"github.com/mitchellh/go-homedir"
-	"github.com/pkg/errors"
+	ldbopts "github.com/syndtr/goleveldb/leveldb/opt"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -33,14 +34,16 @@ const (
 
 	keyStorePathPrefix = "keystore" // $MefsPath/keystore
 
-	metaPathPrefix = "meta" // $MefsPath/meta
+	metaPathPrefix  = "meta"  // $MefsPath/meta
+	statePathPrefix = "state" // $MefsPath/state
 
 	DataPathPrefix   = "data"   // $MefsPath/data
 	PiecesPathPrefix = "pieces" // $MefsPath/data/pieces
 	SectorPathPrefix = "sector" // $MefsPath/data/sector
 	VoluemPathPrefix = "volume" // $MefsPath/data/volume
 
-	metaStorePrefix = "meta" // key prefix
+	metaStorePrefix  = "meta" // key prefix
+	stateStorePrefix = "meta" // key prefix
 )
 
 var logger = logging.Logger("repo")
@@ -54,9 +57,12 @@ type FSRepo struct {
 	lk  sync.RWMutex
 	cfg *config.Config
 
-	keyDs  types.KeyStore
-	metaDs store.KVStore
-	fileDs store.FileStore
+	keyDs   types.KeyStore
+	metaDs  store.KVStore
+	stateDs store.KVStore
+	fileDs  store.FileStore
+
+	dhtDs datastore.Batching
 
 	// lockfile is the file system lock to prevent others from opening the same repo.
 	lockfile io.Closer
@@ -75,28 +81,28 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 	}
 
 	if err := ensureWritableDirectory(repoPath); err != nil {
-		return nil, errors.Wrap(err, "no writable directory")
+		return nil, xerrors.Errorf("no writable directory %w", err)
 	}
 
 	hasConfig, err := hasConfig(repoPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to check for repo config")
+		return nil, xerrors.Errorf("failed to check for repo config %w", err)
 	}
 
 	if !hasConfig {
 		if cfg != nil {
-			log.Println("initializing memo repo at: ", repoPath)
+			logger.Info("initializing memo repo at: ", repoPath)
 			if err = initFSRepo(repoPath, cfg); err != nil {
 				return nil, err
 			}
 		} else {
-			return nil, errors.Errorf("no repo found at %s; run: 'init [--repo=%s]'", repoPath, repoPath)
+			return nil, xerrors.Errorf("no repo found at %s; run: 'init [--repo=%s]'", repoPath, repoPath)
 		}
 	}
 
 	info, err := os.Stat(repoPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to stat repo link %s", repoPath)
+		return nil, xerrors.Errorf("failed to stat repo %s %w", repoPath, err)
 	}
 
 	// Resolve path if it's a symlink.
@@ -106,7 +112,7 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 	} else {
 		actualPath, err = os.Readlink(repoPath)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to follow repo symlink %s", repoPath)
+			return nil, xerrors.Errorf("failed to follow repo symlink %s %w", repoPath, err)
 		}
 	}
 
@@ -114,7 +120,7 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 
 	r.lockfile, err = lockfile.Lock(r.path, lockFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to take repo lock")
+		return nil, xerrors.Errorf("failed to take repo lock %w", err)
 	}
 
 	if err := r.loadFromDisk(); err != nil {
@@ -129,32 +135,44 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 
 func initFSRepo(dir string, cfg *config.Config) error {
 	if err := initConfig(dir, cfg); err != nil {
-		return errors.Wrap(err, "initializing config file failed")
+		return xerrors.Errorf("initializing config file failed %w", err)
 	}
 
 	kstorePath := filepath.Join(dir, keyStorePathPrefix)
 	if err := os.MkdirAll(kstorePath, 0700); err != nil {
-		return errors.Wrap(err, "initializing keystore directory failed")
+		return xerrors.Errorf("initializing keystore directory failed %w", err)
 	}
 
 	return nil
 }
 
 func (r *FSRepo) loadFromDisk() error {
+	if err := r.removeAPIFile(); err != nil {
+		logger.Warnf("fail to remove api: %s", err)
+	}
+
 	if err := r.loadConfig(); err != nil {
-		return errors.Wrap(err, "failed to load config file")
+		return xerrors.Errorf("failed to load config file %w", err)
 	}
 
 	if err := r.openKeyStore(); err != nil {
-		return errors.Wrap(err, "failed to open keystore")
+		return xerrors.Errorf("failed to open keystore %w", err)
+	}
+
+	if err := r.openDhtStore(); err != nil {
+		return xerrors.Errorf("failed to open dht datastore %w", err)
 	}
 
 	if err := r.openMetaStore(); err != nil {
-		return errors.Wrap(err, "failed to open datastore")
+		return xerrors.Errorf("failed to open meta store %w", err)
+	}
+
+	if err := r.openStateStore(); err != nil {
+		return xerrors.Errorf("failed to open state store %w", err)
 	}
 
 	if err := r.openFileStore(); err != nil {
-		return errors.Wrap(err, "failed to open metadata datastore")
+		return xerrors.Errorf("failed to open metadata datastore %w", err)
 	}
 
 	return nil
@@ -193,26 +211,42 @@ func (r *FSRepo) MetaStore() store.KVStore {
 	return r.metaDs
 }
 
+func (r *FSRepo) StateStore() store.KVStore {
+	return r.stateDs
+}
+
 func (r *FSRepo) FileStore() store.FileStore {
 	return r.fileDs
+}
+
+func (r *FSRepo) DhtStore() datastore.Batching {
+	return r.dhtDs
 }
 
 // Close closes the repo.
 func (r *FSRepo) Close() error {
 	if err := r.metaDs.Close(); err != nil {
-		return errors.Wrap(err, "failed to close meta datastore")
+		return xerrors.Errorf("failed to close meta datastore %w", err)
+	}
+
+	if err := r.stateDs.Close(); err != nil {
+		return xerrors.Errorf("failed to close meta datastore %w", err)
 	}
 
 	if err := r.keyDs.Close(); err != nil {
-		return errors.Wrap(err, "failed to close datastore")
+		return xerrors.Errorf("failed to close datastore %w", err)
+	}
+
+	if err := r.dhtDs.Close(); err != nil {
+		return xerrors.Errorf("failed to close dht datastore %w", err)
 	}
 
 	if err := r.fileDs.Close(); err != nil {
-		return errors.Wrap(err, "failed to close datastore")
+		return xerrors.Errorf("failed to close file store %w", err)
 	}
 
 	if err := r.removeAPIFile(); err != nil {
-		return errors.Wrap(err, "error removing API file")
+		return xerrors.Errorf("failed to remove API file %w", err)
 	}
 
 	return r.lockfile.Close()
@@ -249,7 +283,7 @@ func (r *FSRepo) loadConfig() error {
 
 	cfg, err := config.ReadFile(configFile)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read config file at %q", configFile)
+		return xerrors.Errorf("failed to read config file at %q %w", configFile, err)
 	}
 
 	r.cfg = cfg
@@ -287,6 +321,21 @@ func (r *FSRepo) openMetaStore() error {
 	return nil
 }
 
+func (r *FSRepo) openStateStore() error {
+	mpath := path.Join(r.path, statePathPrefix)
+
+	opt := kv.DefaultOptions
+
+	ds, err := kv.NewBadgerStore(mpath, &opt)
+	if err != nil {
+		return err
+	}
+
+	r.stateDs = ds
+
+	return nil
+}
+
 func (r *FSRepo) openFileStore() error {
 	dpath := r.cfg.Data.DataPath
 	if dpath == "" {
@@ -303,13 +352,31 @@ func (r *FSRepo) openFileStore() error {
 	return nil
 }
 
+func (r *FSRepo) openDhtStore() error {
+	mpath := path.Join(r.path, "dht")
+
+	ds, err := levelds.NewDatastore(mpath, &levelds.Options{
+		Compression: ldbopts.NoCompression,
+		NoSync:      false,
+		Strict:      ldbopts.StrictAll,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	r.dhtDs = ds
+
+	return nil
+}
+
 func initConfig(p string, cfg *config.Config) error {
 	configFile := filepath.Join(p, configFilename)
 	exists, err := fileExists(configFile)
 	if err != nil {
-		return errors.Wrap(err, "error inspecting config file")
+		return xerrors.Errorf("failed to inspect config file %w", err)
 	} else if exists {
-		return fmt.Errorf("config file already exists: %s", configFile)
+		return xerrors.Errorf("config file already exists: %s", configFile)
 	}
 
 	if err := cfg.WriteFile(configFile); err != nil {
@@ -328,19 +395,19 @@ func ensureWritableDirectory(path string) error {
 	if err == nil {
 		return nil // Skip the checks below, we just created it.
 	} else if !os.IsExist(err) {
-		return errors.Wrapf(err, "failed to create directory %s", path)
+		return xerrors.Errorf("failed to create directory %s %w", path, err)
 	}
 
 	// Inspect existing directory.
 	stat, err := os.Stat(path)
 	if err != nil {
-		return errors.Wrapf(err, "failed to stat path \"%s\"", path)
+		return xerrors.Errorf("failed to stat path %s %w", path, err)
 	}
 	if !stat.IsDir() {
-		return errors.Errorf("%s is not a directory", path)
+		return xerrors.Errorf("%s is not a directory", path)
 	}
 	if (stat.Mode() & 0600) != 0600 {
-		return errors.Errorf("insufficient permissions for path %s, got %04o need %04o", path, stat.Mode(), 0600)
+		return xerrors.Errorf("insufficient permissions for path %s, got %04o need %04o", path, stat.Mode(), 0600)
 	}
 	return nil
 }
@@ -385,22 +452,18 @@ func fileExists(file string) (bool, error) {
 func (r *FSRepo) SetAPIAddr(maddr string) error {
 	f, err := os.Create(filepath.Join(r.path, apiFile))
 	if err != nil {
-		return errors.Wrap(err, "could not create API file")
+		return xerrors.Errorf("could not create API file %w", err)
 	}
 
 	defer f.Close() // nolint: errcheck
 
 	_, err = f.WriteString(maddr)
 	if err != nil {
-		// If we encounter an error writing to the API file,
-		// delete the API file. The error encountered while
-		// deleting the API file will be returned (if one
-		// exists) instead of the write-error.
 		if err := r.removeAPIFile(); err != nil {
-			return errors.Wrap(err, "failed to remove API file")
+			return xerrors.Errorf("failed to remove API file %w", err)
 		}
 
-		return errors.Wrap(err, "failed to write to API file")
+		return xerrors.Errorf("failed to write to API file %w", err)
 	}
 
 	return nil
@@ -415,7 +478,7 @@ func apiAddrFromFile(repoPath string) (string, error) {
 	jsonrpcFile := filepath.Join(repoPath, apiFile)
 	jsonrpcAPI, err := ioutil.ReadFile(jsonrpcFile)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to read API file")
+		return "", xerrors.Errorf("failed to read API file %w", err)
 	}
 
 	return string(jsonrpcAPI), nil

@@ -1,11 +1,11 @@
 package volume
 
-import "errors"
+import "golang.org/x/xerrors"
 
 var (
-	ErrNotFound    = errors.New("key not found")
-	ErrDataLength  = errors.New("data length is incorrect")
-	ErrDirExist    = errors.New("dir exist")
-	ErrEmptyConfig = errors.New("config is nil")
-	ErrClosed      = errors.New("volume filestore closed")
+	ErrNotFound    = xerrors.New("key not found")
+	ErrDataLength  = xerrors.New("data length is incorrect")
+	ErrDirExist    = xerrors.New("dir exist")
+	ErrEmptyConfig = xerrors.New("config is nil")
+	ErrClosed      = xerrors.New("volume filestore closed")
 )

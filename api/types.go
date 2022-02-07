@@ -1,11 +1,21 @@
 package api
 
 import (
+	"math/big"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
+
+type GroupInfo struct {
+	ID     uint64
+	Level  uint16
+	FsAddr string
+	Size   uint64
+	Price  *big.Int
+}
 
 type ExtendedPeerInfo struct {
 	ID          peer.ID
@@ -68,4 +78,57 @@ func (ci SwarmConnInfos) Len() int {
 
 func (ci SwarmConnInfos) Swap(i, j int) {
 	ci.Peers[i], ci.Peers[j] = ci.Peers[j], ci.Peers[i]
+}
+
+type BalanceInfo struct {
+	Value    *big.Int
+	FsValue  *big.Int
+	ErcValue *big.Int // should be map?
+}
+
+type PledgeInfo struct {
+	Value    *big.Int
+	ErcTotal *big.Int
+	Total    *big.Int
+}
+
+type StoreInfo struct {
+	Time     int64
+	Nonce    uint64
+	SubNonce uint64
+	Size     uint64
+	Price    *big.Int
+}
+
+type OrderInfo struct {
+	ID uint64
+
+	AvailTime int64
+
+	Nonce      uint64
+	OrderTime  int64
+	OrderState string
+
+	SeqNum   uint32
+	SeqTime  int64
+	SeqState string
+
+	Jobs int
+
+	Ready  bool
+	InStop bool
+}
+
+type SyncInfo struct {
+	Status       bool
+	SyncedHeight uint64
+	RemoteHeight uint64
+}
+
+type StateInfo struct {
+	Height  uint64      // block next height
+	Slot    uint64      // distance from basetime
+	Epoch   uint64      // challenge
+	Root    types.MsgID // state root
+	BlockID types.MsgID
 }

@@ -2,16 +2,15 @@ package signature
 
 import (
 	"bytes"
-	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/zeebo/blake3"
-	"golang.org/x/crypto/sha3"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/bls"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature/secp256k1"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 func GenerateKey(typ types.KeyType) (common.PrivKey, error) {
@@ -41,7 +40,7 @@ func ParsePrivateKey(privatekey []byte, typ types.KeyType) (common.PrivKey, erro
 			return nil, err
 		}
 	default:
-		return nil, errors.Wrap(common.ErrBadKeyType, strconv.Itoa(int(typ)))
+		return nil, xerrors.Errorf("%d is %w", typ, common.ErrBadKeyType)
 	}
 	return privkey, nil
 }
@@ -76,19 +75,17 @@ func Verify(pubBytes []byte, data, sig []byte) (bool, error) {
 	switch plen {
 	case 20:
 		// for eth address
-		msg := blake3.Sum256(data)
+		if len(data) != 32 {
+			msg := blake3.Sum256(data)
+			data = msg[:]
+		}
 
-		rePub, err := secp256k1.EcRecover(msg[:], sig)
+		rePub, err := secp256k1.EcRecover(data, sig)
 		if err != nil {
 			return false, err
 		}
 
-		d := sha3.NewLegacyKeccak256()
-		d.Write(rePub[1:])
-		res := d.Sum(nil)
-		if bytes.Equal(pubBytes, res) {
-			return true, nil
-		}
+		return bytes.Equal(pubBytes, utils.ToEthAddress(rePub)), nil
 	default:
 		pk, err := ParsePubByte(pubBytes)
 		if err != nil {
@@ -97,5 +94,4 @@ func Verify(pubBytes []byte, data, sig []byte) (bool, error) {
 
 		return pk.Verify(data, sig)
 	}
-	return false, nil
 }

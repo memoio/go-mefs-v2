@@ -18,7 +18,6 @@ var _ pdpcommon.Challenge = (*Challenge)(nil)
 var _ pdpcommon.Proof = (*Proof)(nil)
 var _ pdpcommon.DataVerifier = (*DataVerifier)(nil)
 var _ pdpcommon.ProofAggregator = (*ProofAggregator)(nil)
-var _ pdpcommon.ProofVerifier = (*ProofVerifier)(nil)
 
 const MaxPkNumCount = SCount
 
@@ -31,26 +30,38 @@ type SecretKey struct {
 	ElemAlpha []Fr
 }
 
-func (sk *SecretKey) Version() int {
-	return 2
+func (sk *SecretKey) Version() uint16 {
+	return pdpcommon.PDPV2
 }
 
 func (sk *SecretKey) Serialize() []byte {
-	buf := make([]byte, 2*FrSize)
-	copy(buf[0:FrSize], bls.FrToBytes(&sk.BlsSk))
-	copy(buf[FrSize:2*FrSize], bls.FrToBytes(&sk.Alpha))
+	if sk == nil {
+		return nil
+	}
+	buf := make([]byte, 2+2*FrSize)
+	binary.BigEndian.PutUint16(buf[:2], sk.Version())
+	copy(buf[2:2+FrSize], bls.FrToBytes(&sk.BlsSk))
+	copy(buf[2+FrSize:2+2*FrSize], bls.FrToBytes(&sk.Alpha))
 	return buf
 }
 
 func (sk *SecretKey) Deserialize(data []byte) error {
-	if len(data) != 2*FrSize {
+	if sk == nil {
+		return pdpcommon.ErrKeyIsNil
+	}
+	if len(data) != 2+2*FrSize {
 		return pdpcommon.ErrNumOutOfRange
 	}
-	err := bls.FrFromBytes(&sk.BlsSk, data[0:FrSize])
+	ver := binary.BigEndian.Uint16(data[:2])
+	if ver != pdpcommon.PDPV2 {
+		return pdpcommon.ErrVersionUnmatch
+	}
+
+	err := bls.FrFromBytes(&sk.BlsSk, data[2:2+FrSize])
 	if err != nil {
 		return err
 	}
-	err = bls.FrFromBytes(&sk.Alpha, data[FrSize:2*FrSize])
+	err = bls.FrFromBytes(&sk.Alpha, data[2+FrSize:2+2*FrSize])
 	if err != nil {
 		return err
 	}
@@ -83,8 +94,8 @@ type PublicKey struct {
 	ElemAlphas []G1 // g_1 * alpha^0,g_1 * alpha^1...g_1 * alpha^count-1
 }
 
-func (pk *PublicKey) Version() int {
-	return 2
+func (pk *PublicKey) Version() uint16 {
+	return pdpcommon.PDPV2
 }
 
 func (pk *PublicKey) GetCount() int64 {
@@ -103,13 +114,16 @@ func (pk *PublicKey) Serialize() []byte {
 	if pk == nil {
 		return nil
 	}
-	buf := make([]byte, 8+2*G2Size+G1Size+int(pk.Count)*G1Size)
-	binary.BigEndian.PutUint64(buf[:8], uint64(pk.Count))
-	copy(buf[8:8+G2Size], bls.G2Serialize(&pk.BlsPk))
-	copy(buf[8+G2Size:8+2*G2Size], bls.G2Serialize(&pk.Zeta))
-	copy(buf[8+2*G2Size:8+2*G2Size+G1Size], bls.G1Serialize(&pk.Phi))
+	buf := make([]byte, 10+2*G2Size+G1Size+int(pk.Count)*G1Size)
+
+	binary.BigEndian.PutUint16(buf[:2], pk.Version())
+	binary.BigEndian.PutUint64(buf[2:10], uint64(pk.Count))
+	copy(buf[10:10+G2Size], bls.G2Serialize(&pk.BlsPk))
+	copy(buf[10+G2Size:10+2*G2Size], bls.G2Serialize(&pk.Zeta))
+	copy(buf[10+2*G2Size:10+2*G2Size+G1Size], bls.G1Serialize(&pk.Phi))
+
 	for i := 0; i < int(pk.Count); i++ {
-		copy(buf[8+2*G2Size+G1Size+i*G1Size:8+2*G2Size+G1Size+(i+1)*G1Size], bls.G1Serialize(&pk.ElemAlphas[i]))
+		copy(buf[10+2*G2Size+G1Size+i*G1Size:10+2*G2Size+G1Size+(i+1)*G1Size], bls.G1Serialize(&pk.ElemAlphas[i]))
 	}
 	return buf
 }
@@ -118,24 +132,30 @@ func (pk *PublicKey) Deserialize(data []byte) error {
 	if pk == nil {
 		return pdpcommon.ErrKeyIsNil
 	}
-	if len(data) <= 8+2*G2Size+G1Size {
+	if len(data) < 10+2*G2Size+G1Size {
 		return pdpcommon.ErrDeserializeFailed
 	}
-	pk.Count = int64(binary.BigEndian.Uint64(data[:8]))
+
+	ver := binary.BigEndian.Uint16(data[:2])
+	if ver != pdpcommon.PDPV2 {
+		return pdpcommon.ErrVersionUnmatch
+	}
+
+	pk.Count = int64(binary.BigEndian.Uint64(data[2:10]))
 	if pk.Count > MaxPkNumCount {
 		return pdpcommon.ErrDeserializeFailed
 	}
-	bls.G2Deserialize(&pk.BlsPk, data[8:8+G2Size])
-	bls.G2Deserialize(&pk.Zeta, data[8+G2Size:8+2*G2Size])
-	bls.G1Deserialize(&pk.Phi, data[8+2*G2Size:8+2*G2Size+G1Size])
-	if (len(data)-(8+2*G2Size+G1Size))/G1Size != int(pk.Count) {
+	bls.G2Deserialize(&pk.BlsPk, data[10:10+G2Size])
+	bls.G2Deserialize(&pk.Zeta, data[10+G2Size:10+2*G2Size])
+	bls.G1Deserialize(&pk.Phi, data[10+2*G2Size:10+2*G2Size+G1Size])
+	if (len(data)-(10+2*G2Size+G1Size))/G1Size != int(pk.Count) {
 		return pdpcommon.ErrNumOutOfRange
 	}
 	if int64(len(pk.ElemAlphas)) != pk.Count {
 		pk.ElemAlphas = make([]G1, pk.Count)
 	}
 	for i := 0; i < int(pk.Count); i++ {
-		bls.G1Deserialize(&pk.ElemAlphas[i], data[8+2*G2Size+G1Size+i*G1Size:8+2*G2Size+G1Size+(i+1)*G1Size])
+		bls.G1Deserialize(&pk.ElemAlphas[i], data[10+2*G2Size+G1Size+i*G1Size:10+2*G2Size+G1Size+(i+1)*G1Size])
 	}
 	return nil
 }
@@ -158,8 +178,7 @@ func (k *PublicKey) Validate(vk *VerifyKey) bool {
 		return false
 	}
 
-	var i int64
-	for i = 0; i < k.Count-1; i++ {
+	for i := int64(0); i < k.Count-1; i++ {
 		if !bls.PairingsVerify(&k.ElemAlphas[i], &k.Zeta, &k.ElemAlphas[i+1], &k.BlsPk) {
 			return false
 		}
@@ -184,9 +203,8 @@ func (k *PublicKey) ValidateFast(vk *VerifyKey) bool {
 		return false
 	}
 
-	var i int64
 	rand.Seed(time.Now().UnixNano())
-	for i = 0; i < 470; i++ {
+	for i := 0; i < 470; i++ {
 		index := rand.Int63n(k.Count - 1)
 		if !bls.PairingsVerify(&k.ElemAlphas[index], &k.Zeta, &k.ElemAlphas[index+1], &k.BlsPk) {
 			return false
@@ -201,8 +219,8 @@ type VerifyKey struct {
 	Phi   G1 // phi = g_1 * sk
 }
 
-func (vk *VerifyKey) Version() int {
-	return 2
+func (vk *VerifyKey) Version() uint16 {
+	return pdpcommon.PDPV2
 }
 
 func (vk *VerifyKey) Hash() []byte {
@@ -214,10 +232,11 @@ func (vk *VerifyKey) Serialize() []byte {
 	if vk == nil {
 		return nil
 	}
-	buf := make([]byte, 2*G2Size+G1Size)
-	copy(buf[0:G2Size], bls.G2Serialize(&vk.BlsPk))
-	copy(buf[G2Size:2*G2Size], bls.G2Serialize(&vk.Zeta))
-	copy(buf[2*G2Size:2*G2Size+G1Size], bls.G1Serialize(&vk.Phi))
+	buf := make([]byte, 2+2*G2Size+G1Size)
+	binary.BigEndian.PutUint16(buf[:2], vk.Version())
+	copy(buf[2:2+G2Size], bls.G2Serialize(&vk.BlsPk))
+	copy(buf[2+G2Size:2+2*G2Size], bls.G2Serialize(&vk.Zeta))
+	copy(buf[2+2*G2Size:2+2*G2Size+G1Size], bls.G1Serialize(&vk.Phi))
 	return buf
 }
 
@@ -225,12 +244,18 @@ func (vk *VerifyKey) Deserialize(data []byte) error {
 	if vk == nil {
 		return pdpcommon.ErrKeyIsNil
 	}
-	if len(data) != 2*G2Size+G1Size {
+	if len(data) != 2+2*G2Size+G1Size {
 		return pdpcommon.ErrNumOutOfRange
 	}
-	bls.G2Deserialize(&vk.BlsPk, data[:G2Size])
-	bls.G2Deserialize(&vk.Zeta, data[G2Size:2*G2Size])
-	bls.G1Deserialize(&vk.Phi, data[2*G2Size:2*G2Size+G1Size])
+
+	ver := binary.BigEndian.Uint16(data[:2])
+	if ver != pdpcommon.PDPV2 {
+		return pdpcommon.ErrVersionUnmatch
+	}
+
+	bls.G2Deserialize(&vk.BlsPk, data[2:2+G2Size])
+	bls.G2Deserialize(&vk.Zeta, data[2+G2Size:2+2*G2Size])
+	bls.G1Deserialize(&vk.Phi, data[2+2*G2Size:2+2*G2Size+G1Size])
 	return nil
 }
 
@@ -342,6 +367,6 @@ func (k *KeySet) SecreteKey() pdpcommon.SecretKey {
 	return k.Sk
 }
 
-func (k *KeySet) Version() int {
-	return 2
+func (k *KeySet) Version() uint16 {
+	return pdpcommon.PDPV2
 }

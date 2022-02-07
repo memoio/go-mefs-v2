@@ -7,112 +7,166 @@ import (
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 )
 
-// Tag constants
-const (
-	CRC32 = 1
-	BLS   = 2
-	PDPV0 = 3
-	PDPV1 = 4
-	PDPV2 = 5
-)
-
-// TagMap maps a hash code to it's default length
-var TagMap = map[int]int{
-	CRC32: 4,
-	BLS:   32,
-	PDPV0: 48,
-	PDPV1: 48,
-	PDPV2: 48,
-}
-
-type KeySetWithVersion struct {
-	Ver uint16
-	Sk  pdpcommon.SecretKey
-	Pk  pdpcommon.PublicKey
-}
-
-//将proof序列化后，加个版本号
-type ProofWithVersion struct {
-	Ver   uint16
-	Proof pdpcommon.Proof
-}
-
-func (pfv *ProofWithVersion) Version() int {
-	return int(pfv.Ver)
-}
-
-func (pfv *ProofWithVersion) Serialize() ([]byte, error) {
-	if pfv == nil {
-		return nil, pdpcommon.ErrKeyIsNil
+func GenerateKey(ver uint16) (pdpcommon.KeySet, error) {
+	switch ver {
+	case pdpcommon.PDPV2:
+		return pdpv2.GenKeySet()
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
 	}
-	lenBuf := make([]byte, 2)
-	binary.BigEndian.PutUint16(lenBuf, pfv.Ver)
-	pf := pfv.Proof.Serialize()
-	buf := make([]byte, 0, 2+len(pf))
-	buf = append(buf, lenBuf[:2]...)
-	buf = append(buf, pf...)
-	return buf, nil
 }
 
-func (pfv *ProofWithVersion) Deserialize(data []byte) error {
+func GenerateKeyWithSeed(ver uint16, seed []byte) (pdpcommon.KeySet, error) {
+	switch ver {
+	case pdpcommon.PDPV2:
+		return pdpv2.GenKeySetWithSeed(seed, pdpv2.SCount)
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+}
+
+func DeserializeSecretKey(data []byte) (pdpcommon.SecretKey, error) {
 	if len(data) <= 2 {
-		return pdpcommon.ErrNumOutOfRange
+		return nil, pdpcommon.ErrNumOutOfRange
+	}
+	v := binary.BigEndian.Uint16(data[:2])
+	var sk pdpcommon.SecretKey
+	switch v {
+	case pdpcommon.PDPV2:
+		sk = new(pdpv2.SecretKey)
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+
+	err := sk.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+	return sk, nil
+}
+
+func DeserializePublicKey(data []byte) (pdpcommon.PublicKey, error) {
+	if len(data) <= 2 {
+		return nil, pdpcommon.ErrNumOutOfRange
+	}
+	v := binary.BigEndian.Uint16(data[:2])
+	var pk pdpcommon.PublicKey
+	switch v {
+	case pdpcommon.PDPV2:
+		pk = new(pdpv2.PublicKey)
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+
+	err := pk.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+	return pk, err
+}
+
+func DeserializeVerifyKey(data []byte) (pdpcommon.VerifyKey, error) {
+	if len(data) <= 2 {
+		return nil, pdpcommon.ErrNumOutOfRange
+	}
+	v := binary.BigEndian.Uint16(data[:2])
+	var vk pdpcommon.VerifyKey
+	switch v {
+	case pdpcommon.PDPV2:
+		vk = new(pdpv2.VerifyKey)
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+
+	err := vk.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+	return vk, err
+}
+
+func DeserializeProof(data []byte) (pdpcommon.Proof, error) {
+	if len(data) <= 2 {
+		return nil, pdpcommon.ErrNumOutOfRange
 	}
 	v := binary.BigEndian.Uint16(data[:2])
 	var proof pdpcommon.Proof
 	switch v {
-	case PDPV2:
+	case pdpcommon.PDPV2:
 		proof = new(pdpv2.Proof)
 	default:
-		return pdpcommon.ErrInvalidSettings
+		return nil, pdpcommon.ErrInvalidSettings
 	}
 
-	err := proof.Deserialize(data[2:])
+	err := proof.Deserialize(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	pfv.Proof = proof
-	pfv.Ver = v
-	return err
+	return proof, nil
 }
 
-//将Challenge序列化后，加个版本号
-type ChallengeWithVersion struct {
-	Ver  uint16
-	Chal pdpcommon.Challenge
-}
-
-func (ch *ChallengeWithVersion) Version() int {
-	return int(ch.Ver)
-}
-
-func (ch *ChallengeWithVersion) Serialize() ([]byte, error) {
-	if ch == nil {
-		return nil, pdpcommon.ErrKeyIsNil
-	}
-	lenBuf := make([]byte, 2)
-	binary.BigEndian.PutUint16(lenBuf, ch.Ver)
-	chal := ch.Chal.Serialize()
-	buf := make([]byte, 0, 2+len(chal))
-	buf = append(buf, lenBuf[:2]...)
-	buf = append(buf, chal...)
-	return buf, nil
-}
-
-func (ch *ChallengeWithVersion) Deserialize(data []byte) error {
+func DeserializeChallenge(data []byte) (pdpcommon.Challenge, error) {
 	v := binary.BigEndian.Uint16(data[:2])
 	var chal pdpcommon.Challenge
 	switch v {
-	case PDPV2:
+	case pdpcommon.PDPV2:
 		chal = new(pdpv2.Challenge)
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+	err := chal.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+	return chal, nil
+}
+
+func Validate(pk pdpcommon.PublicKey, vk pdpcommon.VerifyKey) bool {
+	if pk.Version() != vk.Version() {
+		return false
+	}
+	switch pk.Version() {
+	case pdpcommon.PDPV2:
+		pk2 := pk.(*pdpv2.PublicKey)
+		vk2 := vk.(*pdpv2.VerifyKey)
+		return pk2.Validate(vk2)
+	default:
+		return false
+	}
+}
+
+func NewChallenge(vk pdpcommon.VerifyKey, r [32]byte) (pdpcommon.Challenge, error) {
+	switch vk.Version() {
+	case pdpcommon.PDPV2:
+		return pdpv2.NewChallenge(r), nil
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+}
+
+func NewDataVerifier(pk pdpcommon.PublicKey, sk pdpcommon.SecretKey) (pdpcommon.DataVerifier, error) {
+	switch pk.Version() {
+	case pdpcommon.PDPV2:
+		return pdpv2.NewDataVerifier(pk, sk), nil
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+}
+
+func NewProofAggregator(pk pdpcommon.PublicKey, r [32]byte) (pdpcommon.ProofAggregator, error) {
+	switch pk.Version() {
+	case pdpcommon.PDPV2:
+		return pdpv2.NewProofAggregator(pk, r), nil
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+}
+
+func CheckTag(ver uint16, tag []byte) error {
+	switch ver {
+	case pdpcommon.PDPV2:
+		return pdpv2.CheckTag(tag)
 	default:
 		return pdpcommon.ErrInvalidSettings
 	}
-	err := chal.Deserialize(data[2:])
-	if err != nil {
-		return err
-	}
-	ch.Chal = chal
-	ch.Ver = v
-	return err
 }

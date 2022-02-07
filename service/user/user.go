@@ -3,15 +3,18 @@ package user
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/address"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
-	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/service/data"
 	"github.com/memoio/go-mefs-v2/service/user/lfs"
 	uorder "github.com/memoio/go-mefs-v2/service/user/order"
+	"github.com/memoio/go-mefs-v2/submodule/connect/readpay"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -26,6 +29,8 @@ type UserNode struct {
 
 	*lfs.LfsService
 
+	api.IDataService
+
 	ctx context.Context
 }
 
@@ -35,55 +40,96 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
+	ds := bn.MetaStore()
+
 	segStore, err := segment.NewSegStore(bn.Repo.FileStore())
 	if err != nil {
 		return nil, err
 	}
 
-	keyset, err := bn.RoleMgr.RoleGetKeyset()
+	keyset, err := bn.RoleMgr.RoleGetKeyset(bn.RoleID())
 	if err != nil {
 		return nil, err
 	}
 
-	ids := data.New(bn.MetaStore(), segStore, bn.NetServiceImpl)
+	pri, err := bn.RoleMgr.RoleSelf(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), bn.MetaStore(), bn.RoleMgr, bn.NetServiceImpl, ids)
+	localAddr, err := address.NewAddress(pri.ChainVerifyKey)
+	if err != nil {
+		return nil, err
+	}
 
-	ls, err := lfs.New(ctx, bn.RoleID(), keyset, bn.MetaStore(), segStore, om)
+	sp := readpay.NewSender(localAddr, bn.LocalWallet, ds)
+
+	ids := data.New(ds, segStore, bn.NetServiceImpl, bn.RoleMgr, sp)
+
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PushPool, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ContractMgr)
+
+	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {
 		return nil, err
 	}
 
 	un := &UserNode{
-		BaseNode:   bn,
-		LfsService: ls,
-		ctx:        ctx,
+		BaseNode:     bn,
+		LfsService:   ls,
+		IDataService: ids,
+		ctx:          ctx,
 	}
+
+	un.RegisterAddSeqFunc(om.AddOrderSeq)
+	un.RegisterDelSegFunc(om.RemoveSeg)
 
 	return un, nil
 }
 
 // start service related
 func (u *UserNode) Start() error {
-	go u.OpenTest()
+	if u.Repo.Config().Net.Name == "test" {
+		go u.OpenTest()
+	} else {
+		u.RoleMgr.Start()
+	}
 
 	// register net msg handle
 	u.GenericService.Register(pb.NetMessage_SayHello, u.DefaultHandler)
-
 	u.GenericService.Register(pb.NetMessage_Get, u.HandleGet)
 
-	u.TxMsgHandle.Register(tx.DataTxErr, u.DefaultPubsubHandler)
+	u.TxMsgHandle.Register(u.BaseNode.TxMsgHandler)
+	u.BlockHandle.Register(u.BaseNode.TxBlockHandler)
 
-	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(u))
+	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))
+
+	go func() {
+		// wait for sync
+		u.PushPool.Start()
+		for {
+			if u.PushPool.Ready() {
+				break
+			} else {
+				logger.Debug("wait for sync")
+				time.Sleep(5 * time.Second)
+			}
+		}
+
+		// wait for register
+		err := u.Register()
+		if err != nil {
+			return
+		}
+
+		// start lfs service and its ordermgr service
+		u.LfsService.Start()
+	}()
 
 	logger.Info("start user for: ", u.RoleID())
 	return nil
 }
 
-func (u *UserNode) RunDaemon(ready chan interface{}) error {
-	return u.BaseNode.RunDaemon(ready)
-}
-
-func (u *UserNode) Close() {
-	u.BaseNode.Close()
+func (u *UserNode) Shutdown(ctx context.Context) error {
+	u.LfsService.Stop()
+	return u.BaseNode.Shutdown(ctx)
 }

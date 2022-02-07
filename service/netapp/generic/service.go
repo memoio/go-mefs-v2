@@ -18,7 +18,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
-var logger = logging.Logger("generic")
+var logger = logging.Logger("net-generic")
 
 type GenericService struct {
 	handler.MsgHandle

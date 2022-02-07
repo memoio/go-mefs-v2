@@ -2,11 +2,12 @@ package keystore
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -76,12 +77,12 @@ func (k *keyRepo) Get(name, auth string) (types.KeyInfo, error) {
 	}
 	// Make sure we're really operating on the requested key (no swap attacks)
 	if strings.Compare(key.Address, name) != 0 {
-		return res, fmt.Errorf("key content mismatch: have peer %x, want %x", key.Address, name)
+		return res, xerrors.Errorf("key content mismatch: have peer %x, want %x", key.Address, name)
 	}
 
 	err = json.Unmarshal(key.SecretValue, &res)
 	if err != nil {
-		return res, fmt.Errorf("decoding key '%s': %w", name, err)
+		return res, xerrors.Errorf("decoding key '%s': %w", name, err)
 	}
 
 	return res, nil

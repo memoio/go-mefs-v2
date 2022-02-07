@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
@@ -20,14 +19,12 @@ import (
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
 	ma "github.com/multiformats/go-multiaddr"
-	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
-	config "github.com/memoio/go-mefs-v2/config"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/utils/net"
-	"github.com/memoio/go-mefs-v2/lib/utils/storeutil"
 )
 
 // NetworkSubmodule enhances the `Node` with networking capabilities.
@@ -56,6 +53,7 @@ type NetworkSubmodule struct { //nolint
 
 type networkConfig interface {
 	Libp2pOpts() []libp2p.Option
+	Repo() repo.Repo
 }
 
 type blankValidator struct{}
@@ -64,7 +62,7 @@ func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
 func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 // NewNetworkSubmodule creates a new network submodule.
-func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.Config, ds store.KVStore, networkName string) (*NetworkSubmodule, error) {
+func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName string) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
 
 	libP2pOpts := append(config.Libp2pOpts(), Transport())
@@ -74,11 +72,6 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 	libP2pOpts = append(libP2pOpts, Peerstore())
 	libP2pOpts = append(libP2pOpts, makeSmuxTransportOption())
 	libP2pOpts = append(libP2pOpts, Security(true, false))
-
-	nds, err := storeutil.NewDatastore("dht", ds)
-	if err != nil {
-		return nil, err
-	}
 
 	// set up host
 	rawHost, err := libp2p.New(
@@ -93,17 +86,18 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 
 	// setup dht
 	validator := blankValidator{}
-	bootNodes, err := net.ParseAddresses(ctx, cfg.Bootstrap.Addresses)
+	bootNodes, err := net.ParseAddresses(config.Repo().Config().Bootstrap.Addresses)
 	if err != nil {
 		return nil, err
 	}
 
 	dhtopts := []dht.Option{dht.Mode(dht.ModeAutoServer),
-		dht.Datastore(nds),
+		dht.Datastore(config.Repo().DhtStore()),
 		dht.Validator(validator),
 		dht.ProtocolPrefix(build.MemoriaeDHT(networkName)),
-		dht.QueryFilter(dht.PublicQueryFilter),
-		dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
+		// uncomment these in mainnet
+		//dht.QueryFilter(dht.PublicQueryFilter),
+		//dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
 		dht.BootstrapPeers(bootNodes...),
 		dht.DisableProviders(),
 		dht.DisableValues(),
@@ -111,7 +105,7 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 
 	router, err := dht.New(ctx, rawHost, dhtopts...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to setup routing")
+		return nil, xerrors.Errorf("failed to setup routing %w", err)
 	}
 
 	peerHost := routed.Wrap(rawHost, router)
@@ -135,16 +129,31 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, cfg *config.
 		return nil, err
 	}
 
+	allowTopics := []string{
+		build.MsgTopic(networkName),
+		build.BlockTopic(networkName),
+		build.HSMsgTopic(networkName),
+		build.EventTopic(networkName),
+	}
+
 	pubsub.GossipSubHeartbeatInterval = 100 * time.Millisecond
 	options := []pubsub.Option{
 		// Gossipsubv1.1 configuration
 		pubsub.WithFloodPublish(true),
+		pubsub.WithMessageIdFn(HashMsgId),
 		pubsub.WithDiscovery(topicdisc),
+		// public bootstrap node
+		pubsub.WithDirectPeers(bootNodes),
+		// set allow topics
+		pubsub.WithSubscriptionFilter(
+			pubsub.WrapLimitSubscriptionFilter(
+				pubsub.NewAllowlistSubscriptionFilter(allowTopics...),
+				100)),
 	}
 
 	gsub, err := pubsub.NewGossipSub(ctx, peerHost, options...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to set up network")
+		return nil, xerrors.Errorf("failed to set up gossip %w", err)
 	}
 
 	// build the network submdule
@@ -213,7 +222,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 
 	swrm, ok := ns.Host.Network().(*swarm.Swarm)
 	if !ok {
-		return fmt.Errorf("peerhost network was not a swarm")
+		return xerrors.Errorf("peerhost network was not a swarm")
 	}
 
 	swrm.Backoff().Clear(pai.ID)
@@ -232,7 +241,7 @@ func (ns *NetworkSubmodule) NetGetClosestPeers(ctx context.Context, key string) 
 
 	ipfsDHT, ok := ns.Router.(*dht.IpfsDHT)
 	if !ok {
-		return nil, errors.New("underlying routing should be pointer of IpfsDHT")
+		return nil, xerrors.New("underlying routing should be pointer of IpfsDHT")
 	}
 	return ipfsDHT.GetClosestPeers(ctx, key)
 }

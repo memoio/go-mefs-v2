@@ -7,27 +7,45 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jbenet/goprocess"
+	goprocessctx "github.com/jbenet/goprocess/context"
+	"golang.org/x/sync/semaphore"
+
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/service/netapp"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
+	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 type OrderMgr struct {
 	api.IRole
-	api.INetService
 	api.IDataService
+	*txPool.PushPool
 
-	ctx context.Context
-	ds  store.KVStore // save order info
+	is *settle.ContractMgr
+	ns *netapp.NetServiceImpl
+	ds store.KVStore // save order info
+
+	lk      sync.RWMutex
+	ctx     context.Context
+	proc    goprocess.Process
+	sendCtr *semaphore.Weighted
 
 	localID uint64
 	fsID    []byte
 
 	segPrice *big.Int
+	needPay  *big.Int
 
-	orders map[uint64]*OrderFull         // key: proID
-	proMap map[uint64]*lastProsPerBucket // key: bucketID
+	pros    []uint64
+	orders  map[uint64]*OrderFull // key: proID
+	buckets []uint64
+	proMap  map[uint64]*lastProsPerBucket // key: bucketID
 
 	segs    map[jobKey]*segJob
 	segLock sync.RWMutex // for get state of job
@@ -37,36 +55,45 @@ type OrderMgr struct {
 
 	updateChan chan uint64
 
-	quoChan       chan *types.Quotation // to init
-	orderChan     chan *types.OrderBase // confirm new order
-	seqNewChan    chan *orderSeqPro     // confirm new seq
-	seqFinishChan chan *orderSeqPro     // confirm current seq
+	quoChan       chan *types.Quotation   // to init
+	orderChan     chan *types.SignedOrder // confirm new order
+	seqNewChan    chan *orderSeqPro       // confirm new seq
+	seqFinishChan chan *orderSeqPro       // confirm current seq
 
 	// add data
 	segAddChan  chan *types.SegJob
 	segRedoChan chan *types.SegJob
 	segDoneChan chan *types.SegJob
 
-	ready bool
+	// message send out
+	msgChan chan *tx.Message
+
+	ready   bool
+	inCheck bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService) *OrderMgr {
-
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is *settle.ContractMgr) *OrderMgr {
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
-		INetService:  in,
+		PushPool:     pp,
 
-		ctx: ctx,
-		ds:  ds,
+		ds: ds,
+		ns: ns,
+		is: is,
+
+		sendCtr: semaphore.NewWeighted(defaultWeighted),
 
 		localID: roleID,
 		fsID:    fsID,
 
-		segPrice: big.NewInt(100000),
+		segPrice: new(big.Int).Set(build.DefaultSegPrice),
+		needPay:  big.NewInt(0),
 
-		orders: make(map[uint64]*OrderFull),
-		proMap: make(map[uint64]*lastProsPerBucket),
+		pros:    make([]uint64, 0, 128),
+		orders:  make(map[uint64]*OrderFull),
+		buckets: make([]uint64, 0, 16),
+		proMap:  make(map[uint64]*lastProsPerBucket),
 
 		segs: make(map[jobKey]*segJob),
 
@@ -76,26 +103,43 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		updateChan: make(chan uint64, 16),
 
 		quoChan:       make(chan *types.Quotation, 16),
-		orderChan:     make(chan *types.OrderBase, 16),
+		orderChan:     make(chan *types.SignedOrder, 16),
 		seqNewChan:    make(chan *orderSeqPro, 16),
 		seqFinishChan: make(chan *orderSeqPro, 16),
 
 		segAddChan:  make(chan *types.SegJob, 128),
 		segRedoChan: make(chan *types.SegJob, 128),
 		segDoneChan: make(chan *types.SegJob, 128),
+
+		msgChan: make(chan *tx.Message, 128),
 	}
 
-	om.load()
-
-	om.ready = true
-
-	go om.runSched()
-
-	go om.dispatch()
+	om.proc = goprocessctx.WithContext(ctx)
+	om.ctx = goprocessctx.WithProcessClosing(ctx, om.proc)
 
 	logger.Info("create order manager")
 
 	return om
+}
+
+func (m *OrderMgr) Start() {
+	m.load()
+
+	m.ready = true
+
+	m.proc.Go(m.runSched)
+
+	m.proc.Go(m.runPush)
+	m.proc.Go(m.runCheck)
+
+	go m.dispatch()
+}
+
+func (m *OrderMgr) Stop() {
+	m.lk.Lock()
+	defer m.lk.Unlock()
+	m.ready = false
+	m.proc.Close()
 }
 
 func (m *OrderMgr) load() error {
@@ -105,13 +149,15 @@ func (m *OrderMgr) load() error {
 		return err
 	}
 
+	res := make([]uint64, len(val)/8)
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		go m.newProOrder(pid)
+		res[i] = pid
 	}
 
-	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
-	for _, pid := range pros {
+	res = removeDup(res)
+
+	for _, pid := range res {
 		go m.newProOrder(pid)
 	}
 
@@ -119,11 +165,9 @@ func (m *OrderMgr) load() error {
 }
 
 func (m *OrderMgr) save() error {
-	buf := make([]byte, 8*len(m.orders))
-	i := 0
-	for pid := range m.orders {
+	buf := make([]byte, 8*len(m.pros))
+	for i, pid := range m.pros {
 		binary.BigEndian.PutUint64(buf[8*i:8*(i+1)], pid)
-		i++
 	}
 
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID)
@@ -134,25 +178,27 @@ func (m *OrderMgr) addPros() {
 	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
 	for _, pro := range pros {
 		has := false
-		for pid := range m.orders {
+		for _, pid := range m.pros {
 			if pid == pro {
 				has = true
 			}
 		}
 
 		if !has {
-			go m.newProOrder(pro)
+			go m.update(pro)
 		}
 	}
 
 }
 
-func (m *OrderMgr) runSched() {
+func (m *OrderMgr) runSched(proc goprocess.Process) {
 	st := time.NewTicker(10 * time.Second)
 	defer st.Stop()
 
-	lt := time.NewTicker(1 * time.Minute)
+	lt := time.NewTicker(5 * time.Minute)
 	defer lt.Stop()
+
+	m.addPros() // add providers
 
 	for {
 		// handle data
@@ -168,20 +214,27 @@ func (m *OrderMgr) runSched() {
 		case quo := <-m.quoChan:
 			of, ok := m.orders[quo.ProID]
 			if ok {
-				of.availTime = time.Now().Unix()
-				err := m.createOrder(of, quo)
-				if err != nil {
-					logger.Debug("fail create new order:", err)
+				if quo.SegPrice.Cmp(m.segPrice) > 0 {
+					of.quoretry += 1
+					if of.quoretry > 10 {
+						m.stopOrder(of)
+					}
+				} else {
+					of.quoretry = 0
+					of.availTime = time.Now().Unix()
+					err := m.createOrder(of, quo)
+					if err != nil {
+						logger.Debug("fail create new order:", err)
+					}
 				}
 			}
 		case ob := <-m.orderChan:
-			logger.Debug("handle get new order")
 			of, ok := m.orders[ob.ProID]
 			if ok {
 				of.availTime = time.Now().Unix()
 				err := m.runOrder(of, ob)
 				if err != nil {
-					logger.Debug("fail run new order:", err)
+					logger.Debug("fail run new order:", ob.ProID, err)
 				}
 			}
 		case s := <-m.seqNewChan:
@@ -203,11 +256,18 @@ func (m *OrderMgr) runSched() {
 				}
 			}
 		case of := <-m.proChan:
-			m.orders[of.pro] = of
-			go m.update(of.pro)
+			logger.Debug("add order to pro:", of.pro)
+			_, ok := m.orders[of.pro]
+			if !ok {
+				m.orders[of.pro] = of
+				m.pros = append(m.pros, of.pro)
+				go m.update(of.pro)
+			}
+
 		case lp := <-m.bucketChan:
 			_, ok := m.proMap[lp.bucketID]
 			if !ok {
+				m.buckets = append(m.buckets, lp.bucketID)
 				m.proMap[lp.bucketID] = lp
 			}
 
@@ -219,7 +279,11 @@ func (m *OrderMgr) runSched() {
 				go m.newProOrder(pid)
 			}
 		case <-st.C:
-			for _, of := range m.orders {
+			// dispatch to each pro
+			m.dispatch()
+
+			for _, pid := range m.pros {
+				of := m.orders[pid]
 				m.check(of)
 			}
 		case <-lt.C:
@@ -227,14 +291,14 @@ func (m *OrderMgr) runSched() {
 
 			m.save()
 
-			for _, lp := range m.proMap {
-				m.saveLastProsPerBucket(lp)
+			for _, bid := range m.pros {
+				lp, ok := m.proMap[bid]
+				if ok {
+					m.updateProsForBucket(lp)
+				}
 			}
-		case <-m.ctx.Done():
+		case <-proc.Closing():
 			return
-		default:
-			// dispatch to each pro
-			m.dispatch()
 		}
 	}
 }

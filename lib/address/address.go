@@ -3,22 +3,21 @@ package address
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 
 	b58 "github.com/mr-tron/base58/base58"
 	"github.com/zeebo/blake3"
-	"golang.org/x/crypto/sha3"
+	"golang.org/x/xerrors"
 )
 
 var (
 	// ErrUnknownAddrType is returned when encountering an unknown protocol in an address.
-	ErrUnknownAddrType = errors.New("unknown address type")
+	ErrUnknownAddrType = xerrors.New("unknown address type")
 	// ErrInvalidPayload is returned when encountering an invalid address payload.
-	ErrInvalidPayload = errors.New("invalid address payload")
+	ErrInvalidPayload = xerrors.New("invalid address payload")
 	// ErrInvalidLength is returned when encountering an address of invalid length.
-	ErrInvalidLength = errors.New("invalid address length")
+	ErrInvalidLength = xerrors.New("invalid address length")
 	// ErrInvalidChecksum is returned when encountering an invalid address checksum.
-	ErrInvalidChecksum = errors.New("invalid address checksum")
+	ErrInvalidChecksum = xerrors.New("invalid address checksum")
 )
 
 // UndefAddressString is the string used to represent an empty address when encoded to a string.
@@ -92,17 +91,18 @@ func (a Address) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + a.String() + `"`), nil
 }
 
-// ToEthAddress returns an address using the SECP256K1 protocol.
-// pubkey is 65 bytes
-func ToEthAddress(pubkey []byte) ([]byte, error) {
-	if len(pubkey) != 65 {
-		return nil, ErrInvalidLength
+// for cbor
+func (a *Address) UnmarshalBinary(data []byte) error {
+	id, err := newAddress(data)
+	if err != nil {
+		return err
 	}
+	*a = id
+	return nil
+}
 
-	d := sha3.NewLegacyKeccak256()
-	d.Write(pubkey[1:])
-	payload := d.Sum(nil)
-	return payload[12:], nil
+func (a Address) MarshalBinary() ([]byte, error) {
+	return a.Bytes(), nil
 }
 
 func NewAddress(payload []byte) (Address, error) {

@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -24,10 +25,12 @@ func TestAddress(t *testing.T) {
 	assert.NoError(err)
 
 	addr, err := NewAddress(aByte)
+	assert.NoError(err)
 
 	addrs := addr.String()
 
 	naddr, err := NewFromString(addrs)
+	assert.NoError(err)
 
 	res := make([]Address, 0, 1)
 
@@ -48,7 +51,6 @@ func TestSecp256k1Address(t *testing.T) {
 
 	addr, err := NewAddress(aByte)
 	t.Log(addr.String(), len(addr.String()), len(aByte))
-	panic(addr.String())
 
 	assert.NoError(err)
 
@@ -58,6 +60,8 @@ func TestSecp256k1Address(t *testing.T) {
 	maybe, err := decode(str)
 	assert.NoError(err)
 	assert.Equal(addr, maybe)
+
+	panic(addr.String())
 }
 
 func TestBLSAddress(t *testing.T) {
@@ -72,13 +76,13 @@ func TestBLSAddress(t *testing.T) {
 	assert.NoError(err)
 
 	addr, err := NewAddress(aByte)
+	assert.NoError(err)
 	t.Log(addr.String(), len(addr.String()))
 
 	naddr, err := NewFromString(addr.String())
 
 	t.Logf(naddr.String())
 
-	panic(addr.String())
 	assert.NoError(err)
 
 	str, err := encode(addr)
@@ -88,4 +92,5 @@ func TestBLSAddress(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(addr, maybe)
 
+	panic(addr.String())
 }

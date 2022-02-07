@@ -3,38 +3,33 @@ package netapp
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"go.opencensus.io/tag"
 
-	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
+	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
-var logger = logging.Logger("netApp")
-
-var ErrTimeOut = errors.New("time out")
-
-var _ api.INetService = (*NetServiceImpl)(nil)
-
 // wrap net interface
 type NetServiceImpl struct {
-	sync.RWMutex
+	lk sync.RWMutex
 	*generic.GenericService
 	handler.TxMsgHandle // handle pubsub tx msg
 	handler.EventHandle // handle pubsub event msg
 	handler.BlockHandle
+	handler.HsMsgHandle
 
 	ctx    context.Context
 	roleID uint64  // local node id
@@ -42,16 +37,18 @@ type NetServiceImpl struct {
 
 	ds store.KVStore
 
-	idMap map[uint64]peer.ID
-	wants map[uint64]time.Time
+	lastFetch peer.ID
 
-	peers map[peer.ID]struct{}
+	idMap   map[uint64]peer.ID    // record id to netID
+	peerMap map[peer.ID]time.Time // record netID avaliale time
+	wants   map[uint64]time.Time  // find netID for id
 
 	ns *network.NetworkSubmodule
 
 	eventTopic *pubsub.Topic // used to find peerID depends on roleID
 	msgTopic   *pubsub.Topic
 	blockTopic *pubsub.Topic
+	hsTopic    *pubsub.Topic
 
 	related []uint64
 }
@@ -60,6 +57,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 	ph := handler.NewTxMsgHandle()
 	peh := handler.NewEventHandle()
 	bh := handler.NewBlockHandle()
+	hh := handler.NewHsMsgHandle()
 
 	gs, err := generic.New(ctx, ns)
 	if err != nil {
@@ -81,24 +79,37 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		return nil, err
 	}
 
+	hTopic, err := ns.Pubsub.Join(build.HSMsgTopic(ns.NetworkName))
+	if err != nil {
+		return nil, err
+	}
+
 	core := &NetServiceImpl{
 		GenericService: gs,
 		TxMsgHandle:    ph,
 		EventHandle:    peh,
 		BlockHandle:    bh,
-		ctx:            ctx,
+		HsMsgHandle:    hh,
 		roleID:         roleID,
 		netID:          ns.NetID(ctx),
 		ds:             ds,
 		ns:             ns,
 		idMap:          make(map[uint64]peer.ID),
+		peerMap:        make(map[peer.ID]time.Time),
 		wants:          make(map[uint64]time.Time),
-		peers:          make(map[peer.ID]struct{}),
 		related:        make([]uint64, 0, 128),
 		eventTopic:     eTopic,
 		msgTopic:       mTopic,
 		blockTopic:     bTopic,
+		hsTopic:        hTopic,
 	}
+
+	ctx, _ = tag.New(
+		ctx,
+		tag.Upsert(metrics.NetPeerID, ns.NetID(ctx).Pretty()),
+	)
+
+	core.ctx = ctx
 
 	// register for find peer
 	peh.Register(pb.EventMessage_GetPeer, core.handleGetPeer)
@@ -107,20 +118,32 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 	go core.handleIncomingEvent(ctx)
 	go core.handleIncomingMessage(ctx)
 	go core.handleIncomingBlock(ctx)
+	go core.handleIncomingHSMsg(ctx)
 
 	go core.regularPeerFind(ctx)
 
 	return core, nil
 }
 
-func (c *NetServiceImpl) RoleID() uint64 {
-	return c.roleID
+func (c *NetServiceImpl) API() *netServiceAPI {
+	return &netServiceAPI{c}
+}
+
+func (c *NetServiceImpl) Stop() error {
+	// stop handle
+	c.MsgHandle.Close()
+	// close all topic
+	c.eventTopic.Close()
+	c.blockTopic.Close()
+	c.hsTopic.Close()
+	c.msgTopic.Close()
+	return nil
 }
 
 // add a new node
 func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
-	c.Lock()
-	defer c.Unlock()
+	c.lk.Lock()
+	defer c.lk.Unlock()
 
 	has := false
 	for _, uid := range c.related {
@@ -135,6 +158,7 @@ func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
 
 	if pid.Validate() == nil {
 		c.idMap[id] = pid
+		c.peerMap[pid] = time.Now()
 		return
 	}
 
@@ -146,7 +170,6 @@ func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
 			c.FindPeerID(c.ctx, id)
 		}
 	}
-
 }
 
 func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
@@ -162,12 +185,12 @@ func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
 }
 
 func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
-	ticker := time.NewTicker(300 * time.Second)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			c.Lock()
+			c.lk.Lock()
 			for id, t := range c.wants {
 				_, ok := c.idMap[id]
 				if ok {
@@ -179,7 +202,44 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 					c.wants[id] = nt
 				}
 			}
-			c.Unlock()
+			c.lk.Unlock()
+
+			pinfos, err := c.ns.NetPeers(ctx)
+			if err != nil {
+				continue
+			}
+
+			for _, pi := range pinfos {
+				c.lk.RLock()
+				_, ok := c.peerMap[pi.ID]
+				c.lk.RUnlock()
+				if ok {
+					c.lk.Lock()
+					c.peerMap[pi.ID] = time.Now()
+					c.lk.Unlock()
+					continue
+				}
+
+				resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.roleID, pb.NetMessage_SayHello, nil, nil)
+				if err != nil {
+					continue
+				}
+
+				if resp.GetHeader().GetType() == pb.NetMessage_Err {
+					continue
+				}
+
+				if len(resp.GetData().GetMsgInfo()) < 8 {
+					continue
+				}
+
+				rid := binary.BigEndian.Uint64(resp.GetData().GetMsgInfo())
+				c.lk.Lock()
+				c.idMap[rid] = pi.ID
+				c.peerMap[pi.ID] = time.Now()
+				c.lk.Unlock()
+			}
+
 		case <-c.ctx.Done():
 			return
 		}
@@ -248,13 +308,14 @@ func (c *NetServiceImpl) handlePutPeer(ctx context.Context, mes *pb.EventMessage
 
 	logger.Debug(c.netID.Pretty(), "handle put peer:", netID.Pretty())
 
-	c.Lock()
+	c.lk.Lock()
 	_, ok := c.wants[ppi.GetRoleID()]
 	if ok {
 		c.idMap[ppi.RoleID] = netID
+		c.peerMap[netID] = time.Now()
 		delete(c.wants, ppi.RoleID)
 	}
-	c.Unlock()
+	c.lk.Unlock()
 	return nil
 }
 
@@ -305,10 +366,38 @@ func (c *NetServiceImpl) handleIncomingBlock(ctx context.Context) {
 			if c.netID != from {
 				// handle it
 				// umarshal pmsg data
-				sm := new(tx.Block)
+				sm := new(tx.SignedBlock)
 				err := sm.Deserialize(received.GetData())
 				if err == nil {
 					c.BlockHandle.Handle(ctx, sm)
+				}
+			}
+		}
+	}()
+}
+
+func (c *NetServiceImpl) handleIncomingHSMsg(ctx context.Context) {
+	sub, err := c.hsTopic.Subscribe()
+	if err != nil {
+		return
+	}
+
+	go func() {
+		for {
+			received, err := sub.Next(ctx)
+			if err != nil {
+				return
+			}
+
+			from := received.GetFrom()
+
+			if c.netID != from {
+				// handle it
+				// umarshal pmsg data
+				sm := new(hs.HotstuffMessage)
+				err := sm.Deserialize(received.GetData())
+				if err == nil {
+					c.HsMsgHandle.Handle(ctx, sm)
 				}
 			}
 		}

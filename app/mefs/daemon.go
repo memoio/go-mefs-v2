@@ -1,12 +1,9 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	_ "net/http/pprof"
 	"strings"
 
-	mprome "github.com/ipfs/go-metrics-prometheus"
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
@@ -16,9 +13,9 @@ import (
 )
 
 const (
-	bootstrapOptionKwd = "bootstrap"
-	apiAddrKwd         = "api"
-	swarmPortKwd       = "swarm-port"
+	apiAddrKwd   = "api"
+	swarmPortKwd = "swarm-port"
+	pwKwd        = "password"
 )
 
 var DaemonCmd = &cli.Command{
@@ -26,19 +23,19 @@ var DaemonCmd = &cli.Command{
 	Usage: "Run a network-connected Memoriae keeper.",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "password",
+			Name:  pwKwd,
 			Usage: "password for asset private key",
 			Value: "memoriae",
 		},
 		&cli.StringFlag{
 			Name:  apiAddrKwd,
 			Usage: "set the api addr to use",
-			Value: "/ip4/127.0.0.1/tcp/8001",
+			Value: "/ip4/127.0.0.1/tcp/8000",
 		},
 		&cli.StringFlag{
 			Name:  swarmPortKwd,
 			Usage: "set the swarm port to use",
-			Value: "12000",
+			Value: "7000",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -47,22 +44,10 @@ var DaemonCmd = &cli.Command{
 }
 
 func daemonFunc(cctx *cli.Context) (_err error) {
-	err := mprome.Inject()
-	if err != nil {
-		fmt.Errorf("Injecting prometheus handler for metrics failed with message: %s\n", err.Error())
-		return err
-	}
+	logger.Info("Initializing daemon...")
 
-	log.Println("Initializing daemon...")
-
-	defer func() {
-		if _err != nil {
-			// Print an extra line before any errors. This could go
-			// in the commands lib but doesn't really make sense for
-			// all commands.
-			fmt.Println()
-		}
-	}()
+	ctx := cctx.Context
+	minit.StartMetrics()
 
 	minit.PrintVersion()
 
@@ -105,36 +90,25 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	var node minit.Node
 	switch config.Identity.Role {
 	default:
+		pwd := cctx.String("password")
+
 		opts, err := basenode.OptionsFromRepo(rep)
 		if err != nil {
 			return err
 		}
 
-		password := cctx.String("password")
-		opts = append(opts, basenode.SetPassword(password))
+		opts = append(opts, basenode.SetPassword(pwd))
 
-		node, err = basenode.New(cctx.Context, opts...)
+		node, err = basenode.New(ctx, opts...)
 		if err != nil {
 			return err
 		}
 	}
-
-	minit.PrintSwarmAddrs(node)
 
 	// Start the node
 	if err := node.Start(); err != nil {
 		return err
 	}
 
-	// Run API server around the keeper.
-	ready := make(chan interface{}, 1)
-	go func() {
-		<-ready
-
-		// The daemon is *finally* ready.
-		log.Printf("Network PeerID is %s\n", node.GetHost().ID().String())
-		log.Printf("Daemon is ready\n")
-	}()
-
-	return node.RunDaemon(ready)
+	return node.RunDaemon()
 }

@@ -31,6 +31,12 @@ func PermissionedFullAPI(a FullNode) FullNode {
 	return &out
 }
 
+func PermissionedKeeperAPI(a KeeperNode) KeeperNode {
+	var out KeeperNodeStruct
+	permissionedProxies(a, &out)
+	return &out
+}
+
 func PermissionedProviderAPI(a ProviderNode) ProviderNode {
 	var out ProviderNodeStruct
 	permissionedProxies(a, &out)

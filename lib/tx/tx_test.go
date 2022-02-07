@@ -14,12 +14,9 @@ func TestMessage(t *testing.T) {
 
 	sm.GasPrice = big.NewInt(10)
 
-	sm.To = "hello"
+	sm.To = 10
 
-	id, err := sm.Hash()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := sm.Hash()
 
 	priv, _ := signature.GenerateKey(types.Secp256k1)
 	sign, _ := priv.Sign(id.Bytes())
@@ -42,7 +39,9 @@ func TestMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok, err := priv.GetPublic().Verify(nsm.ID.Bytes(), nsm.Signature.Data)
+	nid := nsm.Hash()
+
+	ok, err := priv.GetPublic().Verify(nid.Bytes(), nsm.Signature.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,18 +50,16 @@ func TestMessage(t *testing.T) {
 		t.Fatal("signature wrong")
 	}
 
-	t.Fatal(id.Hex(), nsm.ID.Hex(), nsm.GasLimit, nsm.GasPrice, nsm.Message.To)
+	t.Fatal(id.Hex(), nid.Hex(), nsm.GasLimit, nsm.GasPrice, nsm.Message.To)
 }
 
 func TestBlock(t *testing.T) {
-	b := new(Block)
-	b.BlockHeader.MinerID = 100
+	b := new(SignedBlock)
+	b.RawHeader.MinerID = 100
+	b.RawHeader.PrevID = types.NewMsgID([]byte("test"))
 	b.MultiSignature.Type = types.SigBLS
 
-	id, err := b.Hash()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := b.Hash()
 
 	priv, _ := signature.GenerateKey(types.BLS)
 	sign, _ := priv.Sign(id.Bytes())
@@ -72,7 +69,7 @@ func TestBlock(t *testing.T) {
 		Type: types.SigBLS,
 	}
 
-	err = b.MultiSignature.Add(0, sig)
+	err := b.MultiSignature.Add(0, sig)
 	if err != nil {
 		t.Fatal("add fail")
 	}
@@ -82,18 +79,17 @@ func TestBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bid, err := b.BlockHeader.Hash()
-	if err != nil {
-		t.Fatal(err)
-	}
+	bid := b.RawHeader.Hash()
 
-	nb := new(Block)
+	nb := new(SignedBlock)
 	err = nb.Deserialize(bbyte)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ok, err := priv.GetPublic().Verify(nb.ID.Bytes(), nb.MultiSignature.Data)
+	nid := nb.Hash()
+
+	ok, err := priv.GetPublic().Verify(nid.Bytes(), nb.MultiSignature.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,5 +98,5 @@ func TestBlock(t *testing.T) {
 		t.Fatal("signature wrong")
 	}
 
-	t.Fatal(bid.String(), nb.ID.String())
+	t.Fatal(bid.String(), nid.String(), b.PrevID.String(), nb.PrevID.String())
 }

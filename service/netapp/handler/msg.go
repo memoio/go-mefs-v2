@@ -2,19 +2,19 @@ package handler
 
 import (
 	"context"
-	"errors"
-	"log"
 	"sync"
 
 	peer "github.com/libp2p/go-libp2p-core/peer"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 var (
 	// ErrMetaHandlerNotAssign 节点没有挂载接口时调用，报这个错
-	ErrHandlerNotAssign = errors.New("MetaMessageHandler not assign")
+	ErrHandlerNotAssign = xerrors.New("MetaMessageHandler not assign")
 	//ErrMetaHandlerFailed 进行回调函数出错，没有特定错误的时候，报这个错
-	ErrHandlerFailed = errors.New("meta Handler err")
+	ErrHandlerFailed = xerrors.New("meta Handler err")
 )
 
 const (
@@ -84,7 +84,6 @@ func (i *MsgImpl) Close() {
 }
 
 func defaultMsgHandler(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	log.Println("handle type::", mes.Header.Type)
 	mes.Data.MsgInfo = []byte("hello")
 	return mes, nil
 }

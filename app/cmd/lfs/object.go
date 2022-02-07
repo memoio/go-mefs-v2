@@ -5,21 +5,48 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
+	"github.com/mgutz/ansi"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 )
 
-var listObjectCmd = &cli.Command{
-	Name:  "listObject",
-	Usage: "list object",
+func FormatObjectInfo(object *types.ObjectInfo) string {
+	return fmt.Sprintf(
+		`Name: %s
+BucketID: %d
+ObjectID: %d
+Etag: %s
+CTime: %s
+MTime: %s
+Size: %s
+State: %s
+Enc: %s`,
+		ansi.Color(object.Name, "green"),
+		object.BucketID,
+		object.ObjectID,
+		hex.EncodeToString(object.Etag),
+		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
+		utils.FormatBytes(int64(object.Length)),
+		object.State,
+		object.Encryption,
+	)
+}
+
+var listObjectsCmd = &cli.Command{
+	Name:  "listObjects",
+	Usage: "list objects",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -43,8 +70,10 @@ var listObjectCmd = &cli.Command{
 			return err
 		}
 
+		fmt.Println("List objects: ")
 		for _, oi := range loi {
-			fmt.Println("list object: ", oi.ObjectID, oi.Name, oi)
+			fmt.Printf("\n")
+			fmt.Println(FormatObjectInfo(oi))
 		}
 
 		return nil
@@ -56,12 +85,14 @@ var putObjectCmd = &cli.Command{
 	Usage: "put object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 		&cli.StringFlag{
-			Name:  "object",
-			Usage: "objectName",
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
 		},
 		&cli.StringFlag{
 			Name:  "path",
@@ -103,7 +134,8 @@ var putObjectCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("put object: ", oi.State)
+		fmt.Println("Put object: ")
+		fmt.Println(FormatObjectInfo(oi))
 
 		return nil
 	},
@@ -114,12 +146,14 @@ var headObjectCmd = &cli.Command{
 	Usage: "head object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 		&cli.StringFlag{
-			Name:  "object",
-			Usage: "objectName",
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -143,10 +177,11 @@ var headObjectCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("head object: ", oi, oi.Length, oi.Mtime, oi.State, hex.EncodeToString(oi.Etag))
+		fmt.Println("Head object: ")
+		fmt.Println(FormatObjectInfo(oi))
 
 		for i, part := range oi.Parts {
-			fmt.Println("part: ", i, part)
+			fmt.Println("Part: ", i, part)
 		}
 
 		return nil
@@ -158,12 +193,14 @@ var getObjectCmd = &cli.Command{
 	Usage: "get object",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "bucket",
-			Usage: "bucketName",
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
 		},
 		&cli.StringFlag{
-			Name:  "object",
-			Usage: "objectName",
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
 		},
 		&cli.StringFlag{
 			Name:  "path",

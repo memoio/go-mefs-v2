@@ -1,13 +1,13 @@
 package kv
 
 import (
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v2"
 	"go.uber.org/zap"
+	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -15,7 +15,7 @@ import (
 
 var logger = logging.Logger("badger")
 
-var ErrClosed = errors.New("badger closed")
+var ErrClosed = xerrors.New("badger closed")
 
 type compatLogger struct {
 	*zap.SugaredLogger
@@ -108,7 +108,8 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 
 	opt.Dir = path
 	opt.ValueDir = path
-	opt.Logger = &compatLogger{logger}
+	// take over logger
+	//opt.Logger = &compatLogger{logger}
 
 	kv, err := badger.Open(opt)
 	if err != nil {
@@ -251,8 +252,8 @@ func (d *BadgerStore) Get(key []byte) (value []byte, err error) {
 	var val []byte
 	err = d.db.View(func(txn *badger.Txn) error {
 		switch item, err := txn.Get(key); err {
-		case badger.ErrKeyNotFound:
-			return nil
+		//case badger.ErrKeyNotFound:
+		//	return nil
 		case nil:
 			val, err = item.ValueCopy(nil)
 			return err

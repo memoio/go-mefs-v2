@@ -2,20 +2,22 @@ package wallet
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"strings"
 	"sync"
+
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	sig_common "github.com/memoio/go-mefs-v2/lib/crypto/signature/common"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 type LocalWallet struct {
-	sync.Mutex
-	password string // used for decrypt
+	lw       sync.Mutex
+	password string // used for decrypt; todo plaintext is not good
 	accounts map[address.Address]sig_common.PrivKey
 	keystore types.KeyStore // store
 }
@@ -44,8 +46,8 @@ func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg 
 }
 
 func (w *LocalWallet) find(addr address.Address) (sig_common.PrivKey, error) {
-	w.Lock()
-	defer w.Unlock()
+	w.lw.Lock()
+	defer w.lw.Unlock()
 
 	pi, ok := w.accounts[addr]
 	if ok {
@@ -99,10 +101,23 @@ func (w *LocalWallet) WalletNew(ctx context.Context, kt types.KeyType) (address.
 		return address.Undef, err
 	}
 
-	w.Lock()
-	defer w.Unlock()
+	// for eth short addr
+	if kt == types.Secp256k1 {
+		addrByte := utils.ToEthAddress(cbyte)
 
+		eaddr, err := address.NewAddress(addrByte)
+		if err != nil {
+			return address.Undef, err
+		}
+		err = w.keystore.Put(eaddr.String(), w.password, ki)
+		if err != nil {
+			return address.Undef, err
+		}
+	}
+
+	w.lw.Lock()
 	w.accounts[addr] = privkey
+	w.lw.Unlock()
 
 	return addr, nil
 }
@@ -147,9 +162,9 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) er
 		return err
 	}
 
-	w.Lock()
-	defer w.Unlock()
+	w.lw.Lock()
 	delete(w.accounts, addr)
+	w.lw.Unlock()
 
 	return nil
 }
@@ -187,12 +202,31 @@ func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (addr
 			return address.Undef, err
 		}
 
-		w.Lock()
+		w.lw.Lock()
 		w.accounts[addr] = privkey
-		w.Unlock()
+		w.lw.Unlock()
+
+		// for eth short addr
+		if ki.Type == types.Secp256k1 {
+			addrByte := utils.ToEthAddress(cbyte)
+
+			eaddr, err := address.NewAddress(addrByte)
+			if err != nil {
+				return address.Undef, err
+			}
+			err = w.keystore.Put(eaddr.String(), w.password, *ki)
+			if err != nil {
+				return address.Undef, err
+			}
+
+			w.lw.Lock()
+			w.accounts[eaddr] = privkey
+			w.lw.Unlock()
+		}
+
 		return addr, nil
 	default:
-		return address.Undef, errors.New("unsupported key type")
+		return address.Undef, xerrors.New("unsupported key type")
 	}
 
 }

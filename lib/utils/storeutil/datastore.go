@@ -1,22 +1,21 @@
 package storeutil
 
 import (
-	"errors"
 	"path"
 
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/jbenet/goprocess"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
-
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 var logger = logging.Logger("go-datastore")
 
-var ErrClosed = errors.New("datastore closed")
+var ErrClosed = xerrors.New("datastore closed")
 
 type Datastore struct {
 	DB store.KVStore

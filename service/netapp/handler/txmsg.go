@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"log"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -13,8 +12,7 @@ type HandlerFunc func(context.Context, *tx.SignedMessage) error
 // TxMsgHandle is used for handle received msg from pubsub
 type TxMsgHandle interface {
 	Handle(context.Context, *tx.SignedMessage) error
-	Register(tx.MsgType, HandlerFunc)
-	UnRegister(tx.MsgType)
+	Register(HandlerFunc)
 	Close()
 }
 
@@ -22,16 +20,15 @@ var _ TxMsgHandle = (*Impl)(nil)
 
 type Impl struct {
 	sync.RWMutex
-	close bool
-	hmap  map[tx.MsgType]HandlerFunc
+	close   bool
+	handler HandlerFunc
 }
 
 func NewTxMsgHandle() *Impl {
 	i := &Impl{
-		hmap: make(map[tx.MsgType]HandlerFunc),
+		handler: defaultHandler,
 	}
 
-	i.Register(tx.DataTxErr, defaultHandler)
 	return i
 }
 
@@ -43,24 +40,17 @@ func (i *Impl) Handle(ctx context.Context, mes *tx.SignedMessage) error {
 		return nil
 	}
 
-	h, ok := i.hmap[mes.Method]
-	if ok {
-		log.Println("handle tx mes")
-		return h(ctx, mes)
+	if i.handler == nil {
+		return ErrNoHandle
 	}
-	return nil
+
+	return i.handler(ctx, mes)
 }
 
-func (i *Impl) Register(mt tx.MsgType, h HandlerFunc) {
+func (i *Impl) Register(h HandlerFunc) {
 	i.Lock()
 	defer i.Unlock()
-	i.hmap[mt] = h
-}
-
-func (i *Impl) UnRegister(mt tx.MsgType) {
-	i.Lock()
-	defer i.Unlock()
-	delete(i.hmap, mt)
+	i.handler = h
 }
 
 func (i *Impl) Close() {
@@ -70,6 +60,5 @@ func (i *Impl) Close() {
 }
 
 func defaultHandler(ctx context.Context, msg *tx.SignedMessage) error {
-	log.Println("received tx msg:", msg.From)
 	return nil
 }

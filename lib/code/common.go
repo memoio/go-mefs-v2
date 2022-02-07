@@ -1,9 +1,8 @@
 package code
 
 import (
-	"errors"
+	"golang.org/x/xerrors"
 
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -16,19 +15,19 @@ const (
 	CurrentVersion   = 1
 	DefaultCrypt     = 1
 	DefaultPrefixLen = 24
-	DefaultTagFlag   = pdp.PDPV2
+	DefaultTagFlag   = pdpcommon.PDPV2
 	DefaultSegSize   = pdpv2.DefaultSegSize
 )
 
 var (
-	ErrWrongCoder   = errors.New("coder is not supported")
-	ErrWrongVersion = errors.New("version is not supported")
-	ErrWrongTagFlag = errors.New("no such tag flag")
-	ErrWrongPolicy  = errors.New("policy is not supported")
-	ErrDataLength   = errors.New("data length is wrong")
-	ErrDataBroken   = errors.New("datais broken")
-	ErrRepairCrash  = errors.New("repair crash")
-	ErrRecoverData  = errors.New("the recovered data is incorrect")
+	ErrWrongCoder   = xerrors.New("coder is not supported")
+	ErrWrongVersion = xerrors.New("version is not supported")
+	ErrWrongTagFlag = xerrors.New("no such tag flag")
+	ErrWrongPolicy  = xerrors.New("policy is not supported")
+	ErrDataLength   = xerrors.New("data length is wrong")
+	ErrDataBroken   = xerrors.New("datais broken")
+	ErrRepairCrash  = xerrors.New("repair crash")
+	ErrRecoverData  = xerrors.New("the recovered data is incorrect")
 )
 
 type Codec interface {
@@ -86,7 +85,7 @@ func VerifyChunkLength(data []byte) error {
 		return ErrWrongPolicy
 	}
 
-	tagLen, ok := pdp.TagMap[int(pre.TagFlag)]
+	tagLen, ok := pdpcommon.TagMap[int(pre.TagFlag)]
 	if !ok {
 		tagLen = 48
 	}

@@ -12,11 +12,11 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/api/httpio"
-	"github.com/memoio/go-mefs-v2/lib/utils/paths"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 func GetMemoClientInfo(repoDir string) (string, http.Header, error) {
-	repoPath, err := paths.GetRepoPath(repoDir)
+	repoPath, err := utils.GetRepoPath(repoDir)
 	if err != nil {
 		return "", nil, err
 	}

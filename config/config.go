@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
 )
 
 var Validators = map[string]func(string, string) error{
@@ -31,7 +31,6 @@ type WalletConfig struct {
 
 type IdentityConfig struct {
 	Role  string `json:"role"`
-	Name  string `json:"name"`
 	Group string `json:"group"`
 }
 
@@ -56,9 +55,9 @@ func newDefaultSwarmConfig() SwarmConfig {
 	return SwarmConfig{
 		Name: "devnet",
 		Addresses: []string{
-			"/ip4/0.0.0.0/tcp/7001",
+			"/ip4/0.0.0.0/tcp/7000",
 			"/ip6/::/tcp/7001",
-			"/ip4/0.0.0.0/udp/7001/quic",
+			"/ip4/0.0.0.0/udp/7000/quic",
 			"/ip6/::/udp/7001/quic",
 		},
 	}
@@ -91,7 +90,10 @@ type BootstrapConfig struct {
 // TODO: provide bootstrap node addresses
 func newDefaultBootstrapConfig() BootstrapConfig {
 	return BootstrapConfig{
-		Addresses: []string{},
+		Addresses: []string{
+			"/ip4/121.37.158.192/tcp/23456/p2p/12D3KooWHXmKSneyGqE8fPrTmNTBs2rR9pWTdNcgVG3Tt5htJef7",
+			"/ip4/192.168.1.46/tcp/4201/p2p/12D3KooWB5yMrUL6NG6wHrdR9V114mUDkpJ5Mp3c1sLPHwiFi6DN",
+		},
 	}
 }
 
@@ -198,10 +200,10 @@ OUTER:
 			}
 		}
 
-		return nil, fmt.Errorf("key: %s invalid for config", key)
+		return nil, xerrors.Errorf("key: %s invalid for config", key)
 	}
 	// Cannot get here as len(strings.Split(s, sep)) >= 1 with non-empty sep
-	return nil, fmt.Errorf("empty key is invalid")
+	return nil, xerrors.Errorf("empty key is invalid")
 }
 
 // validate runs validations on a given key and json string. validate uses the
@@ -237,7 +239,7 @@ func validate(dottedKey string, jsonString string) error {
 // does not, an error is returned using the given key for the message.
 func validateLettersOnly(key string, value string) error {
 	if match, _ := regexp.MatchString("^\"[a-zA-Z]+\"$", value); !match {
-		return errors.Errorf(`"%s" must only contain letters`, key)
+		return xerrors.Errorf(`"%s" must only contain letters`, key)
 	}
 	return nil
 }

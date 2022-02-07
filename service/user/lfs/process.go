@@ -6,16 +6,18 @@ import (
 	"encoding/binary"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -55,6 +57,11 @@ func (l *LfsService) newDataProcess(bucketID uint64, bopt *pb.BucketOption) (*da
 		return nil, err
 	}
 
+	dv, err := pdp.NewDataVerifier(l.keyset.PublicKey(), l.keyset.SecreteKey())
+	if err != nil {
+		return nil, err
+	}
+
 	dp := &dataProcess{
 		bucketID:    bucketID,
 		dataCount:   int(bopt.DataCount),
@@ -65,7 +72,7 @@ func (l *LfsService) newDataProcess(bucketID uint64, bopt *pb.BucketOption) (*da
 		coder:  coder,
 		segID:  segID,
 
-		dv: pdpv2.NewDataVerifier(l.keyset.PublicKey(), l.keyset.SecreteKey()),
+		dv: dv,
 	}
 
 	l.Lock()
@@ -137,19 +144,13 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				if len(buf)%aes.BlockSize != 0 {
 					buf = aes.PKCS5Padding(buf)
 				}
-				crypted := make([]byte, len(buf))
 
-				tmpkey := make([]byte, 48)
-				copy(tmpkey, dp.aesKey[:])
-				binary.BigEndian.PutUint64(tmpkey[32:], object.ObjectID)
-				binary.BigEndian.PutUint64(tmpkey[40:], curStripe+uint64(stripeCount))
-				hres := blake3.Sum256(tmpkey)
-
-				aesEnc, err := aes.ContructAesEnc(hres[:])
+				aesEnc, err := aes.ContructAesEnc(dp.aesKey[:], object.ObjectID, curStripe+uint64(stripeCount))
 				if err != nil {
 					return err
 				}
 
+				crypted := make([]byte, len(buf))
 				aesEnc.CryptBlocks(crypted, buf)
 				copy(buf, crypted)
 			}
@@ -158,7 +159,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			encodedData, err := dp.coder.Encode(dp.segID, buf)
 			if err != nil {
-				logger.Warn("encode data error:", dp.segID.String(), err)
+				logger.Warn("encode data error:", dp.segID, err)
 				return err
 			}
 
@@ -170,14 +171,14 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				segData, _ := seg.Content()
 				segTag, _ := seg.Tags()
 
-				err := dp.dv.Input(dp.segID.Bytes(), segData, segTag[0])
+				err := dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
 				if err != nil {
-					logger.Warn("Process data error:", dp.segID.String(), err)
+					logger.Warn("Process data error:", dp.segID, err)
 				}
 
-				err = l.om.PutSegmentToLocal(ctx, seg)
+				err = l.OrderMgr.PutSegmentToLocal(ctx, seg)
 				if err != nil {
-					logger.Warn("Process data error:", dp.segID.String(), err)
+					logger.Warn("Process data error:", dp.segID, err)
 					return err
 				}
 			}
@@ -185,8 +186,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			sendCount++
 			// send some to order
 			if sendCount >= 16 || breakFlag {
-				ok := dp.dv.Result()
-				if !ok {
+				ok, err := dp.dv.Result()
+				if !ok || err != nil {
 					return ErrEncode
 				}
 
@@ -201,7 +202,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 				data, _ := cbor.Marshal(sjl)
 				key := store.NewKey(pb.MetaType_LFS_OpJobsKey, l.userID, object.BucketID, opID)
-				err := l.ds.Put(key, data)
+				err = l.ds.Put(key, data)
 				if err != nil {
 					continue
 				}
@@ -215,9 +216,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 					ChunkID:  bucket.DataCount + bucket.ParityCount,
 				}
 
-				logger.Debug("send job to order: ", opID, sj.Start, sj.Length)
-				l.om.AddSegJob(sj)
-				logger.Debug("send job to order finish: ", opID, sj.Start, sj.Length)
+				logger.Debug("send job to order manager: ", sj.BucketID, opID, sj.Start, sj.Length, sj.ChunkID)
+				l.OrderMgr.AddSegJob(sj)
 
 				sendCount = 0
 
@@ -245,7 +245,10 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 					Payload: payload,
 				}
 
+				// todo: add used bytes
 				bucket.Length += uint64(dp.stripeSize * stripeCount)
+				bucket.UsedBytes += uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
+
 				err = bucket.addOpRecord(l.userID, op, l.ds)
 				if err != nil {
 					return err
@@ -278,40 +281,86 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *bucket, object *object, start, length int, w io.Writer) error {
 
 	sizeReceived := 0
-	sucCount := 0
 
-	segID, err := segment.NewSegmentID(l.fsID, bucket.BucketID, 0, 0)
-	if err != nil {
-		return err
-	}
-
+	// todo: parallel download stripe
 	breakFlag := false
 	for !breakFlag {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
-			sucCount = 0
 			stripeID := start / dp.stripeSize
 
 			logger.Debug("download object: ", object.BucketID, object.ObjectID, stripeID)
 
-			segID.SetStripeID(uint64(stripeID))
+			// add parallel chunks download
+			// release when get chunk fails or get datacount chunk succcess
+			sm := semaphore.NewWeighted(int64(dp.dataCount))
+			var wg sync.WaitGroup
+			sucCnt := int32(0)
+			failCnt := int32(0)
+
 			stripe := make([][]byte, dp.dataCount+dp.parityCount)
 			for i := 0; i < dp.dataCount+dp.parityCount; i++ {
-				if sucCount >= dp.dataCount {
+				//logger.Debug("download segment: ", bucket.BucketID, uint64(stripeID), uint32(i))
+				err := sm.Acquire(ctx, 1)
+				if err != nil {
+					return err
+				}
+
+				// fails too many, no need to download
+				if atomic.LoadInt32(&failCnt) > int32(dp.parityCount) {
+					logger.Errorf("download chunk failed too much")
 					break
 				}
 
-				segID.SetChunkID(uint32(i))
-				seg, err := l.om.GetSegment(ctx, segID)
-				if err != nil {
-					logger.Debug("get seg error:", err)
-					continue
+				// enough, no need to download
+				if atomic.LoadInt32(&sucCnt) >= int32(dp.dataCount) {
+					break
 				}
 
-				stripe[i] = seg.Data()
-				sucCount++
+				wg.Add(1)
+				go func(chunkID int) {
+					defer wg.Done()
+
+					segID, err := segment.NewSegmentID(l.fsID, bucket.BucketID, uint64(stripeID), uint32(chunkID))
+					if err != nil {
+						atomic.AddInt32(&failCnt, 1)
+						sm.Release(1)
+						return
+					}
+
+					seg, err := l.OrderMgr.GetSegment(ctx, segID)
+					if err != nil {
+						atomic.AddInt32(&failCnt, 1)
+						sm.Release(1)
+						logger.Warn("get seg fail: ", segID, err)
+						return
+					}
+
+					// verify seg
+					ok, err := dp.coder.VerifyChunk(segID, seg.Data())
+					if err != nil || !ok {
+						atomic.AddInt32(&failCnt, 1)
+						sm.Release(1)
+						logger.Warn("seg is wrong: ", chunkID, segID, err)
+						return
+					}
+
+					logger.Debug("download success: ", chunkID, segID)
+					stripe[chunkID] = seg.Data()
+					atomic.AddInt32(&sucCnt, 1)
+
+					// download dataCount; release resource to break
+					if atomic.LoadInt32(&sucCnt) >= int32(dp.dataCount) {
+						sm.Release(1)
+					}
+				}(i)
+			}
+			wg.Wait()
+
+			if sucCnt < int32(dp.dataCount) {
+				logger.Debugf("not get enough chunks, expected %d, got %d", dp.dataCount, sucCnt)
 			}
 
 			res, err := dp.coder.Decode(nil, stripe)
@@ -321,13 +370,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 			}
 
 			if object.Encryption == "aes" {
-				tmpkey := make([]byte, 48)
-				copy(tmpkey, dp.aesKey[:])
-				binary.BigEndian.PutUint64(tmpkey[32:], object.ObjectID)
-				binary.BigEndian.PutUint64(tmpkey[40:], uint64(stripeID))
-				hres := blake3.Sum256(tmpkey)
-
-				aesDec, err := aes.ContructAesDec(hres[:])
+				aesDec, err := aes.ContructAesDec(dp.aesKey[:], object.ObjectID, uint64(stripeID))
 				if err != nil {
 					return err
 				}

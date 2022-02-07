@@ -7,12 +7,11 @@ import (
 	cr "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 
 	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/scrypt"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -30,7 +29,7 @@ const (
 
 var (
 	//ErrDecrypt before decrypt privatekey, we compare mac, if not equal, use ErrDecrypt
-	ErrDecrypt = errors.New("could not decrypt key with given passphrase")
+	ErrDecrypt = xerrors.New("could not decrypt key with given passphrase")
 )
 
 type Key struct {
@@ -148,11 +147,11 @@ func decryptKey(keyjson []byte, auth string) (*Key, error) {
 
 func decryptKeyV3(keyProtected *encryptedKeyJSONV3, password string) (keyBytes []byte, err error) {
 	if keyProtected.Version != version {
-		return nil, fmt.Errorf("version not supported: %v", keyProtected.Version)
+		return nil, xerrors.Errorf("version not supported: %v", keyProtected.Version)
 	}
 
 	if keyProtected.Crypto.Cipher != "aes-128-ctr" {
-		return nil, fmt.Errorf("cipher not supported: %v", keyProtected.Crypto.Cipher)
+		return nil, xerrors.Errorf("cipher not supported: %v", keyProtected.Crypto.Cipher)
 	}
 
 	mac, err := hex.DecodeString(keyProtected.Crypto.MAC)
@@ -206,7 +205,7 @@ func getKDFKey(cryptoJSON cryptoJSON, password string) ([]byte, error) {
 		return scrypt.Key(passwordArray, salt, n, r, p, dkLen)
 
 	}
-	return nil, fmt.Errorf("unsupported KDF: %s", cryptoJSON.KDF)
+	return nil, xerrors.Errorf("unsupported KDF: %s", cryptoJSON.KDF)
 }
 
 func ensureInt(x interface{}) int {

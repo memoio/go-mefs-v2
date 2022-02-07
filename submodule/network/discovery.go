@@ -10,8 +10,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/discovery"
 )
 
-const discoveryConnTimeout = time.Second * 30
-
 type discoveryHandler struct {
 	ctx  context.Context
 	host host.Host
@@ -22,12 +20,12 @@ func (dh *discoveryHandler) HandlePeerFound(p peer.AddrInfo) {
 		return
 	}
 
-	logger.Info("connecting to discovered peer: ", p)
-	ctx, cancel := context.WithTimeout(dh.ctx, discoveryConnTimeout)
+	//logger.Debug("connecting to discovered peer: ", p)
+	ctx, cancel := context.WithTimeout(dh.ctx, 5*time.Second)
 	defer cancel()
 
 	if err := dh.host.Connect(ctx, p); err != nil {
-		logger.Warnf("failed to connect to peer %s found by discovery: %s", p.ID, err)
+		logger.Debugf("failed to connect to peer %s found by discovery: %s", p.ID, err)
 	}
 }
 
@@ -39,10 +37,9 @@ func DiscoveryHandler(ctx context.Context, host host.Host) *discoveryHandler {
 }
 
 func SetupDiscovery(ctx context.Context, host host.Host, handler *discoveryHandler) (discovery.Service, error) {
-	mdnsInterval := 5
-	service, err := discovery.NewMdnsService(ctx, host, time.Duration(mdnsInterval)*time.Second, discovery.ServiceTag)
+	service, err := discovery.NewMdnsService(ctx, host, 60*time.Second, "mefs-discovery")
 	if err != nil {
-		logger.Error("mdns error: ", err)
+		logger.Error("create mdns error: ", err)
 		return service, nil
 	}
 	service.RegisterNotifee(handler)

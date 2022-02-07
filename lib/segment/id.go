@@ -2,16 +2,17 @@ package segment
 
 import (
 	"encoding/binary"
-	"errors"
+	"strconv"
 
 	"github.com/mr-tron/base58/base58"
+	"golang.org/x/xerrors"
 )
 
 var (
-	ErrWrongType      = errors.New("mismatch type")
-	ErrIllegalKey     = errors.New("this key is illegal")
-	ErrWrongKeyLength = errors.New("this key's length is wrong")
-	ErrIllegalValue   = errors.New("this metavalue is illegal")
+	ErrWrongType      = xerrors.New("mismatch type")
+	ErrIllegalKey     = xerrors.New("this key is illegal")
+	ErrWrongKeyLength = xerrors.New("this key's length is wrong")
+	ErrIllegalValue   = xerrors.New("this metavalue is illegal")
 )
 
 const SEGMENTID_LEN = 40
@@ -57,19 +58,22 @@ func (bm *BaseSegmentID) Bytes() []byte {
 	return res
 }
 
-// ToString 将SegmentID结构体转换成字符串格式，进行传输
-func (bm *BaseSegmentID) String() string {
+// ToString used in trans
+func (bm *BaseSegmentID) ToString() string {
 	return base58.Encode(bm.buf)
 }
 
-// 不包含fsID
-func (bm *BaseSegmentID) IndexBytes() []byte {
+// used in print or output
+func (bm *BaseSegmentID) String() string {
+	return base58.Encode(bm.GetFsID()) + "_" + strconv.FormatUint(bm.GetBucketID(), 10) + "_" + strconv.FormatUint(bm.GetStripeID(), 10) + "_" + strconv.FormatUint(uint64(bm.GetChunkID()), 10)
+}
+
+func (bm *BaseSegmentID) ShortBytes() []byte {
 	return bm.buf[FSID_LEN:SEGMENTID_LEN]
 }
 
-// 不包含fsID
-func (bm *BaseSegmentID) IndexString() string {
-	return base58.Encode(bm.IndexBytes())
+func (bm *BaseSegmentID) ShortString() string {
+	return strconv.FormatUint(bm.GetBucketID(), 10) + "_" + strconv.FormatUint(bm.GetStripeID(), 10) + "_" + strconv.FormatUint(uint64(bm.GetChunkID()), 10)
 }
 
 func NewSegmentID(fid []byte, bid, sid uint64, cid uint32) (SegmentID, error) {
@@ -104,4 +108,15 @@ func FromBytes(b []byte) (SegmentID, error) {
 	}
 
 	return &BaseSegmentID{buf: b}, nil
+}
+
+func CreateSegmentID(fid []byte, bid, sid uint64, cid uint32) []byte {
+	segID := make([]byte, SEGMENTID_LEN)
+	copy(segID[:FSID_LEN], fid)
+
+	binary.BigEndian.PutUint64(segID[FSID_LEN:FSID_LEN+8], bid)
+	binary.BigEndian.PutUint64(segID[FSID_LEN+8:FSID_LEN+16], sid)
+	binary.BigEndian.PutUint32(segID[FSID_LEN+16:SEGMENTID_LEN], cid)
+
+	return segID
 }

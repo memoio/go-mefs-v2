@@ -8,20 +8,18 @@ import (
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	lfscmd "github.com/memoio/go-mefs-v2/app/cmd/lfs"
+	"github.com/memoio/go-mefs-v2/app/minit"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 var logger = logging.Logger("mefs-user")
 
 func main() {
-	local := []*cli.Command{
-		DaemonCmd,
-		cmd.InitCmd,
-		cmd.AuthCmd,
-		cmd.WalletCmd,
-		cmd.RoleCmd,
-		lfscmd.LfsCmd,
-	}
+	local := make([]*cli.Command, 0, len(cmd.CommonCmd))
+	local = append(local, cmd.CommonCmd...)
+	local = append(local, lfscmd.LfsCmd)
+	local = append(local, OrderCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-user",
@@ -37,8 +35,13 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:  cmd.FlagRoleType,
-				Value: "user",
+				Value: pb.RoleInfo_User.String(),
 				Usage: "set role type.",
+			},
+			&cli.StringFlag{
+				Name:  minit.EnvEnableProfiling,
+				Value: "enable",
+				Usage: "enable cpu profile",
 			},
 		},
 

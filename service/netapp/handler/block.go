@@ -2,17 +2,22 @@ package handler
 
 import (
 	"context"
-	"log"
 	"sync"
+
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
 
-type HandlerBlockFunc func(context.Context, *tx.Block) error
+var (
+	ErrNoHandle = xerrors.New("no handle")
+)
 
-// TxMsgHandle is used for handle received msg from pubsub
+type HandlerBlockFunc func(context.Context, *tx.SignedBlock) error
+
+// BlockHandle is used for handle received tx block from pubsub
 type BlockHandle interface {
-	Handle(context.Context, *tx.Block) error
+	Handle(context.Context, *tx.SignedBlock) error
 	Register(h HandlerBlockFunc)
 	Close()
 }
@@ -33,7 +38,7 @@ func NewBlockHandle() *BlockImpl {
 	return i
 }
 
-func (i *BlockImpl) Handle(ctx context.Context, mes *tx.Block) error {
+func (i *BlockImpl) Handle(ctx context.Context, mes *tx.SignedBlock) error {
 	i.RLock()
 	defer i.RUnlock()
 
@@ -42,10 +47,8 @@ func (i *BlockImpl) Handle(ctx context.Context, mes *tx.Block) error {
 	}
 
 	if i.handler == nil {
-		return nil
+		return ErrNoHandle
 	}
-
-	log.Println("handle block")
 	return i.handler(ctx, mes)
 }
 
@@ -61,7 +64,6 @@ func (i *BlockImpl) Close() {
 	i.close = true
 }
 
-func defaultBlockHandler(ctx context.Context, msg *tx.Block) error {
-	log.Println("received block:", msg.Height)
+func defaultBlockHandler(ctx context.Context, msg *tx.SignedBlock) error {
 	return nil
 }

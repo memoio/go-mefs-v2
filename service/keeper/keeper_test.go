@@ -16,8 +16,6 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/node"
 )
 
-var baseDir = "/home/fjt/testmemo"
-
 func TestKeeperNode(t *testing.T) {
 	repoDir1 := "/home/fjt/testmemo0"
 	ctx := context.Background()
@@ -59,14 +57,14 @@ func TestKeeperNode(t *testing.T) {
 		log.Println("start hello")
 		res, err := bn2.SendMetaRequest(ctx, p1, pb.NetMessage_SayHello, []byte("hello"), nil)
 		if err != nil {
-			t.Fatal(err)
+			log.Println(err)
 		}
 
 		sm := new(tx.SignedMessage)
-		sm.From = "keeperfrom"
+		sm.From = 10
 		bn2.PublishTxMsg(ctx, sm)
 
-		blk := new(tx.Block)
+		blk := new(tx.SignedBlock)
 		blk.Height = 1000
 		bn2.PublishTxBlock(ctx, blk)
 
@@ -77,7 +75,7 @@ func TestKeeperNode(t *testing.T) {
 		log.Println("start get")
 		res, err := bn2.SendMetaRequest(ctx, p1, pb.NetMessage_Get, []byte("get"), nil)
 		if err != nil {
-			t.Fatal(err)
+			log.Println(err)
 		}
 
 		log.Println(string(res.Data.MsgInfo))
@@ -169,7 +167,7 @@ func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode
 
 	ifaceAddrs, err := bn.Host.Network().InterfaceListenAddresses()
 	if err != nil {
-		fmt.Errorf("failed to read listening addresses: %s", err)
+		fmt.Printf("failed to read listening addresses: %s", err)
 	}
 
 	var lisAddrs []string

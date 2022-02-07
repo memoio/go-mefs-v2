@@ -1,30 +1,21 @@
 package order
 
 import (
-	"errors"
-
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("uorder")
-
-var (
-	ErrDataAdded = errors.New("add data fails")
-	ErrState     = errors.New("state is wrong")
-	ErrDataSign  = errors.New("sign is wrong")
-	ErrEmpty     = errors.New("data is empty")
-	ErrNotFound  = errors.New("not found")
-	ErrPrice     = errors.New("price is not right")
-)
+var logger = logging.Logger("user-order")
 
 const (
-	DefaultOrderDuration = 8640000 // 100 days
-	DefaultAckWaiting    = 30
-	DefaultOrderLast     = 600 // 1 day
-	DefaultOrderSeqLast  = 300 // 1 hour
+	defaultAckWaiting   = 30
+	defaultOrderLast    = 3600 // 1 day
+	defaultOrderSeqLast = 600  // 1 hour
+
+	// parallel number of net send
+	defaultWeighted = 50
 )
 
 type orderSeqPro struct {
@@ -51,8 +42,9 @@ type segJobState struct {
 	doneBits     *bitset.BitSet
 }
 
-func (sj *segJobState) Serialize() ([]byte, error) {
+func (sj *segJob) Serialize() ([]byte, error) {
 	sjs := &segJobStateStored{
+		SegJob:   sj.SegJob,
 		Dispatch: sj.dispatchBits.Bytes(),
 		Done:     sj.doneBits.Bytes(),
 	}
@@ -60,7 +52,7 @@ func (sj *segJobState) Serialize() ([]byte, error) {
 	return cbor.Marshal(sjs)
 }
 
-func (sj *segJobState) Deserialize(b []byte) error {
+func (sj *segJob) Deserialize(b []byte) error {
 	sjs := new(segJobStateStored)
 
 	err := cbor.Unmarshal(b, sjs)
@@ -68,6 +60,7 @@ func (sj *segJobState) Deserialize(b []byte) error {
 		return err
 	}
 
+	sj.SegJob = sjs.SegJob
 	sj.dispatchBits = bitset.From(sjs.Dispatch)
 	sj.doneBits = bitset.From(sjs.Done)
 
@@ -75,6 +68,7 @@ func (sj *segJobState) Deserialize(b []byte) error {
 }
 
 type segJobStateStored struct {
+	types.SegJob
 	Dispatch []uint64
 	Done     []uint64
 }

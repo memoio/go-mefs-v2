@@ -1,12 +1,14 @@
 package types
 
 import (
+	"encoding/binary"
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/memoio/go-mefs-v2/lib/utils"
-	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/xerrors"
+
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 type OrderHash [32]byte
@@ -27,9 +29,19 @@ func (q *Quotation) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, q)
 }
 
-// key: 'OrderNonce'/user/pro; value: nonce
-// key: 'OrderNonceDone'/user/pro; value: nonce
-// key: 'OrderBase'/user/pro/nonce; value: content
+type NonceSeq struct {
+	Nonce  uint64
+	SeqNum uint32
+}
+
+func (ns *NonceSeq) Serialize() ([]byte, error) {
+	return cbor.Marshal(ns)
+}
+
+func (ns *NonceSeq) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, ns)
+}
+
 type OrderBase struct {
 	UserID     uint64
 	ProID      uint64
@@ -41,19 +53,14 @@ type OrderBase struct {
 	PiecePrice *big.Int
 }
 
-func (b *OrderBase) Hash() OrderHash {
-	var oh OrderHash
-
+// for sign on data chain
+func (b *OrderBase) Hash() MsgID {
 	buf, err := cbor.Marshal(b)
 	if err != nil {
-		return oh
+		return MsgIDUndef
 	}
 
-	h := blake3.Sum256(buf)
-
-	copy(oh[:], h[:])
-
-	return oh
+	return NewMsgID(buf)
 }
 
 func (b *OrderBase) Serialize() ([]byte, error) {
@@ -69,20 +76,25 @@ type SignedOrder struct {
 	Size  uint64
 	Price *big.Int
 	Usign Signature
-	Psign Signature
+	Psign Signature // sign hash
 }
 
-// for sign on chain
+// for sign on settle chain
 func (so *SignedOrder) Hash() []byte {
+	var buf = make([]byte, 8)
 	d := sha3.NewLegacyKeccak256()
-	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.UserID)).Bytes(), 32))
-	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.ProID)).Bytes(), 32))
-	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.Nonce)).Bytes(), 32))
-	d.Write(utils.LeftPadBytes(big.NewInt(so.Start).Bytes(), 32))
-	d.Write(utils.LeftPadBytes(big.NewInt(so.End).Bytes(), 32))
-	d.Write(utils.LeftPadBytes(so.SegPrice.Bytes(), 32))
-	d.Write(utils.LeftPadBytes(so.PiecePrice.Bytes(), 32))
-	d.Write(utils.LeftPadBytes(big.NewInt(int64(so.Size)).Bytes(), 32))
+	binary.BigEndian.PutUint64(buf, so.UserID)
+	d.Write(buf)
+	binary.BigEndian.PutUint64(buf, so.ProID)
+	d.Write(buf)
+	binary.BigEndian.PutUint64(buf, so.Nonce)
+	d.Write(buf)
+	binary.BigEndian.PutUint64(buf, uint64(so.Start))
+	d.Write(buf)
+	binary.BigEndian.PutUint64(buf, uint64(so.End))
+	d.Write(buf)
+	binary.BigEndian.PutUint64(buf, so.Size)
+	d.Write(buf)
 	d.Write(utils.LeftPadBytes(so.Price.Bytes(), 32))
 	return d.Sum(nil)
 }
@@ -96,31 +108,31 @@ func (so *SignedOrder) Deserialize(b []byte) error {
 }
 
 type OrderSeq struct {
-	ID       OrderHash // fast lookup
-	SeqNum   uint32    // strict incremental from 0
-	Size     uint64    // accumulated
-	Price    *big.Int  //
+	UserID   uint64
+	ProID    uint64
+	Nonce    uint64
+	SeqNum   uint32   // strict incremental from 0
+	Size     uint64   // accumulated
+	Price    *big.Int //
 	Segments AggSegsQueue
-	//DataName    [][]byte // dataType/name/size; 多个dataName;
 }
 
-// key: 'SignedOrderSeq'/user/pro/nonce/seqnum; value: SignedOrderSeq
 type SignedOrderSeq struct {
 	OrderSeq
-	UserDataSig Signature // for data chain; hash(hash(OrderBase)+seqnum+size+price+name); signed by fs and pro
+	UserDataSig Signature // for data chain; sign serialize); signed by fs and pro
 	ProDataSig  Signature
-	UserSig     Signature // for settlement chain; hash(fsID+proID+nonce+start+end+size+price)
+	UserSig     Signature // for settlement chain; sign hash
 	ProSig      Signature
 }
 
-func (os *SignedOrderSeq) Hash() ([]byte, error) {
-	data, err := cbor.Marshal(os.OrderSeq)
+// for sign on data chain
+func (os *SignedOrderSeq) Hash() MsgID {
+	buf, err := cbor.Marshal(os.OrderSeq)
 	if err != nil {
-		return nil, err
+		return MsgIDUndef
 	}
 
-	h := blake3.Sum256(data)
-	return h[:], nil
+	return NewMsgID(buf)
 }
 
 func (os *SignedOrderSeq) Serialize() ([]byte, error) {
@@ -129,4 +141,75 @@ func (os *SignedOrderSeq) Serialize() ([]byte, error) {
 
 func (os *SignedOrderSeq) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, os)
+}
+
+type OrderDelPart struct {
+	AccFr []byte
+	Size  uint64
+	Price *big.Int
+}
+
+type OrderFull struct {
+	SignedOrder
+	SeqNum  uint32
+	AccFr   []byte
+	DelPart OrderDelPart
+}
+
+func (of *OrderFull) Serialize() ([]byte, error) {
+	return cbor.Marshal(of)
+}
+
+func (of *OrderFull) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, of)
+}
+
+type SeqFull struct {
+	OrderSeq
+	AccFr   []byte
+	DelPart OrderDelPart
+	DelSegs AggSegsQueue
+}
+
+func (sf *SeqFull) Serialize() ([]byte, error) {
+	return cbor.Marshal(sf)
+}
+
+func (sf *SeqFull) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, sf)
+}
+
+// for quick filter expired
+type OrderDuration struct {
+	Start []int64
+	End   []int64
+}
+
+func (od *OrderDuration) Add(start, end int64) error {
+	if start >= end {
+		return xerrors.Errorf("start %d is later than end %d", start, end)
+	}
+
+	if len(od.Start) > 0 {
+		olen := len(od.Start)
+		if od.Start[olen-1] > start {
+			return xerrors.Errorf("start %d is later than previous %d", start, od.Start[olen-1])
+		}
+
+		if od.End[olen-1] > end {
+			return xerrors.Errorf("end %d is early than previous %d", end, od.End[olen-1])
+		}
+	}
+
+	od.Start = append(od.Start, start)
+	od.End = append(od.End, end)
+	return nil
+}
+
+func (od *OrderDuration) Serialize() ([]byte, error) {
+	return cbor.Marshal(od)
+}
+
+func (od *OrderDuration) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, od)
 }

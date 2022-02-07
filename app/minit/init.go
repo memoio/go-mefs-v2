@@ -4,16 +4,11 @@ import (
 	"context"
 	"log"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
 
-	pdpv2 "github.com/memoio/go-mefs-v2/lib/crypto/pdp/version2"
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
@@ -23,8 +18,6 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 	if _, _, err := network.GetSelfNetKey(r.KeyStore()); err != nil {
 		return err
 	}
-
-	ri := new(pb.RoleInfo)
 
 	if r.Config().Wallet.DefaultAddress != "" {
 		return nil
@@ -56,91 +49,25 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 
 	log.Println("generated wallet: ", addr.String())
 
-	ri.ChainVerifyKey = addr.Bytes()
-
-	id, err := settle.GetRoleID(addr)
-	if err != nil {
-		return err
-	}
-	ri.ID = id
-	ri.GroupID = settle.GetGroupID(id)
-
-	cfg := r.Config()
-	roleType := cfg.Identity.Role
-
 	log.Println("generating bls key...")
 
-	switch roleType {
-	case "keeper", "provider":
-		if roleType == "keeper" {
-			ri.Type = pb.RoleInfo_Keeper
-		} else {
-			ri.Type = pb.RoleInfo_Provider
-		}
-
-		blsByte := blake3.Sum256(sBytes)
-		blsKey := &types.KeyInfo{
-			SecretKey: blsByte[:],
-			Type:      types.BLS,
-		}
-
-		blsAddr, err := w.WalletImport(ctx, blsKey)
-		if err != nil {
-			return err
-		}
-
-		ri.BlsVerifyKey = blsAddr.Bytes()
-
-		log.Println("genenrated bls: ", blsAddr.String())
-	case "user":
-		ri.Type = pb.RoleInfo_User
-		pdpKeySet, err := pdpv2.GenKeySetWithSeed(sBytes, pdpv2.SCount)
-		if err != nil {
-			return err
-		}
-
-		// store pdp secretkey
-		pdpsKey := types.KeyInfo{
-			SecretKey: pdpKeySet.SecreteKey().Serialize(),
-			Type:      types.PDP,
-		}
-
-		err = r.KeyStore().Put("pdp", password, pdpsKey)
-		if err != nil {
-			return err
-		}
-
-		ri.BlsVerifyKey = pdpKeySet.VerifyKey().Serialize()
-
-		// store pdp pubkey and verify key
-
-		err = r.MetaStore().Put(store.NewKey(pb.MetaType_PDPProveKey), pdpKeySet.PublicKey().Serialize())
-		if err != nil {
-			return err
-		}
-
-		err = r.MetaStore().Put(store.NewKey(pb.MetaType_PDPVerifyKey), pdpKeySet.VerifyKey().Serialize())
-		if err != nil {
-			return err
-		}
-
-		log.Println("generated user bls pdp key")
-	default:
-		ri.Type = pb.RoleInfo_Unknown
-		log.Println("type:", roleType)
+	blsSeed := make([]byte, len(sBytes)+1)
+	copy(blsSeed[:len(sBytes)], sBytes)
+	blsSeed[len(sBytes)] = byte(types.BLS)
+	blsByte := blake3.Sum256(blsSeed)
+	blsKey := &types.KeyInfo{
+		SecretKey: blsByte[:],
+		Type:      types.BLS,
 	}
 
-	// store roleinfo
-	data, err := proto.Marshal(ri)
-	if err != nil {
-		return err
-	}
-	err = r.MetaStore().Put(store.NewKey(pb.MetaType_RoleInfoKey), data)
+	blsAddr, err := w.WalletImport(ctx, blsKey)
 	if err != nil {
 		return err
 	}
 
-	cfg.Wallet.DefaultAddress = addr.String()
+	log.Println("genenrated bls: ", blsAddr.String())
+
+	r.Config().Wallet.DefaultAddress = addr.String()
 
 	return nil
 }

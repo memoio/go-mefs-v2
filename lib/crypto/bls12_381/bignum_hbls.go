@@ -44,7 +44,7 @@ func FrFromBytes(dst *Fr, v []byte) error {
 // Returns false, without modifying dst, if the value is out of range.
 func FrFrom32(dst *Fr, v [32]byte) error {
 	if !ValidFr(v) {
-		return errors.New("invalid Fr")
+		return xerrors.New("invalid Fr")
 	}
 	return (*hbls.Fr)(dst).SetLittleEndianMod(v[:])
 }

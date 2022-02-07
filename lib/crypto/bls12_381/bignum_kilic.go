@@ -5,10 +5,10 @@ package bls
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
 	"math/big"
 
 	kbls "github.com/kilic/bls12-381"
+	"golang.org/x/xerrors"
 )
 
 func init() {
@@ -50,7 +50,7 @@ func FrClear(dst *Fr) {
 
 func FrFromBytes(dst *Fr, v []byte) error {
 	if len(v) > 32 {
-		return errors.New("invalid Fr")
+		return xerrors.New("invalid Fr")
 	}
 	b := make([]byte, 32)
 	copy(b, v)
@@ -73,7 +73,7 @@ func FrToBytes(src *Fr) []byte {
 // Returns false, without modifying dst, if the value is out of range.
 func FrFrom32(dst *Fr, v [32]byte) error {
 	if !ValidFr(v) {
-		return errors.New("invalid Fr")
+		return xerrors.New("invalid Fr")
 	}
 	// reverse endianness, Kilic Fr takes big-endian bytes
 	for i := 0; i < 16; i++ {

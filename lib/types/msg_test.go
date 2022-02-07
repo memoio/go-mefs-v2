@@ -7,6 +7,8 @@ import (
 func TestMsg(t *testing.T) {
 	data := []byte("test")
 	res := NewMsgID(data)
+	res2 := NewMsgID(res.Bytes())
+	t.Log(res.Equal(res2))
 
 	t.Log(res.String())
 

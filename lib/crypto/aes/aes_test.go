@@ -79,12 +79,12 @@ func TestNewAes(t *testing.T) {
 	fmt.Println(data)
 	fmt.Println(key)
 
-	bme, err := ContructAesEnc(key)
+	bme, err := ContructAesEnc(key, 0, 0)
 	if err != nil {
 		t.Fatal("ContructAes error:", err)
 	}
 
-	bmd, err := ContructAesDec(key)
+	bmd, err := ContructAesDec(key, 0, 0)
 	if err != nil {
 		t.Fatal("ContructAes error:", err)
 	}
@@ -102,7 +102,7 @@ func TestNewAes(t *testing.T) {
 	bmd.CryptBlocks(data[3*BlockSize:], crypted[3*BlockSize:])
 
 	dhash2 := blake2b.Sum256(data)
-	if bytes.Compare(dhash[:], dhash2[:]) != 0 {
+	if !bytes.Equal(dhash[:], dhash2[:]) {
 		fmt.Println(data)
 		t.Fatal("decrypto error")
 	}
@@ -114,20 +114,26 @@ func TestAes(t *testing.T) {
 	rand.Seed(0)
 	fillRandom(key)
 	fillRandom(data)
-	fmt.Println(data)
-	fmt.Println(key)
 
-	tmpdata, err := AesEncrypt(data, key)
+	ae, err := ContructAesEnc(key, 0, 0)
 	if err != nil {
 		t.Fatal("AesEncrypt error")
 	}
-	fmt.Println(tmpdata)
 
-	newdata, err := AesDecrypt(tmpdata, key)
+	crypted := make([]byte, len(data))
+	ae.CryptBlocks(crypted, data)
+
+	ad, err := ContructAesDec(key, 0, 0)
 	if err != nil {
 		t.Fatal("AesEncrypt error")
 	}
-	fmt.Println(newdata)
+
+	origin := make([]byte, len(data))
+	ad.CryptBlocks(origin, crypted)
+
+	if !bytes.Equal(origin, data) {
+		t.Fatal("error")
+	}
 }
 
 func fillRandom(p []byte) {

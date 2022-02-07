@@ -8,6 +8,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
+const (
+	// KeyDelimiter seps kv key
+	KeyDelimiter = "/"
+)
+
+// key is human readable
 // type/key/...
 func NewKey(vs ...interface{}) []byte {
 	var b bytes.Buffer
@@ -49,7 +55,7 @@ func NewKey(vs ...interface{}) []byte {
 		}
 
 		if i < vlen-1 {
-			b.Write([]byte("/"))
+			b.Write([]byte(KeyDelimiter))
 		}
 	}
 

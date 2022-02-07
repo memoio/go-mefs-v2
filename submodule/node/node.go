@@ -7,11 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/gorilla/mux"
-	"github.com/libp2p/go-libp2p-core/host"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 
@@ -19,11 +19,15 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
+	"github.com/memoio/go-mefs-v2/submodule/txPool"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
 
@@ -46,57 +50,98 @@ type BaseNode struct {
 
 	*jsonrpc.RPCServer
 
-	httpHandle *mux.Router
+	*txPool.PushPool
+
+	*settle.ContractMgr
+
+	tx.Store
 
 	repo.Repo
 
 	ctx context.Context
 
-	ShutdownChan chan struct{}
+	httpHandle *mux.Router
 
-	IsOnline bool
+	roleID  uint64
+	groupID uint64
+
+	isOnline bool
+
+	shutdownChan chan struct{}
+}
+
+func (n *BaseNode) RoleID() uint64 {
+	return n.roleID
+}
+
+func (n *BaseNode) GroupID() uint64 {
+	return n.groupID
 }
 
 // Start boots up the node.
 func (n *BaseNode) Start() error {
+	if n.Repo.Config().Net.Name == "test" {
+		go n.OpenTest()
+	} else {
+		n.RoleMgr.Start()
+	}
 
-	go n.OpenTest()
+	n.TxMsgHandle.Register(n.TxMsgHandler)
+	n.BlockHandle.Register(n.TxBlockHandler)
 
+	n.GenericService.Register(pb.NetMessage_SayHello, n.DefaultHandler)
 	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
 
-	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(n))
+	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedFullAPI(n)))
+
+	go func() {
+		// wait for sync
+		n.PushPool.Start()
+		for {
+			if n.PushPool.Ready() {
+				break
+			} else {
+				logger.Debug("wait for sync")
+				time.Sleep(5 * time.Second)
+			}
+		}
+	}()
+
+	logger.Info("start base node")
 
 	return nil
 }
 
-func (n *BaseNode) Stop(ctx context.Context) {
-	n.GenericService.MsgHandle.Close()
+func (n *BaseNode) Stop(ctx context.Context) error {
+	// stop handle msg
+	n.NetServiceImpl.Stop()
 
+	// stop network
 	n.NetworkSubmodule.Stop(ctx)
 
-	if err := n.Repo.Close(); err != nil {
-		logger.Errorf("error closing repo: %s\n", err)
+	// stop module
+
+	// stop repo
+	err := n.Repo.Close()
+	if err != nil {
+		logger.Errorf("error closing repo: %s", err)
 	}
 
 	logger.Info("stopping Memoriae :(")
+	return nil
 }
 
-func (n *BaseNode) RunDaemon(ready chan interface{}) error {
+func (n *BaseNode) RunDaemon() error {
 	cfg := n.Repo.Config()
 	apiAddr, err := ma.NewMultiaddr(cfg.API.Address)
 	if err != nil {
 		return err
 	}
 
-	// Listen on the configured address in order to bind the port number in case it has
-	// been configured as zero (i.e. OS-provided)
-	apiListener, err := manet.Listen(apiAddr) //nolint
+	apiListener, err := manet.Listen(apiAddr)
 	if err != nil {
 		return err
 	}
-
-	n.httpHandle.Handle("/debug/metrics", exporter())
-	n.httpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	netListener := manet.NetListener(apiListener) //nolint
 
@@ -115,36 +160,51 @@ func (n *BaseNode) RunDaemon(ready chan interface{}) error {
 		return err
 	}
 
-	var terminate = make(chan os.Signal, 1)
-	signal.Notify(terminate, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(terminate)
-
-	n.ShutdownChan = make(chan struct{})
-
-	close(ready)
-
+	var terminate = make(chan os.Signal, 2)
 	go func() {
 		select {
-		case <-n.ShutdownChan:
-			logger.Warn("received shutdown")
-		case <-terminate:
-			logger.Warn("received shutdown signal")
+		case <-n.shutdownChan:
+			logger.Warn("received shutdown chan")
+		case sig := <-terminate:
+			logger.Warn("received shutdown signal: ", sig)
 		}
 
 		logger.Warn("shutdown...")
-		err = apiserv.Shutdown(n.ctx)
+		// stop api service
+		ctx, cancle1 := context.WithTimeout(context.TODO(), 1*time.Minute)
+		defer cancle1()
+		err = apiserv.Shutdown(ctx)
 		if err != nil {
-			return
+			logger.Errorf("shut down api server failed: %s", err)
 		}
-		n.Stop(n.ctx)
+
+		ctx, cancle2 := context.WithTimeout(context.TODO(), 1*time.Minute)
+		defer cancle2()
+		// stop node
+		err = n.Stop(ctx)
+		if err != nil {
+			logger.Errorf("shut down node failed: %s", err)
+		}
+
+		logger.Info("shutdown successful")
+		close(n.shutdownChan)
 	}()
-	return apiserv.Serve(netListener)
+	signal.Notify(terminate, syscall.SIGTERM, syscall.SIGINT)
+
+	err = apiserv.Serve(netListener)
+	if err == http.ErrServerClosed {
+		<-n.shutdownChan
+		return nil
+	}
+
+	return err
 }
 
 func (n *BaseNode) Online() bool {
-	return n.IsOnline
+	return n.isOnline
 }
 
-func (n *BaseNode) GetHost() host.Host {
-	return n.Host
+func (n *BaseNode) Shutdown(ctx context.Context) error {
+	n.shutdownChan <- struct{}{}
+	return nil
 }

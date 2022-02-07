@@ -11,10 +11,11 @@ type SegmentID interface {
 	SetChunkID(cID uint32)
 
 	Bytes() []byte
+	ToString() string
 	String() string
 
-	IndexBytes() []byte
-	IndexString() string
+	ShortBytes() []byte
+	ShortString() string
 }
 
 type Segment interface {

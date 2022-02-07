@@ -5,13 +5,13 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("netModule")
+var logger = logging.Logger("net-p2p")
 
 const (
 	SelfNetKey = "libp2p-self"
@@ -28,7 +28,7 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 
 		p, err := peer.IDFromPublicKey(sk.GetPublic())
 		if err != nil {
-			return peer.ID(""), nil, errors.Wrap(err, "failed to get peer ID")
+			return peer.ID(""), nil, xerrors.Errorf("failed to get peer ID %w", err)
 		}
 
 		logger.Info("load local peerID: ", p.Pretty())
@@ -40,7 +40,7 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 	logger.Info("generating ED25519 keypair for p2p network...")
 	sk, _, err := crypto.GenerateEd25519Key(rand.Reader)
 	if err != nil {
-		return peer.ID(""), nil, errors.Wrap(err, "failed to create peer key")
+		return peer.ID(""), nil, xerrors.Errorf("failed to create peer key %w", err)
 	}
 
 	data, err := sk.Bytes()
@@ -54,12 +54,12 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 	}
 
 	if err := store.Put(SelfNetKey, SelfNetKey, nki); err != nil {
-		return peer.ID(""), nil, errors.Wrap(err, "failed to store private key")
+		return peer.ID(""), nil, xerrors.Errorf("failed to store private key %w", err)
 	}
 
 	p, err := peer.IDFromPublicKey(sk.GetPublic())
 	if err != nil {
-		return peer.ID(""), nil, errors.Wrap(err, "failed to get peer ID")
+		return peer.ID(""), nil, xerrors.Errorf("failed to get peer ID %w", err)
 	}
 
 	logger.Info("generated peerID: ", p.Pretty())

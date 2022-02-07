@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 // Strings is a helper type that (un)marshals a single string to/from a single
@@ -80,7 +82,7 @@ func (f Flag) MarshalJSON() ([]byte, error) {
 	case False:
 		return json.Marshal(false)
 	default:
-		return nil, fmt.Errorf("invalid flag value: %d", f)
+		return nil, xerrors.Errorf("invalid flag value: %d", f)
 	}
 }
 

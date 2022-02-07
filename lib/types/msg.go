@@ -1,13 +1,15 @@
 package types
 
 import (
+	"bytes"
 	"encoding/hex"
-	"errors"
+	"encoding/json"
 	"hash"
 
 	"github.com/mr-tron/base58/base58"
 	mh "github.com/multiformats/go-multihash"
 	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -18,7 +20,7 @@ const (
 )
 
 var (
-	ErrMsgCode = errors.New("illegal msg code")
+	ErrMsgCode = xerrors.New("illegal msg code")
 )
 
 func init() {
@@ -27,12 +29,12 @@ func init() {
 
 type MsgID struct{ str string }
 
-var Undef = MsgID{}
+var MsgIDUndef = MsgID{}
 
 func NewMsgID(data []byte) MsgID {
 	res, err := mh.Sum(data, MsgIDHashCode, MsgIDHashLen)
 	if err != nil {
-		return Undef
+		return MsgIDUndef
 	}
 
 	return MsgID{string(res)}
@@ -50,10 +52,47 @@ func (m MsgID) Hex() string {
 	return hex.EncodeToString(m.Bytes())
 }
 
+func (m MsgID) Equal(old MsgID) bool {
+	return bytes.Equal(m.Bytes(), old.Bytes())
+}
+
+// json encode and decode
+func (m *MsgID) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + m.String() + `"`), nil
+}
+
+func (m *MsgID) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	id, err := FromString(s)
+	if err != nil {
+		return err
+	}
+	*m = id
+	return nil
+}
+
+// for cbor
+func (m *MsgID) UnmarshalBinary(data []byte) error {
+	id, err := FromBytes(data)
+	if err == nil {
+		*m = id
+	}
+
+	return nil
+}
+
+func (m MsgID) MarshalBinary() ([]byte, error) {
+	return m.Bytes(), nil
+}
+
 func FromString(s string) (MsgID, error) {
 	b, err := base58.Decode(s)
 	if err != nil {
-		return Undef, err
+		return MsgIDUndef, err
 	}
 
 	return FromBytes(b)
@@ -62,7 +101,7 @@ func FromString(s string) (MsgID, error) {
 func FromHexString(s string) (MsgID, error) {
 	b, err := hex.DecodeString(s)
 	if err != nil {
-		return Undef, err
+		return MsgIDUndef, err
 	}
 
 	return FromBytes(b)
@@ -71,11 +110,11 @@ func FromHexString(s string) (MsgID, error) {
 func FromBytes(b []byte) (MsgID, error) {
 	dh, err := mh.Decode(b)
 	if err != nil {
-		return Undef, err
+		return MsgIDUndef, err
 	}
 
 	if dh.Code != MsgIDHashCode {
-		return Undef, ErrMsgCode
+		return MsgIDUndef, ErrMsgCode
 	}
 
 	return MsgID{string(b)}, nil

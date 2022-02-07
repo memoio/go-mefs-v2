@@ -37,6 +37,10 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	}
 	defer l.sw.Release(1)
 
+	if !l.Ready() {
+		return nil, ErrLfsServiceNotReady
+	}
+
 	bu, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
@@ -49,7 +53,7 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 
 	dist, donet, tt := 0, 0, 0
 	for _, opID := range object.ops[1:] {
-		total, dis, done := l.om.GetSegJogState(object.BucketID, opID)
+		total, dis, done := l.OrderMgr.GetSegJogState(object.BucketID, opID)
 		dist += dis
 		donet += done
 		tt += total
@@ -66,6 +70,10 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
+
+	if !l.Ready() {
+		return nil, ErrLfsServiceNotReady
+	}
 
 	if !l.Writeable() {
 		return nil, ErrLfsReadOnly

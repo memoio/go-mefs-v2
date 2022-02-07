@@ -2,9 +2,10 @@ package segment
 
 import (
 	"encoding/binary"
-	"errors"
 
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	"golang.org/x/xerrors"
+
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 )
 
 const (
@@ -12,7 +13,7 @@ const (
 )
 
 var (
-	ErrDataLength = errors.New("data length is wrong")
+	ErrDataLength = xerrors.New("data length is wrong")
 )
 
 type Prefix struct {
@@ -109,7 +110,7 @@ func (bs *BaseSegment) Tags() ([][]byte, error) {
 		return nil, ErrDataLength
 	}
 
-	tagLen := pdp.TagMap[int(pre.TagFlag)]
+	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
 	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
 
 	tag := make([][]byte, tagCount)

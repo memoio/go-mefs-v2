@@ -1,16 +1,19 @@
 package lfs
 
 import (
+	"context"
 	"encoding/binary"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	rbtree "github.com/memoio/go-mefs-v2/lib/RbTree"
+	rbtree "github.com/sakeven/RbTree"
+	"github.com/zeebo/blake3"
+
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/zeebo/blake3"
 )
 
 type superBlock struct {
@@ -18,8 +21,7 @@ type superBlock struct {
 	pb.SuperBlockInfo
 	dirty          bool
 	write          bool              // set true when finish unfinished jobs
-	ready          bool              // set true after loaded from local store
-	bucketMax      uint64            // Get from chain; in case create too mant buckets
+	bucketVerify   uint64            // Get from chain; in case create too mant buckets
 	bucketNameToID map[string]uint64 // bucketName -> bucketID
 	buckets        []*bucket         // 所有的bucket信息
 }
@@ -50,7 +52,7 @@ func newSuperBlock() *superBlock {
 			NextBucketID: 0,
 		},
 		dirty:          true,
-		bucketMax:      MaxBucket, // todo
+		bucketVerify:   0, // todo
 		bucketNameToID: make(map[string]uint64),
 	}
 }
@@ -123,7 +125,64 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 		objects:    rbtree.NewTree(),
 	}
 
-	err := bu.SaveOptions(l.userID, l.ds)
+	logger.Debug("push create bucket message")
+	tbp := tx.BucketParams{
+		BucketOption: *opt,
+		BucketID:     bucketID,
+	}
+
+	data, err := tbp.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	msg := &tx.Message{
+		Version: 0,
+		From:    l.userID,
+		To:      l.userID,
+		Method:  tx.CreateBucket,
+		Params:  data,
+	}
+
+	// handle result and retry?
+
+	var mid types.MsgID
+	retry := 0
+	for retry < 60 {
+		retry++
+		id, err := l.OrderMgr.PushMessage(l.ctx, msg)
+		if err != nil {
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		mid = id
+		break
+	}
+
+	go func(bucketID uint64, mid types.MsgID) {
+		ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancle()
+		logger.Debug("waiting tx message done: ", mid)
+
+		for {
+			st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
+			if err != nil {
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			if st.Status.Err == 0 {
+				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+				l.bucketChan <- bucketID
+			} else {
+				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+			}
+
+			break
+		}
+	}(bucketID, mid)
+
+	err = bu.SaveOptions(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}
@@ -132,8 +191,6 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 	if err != nil {
 		return nil, err
 	}
-
-	go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 
 	return bu, nil
 }
@@ -379,29 +436,19 @@ func loadOpRecord(userID uint64, bucketID, opID uint64, ds store.KVStore) (*pb.O
 	return or, nil
 }
 
-func saveOpRecord(userID uint64, bucketID uint64, or *pb.OpRecord, ds store.KVStore) error {
-	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bucketID, or.OpID)
-
-	data, err := proto.Marshal(or)
-	if err != nil {
-		return err
-	}
-	return ds.Put(key, data)
-}
-
 // wrap all above load
-func (l *LfsService) Load() error {
+func (l *LfsService) load() error {
 	l.sb.Lock()
 	defer l.sb.Unlock()
 	// 1. load super block
-	err := l.sb.Load(l.userID, l.ds)
-	if err != nil {
-		return err
-	}
+	l.sb.Load(l.userID, l.ds)
 
 	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
 		bu := new(bucket)
+		bu.Deletion = true
+
+		l.sb.buckets[i] = bu
 
 		bu.Lock()
 		err := bu.Load(l.userID, i, l.ds)
@@ -410,8 +457,6 @@ func (l *LfsService) Load() error {
 			bu.Unlock()
 			continue
 		}
-
-		l.sb.buckets[i] = bu
 
 		logger.Debug("load bucket: ", i, bu.BucketInfo)
 
@@ -434,16 +479,13 @@ func (l *LfsService) Load() error {
 
 		}
 		bu.Unlock()
-
-		go l.om.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 	}
 
-	l.sb.ready = true
 	l.sb.write = true
 	return nil
 }
 
-func (l *LfsService) Save() error {
+func (l *LfsService) save() error {
 	ok := l.sw.TryAcquire(1)
 	if ok {
 		defer l.sw.Release(1)
@@ -475,16 +517,32 @@ func (l *LfsService) persistMeta() {
 	defer tick.Stop()
 	for {
 		select {
+		case <-l.readyChan:
+			l.ready = true
+			logger.Debug("lfs is ready")
+		case bid := <-l.bucketChan:
+			logger.Debug("lfs bucket is verified: ", bid)
+			l.sb.Lock()
+			if bid < l.sb.NextBucketID {
+				if l.sb.bucketVerify == bid {
+					l.sb.bucketVerify++
+					bu := l.sb.buckets[bid]
+					bu.Confirmed = true
+					// register in order
+					go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+				}
+			}
+			l.sb.Unlock()
 		case <-tick.C:
 			if l.Ready() {
-				err := l.Save()
+				err := l.save()
 				if err != nil {
 					logger.Warn("Cannot Persist Meta: ", err)
 				}
 			}
 		case <-l.ctx.Done():
 			if l.Ready() {
-				err := l.Save()
+				err := l.save()
 				if err != nil {
 					logger.Warn("Cannot Persist Meta: ", err)
 				}

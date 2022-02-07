@@ -20,7 +20,7 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
 
-var log = logging.Logger("httpio")
+var logger = logging.Logger("httpio")
 
 var Timeout = 30 * time.Second
 
@@ -48,12 +48,12 @@ func ReaderParamEncoder(addr string) jsonrpc.Option {
 		}
 		u.Path = path.Join(u.Path, reqID.String())
 
-		log.Info("push stream:", u.Path)
+		logger.Debug("push stream: ", u.Path)
 
 		go func() {
 			resp, err := http.Post(u.String(), "application/octet-stream", r)
 			if err != nil {
-				log.Errorf("sending reader param: %+v", err)
+				logger.Errorf("sending reader param: %+v", err)
 				return
 			}
 
@@ -61,7 +61,7 @@ func ReaderParamEncoder(addr string) jsonrpc.Option {
 
 			if resp.StatusCode != 200 {
 				b, _ := ioutil.ReadAll(resp.Body)
-				log.Errorf("sending reader param (%s): non-200 status: %s, msg: '%s'", u.String(), resp.Status, string(b))
+				logger.Errorf("sending reader param (%s): non-200 status: %s, msg: '%s'", u.String(), resp.Status, string(b))
 				return
 			}
 
@@ -121,7 +121,7 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 		case ch <- wr:
 		case <-tctx.Done():
 			close(ch)
-			log.Errorf("context error in reader stream handler (1): %v", tctx.Err())
+			logger.Errorf("context error in reader stream handler (1): %v", tctx.Err())
 			resp.WriteHeader(500)
 			return
 		}
@@ -129,7 +129,7 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 		select {
 		case <-wr.wait:
 		case <-req.Context().Done():
-			log.Errorf("context error in reader stream handler (2): %v", req.Context().Err())
+			logger.Errorf("context error in reader stream handler (2): %v", req.Context().Err())
 			resp.WriteHeader(500)
 			return
 		}
@@ -138,7 +138,6 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 	}
 
 	dec := jsonrpc.WithParamDecoder(new(io.Reader), func(ctx context.Context, b []byte) (reflect.Value, error) {
-		log.Info("decode stream")
 		var rs ReaderStream
 		if err := json.Unmarshal(b, &rs); err != nil {
 			return reflect.Value{}, xerrors.Errorf("unmarshaling reader id: %w", err)
@@ -148,8 +147,6 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 		if err != nil {
 			return reflect.Value{}, xerrors.Errorf("parsing reader UUDD: %w", err)
 		}
-
-		log.Info("decode stream:", u.String())
 
 		readersLk.Lock()
 		ch, found := readers[u]

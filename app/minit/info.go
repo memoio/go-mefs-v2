@@ -1,19 +1,25 @@
 package minit
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"runtime"
-	"sort"
 
-	"github.com/libp2p/go-libp2p-core/host"
+	"go.opencensus.io/plugin/runmetrics"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/tag"
+
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 type Node interface {
 	Start() error
-	RunDaemon(chan interface{}) error
+	Shutdown(context.Context) error
+	RunDaemon() error
 	Online() bool
-	GetHost() host.Host
 }
 
 func PrintVersion() {
@@ -23,23 +29,21 @@ func PrintVersion() {
 	log.Printf("Golang version: %s", runtime.Version())
 }
 
-// printSwarmAddrs prints the addresses of the host
-func PrintSwarmAddrs(node Node) {
-	if !node.Online() {
-		log.Println("Swarm not listening, running in offline mode.")
-		return
+func StartMetrics() {
+	err := runmetrics.Enable(runmetrics.RunMetricOptions{
+		EnableCPU:    true,
+		EnableMemory: true,
+	})
+	if err != nil {
+		fmt.Errorf("enabling runtime metrics: %w", err)
 	}
 
-	var lisAddrs []string
-	ifaceAddrs, err := node.GetHost().Network().InterfaceListenAddresses()
-	if err != nil {
-		log.Fatalf("failed to read listening addresses: %s", err)
-	}
-	for _, addr := range ifaceAddrs {
-		lisAddrs = append(lisAddrs, addr.String())
-	}
-	sort.Strings(lisAddrs)
-	for _, addr := range lisAddrs {
-		log.Printf("Swarm listening on %s\n", addr)
-	}
+	view.Register(metrics.DefaultViews...)
+
+	// record version
+	ctx, _ := tag.New(context.Background(),
+		tag.Insert(metrics.Version, build.BuildVersion),
+		tag.Insert(metrics.Commit, build.CurrentCommit),
+	)
+	stats.Record(ctx, metrics.MemoInfo.M(1))
 }

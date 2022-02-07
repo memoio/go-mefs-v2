@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"go.opencensus.io/stats"
 	"golang.org/x/xerrors"
 
 	"github.com/libp2p/go-libp2p-core/event"
@@ -12,6 +13,7 @@ import (
 	net "github.com/libp2p/go-libp2p-core/network"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 const (
@@ -29,7 +31,6 @@ type IPeerMgr interface {
 }
 
 var _ IPeerMgr = &PeerMgr{}
-var _ IPeerMgr = &MockPeerMgr{}
 
 type PeerMgr struct {
 	bootstrappers []peer.AddrInfo
@@ -127,6 +128,11 @@ func (pmgr *PeerMgr) Stop(ctx context.Context) error {
 
 func (pmgr *PeerMgr) Run(ctx context.Context) {
 	tick := time.NewTicker(time.Second * 60)
+	defer tick.Stop()
+
+	ltick := time.NewTicker(time.Second * 600)
+	defer ltick.Stop()
+
 	for {
 		select {
 		case <-tick.C:
@@ -135,6 +141,22 @@ func (pmgr *PeerMgr) Run(ctx context.Context) {
 				pmgr.expandPeers()
 			} else if pcount > pmgr.maxPeers {
 				logger.Debugf("peer count about threshold: %d > %d", pcount, pmgr.maxPeers)
+			}
+			stats.Record(ctx, metrics.PeerCount.M(int64(pmgr.getPeerCount())))
+		case <-ltick.C:
+			if len(pmgr.bootstrappers) == 0 {
+				logger.Warn("no peers connected, and no bootstrappers configured")
+				return
+			}
+
+			logger.Info("connecting to bootstrap peers")
+
+			for _, bsp := range pmgr.bootstrappers {
+				ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+				if err := pmgr.h.Connect(ctx, bsp); err != nil {
+					logger.Warnf("failed to connect to bootstrap peer: %s", err)
+				}
+				cancel()
 			}
 		case <-pmgr.done:
 			logger.Warn("exiting peermgr run")
@@ -183,35 +205,7 @@ func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 		return
 	}
 
-	// if we already have some peers and need more, the dht is really good at connecting to most peers. Use that for now until something better comes along.
 	if err := pmgr.dht.Bootstrap(ctx); err != nil {
 		logger.Warnf("dht bootstrapping failed: %s", err)
 	}
-}
-
-type MockPeerMgr struct {
-}
-
-func (m MockPeerMgr) AddPeer(p peer.ID) {
-	return
-}
-
-func (m MockPeerMgr) GetPeerLatency(p peer.ID) (time.Duration, bool) {
-	return time.Duration(0), true
-}
-
-func (m MockPeerMgr) SetPeerLatency(p peer.ID, latency time.Duration) {
-	return
-}
-
-func (m MockPeerMgr) Disconnect(p peer.ID) {
-	return
-}
-
-func (m MockPeerMgr) Stop(ctx context.Context) error {
-	return nil
-}
-
-func (m MockPeerMgr) Run(ctx context.Context) {
-	return
 }

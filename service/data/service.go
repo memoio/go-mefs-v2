@@ -4,38 +4,43 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"errors"
+	"math/big"
 
 	lru "github.com/hashicorp/golang-lru"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/address"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/lib/utils"
+	"github.com/memoio/go-mefs-v2/submodule/connect/readpay"
 )
 
-var logger = logging.Logger("mefs-user")
-
-var (
-	ErrData = errors.New("err data")
-	ErrSend = errors.New("send fails")
-)
+var logger = logging.Logger("data-service")
 
 type dataService struct {
 	api.INetService // net for send
+	api.IRole
 
 	ds       store.KVStore
 	segStore segment.SegmentStore
 
 	cache *lru.ARCCache
+
+	is readpay.ISender
 }
 
-func New(ds store.KVStore, ss segment.SegmentStore, is api.INetService) *dataService {
+func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.IRole, is readpay.ISender) *dataService {
 	cache, _ := lru.NewARC(1024)
 
 	d := &dataService{
-		INetService: is,
+		INetService: ins,
+		IRole:       ir,
+		is:          is,
 		ds:          ds,
 		segStore:    ss,
 		cache:       cache,
@@ -44,21 +49,32 @@ func New(ds store.KVStore, ss segment.SegmentStore, is api.INetService) *dataSer
 	return d
 }
 
-// todo add piece put/get
+func (d *dataService) API() *dataAPI {
+	return &dataAPI{d}
+}
 
 func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment) error {
-	logger.Debug("put segment to local:", seg.SegmentID().String())
+	logger.Debug("put segment to local: ", seg.SegmentID())
 	d.cache.Add(seg.SegmentID(), seg)
 	return d.segStore.Put(seg)
 }
 
 func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
-	logger.Debug("get segment from local:", sid.String())
+	logger.Debug("get segment from local: ", sid)
 	val, has := d.cache.Get(sid)
 	if has {
 		return val.(segment.Segment), nil
 	}
 	return d.segStore.Get(sid)
+}
+
+func (d *dataService) HasSegment(ctx context.Context, sid segment.SegmentID) (bool, error) {
+	logger.Debug("has segment from local: ", sid)
+	has := d.cache.Contains(sid)
+	if has {
+		return true, nil
+	}
+	return d.segStore.Has(sid)
 }
 
 // SendSegment over network
@@ -74,16 +90,9 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return ErrSend
+		return xerrors.Errorf("send to %d fails %d", to, string(resp.GetData().MsgInfo))
 	}
 
-	// save meta
-	key := store.NewKey(pb.MetaType_SegLocationKey, seg.SegmentID().String())
-	val := utils.UintToBytes(to)
-	err = d.ds.Put(key, val)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -105,31 +114,58 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 		return seg, nil
 	}
 
-	// get from remote
-	key := store.NewKey(pb.MetaType_SegLocationKey, sid.String())
+	from, err := d.GetSegmentLocation(ctx, sid)
+	if err != nil {
+		return seg, err
+	}
+
+	pri, err := d.RoleGet(context.TODO(), from)
+	if err != nil {
+		return seg, err
+	}
+
+	fromAddr, err := address.NewAddress(pri.ChainVerifyKey)
+	if err != nil {
+		return seg, err
+	}
+
+	readPrice := big.NewInt(types.DefaultReadPrice)
+	readPrice.Mul(readPrice, big.NewInt(build.DefaultSegSize))
+
+	sig, err := d.is.Pay(fromAddr, readPrice)
+	if err != nil {
+		return seg, err
+	}
+
+	return d.GetSegmentRemote(ctx, sid, from, sig)
+}
+
+func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.SegmentID) (uint64, error) {
+	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
 	val, err := d.ds.Get(key)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	if len(val) < 8 {
-		return nil, ErrData
+		return 0, xerrors.Errorf("location is wrong")
 	}
 
-	from := binary.BigEndian.Uint64(val)
-
-	return d.GetSegmentFrom(ctx, sid, from)
+	return binary.BigEndian.Uint64(val), nil
 }
 
+// todo: add readpay sign here
+
 // GetSegmentFrom get segmemnt over network
-func (d *dataService) GetSegmentFrom(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error) {
-	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), nil)
+func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error) {
+	logger.Debug("get segment from remote: ", sid, from)
+	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), sig)
 	if err != nil {
 		return nil, err
 	}
 
 	if resp.Header.Type == pb.NetMessage_Err {
-		return nil, ErrData
+		return nil, xerrors.Errorf("get segment from %d fails %s", from, string(resp.GetData().MsgInfo))
 	}
 
 	bs := new(segment.BaseSegment)
@@ -139,10 +175,17 @@ func (d *dataService) GetSegmentFrom(ctx context.Context, sid segment.SegmentID,
 	}
 
 	if !bytes.Equal(sid.Bytes(), bs.SegmentID().Bytes()) {
-		return nil, ErrData
+		return nil, xerrors.Errorf("segment is not required, expected %s, got %s", sid, bs.SegmentID())
 	}
 
-	// save to local?
+	d.cache.Add(bs.SegmentID(), bs)
+
+	// save to local? or after valid it?
 
 	return bs, nil
+}
+
+func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) error {
+	d.cache.Remove(sid)
+	return d.segStore.Delete(sid)
 }

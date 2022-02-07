@@ -1,50 +1,42 @@
 package tx
 
 import (
-	"encoding/binary"
-	"errors"
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 type MsgType = uint32
 
-const MsgMaxLen = 1<<16 - 1
+// 512KB ok ?
+const MsgMaxLen = 1 << 19
 
 var (
-	ErrMsgLen      = errors.New("message length too longth")
-	ErrMsgLenShort = errors.New("message length too short")
+	ErrMsgLen      = xerrors.New("message length too longth")
+	ErrMsgLenShort = xerrors.New("message length too short")
 )
 
 const (
-	DataTxErr MsgType = iota
+	DataTxErr MsgType = 0
 
-	// register
-	CreateRole     // 更新，在结算链上的信息改变的时候；by keeper/provider/user
-	UpdateGasMoney // by keeper/provider/user/fs
-	WithdrawFee    // 获取链上消息费; by keeper
+	AddRole   MsgType = 1 // by each role
+	UpdateNet MsgType = 2
 
-	UpdateNetAddr // 更新网络地址; by provider; needed(?)； 或者user和provider私下协商
+	UpdateChalEpoch   MsgType = 11 // next epoch, by keeper
+	ConfirmPostIncome MsgType = 12 // add post income for provider; by keeper
+	ConfirmDataOrder  MsgType = 13 // commit by keepers
 
-	SetEpoch // 进入下一个周期；by keeper
+	CreateFs        MsgType = 21 // register, by user
+	CreateBucket    MsgType = 22 // by user
+	PreDataOrder    MsgType = 23 // by user
+	AddDataOrder    MsgType = 24 // contain piece and segment; by user
+	CommitDataOrder MsgType = 25 // commit by user
 
-	// data tx; after user is added
-	CreateBucket // by user
-
-	// order
-	DataPreOrder    // by user
-	DataOrder       // contain piece and segment; by user
-	DataCommitOrder // by user or keeper; collect sign for order?
-
-	CommitSector // confirm piece; by provider
-	SetChalEpoch // set chal epoch and seed
-	SegmentProof // segment proof; by provider
-	SectorProof  // sector proof; by provider
-	SegmentFault // segment remove; by provider
-	SectorFault  // sector remove; by provider
-	PostIncome   // add post income for provider; by keeper
+	SegmentProof MsgType = 31 // segment proof; by provider
+	SegmentFault MsgType = 32 // segment remove; by provider
 )
 
 // MsgID(message) as key
@@ -52,8 +44,8 @@ const (
 type Message struct {
 	Version uint32
 
-	From  string
-	To    string
+	From  uint64
+	To    uint64
 	Nonce uint64
 	Value *big.Int
 
@@ -85,19 +77,19 @@ func (m *Message) Serialize() ([]byte, error) {
 }
 
 // get message hash for sign
-func (m *Message) Hash() (types.MsgID, error) {
+func (m *Message) Hash() types.MsgID {
 	res, err := m.Serialize()
 	if err != nil {
-		return types.Undef, err
+		return types.MsgIDUndef
 	}
 
-	return types.NewMsgID(res), nil
+	return types.NewMsgID(res)
 }
 
 func (m *Message) Deserialize(b []byte) (types.MsgID, error) {
 	err := cbor.Unmarshal(b, m)
 	if err != nil {
-		return types.Undef, err
+		return types.MsgIDUndef, err
 	}
 
 	return types.NewMsgID(b), nil
@@ -111,58 +103,20 @@ func (m *Message) Deserialize(b []byte) (types.MsgID, error) {
 // 4. gas is enough
 type SignedMessage struct {
 	Message
-	Signature types.Signature // signed by Tx.From;
-
-	ID types.MsgID
+	Signature types.Signature // signed by Tx.From
 }
 
 func (sm *SignedMessage) Serialize() ([]byte, error) {
-	res, err := sm.Message.Serialize()
+	res, err := cbor.Marshal(sm)
 	if err != nil {
 		return nil, err
 	}
-
-	rLen := len(res)
-
-	sbyte, err := sm.Signature.Serialize()
-	if err != nil {
-		return nil, err
+	if len(res) > int(MsgMaxLen) {
+		return nil, ErrMsgLen
 	}
-
-	buf := make([]byte, 2+rLen+len(sbyte))
-	binary.BigEndian.PutUint16(buf[:2], uint16(rLen))
-
-	copy(buf[2:2+rLen], res)
-	copy(buf[2+rLen:], sbyte)
-
-	return buf, nil
+	return res, nil
 }
 
 func (sm *SignedMessage) Deserialize(b []byte) error {
-	if len(b) < 2 {
-		return ErrMsgLenShort
-	}
-
-	rLen := binary.BigEndian.Uint16(b[:2])
-	if len(b) < 2+int(rLen) {
-		return ErrMsgLenShort
-	}
-
-	m := new(Message)
-	mid, err := m.Deserialize(b[2 : 2+rLen])
-	if err != nil {
-		return err
-	}
-
-	sig := new(types.Signature)
-	err = sig.Deserialize(b[2+rLen:])
-	if err != nil {
-		return err
-	}
-
-	sm.Message = *m
-	sm.ID = mid
-	sm.Signature = *sig
-
-	return nil
+	return cbor.Unmarshal(b, sm)
 }

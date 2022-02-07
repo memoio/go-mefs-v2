@@ -10,11 +10,6 @@ import (
 )
 
 // send
-func (gs *GenericService) SendNetMessage(ctx context.Context, p peer.ID, typ pb.NetMessage_MsgType, value []byte) error {
-	nm := &pb.NetMessage{}
-	return gs.msgSender.SendMessage(ctx, p, nm)
-}
-
 func (gs *GenericService) SendNetRequest(ctx context.Context, p peer.ID, id uint64, typ pb.NetMessage_MsgType, value, sig []byte) (*pb.NetMessage, error) {
 	if gs.ns.Host.Network().Connectedness(p) != network.Connected {
 		pai := peer.AddrInfo{
