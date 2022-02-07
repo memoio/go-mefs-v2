@@ -808,6 +808,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	ok, _ = m.RoleVerify(m.ctx, o.pro, o.base.Hash(), s.ProSig)
 	if !ok {
+		logger.Debug("handle order seq local:", o.seq)
+		logger.Debug("handle order seq remote:", s)
 		return xerrors.Errorf("%d has %d %d, got %d %d order sign is wrong", o.pro, o.seq.Nonce, o.seq.SeqNum, s.Nonce, s.SeqNum)
 	}
 

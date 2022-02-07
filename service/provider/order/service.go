@@ -100,22 +100,13 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
 		if or.seq.Segments.Has(seg.SegmentID().GetBucketID(), seg.SegmentID().GetStripeID(), seg.SegmentID().GetChunkID()) {
 			logger.Debug("handle add data already: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
-			return nil
 		}
 
-		/*
-			// put to local when received
-			err := m.PutSegmentToLocal(m.ctx, seg)
-			if err != nil {
-				return err
-			}
-		*/
-
-		id := seg.SegmentID().Bytes()
-		data, _ := seg.Content()
-		tags, _ := seg.Tags()
-
-		or.dv.Add(id, data, tags[0])
+		// put to local when received
+		err := m.ids.PutSegmentToLocal(m.ctx, seg)
+		if err != nil {
+			return err
+		}
 
 		as := &types.AggSegs{
 			BucketID: seg.SegmentID().GetBucketID(),
@@ -123,7 +114,6 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 			Length:   1,
 			ChunkID:  seg.SegmentID().GetChunkID(),
 		}
-
 		or.seq.Segments.Push(as)
 		or.seq.Segments.Merge()
 
@@ -131,10 +121,15 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		or.seq.Price.Add(or.seq.Price, or.segPrice)
 		or.seq.Size += build.DefaultSegSize
 
-		err := saveOrderSeq(or, m.ds)
-		if err != nil {
-			return err
-		}
+		saveOrderSeq(or, m.ds)
+
+		go func() {
+			id := seg.SegmentID().Bytes()
+			data, _ := seg.Content()
+			tags, _ := seg.Tags()
+
+			or.dv.Add(id, data, tags[0])
+		}()
 
 		return nil
 	}
