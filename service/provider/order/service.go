@@ -497,6 +497,9 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		}
 
 		if or.seqState == OrderSeq_Done {
+			if !os.Hash().Equal(or.seq.Hash()) {
+				return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
+			}
 			data, err := or.seq.Serialize()
 			if err != nil {
 				return nil, err
