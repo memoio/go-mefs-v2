@@ -801,6 +801,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	oHash := o.seq.Hash()
 	ok, _ := m.RoleVerify(m.ctx, o.pro, oHash.Bytes(), s.ProDataSig)
 	if !ok {
+		logger.Debug("handle seq local:", o.seq.Segments.Len(), o.seq)
+		logger.Debug("handle seq remote:", s.Segments.Len(), s)
 		return xerrors.Errorf("%d has %d %d, got %d %d seq sign is wrong", o.pro, o.seq.Nonce, o.seq.SeqNum, s.Nonce, s.SeqNum)
 	}
 
