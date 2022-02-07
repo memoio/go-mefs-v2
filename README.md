@@ -1,69 +1,63 @@
 # go-mefs-v2
 
-go-mefs v2 
+go-mefs version2
 
 ## basic module
 
 ### repo
 
-本地目录管理：配置文件
+local repo
 
 
 ### auth
 
-jsonrpc授权
+jsonrpc
 
 ### wallet
 
 
 ### network
 
-网络发送和接收
 
 ### role
 
-角色管理，从结算层获取的结果
-
+role manager
 
 ### txPool
 
-数据交易池
 
 ### state
-
-数据状态
 
 
 ### node
 
-包含所有基础功能
+basic node
 
 ## user
 
 ### lfs
 
-管理用户数据空间
+manage user's data
 
 ### order
 
-数据发送管理
+send data to provider
 
 
 ## provider
 
 ### order
 
-数据接收管理
+receive data from user
 
 ### challenge
 
-proof管理
+challenge-proof
 
 ## keeper
 
-更新chalEpoch
-确认post income
-
++ update challebeg epoch
++ confirm post income
 
 ## usage
 
@@ -75,10 +69,10 @@ proof管理
 > make keeper
 // init
 > ./mefs-keeper init
-// start
+// start; waiting for charge
 > MEFS_PATH=$mpath ./mefs-keeper daemon --swarm-port=$port --api=$api --group=$gorupID 
 // example
-> /mefs-keeper daemon --swarm-port=27201 --api=/ip4/127.0.0.1/tcp/28201 --group=2
+> /mefs-keeper daemon --swarm-port=17201 --api=/ip4/127.0.0.1/tcp/18201 --group=2
 ```
 
 ### provider
@@ -88,6 +82,21 @@ proof管理
 > make provider
 // init
 > ./mefs-provider init
-// start
+// start; waiting for charge
 > MEFS_PATH=$mpath ./mefs-provider daemon --swarm-port=$port --api=$api --data-path=$dpath --group=$gorupID  
+// example
+> ./mefs-provider daemon --swarm-port=27201 --api=/ip4/127.0.0.1/tcp/28201 --data-path=/mnt --group=2 
+```
+
+### user
+
+```
+// compile
+> make user
+// init
+> ./mefs-user init
+// start; waiting for charge
+> MEFS_PATH=$mpath ./mefs-user daemon --swarm-port=$port --api=$api --group=$gorupID
+// example
+> /mefs-user daemon --swarm-port=37201 --api=/ip4/127.0.0.1/tcp/38201 --group=2
 ```
