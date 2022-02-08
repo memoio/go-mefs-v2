@@ -457,7 +457,7 @@ func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, oinfo.base.Nonce)
 	data, err := tds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	of := new(types.OrderFull)
 	err = of.Deserialize(data)
@@ -668,7 +668,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
 	data, err := tds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	of := new(types.OrderFull)
 	err = of.Deserialize(data)
@@ -689,7 +689,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 	data, err = tds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	sf := new(types.SeqFull)
 	err = sf.Deserialize(data)
@@ -837,7 +837,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
 	data, err := s.ds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	of := new(types.OrderFull)
 	err = of.Deserialize(data)
@@ -859,7 +859,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 	data, err = s.ds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	sf := new(types.SeqFull)
 	err = sf.Deserialize(data)

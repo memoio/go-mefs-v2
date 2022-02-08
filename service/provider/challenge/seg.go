@@ -328,7 +328,7 @@ func (s *SegMgr) challenge(userID uint64) {
 					srp := &tx.SegRemoveParas{
 						UserID:   si.userID,
 						ProID:    s.localID,
-						Nonce:    ns.Nonce - 1,
+						Nonce:    ns.Nonce,
 						SeqNum:   i,
 						Segments: fault,
 					}
