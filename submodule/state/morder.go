@@ -702,7 +702,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	for _, lseg := range so.Segments {
 		for i := lseg.Start; i < lseg.Start+lseg.Length; i++ {
 			if !sf.Segments.Has(lseg.BucketID, i, lseg.ChunkID) {
-				return xerrors.Errorf("seg %d_%d_%d is not found in seq", lseg.BucketID, i, lseg.ChunkID)
+				return xerrors.Errorf("seg %d_%d_%d is not found in seq %d %d %d %d", lseg.BucketID, i, lseg.ChunkID, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 			}
 			sid := segment.CreateSegmentID(uinfo.fsID, lseg.BucketID, i, lseg.ChunkID)
 			h := blake3.Sum256(sid)
@@ -870,7 +870,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 	for _, lseg := range so.Segments {
 		for i := lseg.Start; i < lseg.Start+lseg.Length; i++ {
 			if !sf.Segments.Has(lseg.BucketID, i, lseg.ChunkID) {
-				return xerrors.Errorf("seg %d_%d_%d is not found in seq", lseg.BucketID, i, lseg.ChunkID)
+				return xerrors.Errorf("seg %d_%d_%d is not found in seq %d %d %d %d", lseg.BucketID, i, lseg.ChunkID, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 			}
 		}
 	}
