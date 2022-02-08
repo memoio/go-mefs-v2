@@ -315,35 +315,45 @@ func (m *OrderMgr) submitOrders() error {
 	logger.Debug("addOrder for user: ", m.localID)
 
 	pros := m.StateGetProsAt(m.ctx, m.localID)
-	for _, proID := range pros {
-		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
-		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
-		if err != nil {
-			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
-			continue
-		}
+	pLen := len(pros)
+	fin := 0
+	pMap := make(map[uint64]struct{}, pLen)
+	for fin < pLen {
+		for _, proID := range pros {
+			_, ok := pMap[proID]
+			if ok {
+				continue
+			}
+			ns := m.StateGetOrderState(m.ctx, m.localID, proID)
+			si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
+			if err != nil {
+				logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
+				continue
+			}
 
-		logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, si.Nonce, si.SubNonce, ns.Nonce)
+			logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 
-		if si.Nonce >= ns.Nonce {
-			continue
-		}
-		for i := si.Nonce; i < ns.Nonce; i++ {
-			logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, i)
+			if si.Nonce >= ns.Nonce {
+				pMap[proID] = struct{}{}
+				fin++
+				continue
+			}
+			logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, si.Nonce)
 
 			// add order here
-			of, err := m.GetOrder(m.localID, proID, i)
+			of, err := m.GetOrder(m.localID, proID, si.Nonce)
 			if err != nil {
 				logger.Debug("addOrder fail to get order info", m.localID, proID, err)
-				continue
+				break
 			}
 
 			err = m.addOrder(&of.SignedOrder)
 			if err != nil {
 				logger.Debug("addOrder fail to add order ", m.localID, proID, err)
-				continue
+				break
 			}
 		}
+		time.Sleep(10 * time.Second)
 	}
 
 	return nil
