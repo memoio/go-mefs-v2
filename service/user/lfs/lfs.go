@@ -113,9 +113,9 @@ func (l *LfsService) Start() error {
 				}
 
 				if st.Status.Err == 0 {
-					logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+					logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 				} else {
-					logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+					logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 				}
 
 				break
@@ -198,10 +198,10 @@ func (l *LfsService) Start() error {
 					}
 
 					if st.Status.Err == 0 {
-						logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+						logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 						l.bucketChan <- bucketID
 					} else {
-						logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+						logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 					}
 
 					break

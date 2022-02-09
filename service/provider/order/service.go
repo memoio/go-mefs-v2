@@ -330,9 +330,11 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
 		// verify accPrice and accSize
 		if os.Price.Cmp(or.base.Price) != 0 || os.Size != or.base.Size {
-			logger.Debug("handle seq receive:", os.Price, os.Size)
-			logger.Debug("handle seq local:", or.base.Price, or.base.Size)
-			return nil, xerrors.Errorf("fail create seq due to wrong size")
+			logger.Debug("handle seq receive:", os.UserID, os.Nonce, os.SeqNum, os.Price, os.Size)
+			logger.Debug("handle seq local:", os.UserID, os.Nonce, os.SeqNum, or.base.Price, or.base.Size)
+			or.base.Size = os.Size
+			or.base.Price.Set(os.Price)
+			//return nil, xerrors.Errorf("fail create seq due to wrong size")
 		}
 
 		or.seq = os
@@ -403,6 +405,9 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 					logger.Debug("handle seq remote:", os.Segments.Len(), os)
 					logger.Warn("segments are not equal, load or re-get missing")
 
+					or.seq.Price.Set(or.base.Price)
+					or.seq.Size = or.base.Size
+
 					sid, err := segment.NewSegmentID(or.fsID, 0, 0, 0)
 					if err != nil {
 						return nil, err
@@ -425,23 +430,26 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 							data, _ := segmt.Content()
 							tags, _ := segmt.Tags()
 
+							or.seq.Price.Add(or.seq.Price, or.segPrice)
+							or.seq.Size += build.DefaultSegSize
+
 							or.dv.Add(id, data, tags[0])
 						}
 					}
 					or.seq.Segments = os.Segments
 
 					// need verify again
-					or.seq.Price = os.Price
-					or.seq.Size = os.Size
-					lHash = rHash
-					//return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
+					lHash = or.seq.Hash()
+					if !rHash.Equal(lHash) {
+						return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
+					}
 				}
 			}
 
 			ok, err := or.dv.Result()
 			if err != nil {
 				logger.Warn("data verify is wrong:", err)
-				return nil, err
+				return nil, xerrors.Errorf("data verify fails %s", err)
 			}
 			if !ok {
 				logger.Warn("data verify is wrong")
@@ -507,7 +515,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			if !os.Hash().Equal(or.seq.Hash()) {
 				logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
 				logger.Debug("handle seq remote:", os.Segments.Len(), os)
-				return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
+				return nil, xerrors.Errorf("done segments are not equal, load or re-get missing")
 			}
 			data, err := or.seq.Serialize()
 			if err != nil {
