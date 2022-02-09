@@ -728,6 +728,7 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 	if o.seqState == OrderSeq_Send {
 		o.seqState = OrderSeq_Commit
 		o.seqTime = time.Now().Unix()
+		return nil
 	}
 
 	if o.seqState == OrderSeq_Commit {
