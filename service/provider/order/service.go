@@ -134,6 +134,8 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 			data, _ := seg.Content()
 			tags, _ := seg.Tags()
 
+			or.lw.Lock()
+			defer or.lw.Unlock()
 			or.dv.Add(id, data, tags[0])
 		}()
 
@@ -426,7 +428,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 								return nil, err
 							}
 
-							id := sid.Bytes()
+							id := segmt.SegmentID().Bytes()
 							data, _ := segmt.Content()
 							tags, _ := segmt.Tags()
 
