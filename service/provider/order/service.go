@@ -102,6 +102,12 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 			logger.Debug("handle add data already: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
 		}
 
+		has, _ := m.ids.HasSegment(m.ctx, seg.SegmentID())
+		if has {
+			logger.Debug("handle add data already: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
+			return nil
+		}
+
 		// put to local when received
 		err := m.ids.PutSegmentToLocal(m.ctx, seg)
 		if err != nil {
@@ -498,6 +504,8 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 		if or.seqState == OrderSeq_Done {
 			if !os.Hash().Equal(or.seq.Hash()) {
+				logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
+				logger.Debug("handle seq remote:", os.Segments.Len(), os)
 				return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
 			}
 			data, err := or.seq.Serialize()
