@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
 	"golang.org/x/sync/semaphore"
@@ -200,14 +199,15 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 					ChunkID:  bucket.DataCount + bucket.ParityCount,
 				}
 
-				data, _ := cbor.Marshal(sjl)
-				key := store.NewKey(pb.MetaType_LFS_OpJobsKey, l.userID, object.BucketID, opID)
-				err = l.ds.Put(key, data)
+				data, err := sjl.Serialize()
 				if err != nil {
-					continue
+					return err
 				}
 
-				// send out
+				key := store.NewKey(pb.MetaType_LFS_OpJobsKey, l.userID, object.BucketID, opID)
+				l.ds.Put(key, data)
+
+				// send out to order manager
 				sj := &types.SegJob{
 					JobID:    opID,
 					BucketID: object.BucketID,

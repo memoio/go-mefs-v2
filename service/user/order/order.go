@@ -2,7 +2,6 @@ package order
 
 import (
 	"context"
-	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -80,7 +79,6 @@ type OrderFull struct {
 	api.IDataService // segment
 
 	ctx context.Context
-	ds  store.KVStore
 
 	localID uint64
 	fsID    []byte
@@ -100,11 +98,11 @@ type OrderFull struct {
 	seqTime  int64
 	seqState OrderSeqState
 
+	sjq *types.SegJobsQueue
+
 	inflight bool // data is sending
 	buckets  []uint64
 	jobs     map[uint64]*bucketJob // buf and persist?
-
-	segDoneChan chan *types.SegJob
 
 	failCnt int // todo: retry > 10; change pro?
 
@@ -125,7 +123,6 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		IDataService: m.IDataService,
 
 		ctx: m.ctx,
-		ds:  m.ds,
 
 		localID: m.localID,
 		fsID:    m.fsID,
@@ -135,11 +132,10 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 		orderState: Order_Init,
 		seqState:   OrderSeq_Init,
+		sjq:        new(types.SegJobsQueue),
 
 		buckets: make([]uint64, 0, 8),
 		jobs:    make(map[uint64]*bucketJob),
-
-		segDoneChan: m.segDoneChan,
 	}
 
 	err := m.connect(id)
@@ -215,6 +211,16 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	op.seqTime = ss.Time
 	op.seqNum = ss.Number + 1
 
+	key = store.NewKey(pb.MetaType_OrderSeqJobKey, m.localID, id, ns.Nonce, ss.Number)
+	val, err = m.ds.Get(key)
+	if err != nil {
+		return op
+	}
+	err = op.sjq.Deserialize(val)
+	if err != nil {
+		return op
+	}
+
 	return op
 }
 
@@ -241,7 +247,8 @@ func (m *OrderMgr) check(o *OrderFull) {
 		return
 	}
 
-	if o.failCnt > 100 {
+	if o.failCnt > minFailCnt {
+		logger.Debugf("close order %d due to fail too many times")
 		m.stopOrder(o)
 		return
 	}
@@ -369,6 +376,15 @@ func saveSeqState(o *OrderFull, ds store.KVStore) error {
 		return err
 	}
 	return ds.Put(key, val)
+}
+
+func saveSeqJob(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderSeqJobKey, o.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
+	data, err := o.sjq.Serialize()
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, data)
 }
 
 // create a new order
@@ -601,6 +617,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 
 	o.base = nil
 	o.seq = nil
+	o.sjq = new(types.SegJobsQueue)
 	o.seqNum = 0
 
 	// trigger a new order
@@ -617,18 +634,16 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 	o.inStop = true
 
 	// add redo current seq
-	if o.seq != nil {
+	if o.sjq != nil {
 		// should not, todo: fix
-		for _, seg := range o.seq.Segments {
-			sj := &types.SegJob{
-				JobID:    math.MaxUint64,
-				BucketID: seg.BucketID,
-				Start:    seg.Start,
-				Length:   seg.Length,
-				ChunkID:  seg.ChunkID,
-			}
-			m.redoSegJob(sj)
+		sLen := o.sjq.Len()
+		ss := *o.sjq
+
+		for i := 0; i < sLen; i++ {
+			m.redoSegJob(ss[i])
 		}
+
+		o.sjq = new(types.SegJobsQueue)
 	}
 
 	for _, bid := range o.buckets {
@@ -676,13 +691,20 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 		o.seqNum++
 		o.seqState = OrderSeq_Prepare
 		o.seqTime = time.Now().Unix()
+		o.sjq = new(types.SegJobsQueue)
 	}
 
 	if o.seq != nil && o.seqState == OrderSeq_Prepare {
 		o.seq.Segments.Merge()
+		o.sjq.Merge()
 
 		// save order seq
 		err := saveOrderSeq(o, m.ds)
+		if err != nil {
+			return err
+		}
+
+		err = saveSeqJob(o, m.ds)
 		if err != nil {
 			return err
 		}

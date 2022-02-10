@@ -151,6 +151,35 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 
 			if st.Status.Err == 0 {
 				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
+				if msg.Method == tx.AddDataOrder {
+					// confirm
+
+					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To)
+
+					seq := new(types.SignedOrderSeq)
+					err := seq.Deserialize(msg.Params)
+					if err != nil {
+						return
+					}
+
+					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To, seq.Nonce, seq.SeqNum)
+
+					key := store.NewKey(pb.MetaType_OrderSeqJobKey, msg.From, msg.To, seq.Nonce, seq.SeqNum)
+					val, err := m.ds.Get(key)
+					if err != nil {
+						return
+					}
+
+					sjq := new(types.SegJobsQueue)
+					err = sjq.Deserialize(val)
+					if err == nil {
+						ss := *sjq
+						sLen := sjq.Len()
+						for i := 0; i < sLen; i++ {
+							m.segConfirmChan <- ss[i]
+						}
+					}
+				}
 			} else {
 				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 			}

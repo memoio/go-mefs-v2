@@ -61,9 +61,10 @@ type OrderMgr struct {
 	seqFinishChan chan *orderSeqPro       // confirm current seq
 
 	// add data
-	segAddChan  chan *types.SegJob
-	segRedoChan chan *types.SegJob
-	segDoneChan chan *types.SegJob
+	segAddChan     chan *types.SegJob
+	segRedoChan    chan *types.SegJob
+	segDoneChan    chan *types.SegJob
+	segConfirmChan chan *types.SegJob
 
 	// message send out
 	msgChan chan *tx.Message
@@ -107,9 +108,10 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		seqNewChan:    make(chan *orderSeqPro, 16),
 		seqFinishChan: make(chan *orderSeqPro, 16),
 
-		segAddChan:  make(chan *types.SegJob, 128),
-		segRedoChan: make(chan *types.SegJob, 128),
-		segDoneChan: make(chan *types.SegJob, 128),
+		segAddChan:     make(chan *types.SegJob, 128),
+		segRedoChan:    make(chan *types.SegJob, 128),
+		segDoneChan:    make(chan *types.SegJob, 128),
+		segConfirmChan: make(chan *types.SegJob, 128),
 
 		msgChan: make(chan *tx.Message, 128),
 	}
@@ -209,13 +211,15 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 			m.redoSegJob(sj)
 		case sj := <-m.segDoneChan:
 			m.finishSegJob(sj)
+		case sj := <-m.segConfirmChan:
+			m.confirmSegJob(sj)
 
 		// handle order state
 		case quo := <-m.quoChan:
 			of, ok := m.orders[quo.ProID]
 			if ok {
 				if quo.SegPrice.Cmp(m.segPrice) > 0 {
-					of.failCnt += 1
+					of.failCnt++
 				} else {
 					of.failCnt = 0
 					of.availTime = time.Now().Unix()
