@@ -215,12 +215,9 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 			of, ok := m.orders[quo.ProID]
 			if ok {
 				if quo.SegPrice.Cmp(m.segPrice) > 0 {
-					of.quoretry += 1
-					if of.quoretry > 10 {
-						m.stopOrder(of)
-					}
+					of.failCnt += 1
 				} else {
-					of.quoretry = 0
+					of.failCnt = 0
 					of.availTime = time.Now().Unix()
 					err := m.createOrder(of, quo)
 					if err != nil {

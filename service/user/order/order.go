@@ -87,7 +87,6 @@ type OrderFull struct {
 
 	pro       uint64
 	availTime int64 // last connect time
-	quoretry  int   // todo: retry > 10; change pro?
 
 	nonce  uint64 // next nonce
 	seqNum uint32 // next seq
@@ -106,6 +105,8 @@ type OrderFull struct {
 	jobs     map[uint64]*bucketJob // buf and persist?
 
 	segDoneChan chan *types.SegJob
+
+	failCnt int // todo: retry > 10; change pro?
 
 	ready  bool // ready for service; network is ok
 	inStop bool // stop receiving data; duo to high price
@@ -126,10 +127,9 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		ctx: m.ctx,
 		ds:  m.ds,
 
-		localID:  m.localID,
-		fsID:     m.fsID,
-		pro:      id,
-		quoretry: 1, // set to 0 when get desired quotation
+		localID: m.localID,
+		fsID:    m.fsID,
+		pro:     id,
 
 		availTime: time.Now().Unix() - 300,
 
@@ -241,6 +241,11 @@ func (m *OrderMgr) check(o *OrderFull) {
 		return
 	}
 
+	if o.failCnt > 100 {
+		m.stopOrder(o)
+		return
+	}
+
 	switch o.orderState {
 	case Order_Init:
 		o.RLock()
@@ -252,6 +257,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		o.RUnlock()
 	case Order_Wait:
 		if nt-o.orderTime > defaultAckWaiting {
+			o.failCnt++
 			m.createOrder(o, nil)
 		}
 	case Order_Running:
@@ -270,6 +276,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		case OrderSeq_Prepare:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
+				o.failCnt++
 				m.createSeq(o)
 			}
 		case OrderSeq_Send:
@@ -280,6 +287,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		case OrderSeq_Commit:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
+				o.failCnt++
 				m.commitSeq(o)
 			}
 		case OrderSeq_Finish:
@@ -298,6 +306,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		case OrderSeq_Commit:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
+				o.failCnt++
 				m.commitSeq(o)
 			}
 		case OrderSeq_Init, OrderSeq_Prepare, OrderSeq_Finish:
@@ -496,6 +505,8 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 
 	m.msgChan <- msg
 
+	o.failCnt = 0
+
 	return nil
 }
 
@@ -607,6 +618,7 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 
 	// add redo current seq
 	if o.seq != nil {
+		// should not, todo: fix
 		for _, seg := range o.seq.Segments {
 			sj := &types.SegJob{
 				JobID:    math.MaxUint64,
@@ -628,6 +640,9 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 		}
 		bjob.jobs = bjob.jobs[:0]
 	}
+
+	// reset
+	o.failCnt = 0
 
 	o.Unlock()
 
@@ -707,6 +722,8 @@ func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		if err != nil {
 			return err
 		}
+
+		o.failCnt = 0
 
 		return nil
 	}
@@ -857,6 +874,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	// reset
 	o.seqState = OrderSeq_Init
+
+	o.failCnt = 0
 
 	// trigger new seq
 	return m.createSeq(o)
