@@ -104,7 +104,7 @@ func (sjq *SegJobsQueue) Push(s *SegJob) {
 
 	asqval := *sjq
 	last := asqval[sjq.Len()-1]
-	if last.BucketID == s.BucketID && last.Start+last.Length == s.Start {
+	if last.BucketID == s.BucketID && last.JobID == s.JobID && last.Start+last.Length == s.Start {
 		last.Length += s.Length
 		*sjq = asqval
 	} else {

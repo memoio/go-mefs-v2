@@ -248,7 +248,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 	}
 
 	if o.failCnt > minFailCnt {
-		logger.Debugf("close order %d due to fail too many times")
+		logger.Debugf("close order %d due to fail too many times", o.pro)
 		m.stopOrder(o)
 		return
 	}
@@ -265,6 +265,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 	case Order_Wait:
 		if nt-o.orderTime > defaultAckWaiting {
 			o.failCnt++
+			logger.Debugf("%d order fail due to create order %d", o.pro, o.failCnt)
 			m.createOrder(o, nil)
 		}
 	case Order_Running:
@@ -284,6 +285,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
 				o.failCnt++
+				logger.Debugf("%d order fail due to create seq %d", o.pro, o.failCnt)
 				m.createSeq(o)
 			}
 		case OrderSeq_Send:
@@ -295,6 +297,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
 				o.failCnt++
+				logger.Debugf("%d order fail due to commit seq %d", o.pro, o.failCnt)
 				m.commitSeq(o)
 			}
 		case OrderSeq_Finish:
@@ -314,6 +317,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
 				o.failCnt++
+				logger.Debugf("%d order fail due to commit seq %d in closing", o.pro, o.failCnt)
 				m.commitSeq(o)
 			}
 		case OrderSeq_Init, OrderSeq_Prepare, OrderSeq_Finish:

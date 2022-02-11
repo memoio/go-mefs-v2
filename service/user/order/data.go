@@ -289,8 +289,8 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool) (*segJob, uint, er
 		if seg.dispatchBits == nil {
 			seg = &segJob{
 				SegJob: types.SegJob{
-					JobID:    sj.JobID,
 					BucketID: sj.BucketID,
+					JobID:    sj.JobID,
 					Start:    sj.Start,
 					Length:   0, // add later
 					ChunkID:  sj.ChunkID,
@@ -386,6 +386,8 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 }
 
 func (m *OrderMgr) addSegJob(sj *types.SegJob) {
+	//logger.Debug("add seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
+
 	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
 	if err != nil {
 		logger.Warn("fail to add seg:", seg.Start, seg.Length, sj.Start, err)
@@ -409,6 +411,8 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 }
 
 func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
+	//logger.Debug("finish seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
+
 	jk := jobKey{
 		bucketID: sj.BucketID,
 		jobID:    sj.JobID,
@@ -418,14 +422,14 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	seg, ok := m.segs[jk]
 	m.segLock.RUnlock()
 	if !ok {
-		logger.Warn("fail finished seg: ", sj.JobID, sj.Start, sj.ChunkID)
+		logger.Warn("finish seg fail: ", sj.JobID, sj.Start, sj.ChunkID)
 		return
 	}
 
 	for i := uint64(0); i < sj.Length; i++ {
 		id := uint(sj.Start+i-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
 		if !seg.dispatchBits.Test(id) {
-			logger.Warn("seg is not dispatch in finish")
+			logger.Warn("finish seg is not dispatch")
 		}
 		seg.doneBits.Set(id)
 	}
@@ -440,6 +444,8 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 }
 
 func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
+	//logger.Debug("confirm seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
+
 	jk := jobKey{
 		bucketID: sj.BucketID,
 		jobID:    sj.JobID,
@@ -449,18 +455,18 @@ func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 	seg, ok := m.segs[jk]
 	m.segLock.RUnlock()
 	if !ok {
-		logger.Warn("fail confirm seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
+		logger.Warn("confirm seg fail: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 		return
 	}
 
 	for i := uint64(0); i < sj.Length; i++ {
 		id := uint(sj.Start+i-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
 		if !seg.dispatchBits.Test(id) {
-			logger.Warn("seg is not dispatch in confirm")
+			logger.Warn("confirm seg is not dispatch in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
 		}
 
 		if !seg.doneBits.Test(id) {
-			logger.Warn("seg is not done in confirm")
+			logger.Warn("confirm seg is not done in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
 		}
 		seg.confirmBits.Set(id)
 	}
@@ -488,8 +494,8 @@ func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 			return
 		}
 
-		// done all; remove from memory
-		if seg.confirmBits.Count() == cnt {
+		// done and confirm all; remove from memory
+		if uint(nsj.Length)*uint(nsj.ChunkID) == cnt {
 			logger.Debug("confirm seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID, cnt)
 			m.segLock.Lock()
 			delete(m.segs, jk)

@@ -209,8 +209,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 				// send out to order manager
 				sj := &types.SegJob{
-					JobID:    opID,
 					BucketID: object.BucketID,
+					JobID:    opID,
 					Start:    curStripe + uint64(stripeCount-sendCount),
 					Length:   uint64(sendCount),
 					ChunkID:  bucket.DataCount + bucket.ParityCount,
