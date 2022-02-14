@@ -23,7 +23,7 @@ import (
 var logger = logging.Logger("settle")
 
 var (
-	endpoint = "http://119.147.213.220:8193"
+	endpoint = callconts.EndPoint
 	RoleAddr = callconts.RoleAddr
 )
 
