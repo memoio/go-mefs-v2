@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -84,9 +83,11 @@ func (c *Check) Verify() (bool, error) {
 	// pub key to common.address
 	recAddr := utils.ToEthAddress(pubKey)
 
-	fmt.Printf("readpay: got %s expect %s", hex.EncodeToString(recAddr), hex.EncodeToString(c.OwnerAddr.Bytes()))
+	if !bytes.Equal(recAddr, c.OwnerAddr.Bytes()) {
+		return false, xerrors.Errorf("readpay: got %s expect %s", hex.EncodeToString(recAddr), hex.EncodeToString(c.OwnerAddr.Bytes()))
+	}
 
-	return bytes.Equal(recAddr, c.OwnerAddr.Bytes()), nil
+	return true, nil
 }
 
 // Paycheck is an auto generated low-level Go binding around an user-defined struct.
@@ -140,7 +141,9 @@ func (p *Paycheck) Verify() (bool, error) {
 	// pub key to common.address
 	recAddr := utils.ToEthAddress(pubKey)
 
-	fmt.Printf("readpay paycheck: got %s expect %s", hex.EncodeToString(recAddr), hex.EncodeToString(p.FromAddr.Bytes()))
+	if !bytes.Equal(recAddr, p.FromAddr.Bytes()) {
+		return false, xerrors.Errorf("readpay paycheck: got %s expect %s", hex.EncodeToString(recAddr), hex.EncodeToString(p.FromAddr.Bytes()))
+	}
 
-	return bytes.Equal(recAddr, p.FromAddr.Bytes()), nil
+	return true, nil
 }
