@@ -34,14 +34,14 @@ func FormatPolicy(policy uint32) string {
 func FormatBucketInfo(bucket *types.BucketInfo) string {
 	return fmt.Sprintf(
 		`Name: %s
-BucketID: %d
-CTime: %s
-MTime: %s
-ObjectCount: %d
+Bucket ID: %d
+Creation Time: %s
+Modify Time: %s
+Object Count: %d
 Policy: %s
-DataCount: %d
-ParityCount: %d
-Used: %s`,
+Data Count: %d
+Parity Count: %d
+Used Bytes: %s`,
 		ansi.Color(bucket.Name, "green"),
 		bucket.BucketID,
 		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),

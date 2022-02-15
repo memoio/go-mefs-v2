@@ -19,14 +19,14 @@ import (
 func FormatObjectInfo(object *types.ObjectInfo) string {
 	return fmt.Sprintf(
 		`Name: %s
-BucketID: %d
-ObjectID: %d
+Bucket ID: %d
+Object ID: %d
 Etag: %s
-CTime: %s
-MTime: %s
+Creation Time: %s
+Modify Time: %s
 Size: %s
-State: %s
-Enc: %s`,
+Enc Method: %s
+State: %s`,
 		ansi.Color(object.Name, "green"),
 		object.BucketID,
 		object.ObjectID,
@@ -34,8 +34,8 @@ Enc: %s`,
 		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
 		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
 		utils.FormatBytes(int64(object.Length)),
-		object.State,
 		object.Encryption,
+		object.State,
 	)
 }
 
