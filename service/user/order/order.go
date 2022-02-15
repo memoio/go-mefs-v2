@@ -888,6 +888,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return err
 	}
 
+	logger.Debug("seq send at end: ", o.pro, o.nonce, o.seqNum, o.seq.Size)
+
 	logger.Debugf("pro %d order %d seq %d count %d length %d", o.pro, o.seq.Nonce, o.seq.SeqNum, o.seq.Segments.Len(), len(data))
 
 	msg := &tx.Message{
