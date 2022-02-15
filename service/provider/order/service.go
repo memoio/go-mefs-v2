@@ -334,9 +334,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		if os.Price.Cmp(or.base.Price) != 0 || os.Size != or.base.Size {
 			logger.Debug("handle seq receive:", os.UserID, os.Nonce, os.SeqNum, os.Price, os.Size)
 			logger.Debug("handle seq local:", os.UserID, os.Nonce, os.SeqNum, or.base.Price, or.base.Size)
-			or.base.Size = os.Size
-			or.base.Price.Set(os.Price)
-			//return nil, xerrors.Errorf("fail create seq due to wrong size")
+			return nil, xerrors.Errorf("fail create seq due to wrong size")
 		}
 
 		or.seq = os

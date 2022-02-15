@@ -86,8 +86,9 @@ type OrderFull struct {
 	pro       uint64
 	availTime int64 // last connect time
 
-	nonce  uint64 // next nonce
-	seqNum uint32 // next seq
+	nonce   uint64 // next nonce
+	seqNum  uint32 // next seq
+	prevEnd int64
 
 	base       *types.SignedOrder // quotation-> base
 	orderTime  int64
@@ -129,6 +130,8 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		pro:     id,
 
 		availTime: time.Now().Unix() - 300,
+
+		prevEnd: time.Now().Unix(),
 
 		orderState: Order_Init,
 		seqState:   OrderSeq_Init,
@@ -183,6 +186,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	}
 	op.base = ob
 	op.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
+	op.prevEnd = ob.End
 
 	ss := new(SeqState)
 	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, id, ns.Nonce)
@@ -410,6 +414,9 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 
 		start := time.Now().Unix()
 		end := ((start+build.OrderDuration)/types.Day + 1) * types.Day
+		if end < o.prevEnd {
+			end = o.prevEnd
+		}
 
 		o.base = &types.SignedOrder{
 			OrderBase: types.OrderBase{
@@ -493,6 +500,7 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 
 	// nonce is add
 	o.nonce++
+	o.prevEnd = ob.End
 	o.orderState = Order_Running
 	o.orderTime = time.Now().Unix()
 	o.base.Psign = ob.Psign

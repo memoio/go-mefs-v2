@@ -22,6 +22,10 @@ const (
 	Order_Done OrderState = "done" // order is done
 )
 
+func (os OrderState) String() string {
+	return " " + string(os)
+}
+
 type NonceState struct {
 	Nonce uint64
 	Time  int64
@@ -43,6 +47,10 @@ const (
 	OrderSeq_Ack  OrderSeqState = "ack"  // seq is acked
 	OrderSeq_Done OrderSeqState = "done" // finished
 )
+
+func (oss OrderSeqState) String() string {
+	return " " + string(oss)
+}
 
 type SeqState struct {
 	Number uint32
