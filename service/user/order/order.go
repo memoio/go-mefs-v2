@@ -225,6 +225,8 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		return op
 	}
 
+	logger.Debug("load order: ", op.pro, op.nonce, op.seqNum, op.orderState, op.seqState, op.base.Size, op.seq.Size)
+
 	return op
 }
 
@@ -269,19 +271,27 @@ func (m *OrderMgr) check(o *OrderFull) {
 	case Order_Wait:
 		if nt-o.orderTime > defaultAckWaiting {
 			o.failCnt++
-			logger.Debugf("%d order fail due to create order %d", o.pro, o.failCnt)
-			m.createOrder(o, nil)
+			err := m.createOrder(o, nil)
+			if err != nil {
+				logger.Debugf("%d order fail due to create order %d %s", o.pro, o.failCnt, err)
+			}
 		}
 	case Order_Running:
 		if nt-o.orderTime > defaultOrderLast {
-			m.closeOrder(o)
+			err := m.closeOrder(o)
+			if err != nil {
+				logger.Debugf("%d order fail due to close order %d %s", o.pro, o.failCnt, err)
+			}
 		}
 		switch o.seqState {
 		case OrderSeq_Init:
 			o.RLock()
 			if o.hasSeg() && !o.inStop {
-				m.createSeq(o)
+				err := m.createSeq(o)
 				o.RUnlock()
+				if err != nil {
+					logger.Debugf("%d order fail due to create seq %d %s", o.pro, o.failCnt, err)
+				}
 				return
 			}
 			o.RUnlock()
@@ -289,20 +299,27 @@ func (m *OrderMgr) check(o *OrderFull) {
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
 				o.failCnt++
-				logger.Debugf("%d order fail due to create seq %d", o.pro, o.failCnt)
-				m.createSeq(o)
+				err := m.createSeq(o)
+				if err != nil {
+					logger.Debugf("%d order fail due to create seq %d %s", o.pro, o.failCnt, err)
+				}
 			}
 		case OrderSeq_Send:
 			// time is up for next seq, no new data
 			if nt-o.seqTime > defaultOrderSeqLast {
-				m.commitSeq(o)
+				err := m.commitSeq(o)
+				if err != nil {
+					logger.Debugf("%d order fail due to commit seq %d %s", o.pro, o.failCnt, err)
+				}
 			}
 		case OrderSeq_Commit:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
 				o.failCnt++
-				logger.Debugf("%d order fail due to commit seq %d", o.pro, o.failCnt)
-				m.commitSeq(o)
+				err := m.commitSeq(o)
+				if err != nil {
+					logger.Debugf("%d order fail due to commit seq %d", o.pro, o.failCnt)
+				}
 			}
 		case OrderSeq_Finish:
 			o.seqState = OrderSeq_Init
@@ -321,12 +338,17 @@ func (m *OrderMgr) check(o *OrderFull) {
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
 				o.failCnt++
-				logger.Debugf("%d order fail due to commit seq %d in closing", o.pro, o.failCnt)
-				m.commitSeq(o)
+				err := m.commitSeq(o)
+				if err != nil {
+					logger.Debugf("%d order fail due to commit seq in closing %d %s", o.pro, o.failCnt, err)
+				}
 			}
 		case OrderSeq_Init, OrderSeq_Prepare, OrderSeq_Finish:
 			o.seqState = OrderSeq_Init
-			m.doneOrder(o)
+			err := m.doneOrder(o)
+			if err != nil {
+				logger.Debugf("%d order fail due to done order %d %s", o.pro, o.failCnt, err)
+			}
 		}
 	case Order_Done:
 		o.RLock()
@@ -751,7 +773,7 @@ func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		o.seqState = OrderSeq_Send
 		o.seqTime = time.Now().Unix()
 
-		logger.Debug("seq send at: ", o.pro, o.nonce, o.seqNum, o.seq.Size)
+		logger.Debug("seq send at: ", o.pro, o.seq.Nonce, o.seq.SeqNum, o.seq.Size)
 
 		// save seq state
 		err := saveSeqState(o, m.ds)
@@ -896,7 +918,7 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return err
 	}
 
-	logger.Debug("seq send at end: ", o.pro, o.nonce, o.seqNum, o.seq.Size)
+	logger.Debug("end seq send at: ", o.pro, o.seq.Nonce, o.seq.SeqNum, o.seq.Size)
 
 	logger.Debugf("pro %d order %d seq %d count %d length %d", o.pro, o.seq.Nonce, o.seq.SeqNum, o.seq.Segments.Len(), len(data))
 
