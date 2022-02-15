@@ -27,7 +27,7 @@ const (
 )
 
 func (os OrderState) String() string {
-	return " " + string(os) + " "
+	return " " + string(os)
 }
 
 type NonceState struct {
@@ -55,7 +55,7 @@ const (
 )
 
 func (oss OrderSeqState) String() string {
-	return " " + string(oss) + " "
+	return " " + string(oss)
 }
 
 type SeqState struct {
@@ -742,6 +742,8 @@ func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	if o.seq != nil && o.seqState == OrderSeq_Prepare {
 		o.seqState = OrderSeq_Send
 		o.seqTime = time.Now().Unix()
+
+		logger.Debug("seq send at: ", o.pro, o.nonce, o.seqNum, o.seq.Size)
 
 		// save seq state
 		err := saveSeqState(o, m.ds)

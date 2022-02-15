@@ -904,7 +904,7 @@ func (s *StateMgr) commitOrder(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	if ocp.SeqNum != oinfo.ns.SeqNum {
-		return xerrors.Errorf("commit order seqnum wrong, got %d, expected %d", ocp.SeqNum, oinfo.ns.SeqNum)
+		return xerrors.Errorf("commit order %d seqnum wrong, got %d, expected %d", ocp.Nonce, ocp.SeqNum, oinfo.ns.SeqNum)
 	}
 
 	/*
@@ -969,7 +969,7 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 	}
 
 	if ocp.SeqNum != oinfo.ns.SeqNum {
-		return xerrors.Errorf("commit order seqnum wrong, got %d, expected %d", ocp.SeqNum, oinfo.ns.SeqNum)
+		return xerrors.Errorf("commit order %d seqnum wrong, got %d, expected %d", ocp.Nonce, ocp.SeqNum, oinfo.ns.SeqNum)
 	}
 
 	/*
