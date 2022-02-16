@@ -332,8 +332,8 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
 		// verify accPrice and accSize
 		if os.Price.Cmp(or.base.Price) != 0 || os.Size != or.base.Size {
-			logger.Debug("handle create seq:", os.UserID, os.Nonce, os.SeqNum, os.Size, or.base.Size)
-			return nil, xerrors.Errorf("fail create seq due to wrong size")
+			logger.Debug("handle create seq: ", os.UserID, os.Nonce, os.SeqNum, os.Size, or.base.Size)
+			return nil, xerrors.Errorf("fail create seq due to wrong size, got %d expect %d", os.Size, or.base.Size)
 		}
 
 		or.seq = os
@@ -447,11 +447,9 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 			ok, err := or.dv.Result()
 			if err != nil {
-				logger.Warn("data verify is wrong:", err)
 				return nil, xerrors.Errorf("data verify fails %s", err)
 			}
 			if !ok {
-				logger.Warn("data verify is wrong")
 				return nil, xerrors.Errorf("data verify is wrong")
 			}
 

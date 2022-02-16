@@ -5,39 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/utils"
-	"github.com/mgutz/ansi"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 )
-
-func FormatObjectInfo(object *types.ObjectInfo) string {
-	return fmt.Sprintf(
-		`Name: %s
-Bucket ID: %d
-Object ID: %d
-Etag: %s
-Creation Time: %s
-Modify Time: %s
-Size: %s
-Enc Method: %s
-State: %s`,
-		ansi.Color(object.Name, "green"),
-		object.BucketID,
-		object.ObjectID,
-		hex.EncodeToString(object.Etag),
-		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
-		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
-		utils.FormatBytes(int64(object.Length)),
-		object.Encryption,
-		object.State,
-	)
-}
 
 var listObjectsCmd = &cli.Command{
 	Name:  "listObjects",

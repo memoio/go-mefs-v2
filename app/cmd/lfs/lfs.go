@@ -1,6 +1,7 @@
 package lfscmd
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -51,6 +52,29 @@ Used Bytes: %s`,
 		bucket.DataCount,
 		bucket.ParityCount,
 		utils.FormatBytes(int64(bucket.UsedBytes)),
+	)
+}
+
+func FormatObjectInfo(object *types.ObjectInfo) string {
+	return fmt.Sprintf(
+		`Name: %s
+Bucket ID: %d
+Object ID: %d
+Etag: %s
+Creation Time: %s
+Modify Time: %s
+Size: %s
+Enc Method: %s
+State: %s`,
+		ansi.Color(object.Name, "green"),
+		object.BucketID,
+		object.ObjectID,
+		hex.EncodeToString(object.Etag),
+		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
+		utils.FormatBytes(int64(object.Length)),
+		object.Encryption,
+		object.State,
 	)
 }
 
