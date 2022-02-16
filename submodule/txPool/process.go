@@ -158,7 +158,7 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 
 func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	nrh := tx.RawHeader{
-		Version: 1,
+		Version: build.Version,
 		GroupID: mp.groupID,
 	}
 

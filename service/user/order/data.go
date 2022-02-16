@@ -429,7 +429,7 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	for i := uint64(0); i < sj.Length; i++ {
 		id := uint(sj.Start+i-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
 		if !seg.dispatchBits.Test(id) {
-			logger.Warn("finish seg is not dispatch")
+			logger.Warn("finish seg is not dispatch: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 		}
 		seg.doneBits.Set(id)
 	}
@@ -467,6 +467,8 @@ func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 
 		if !seg.doneBits.Test(id) {
 			logger.Warn("confirm seg is not done in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
+			// reset again
+			seg.doneBits.Set(id)
 		}
 		seg.confirmBits.Set(id)
 	}
@@ -636,8 +638,9 @@ func (o *OrderFull) segCount() int {
 
 func (o *OrderFull) addSeg(sj *types.SegJob) error {
 	o.Lock()
+	defer o.Unlock()
+
 	if o.inStop {
-		o.Unlock()
 		return xerrors.Errorf("%d is stop", o.pro)
 	}
 
@@ -653,7 +656,6 @@ func (o *OrderFull) addSeg(sj *types.SegJob) error {
 		o.jobs[sj.BucketID] = bjob
 		o.buckets = append(o.buckets, sj.BucketID)
 	}
-	o.Unlock()
 
 	return nil
 }
@@ -749,7 +751,15 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 			o.seq.Price.Add(o.seq.Price, o.segPrice)
 			o.seq.Size += build.DefaultSegSize
 
-			o.sjq.Push(sj)
+			nsj := &types.SegJob{
+				BucketID: sj.BucketID,
+				JobID:    sj.JobID,
+				Start:    sj.Start,
+				Length:   sj.Length,
+				ChunkID:  sj.ChunkID,
+			}
+
+			o.sjq.Push(nsj)
 			o.sjq.Merge()
 
 			bjob = o.jobs[bid]
