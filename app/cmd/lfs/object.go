@@ -155,7 +155,7 @@ var headObjectCmd = &cli.Command{
 		fmt.Println(FormatObjectInfo(oi))
 
 		for i, part := range oi.Parts {
-			fmt.Println("Part: ", i, part)
+			fmt.Printf("Part: %d, %s\n", i, FormatPartInfo(part))
 		}
 
 		return nil
