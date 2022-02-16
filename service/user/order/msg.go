@@ -213,7 +213,8 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				}
 
 				m.msgChan <- msg
-				logger.Debugf("%d submit msg for create order %d", of.pro, ns.Nonce)
+
+				logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce)
 			}
 		}
 
@@ -256,9 +257,10 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				Method:  tx.AddDataOrder,
 				Params:  data,
 			}
+
 			m.msgChan <- msg
 
-			logger.Debugf("%d submit msg for add order %d seq", of.pro, ns.Nonce, i)
+			logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, i)
 		}
 
 		// commit
@@ -290,7 +292,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 
 		m.msgChan <- msg
 
-		logger.Debugf("%d submit msg for commit order %d", of.pro, ns.Nonce)
+		logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, ss.Number+1)
 
 		ns.Nonce++
 		ns.SeqNum = 0

@@ -19,6 +19,7 @@ var OrderCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		orderListCmd,
 		orderGetCmd,
+		orderGetDetailCmd,
 	},
 }
 
@@ -89,6 +90,57 @@ var orderGetCmd = &cli.Command{
 		}
 
 		fmt.Printf("proID: %d, jobs: %d, order: %d %d %d %s %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Jobs, si.Nonce, ns.Nonce, oi.Nonce, ansi.Color(oi.OrderState, "green"), time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, ansi.Color(oi.SeqState, "green"), oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
+
+		return nil
+	},
+}
+
+var orderGetDetailCmd = &cli.Command{
+	Name:      "detail",
+	Usage:     "get detail order seq info of one provider",
+	ArgsUsage: "[provider index required] [order nonce] [seq number]",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 3 {
+			return xerrors.Errorf("need three parameters")
+		}
+
+		pid, err := strconv.ParseUint(cctx.Args().First(), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'pro indec' argument: %w", err)
+		}
+
+		nc, err := strconv.ParseUint(cctx.Args().Get(1), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'nonce' argument: %w", err)
+		}
+
+		sn, err := strconv.ParseUint(cctx.Args().Get(2), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'seq number' argument: %w", err)
+		}
+
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		oi, err := api.OrderGetDetail(cctx.Context, pid, nc, uint32(sn))
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("proID: %d, nonce: %d, seqNum: %d, size: %d, segment: %d\n", oi.ProID, oi.Nonce, oi.SeqNum, oi.Size, oi.Segments.Len())
+
+		for _, seg := range oi.Segments {
+			fmt.Println("seg: ", seg)
+		}
 
 		return nil
 	},

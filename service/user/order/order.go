@@ -555,6 +555,8 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 
 	m.msgChan <- msg
 
+	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce)
+
 	o.failCnt = 0
 
 	return nil
@@ -628,6 +630,8 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	}
 
 	m.msgChan <- msg
+
+	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce, o.seqNum)
 
 	o.orderState = Order_Done
 	o.orderTime = time.Now().Unix()
@@ -931,6 +935,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	}
 
 	m.msgChan <- msg
+
+	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce, o.seq.Nonce, o.seq.SeqNum, o.seq.Size)
 
 	// reset
 	o.seqState = OrderSeq_Init

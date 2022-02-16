@@ -336,6 +336,8 @@ type ProviderNodeStruct struct {
 		OrderList      func(ctx context.Context) ([]uint64, error)                 `perm:"read"`
 		OrderGetInfo   func(ctx context.Context) ([]*OrderInfo, error)             `perm:"read"`
 		OrderGetInfoAt func(ctx context.Context, proID uint64) (*OrderInfo, error) `perm:"read"`
+
+		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
 	}
 }
 
@@ -349,6 +351,10 @@ func (s *ProviderNodeStruct) OrderGetInfoAt(ctx context.Context, proID uint64) (
 
 func (s *ProviderNodeStruct) OrderList(ctx context.Context) ([]uint64, error) {
 	return s.Internal.OrderList(ctx)
+}
+
+func (s *ProviderNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
+	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
 }
 
 type UserNodeStruct struct {
@@ -375,6 +381,8 @@ type UserNodeStruct struct {
 		OrderList      func(ctx context.Context) ([]uint64, error)                 `perm:"read"`
 		OrderGetInfo   func(ctx context.Context) ([]*OrderInfo, error)             `perm:"read"`
 		OrderGetInfoAt func(ctx context.Context, proID uint64) (*OrderInfo, error) `perm:"read"`
+
+		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
 	}
 }
 
@@ -428,6 +436,10 @@ func (s *UserNodeStruct) ShowBucketStorage(ctx context.Context, bucketName strin
 
 func (s *UserNodeStruct) OrderGetInfo(ctx context.Context) ([]*OrderInfo, error) {
 	return s.Internal.OrderGetInfo(ctx)
+}
+
+func (s *UserNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
+	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
 }
 
 func (s *UserNodeStruct) OrderGetInfoAt(ctx context.Context, proID uint64) (*OrderInfo, error) {

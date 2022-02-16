@@ -210,4 +210,6 @@ type IOrder interface {
 	OrderList(context.Context) ([]uint64, error)
 	OrderGetInfo(context.Context) ([]*OrderInfo, error)
 	OrderGetInfoAt(context.Context, uint64) (*OrderInfo, error)
+
+	OrderGetDetail(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error)
 }

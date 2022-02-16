@@ -4,6 +4,10 @@ import (
 	"context"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
+
 	"golang.org/x/xerrors"
 )
 
@@ -51,4 +55,21 @@ func (m *OrderMgr) OrderGetInfoAt(_ context.Context, userID uint64) (*api.OrderI
 	}
 
 	return nil, xerrors.Errorf("not found")
+}
+
+func (m *OrderMgr) OrderGetDetail(ctx context.Context, userID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
+
+	key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, nonce, seqNum)
+	val, err := m.ds.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	sos := new(types.SignedOrderSeq)
+	err = sos.Deserialize(val)
+	if err != nil {
+		return nil, err
+	}
+
+	return sos, nil
 }
