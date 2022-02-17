@@ -215,6 +215,11 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	op.seqTime = ss.Time
 	op.seqNum = ss.Number + 1
 
+	if os.Size > op.base.Size {
+		op.base.Size = os.Size
+		op.base.Price.Set(os.Price)
+	}
+
 	key = store.NewKey(pb.MetaType_OrderSeqJobKey, m.localID, id, ns.Nonce, ss.Number)
 	val, err = m.ds.Get(key)
 	if err != nil {
@@ -911,6 +916,11 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	// save seq state
 	err = saveSeqState(o, m.ds)
+	if err != nil {
+		return err
+	}
+
+	err = saveOrderBase(o, m.ds)
 	if err != nil {
 		return err
 	}

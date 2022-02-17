@@ -84,7 +84,7 @@ var InfoCmd = &cli.Command{
 				size += si.Size
 				price.Add(price, si.Price)
 			}
-			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
+			fmt.Printf("Data Stored: size %d byte (%s), price %d\n", size, types.FormatBytes(size), price)
 		case pb.RoleInfo_User:
 			size := uint64(0)
 			price := big.NewInt(0)
@@ -97,7 +97,7 @@ var InfoCmd = &cli.Command{
 				size += si.Size
 				price.Add(price, si.Price)
 			}
-			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
+			fmt.Printf("Data Stored: size %d byte (%s), price %d\n", size, types.FormatBytes(size), price)
 		}
 
 		fmt.Println(ansi.Color("----------- Group Information -----------", "green"))
