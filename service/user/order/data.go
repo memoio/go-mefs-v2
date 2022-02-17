@@ -380,6 +380,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 		}
 
 		if seg.confirmBits.Count() != cnt {
+			seg.dispatchBits = bitset.From(seg.doneBits.Bytes())
 			logger.Debug("load unfinished job:", bucketID, i, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count(), cnt)
 		}
 	}

@@ -80,7 +80,7 @@ State: %s`,
 }
 
 func FormatPartInfo(pi *pb.ObjectPartInfo) string {
-	return fmt.Sprintf("ObjectID: %d, Size: %d, Creation Time: %s, Offset: %d, UsedBytes: %d, Etag: %s", pi.ObjectID, pi.Length, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.RawLength, hex.EncodeToString(pi.ETag))
+	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, UsedBytes: %d, Etag: %s", pi.ObjectID, pi.Length, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.RawLength, hex.EncodeToString(pi.ETag))
 }
 
 var LfsCmd = &cli.Command{
