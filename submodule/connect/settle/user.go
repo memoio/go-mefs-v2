@@ -53,13 +53,7 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 			return err
 		}
 
-		logger.Debugf("erc20 balance is %d", bal)
-
-		if bal.Cmp(val) < 0 {
-			erc20Transfer(cm.eAddr, val)
-		}
-
-		logger.Debug("recharge user approve: ", val)
+		logger.Debugf("recharge user approve: %d, has: %d", val, bal)
 
 		err = cm.iErc.Approve(cm.fsAddr, val)
 		if err != nil {

@@ -16,5 +16,6 @@ func init() {
 		RoleCmd,
 		InfoCmd,
 		PledgeCmd,
+		registerCmd,
 	}
 }

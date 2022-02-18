@@ -16,13 +16,7 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 		return err
 	}
 
-	logger.Debugf("erc20 balance is %d", bal)
-
-	if bal.Cmp(val) < 0 {
-		erc20Transfer(cm.eAddr, val)
-	}
-
-	logger.Debugf("role pledge %d", val)
+	logger.Debugf("role pledge %d, has %d", val, bal)
 
 	err = cm.iPP.Pledge(cm.tAddr, cm.rAddr, cm.roleID, val, nil)
 	if err != nil {

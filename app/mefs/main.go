@@ -15,8 +15,9 @@ var logger = logging.Logger("mefs")
 
 // full compatible with ipfs
 func main() {
-	local := make([]*cli.Command, 0, len(cmd.CommonCmd))
+	local := make([]*cli.Command, 0, len(cmd.CommonCmd)+1)
 	local = append(local, cmd.CommonCmd...)
+	local = append(local, cmd.TransferCmd)
 
 	app := &cli.App{
 		Name:                 "mefs",

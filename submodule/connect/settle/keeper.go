@@ -57,7 +57,7 @@ func (cm *ContractMgr) RegisterKeeper() error {
 	return err
 }
 
-func (cm *ContractMgr) AddKeeperToGroup(gIndex uint64) error {
+func AddKeeperToGroup(roleID, gIndex uint64) error {
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
@@ -67,13 +67,13 @@ func (cm *ContractMgr) AddKeeperToGroup(gIndex uint64) error {
 	status := make(chan error)
 	ar := callconts.NewR(callconts.RoleAddr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint, status)
 
-	err := ar.AddKeeperToGroup(cm.roleID, gIndex)
+	err := ar.AddKeeperToGroup(roleID, gIndex)
 	if err != nil {
 		return err
 	}
 
 	if err = <-status; err != nil {
-		logger.Fatal("add keeper to group fail: ", cm.roleID, gIndex, err)
+		logger.Fatal("add keeper to group fail: ", roleID, gIndex, err)
 		return err
 	}
 
