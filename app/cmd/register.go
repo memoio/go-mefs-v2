@@ -23,7 +23,7 @@ var registerCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    pwKwd,
 			Aliases: []string{"pw"},
-			//Value:   "memoriae",
+			Value:   "memoriae",
 		},
 	},
 	Action: func(cctx *cli.Context) error {

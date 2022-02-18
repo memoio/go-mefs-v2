@@ -34,6 +34,13 @@ var addKeeperToGroupCmd = &cli.Command{
 	Name:      "group",
 	Usage:     "add keeper to group",
 	ArgsUsage: "[group index]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    pwKwd,
+			Aliases: []string{"pw"},
+			Value:   "memoriae",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Args().Present() {
 			return xerrors.Errorf("need group index")
@@ -63,10 +70,12 @@ var addKeeperToGroupCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-
-		pw, err := minit.GetPassWord()
-		if err != nil {
-			return err
+		pw := cctx.String(pwKwd)
+		if pw == "" {
+			pw, err = minit.GetPassWord()
+			if err != nil {
+				return err
+			}
 		}
 
 		lw := wallet.New(pw, ks)
