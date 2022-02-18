@@ -201,7 +201,7 @@ type ISettle interface {
 	SettleGetPledgeInfo(context.Context, uint64) (*PledgeInfo, error)
 	SettleGetStoreInfo(context.Context, uint64, uint64) (*StoreInfo, error)
 
-	SettleWithdraw(context.Context, *big.Int, *big.Int, [][]byte) error
+	SettleWithdraw(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error
 	SettlePledge(context.Context, *big.Int) error
 	SettleCanclePledge(context.Context, *big.Int) error
 }

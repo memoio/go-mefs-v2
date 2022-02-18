@@ -7,8 +7,8 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 )
 
-func (cm *ContractMgr) ProWithdraw(proID uint64, pay, lost *big.Int, ksigns [][]byte) error {
-	err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, proID, cm.tIndex, pay, lost, ksigns)
+func (cm *ContractMgr) ProWithdraw(proID uint64, pay, lost *big.Int, kindex []uint64, ksigns [][]byte) error {
+	err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, proID, cm.tIndex, pay, lost, kindex, ksigns)
 	if err != nil {
 		return err
 	}

@@ -54,7 +54,7 @@ func (f *fakeSettle) SettleGetStoreInfo(context.Context, uint64, uint64) (*api.S
 	return nil, nil
 }
 
-func (f *fakeSettle) SettleWithdraw(context.Context, *big.Int, *big.Int, [][]byte) error {
+func (f *fakeSettle) SettleWithdraw(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error {
 	return nil
 }
 

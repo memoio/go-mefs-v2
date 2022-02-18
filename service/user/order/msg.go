@@ -399,8 +399,7 @@ func (m *OrderMgr) addOrder(so *types.SignedOrder) error {
 
 	logger.Debugf("addOrder user %d has balance %d", so.UserID, avail)
 
-	ksigns := make([][]byte, 7)
-	err = m.is.AddOrder(so, ksigns)
+	err = m.is.AddOrder(so)
 	if err != nil {
 		logger.Debug("addOrder fail to add order ", so.UserID, so.ProID, so.Nonce, err)
 		return err

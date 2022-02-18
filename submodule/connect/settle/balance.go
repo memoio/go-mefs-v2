@@ -57,7 +57,7 @@ func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) 
 	return bi, nil
 }
 
-func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int, ksigns [][]byte) error {
+func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
 	logger.Debugf("%d withdraw", cm.roleID)
 
 	ri, err := cm.SettleGetRoleInfoAt(ctx, cm.roleID)
@@ -67,7 +67,7 @@ func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int
 
 	switch ri.Type {
 	case pb.RoleInfo_Provider:
-		err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, ksigns)
+		err := cm.iRFS.ProWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, kindex, ksigns)
 		if err != nil {
 			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 		}

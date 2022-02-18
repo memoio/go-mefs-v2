@@ -70,9 +70,7 @@ func (k *KeeperNode) addOrder(userID uint64) error {
 				logger.Debug("addOrder fail to get order info", userID, proID, err)
 				break
 			}
-
-			ksigns := make([][]byte, 7)
-			err = k.ContractMgr.AddOrder(&of.SignedOrder, ksigns)
+			err = k.ContractMgr.AddOrder(&of.SignedOrder)
 			if err != nil {
 				logger.Debug("addOrder fail to add order ", userID, proID, err)
 				break
@@ -141,8 +139,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		ksigns := make([][]byte, 7)
-		err = k.ContractMgr.SubOrder(&of.SignedOrder, ksigns)
+		err = k.ContractMgr.SubOrder(&of.SignedOrder)
 		if err != nil {
 			logger.Debug("subOrder fail to sub order: ", userID, proID, err)
 			continue

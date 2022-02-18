@@ -74,17 +74,17 @@ type CommonStruct struct {
 		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
 		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
 
-		SettleGetRoleID      func(context.Context) uint64                              `perm:"read"`
-		SettleGetGroupID     func(context.Context) uint64                              `perm:"read"`
-		SettleGetThreshold   func(context.Context) int                                 `perm:"read"`
-		SettleGetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
-		SettleGetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)         `perm:"read"`
-		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
-		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)        `perm:"read"`
-		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error) `perm:"read"`
-		SettleWithdraw       func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"write"`
-		SettlePledge         func(context.Context, *big.Int) error                     `perm:"write"`
-		SettleCanclePledge   func(context.Context, *big.Int) error                     `perm:"write"`
+		SettleGetRoleID      func(context.Context) uint64                                        `perm:"read"`
+		SettleGetGroupID     func(context.Context) uint64                                        `perm:"read"`
+		SettleGetThreshold   func(context.Context) int                                           `perm:"read"`
+		SettleGetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)                 `perm:"read"`
+		SettleGetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)                   `perm:"read"`
+		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)                 `perm:"read"`
+		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)                  `perm:"read"`
+		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error)           `perm:"read"`
+		SettleWithdraw       func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
+		SettlePledge         func(context.Context, *big.Int) error                               `perm:"write"`
+		SettleCanclePledge   func(context.Context, *big.Int) error                               `perm:"write"`
 
 		SyncGetInfo        func(context.Context) (*SyncInfo, error)                 `perm:"read"`
 		SyncGetTxMsgStatus func(context.Context, types.MsgID) (*tx.MsgState, error) `perm:"read"`
@@ -289,8 +289,8 @@ func (s *CommonStruct) SettleGetStoreInfo(ctx context.Context, uid, pid uint64) 
 	return s.Internal.SettleGetStoreInfo(ctx, uid, pid)
 }
 
-func (s *CommonStruct) SettleWithdraw(ctx context.Context, val, penlty *big.Int, sig [][]byte) error {
-	return s.Internal.SettleWithdraw(ctx, val, penlty, sig)
+func (s *CommonStruct) SettleWithdraw(ctx context.Context, val, penlty *big.Int, kind []uint64, sig [][]byte) error {
+	return s.Internal.SettleWithdraw(ctx, val, penlty, kind, sig)
 }
 
 func (s *CommonStruct) SettlePledge(ctx context.Context, val *big.Int) error {

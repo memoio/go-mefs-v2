@@ -89,7 +89,7 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 	return nil
 }
 
-func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
+func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 	so.TokenIndex = cm.tIndex
 
 	avil, _, err := cm.iFS.GetBalance(so.UserID, so.TokenIndex)
@@ -106,7 +106,7 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
 		return xerrors.Errorf("add order insufficiecnt funds user %d has balance %s, require %s", so.UserID, types.FormatWei(avil), types.FormatWei(pay))
 	}
 
-	err = cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
+	err = cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data)
 	if err != nil {
 		return xerrors.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
 	}
@@ -123,9 +123,9 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
 	return nil
 }
 
-func (cm *ContractMgr) SubOrder(so *types.SignedOrder, ksigns [][]byte) error {
+func (cm *ContractMgr) SubOrder(so *types.SignedOrder) error {
 	so.TokenIndex = cm.tIndex
-	err := cm.iRFS.SubOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
+	err := cm.iRFS.SubOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data)
 	if err != nil {
 		return xerrors.Errorf("sub order user %d pro %d nonce %d size %d start %d end %d, price %d fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, err)
 	}
