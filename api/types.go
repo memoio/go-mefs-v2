@@ -12,9 +12,12 @@ import (
 type GroupInfo struct {
 	ID     uint64
 	Level  uint16
-	FsAddr string
 	Size   uint64
 	Price  *big.Int
+	KCount uint64
+	PCount uint64
+	UCount uint64
+	FsAddr string
 }
 
 type ExtendedPeerInfo struct {

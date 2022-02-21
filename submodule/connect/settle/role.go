@@ -403,12 +403,25 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 
 	logger.Debugf("group %d, state %v %v %v, level %d, fsAddr %s", gIndex, isActive, isBanned, isReady, level, fsAddr)
 
+	kc, err := cm.iRole.GetGKNum(cm.groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	uc, pc, err := cm.iRole.GetGUPNum(cm.groupID)
+	if err != nil {
+		return nil, err
+	}
+
 	gi := &api.GroupInfo{
 		ID:     gIndex,
 		Level:  level,
 		FsAddr: fsAddr.Hex(),
 		Size:   size.Uint64(),
 		Price:  new(big.Int).Set(price),
+		KCount: kc,
+		UCount: uc,
+		PCount: pc,
 	}
 
 	return gi, nil

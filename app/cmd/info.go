@@ -111,6 +111,7 @@ var InfoCmd = &cli.Command{
 		fmt.Println("Security Level: ", gi.Level)
 		fmt.Println("Size: ", types.FormatBytes(gi.Size))
 		fmt.Println("Price: ", gi.Price)
+		fmt.Printf("Keepers: %d, Providers: %d, Users: %d\n", gi.KCount, gi.PCount, gi.UCount)
 
 		fmt.Println(ansi.Color("----------- Pledge Information ----------", "green"))
 
