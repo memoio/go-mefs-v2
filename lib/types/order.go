@@ -95,6 +95,8 @@ func (so *SignedOrder) Hash() []byte {
 	d.Write(buf)
 	binary.BigEndian.PutUint64(buf, so.Size)
 	d.Write(buf)
+	binary.BigEndian.PutUint32(buf[:4], so.TokenIndex)
+	d.Write(buf[:4])
 	d.Write(utils.LeftPadBytes(so.Price.Bytes(), 32))
 	return d.Sum(nil)
 }

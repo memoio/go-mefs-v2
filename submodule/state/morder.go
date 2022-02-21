@@ -41,10 +41,11 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 			SeqNum: 0,
 		},
 		income: &types.PostIncome{
-			UserID:  userID,
-			ProID:   proID,
-			Value:   big.NewInt(0),
-			Penalty: big.NewInt(0),
+			UserID:     userID,
+			ProID:      proID,
+			TokenIndex: 0,
+			Value:      big.NewInt(0),
+			Penalty:    big.NewInt(0),
 		},
 		accFr: bls.ZERO,
 		od:    new(types.OrderDuration),
@@ -768,10 +769,11 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 
 	// save penalty at epoch
 	pi := &types.PostIncome{
-		UserID:  so.UserID,
-		ProID:   so.ProID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
+		UserID:     so.UserID,
+		ProID:      so.ProID,
+		TokenIndex: 0,
+		Value:      big.NewInt(0),
+		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, so.UserID, so.ProID, s.ceInfo.current.Epoch)
 	data, err = tds.Get(key)

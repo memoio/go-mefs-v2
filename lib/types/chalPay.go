@@ -24,10 +24,11 @@ func (ce *ChalEpoch) Deserialize(b []byte) error {
 }
 
 type PostIncome struct {
-	UserID  uint64
-	ProID   uint64
-	Value   *big.Int // duo to income
-	Penalty *big.Int // due to delete
+	UserID     uint64
+	ProID      uint64
+	TokenIndex uint32
+	Value      *big.Int // duo to income
+	Penalty    *big.Int // due to delete
 }
 
 func (pi *PostIncome) Serialize() ([]byte, error) {
@@ -50,7 +51,7 @@ func (api *AccPostIncome) Hash() []byte {
 	d := sha3.NewLegacyKeccak256()
 	binary.BigEndian.PutUint64(buf, api.ProID)
 	d.Write(buf)
-	binary.BigEndian.PutUint64(buf[:4], uint64(api.TokenIndex))
+	binary.BigEndian.PutUint32(buf[:4], api.TokenIndex)
 	d.Write(buf[:4])
 	d.Write(utils.LeftPadBytes(api.Value.Bytes(), 32))
 	d.Write(utils.LeftPadBytes(api.Penalty.Bytes(), 32))
