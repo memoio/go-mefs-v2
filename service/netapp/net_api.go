@@ -85,7 +85,7 @@ func (c *NetServiceImpl) PublishTxMsg(ctx context.Context, msg *tx.SignedMessage
 		return err
 	}
 
-	logger.Debug("push out message: ", msg.From, msg.To, msg.Nonce, len(data))
+	logger.Debug("push out message: ", msg.From, msg.To, msg.Method, msg.Nonce, len(data))
 
 	return c.msgTopic.Publish(ctx, data)
 }

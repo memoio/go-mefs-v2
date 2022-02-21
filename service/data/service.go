@@ -90,7 +90,7 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return xerrors.Errorf("send to %d fails %d", to, string(resp.GetData().MsgInfo))
+		return xerrors.Errorf("send to %d fails %s", to, string(resp.GetData().MsgInfo))
 	}
 
 	return nil

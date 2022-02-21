@@ -194,7 +194,7 @@ func (m *OrderMgr) addPros() {
 }
 
 func (m *OrderMgr) runSched(proc goprocess.Process) {
-	st := time.NewTicker(10 * time.Second)
+	st := time.NewTicker(30 * time.Second)
 	defer st.Stop()
 
 	lt := time.NewTicker(5 * time.Minute)

@@ -106,10 +106,9 @@ func (mp *InPool) sync() {
 
 			// not add low nonce
 			if ms.nextDelete <= m.Nonce {
-				_, has := ms.info[m.Nonce]
-				if !has {
-					ms.info[m.Nonce] = m
-				}
+				ms.info[m.Nonce] = m
+			} else {
+				logger.Debug("add tx msg fail: ", id, m.From, m.Nonce, m.Method, ms.nextDelete)
 			}
 
 			mp.lk.Unlock()
@@ -119,21 +118,14 @@ func (mp *InPool) sync() {
 			mp.lk.Lock()
 			for _, md := range bh.msgs {
 				ms, ok := mp.pending[md.From]
-				if !ok {
-					ms = &msgSet{
-						nextDelete: md.Nonce,
-						info:       make(map[uint64]*tx.SignedMessage),
+				if ok {
+					if ms.nextDelete != md.Nonce {
+						logger.Debug("block delete message at: ", md.From, md.Nonce)
 					}
 
-					mp.pending[md.From] = ms
+					ms.nextDelete = md.Nonce + 1
+					delete(ms.info, md.Nonce)
 				}
-
-				if ms.nextDelete != md.Nonce {
-					logger.Debug("block delete message at: ", md.From, md.Nonce)
-				}
-
-				ms.nextDelete = md.Nonce + 1
-				delete(ms.info, md.Nonce)
 			}
 			mp.lk.Unlock()
 		}
@@ -198,7 +190,7 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 
 	logger.Debugf("create block propose at height %d", rh.Height)
-	msgSet := tx.MsgSet{
+	mSet := tx.MsgSet{
 		Msgs: make([]tx.SignedMessage, 0, 16),
 	}
 
@@ -207,7 +199,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	// reset
 	oldRoot, err := mp.ValidateBlock(nil)
 	if err != nil {
-		return msgSet, err
+		return mSet, err
 	}
 
 	sb := &tx.SignedBlock{
@@ -218,11 +210,11 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 
 	newRoot, err := mp.ValidateBlock(sb)
 	if err != nil {
-		return msgSet, err
+		return mSet, err
 	}
 
-	msgSet.ParentRoot = oldRoot
-	msgSet.Root = newRoot
+	mSet.ParentRoot = oldRoot
+	mSet.Root = newRoot
 
 	mp.lk.RLock()
 	defer mp.lk.RUnlock()
@@ -261,19 +253,19 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 						cnt++
 					}
 
-					msgSet.Root = nroot
+					mSet.Root = nroot
 
-					msgSet.Msgs = append(msgSet.Msgs, *m)
-					msgSet.Receipts = append(msgSet.Receipts, tr)
+					mSet.Msgs = append(mSet.Msgs, *m)
+					mSet.Receipts = append(mSet.Receipts, tr)
 				} else {
 					break
 				}
 			}
 		}
 		if cnt < mp.GetQuorumSize() {
-			return msgSet, xerrors.Errorf("not have enough keepers")
+			return mSet, xerrors.Errorf("not have enough keepers")
 		}
-		return msgSet, nil
+		return mSet, nil
 	}
 
 	// block size should be less than 1MiB
@@ -300,10 +292,10 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 					tr.Extra = err.Error()
 				}
 
-				msgSet.Root = nroot
+				mSet.Root = nroot
 
-				msgSet.Msgs = append(msgSet.Msgs, *m)
-				msgSet.Receipts = append(msgSet.Receipts, tr)
+				mSet.Msgs = append(mSet.Msgs, *m)
+				mSet.Receipts = append(mSet.Receipts, tr)
 				msgCnt++
 				rLen += len(m.Params)
 
@@ -326,7 +318,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 
 	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d, cost %f", rh.Height, msgCnt, rLen, time.Since(nt).Seconds())
 
-	return msgSet, nil
+	return mSet, nil
 }
 
 func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {

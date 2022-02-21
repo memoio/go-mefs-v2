@@ -347,7 +347,6 @@ func (s *SegMgr) challenge(userID uint64) {
 						Params:  data,
 					}
 
-					logger.Debug("send remove msg:", fault.Len(), fault[0])
 					err = s.pushAndWaitMessage(msg)
 					if err != nil {
 						logger.Debug("push remove seg msg fail: ", err)
@@ -461,7 +460,6 @@ func (s *SegMgr) challenge(userID uint64) {
 						Params:  data,
 					}
 
-					logger.Debug("send remove msg:", fault.Len(), fault[0])
 					err = s.pushAndWaitMessage(msg)
 					if err != nil {
 						logger.Debug("push remove seg msg fail: ", err)
