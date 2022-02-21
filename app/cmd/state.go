@@ -157,9 +157,6 @@ var stateWithdrawCmd = &cli.Command{
 				kindex[i] = spi.Sig.Signer[i]
 			}
 
-			// for test
-			spi.Penalty = big.NewInt(1)
-
 			err = napi.SettleWithdraw(cctx.Context, spi.Value, spi.Penalty, kindex, ksign)
 			if err != nil {
 				fmt.Println("withdraw fail", err)

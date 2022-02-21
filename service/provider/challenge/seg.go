@@ -325,6 +325,7 @@ func (s *SegMgr) challenge(userID uint64) {
 				}
 
 				if fault.Len() > 0 {
+					fault.Merge()
 					srp := &tx.SegRemoveParas{
 						UserID:   si.userID,
 						ProID:    s.localID,
@@ -436,6 +437,7 @@ func (s *SegMgr) challenge(userID uint64) {
 				}
 
 				if fault.Len() > 0 {
+					fault.Merge()
 					srp := &tx.SegRemoveParas{
 						UserID:   si.userID,
 						ProID:    s.localID,
