@@ -271,9 +271,10 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 	// save acc income of this pro
 	spi := &types.AccPostIncome{
-		ProID:   okey.proID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
+		ProID:      okey.proID,
+		TokenIndex: 0,
+		Value:      big.NewInt(0),
+		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
 	data, err = tds.Get(key)
