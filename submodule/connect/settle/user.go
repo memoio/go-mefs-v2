@@ -55,13 +55,17 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 
 		logger.Debugf("recharge user approve: %d, has: %d", val, bal)
 
+		if bal.Cmp(val) < 0 {
+			val.Set(bal)
+		}
+
 		err = cm.iErc.Approve(cm.fsAddr, val)
 		if err != nil {
 			return err
 		}
 
 		if err = <-cm.status; err != nil {
-			logger.Fatal("approve fail: ", cm.roleID, err)
+			logger.Fatal("recharge approve fail: ", cm.roleID, err)
 			return err
 		}
 		logger.Debug("recharge user charge: ", val)
