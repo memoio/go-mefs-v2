@@ -358,6 +358,8 @@ func (m *OrderMgr) submitOrders() error {
 			ns := m.StateGetOrderState(m.ctx, m.localID, proID)
 			si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
 			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
 				logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
 				continue
 			}
@@ -374,14 +376,18 @@ func (m *OrderMgr) submitOrders() error {
 			// add order here
 			of, err := m.GetOrder(m.localID, proID, si.Nonce)
 			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
 				logger.Debug("addOrder fail to get order info", m.localID, proID, err)
-				break
+				continue
 			}
 
 			err = m.addOrder(&of.SignedOrder)
 			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
 				logger.Debug("addOrder fail to add order ", m.localID, proID, err)
-				break
+				continue
 			}
 		}
 		time.Sleep(10 * time.Second)
