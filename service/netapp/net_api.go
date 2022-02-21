@@ -84,28 +84,42 @@ func (c *NetServiceImpl) PublishTxMsg(ctx context.Context, msg *tx.SignedMessage
 	if err != nil {
 		return err
 	}
+
+	logger.Debug("push out message: ", msg.From, msg.To, msg.Nonce, len(data))
+
 	return c.msgTopic.Publish(ctx, data)
 }
 
-func (c *NetServiceImpl) PublishTxBlock(ctx context.Context, msg *tx.SignedBlock) error {
-	data, err := msg.Serialize()
+func (c *NetServiceImpl) PublishTxBlock(ctx context.Context, sb *tx.SignedBlock) error {
+	data, err := sb.Serialize()
 	if err != nil {
 		return err
 	}
+
+	logger.Debug("push out block: ", sb.GroupID, sb.MinerID, sb.Height, sb.Slot, len(data))
+
 	return c.blockTopic.Publish(ctx, data)
 }
 
-func (c *NetServiceImpl) PublishHsMsg(ctx context.Context, msg *hs.HotstuffMessage) error {
-	data, err := msg.Serialize()
+func (c *NetServiceImpl) PublishHsMsg(ctx context.Context, hm *hs.HotstuffMessage) error {
+	data, err := hm.Serialize()
 	if err != nil {
 		return err
 	}
+
+	logger.Debug("push out ht msg: ", hm.From, hm.Type, len(data))
 
 	return c.hsTopic.Publish(ctx, data)
 }
 
-func (c *NetServiceImpl) PublishEvent(ctx context.Context, msg *pb.EventMessage) error {
-	data, _ := proto.Marshal(msg)
+func (c *NetServiceImpl) PublishEvent(ctx context.Context, em *pb.EventMessage) error {
+	data, err := proto.Marshal(em)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("push out event msg: ", em.Type, len(data))
+
 	return c.eventTopic.Publish(ctx, data)
 }
 
