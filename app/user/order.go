@@ -17,15 +17,16 @@ var OrderCmd = &cli.Command{
 	Name:  "order",
 	Usage: "Interact with order",
 	Subcommands: []*cli.Command{
-		orderListCmd,
+		orderListJobCmd,
+		orderListPayCmd,
 		orderGetCmd,
-		orderGetDetailCmd,
+		orderDetailCmd,
 	},
 }
 
-var orderListCmd = &cli.Command{
-	Name:  "list",
-	Usage: "list all pros",
+var orderListJobCmd = &cli.Command{
+	Name:  "jobList",
+	Usage: "list jobs of all pros",
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(cmd.FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -39,13 +40,42 @@ var orderListCmd = &cli.Command{
 		}
 		defer closer()
 
-		ois, err := api.OrderGetInfo(cctx.Context)
+		ois, err := api.OrderGetJobInfo(cctx.Context)
 		if err != nil {
 			return err
 		}
 
 		for _, oi := range ois {
 			fmt.Printf("proID: %d, jobs: %d, order: %d %s %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Jobs, oi.Nonce, ansi.Color(oi.OrderState, "green"), time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, ansi.Color(oi.SeqState, "green"), oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
+		}
+
+		return nil
+	},
+}
+
+var orderListPayCmd = &cli.Command{
+	Name:  "payList",
+	Usage: "list pay infos all pros",
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ois, err := api.OrderGetPayInfo(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		for _, oi := range ois {
+			fmt.Printf("proID: %d, size: %d, confirmed: %d, onChain: %d, need pay : %d, paid %d\n", oi.ID, oi.Size, oi.ConfirmSize, oi.OnChainSize, oi.NeedPay, oi.Paid)
 		}
 
 		return nil
@@ -77,7 +107,7 @@ var orderGetCmd = &cli.Command{
 		}
 		defer closer()
 
-		oi, err := api.OrderGetInfoAt(cctx.Context, pid)
+		oi, err := api.OrderGetJobInfoAt(cctx.Context, pid)
 		if err != nil {
 			return err
 		}
@@ -95,7 +125,7 @@ var orderGetCmd = &cli.Command{
 	},
 }
 
-var orderGetDetailCmd = &cli.Command{
+var orderDetailCmd = &cli.Command{
 	Name:      "detail",
 	Usage:     "get detail order seq info of one provider",
 	ArgsUsage: "[provider index required] [order nonce] [seq number]",

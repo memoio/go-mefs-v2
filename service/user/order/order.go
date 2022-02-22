@@ -90,6 +90,8 @@ type OrderFull struct {
 	seqNum  uint32 // next seq
 	prevEnd int64
 
+	opi *types.OrderPayInfo
+
 	base       *types.SignedOrder // quotation-> base
 	orderTime  int64
 	orderState OrderState
@@ -133,6 +135,11 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 		prevEnd: time.Now().Unix(),
 
+		opi: &types.OrderPayInfo{
+			NeedPay: big.NewInt(0),
+			Paid:    big.NewInt(0),
+		},
+
 		orderState: Order_Init,
 		seqState:   OrderSeq_Init,
 		sjq:        new(types.SegJobsQueue),
@@ -154,9 +161,15 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 	go m.sendData(op)
 
-	ns := new(NonceState)
-	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, id)
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, id)
 	val, err := m.ds.Get(key)
+	if err == nil {
+		op.opi.Deserialize(val)
+	} // recal iter all orders
+
+	ns := new(NonceState)
+	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, id)
+	val, err = m.ds.Get(key)
 	if err != nil {
 		return op
 	}
@@ -657,6 +670,23 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	o.seqTime = time.Now().Unix()
 	o.seq.SeqNum = 0
 	saveSeqState(o, m.ds)
+
+	m.sizelk.Lock()
+	pay := new(big.Int).SetInt64(o.base.End - o.base.Start)
+	pay.Mul(pay, o.base.Price)
+
+	o.opi.Size += o.base.Size
+	o.opi.NeedPay.Add(o.opi.NeedPay, pay)
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, o.localID, o.pro)
+	val, _ := o.opi.Serialize()
+	m.ds.Put(key, val)
+
+	m.opi.Size += o.base.Size
+	m.opi.NeedPay.Add(m.opi.NeedPay, pay)
+	key = store.NewKey(pb.MetaType_OrderPayInfoKey, o.localID)
+	val, _ = m.opi.Serialize()
+	m.ds.Put(key, val)
+	m.sizelk.Unlock()
 
 	o.base = nil
 	o.seq = nil

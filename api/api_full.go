@@ -208,8 +208,10 @@ type ISettle interface {
 
 type IOrder interface {
 	OrderList(context.Context) ([]uint64, error)
-	OrderGetInfo(context.Context) ([]*OrderInfo, error)
-	OrderGetInfoAt(context.Context, uint64) (*OrderInfo, error)
+	OrderGetJobInfo(context.Context) ([]*OrderJobInfo, error)
+	OrderGetJobInfoAt(context.Context, uint64) (*OrderJobInfo, error)
+	OrderGetPayInfo(context.Context) ([]*types.OrderPayInfo, error)
+	OrderGetPayInfoAt(context.Context, uint64) (*types.OrderPayInfo, error)
 
 	OrderGetDetail(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error)
 }

@@ -42,6 +42,9 @@ type OrderMgr struct {
 	segPrice *big.Int
 	needPay  *big.Int
 
+	sizelk sync.RWMutex
+	opi    *types.OrderPayInfo
+
 	pros    []uint64
 	orders  map[uint64]*OrderFull // key: proID
 	buckets []uint64
@@ -90,6 +93,11 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 
 		segPrice: new(big.Int).Set(build.DefaultSegPrice),
 		needPay:  big.NewInt(0),
+
+		opi: &types.OrderPayInfo{
+			NeedPay: big.NewInt(0),
+			Paid:    big.NewInt(0),
+		},
 
 		pros:    make([]uint64, 0, 128),
 		orders:  make(map[uint64]*OrderFull),
@@ -145,22 +153,26 @@ func (m *OrderMgr) Stop() {
 }
 
 func (m *OrderMgr) load() error {
-	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID)
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
 	val, err := m.ds.Get(key)
-	if err != nil {
-		return err
+	if err == nil {
+		m.opi.Deserialize(val)
 	}
 
-	res := make([]uint64, len(val)/8)
-	for i := 0; i < len(val)/8; i++ {
-		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		res[i] = pid
-	}
+	key = store.NewKey(pb.MetaType_OrderProsKey, m.localID)
+	val, err = m.ds.Get(key)
+	if err == nil {
+		res := make([]uint64, len(val)/8)
+		for i := 0; i < len(val)/8; i++ {
+			pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+			res[i] = pid
+		}
 
-	res = removeDup(res)
+		res = removeDup(res)
 
-	for _, pid := range res {
-		go m.newProOrder(pid)
+		for _, pid := range res {
+			go m.newProOrder(pid)
+		}
 	}
 
 	return nil
@@ -264,7 +276,6 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				m.pros = append(m.pros, of.pro)
 				go m.update(of.pro)
 			}
-
 		case lp := <-m.bucketChan:
 			_, ok := m.proMap[lp.bucketID]
 			if !ok {

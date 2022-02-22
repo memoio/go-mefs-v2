@@ -133,9 +133,19 @@ var InfoCmd = &cli.Command{
 				return err
 			}
 
+			pi, err := uapi.OrderGetPayInfoAt(cctx.Context, 0)
+			if err != nil {
+				return err
+			}
+
 			fmt.Println("Status: ", li.Status)
-			fmt.Println("Bucket: ", li.Bucket)
+			fmt.Println("Buckets: ", li.Bucket)
 			fmt.Println("Used:", types.FormatBytes(li.Used))
+			fmt.Println("Raw Size:", types.FormatBytes(pi.Size))
+			fmt.Println("Confirmed Size:", types.FormatBytes(pi.ConfirmSize))
+			fmt.Println("OnChain Size:", types.FormatBytes(pi.OnChainSize))
+			fmt.Println("Need Pay:", types.FormatWei(pi.NeedPay))
+			fmt.Println("Paid:", types.FormatWei(pi.Paid))
 		}
 
 		return nil

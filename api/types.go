@@ -103,7 +103,7 @@ type StoreInfo struct {
 	Price    *big.Int
 }
 
-type OrderInfo struct {
+type OrderJobInfo struct {
 	ID uint64
 
 	AvailTime int64

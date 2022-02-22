@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -17,11 +18,11 @@ func (m *OrderMgr) OrderList(_ context.Context) ([]uint64, error) {
 	return res, nil
 }
 
-func (m *OrderMgr) OrderGetInfo(ctx context.Context) ([]*api.OrderInfo, error) {
-	res := make([]*api.OrderInfo, 0, len(m.pros))
+func (m *OrderMgr) OrderGetJobInfo(ctx context.Context) ([]*api.OrderJobInfo, error) {
+	res := make([]*api.OrderJobInfo, 0, len(m.pros))
 
 	for _, pid := range m.pros {
-		oi, err := m.OrderGetInfoAt(ctx, pid)
+		oi, err := m.OrderGetJobInfoAt(ctx, pid)
 		if err != nil {
 			continue
 		}
@@ -32,10 +33,10 @@ func (m *OrderMgr) OrderGetInfo(ctx context.Context) ([]*api.OrderInfo, error) {
 	return res, nil
 }
 
-func (m *OrderMgr) OrderGetInfoAt(_ context.Context, proID uint64) (*api.OrderInfo, error) {
+func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.OrderJobInfo, error) {
 	of, ok := m.orders[proID]
 	if ok {
-		oi := &api.OrderInfo{
+		oi := &api.OrderJobInfo{
 			ID: proID,
 
 			AvailTime:  of.availTime,
@@ -82,4 +83,52 @@ func (m *OrderMgr) OrderGetDetail(ctx context.Context, proID, nonce uint64, seqN
 	}
 
 	return sos, nil
+}
+
+func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.OrderPayInfo, error) {
+	m.sizelk.RLock()
+	defer m.sizelk.RUnlock()
+	pi := new(types.OrderPayInfo)
+	if pid == 0 {
+		pi.Size = m.opi.Size
+		pi.ConfirmSize = m.opi.ConfirmSize
+		pi.OnChainSize = m.opi.OnChainSize
+		pi.NeedPay = new(big.Int).Set(m.opi.NeedPay)
+		pi.Paid = new(big.Int).Set(m.opi.Paid)
+	} else {
+		of, ok := m.orders[pid]
+		if ok {
+			pi.ID = pid
+			pi.Size = of.opi.Size
+			pi.ConfirmSize = of.opi.ConfirmSize
+			pi.OnChainSize = of.opi.OnChainSize
+			pi.NeedPay = new(big.Int).Set(of.opi.NeedPay)
+			pi.Paid = new(big.Int).Set(of.opi.Paid)
+
+			if of.seq != nil {
+				pi.Size += of.seq.Size
+			} else {
+				if of.base != nil {
+					pi.Size += of.base.Size
+				}
+			}
+		}
+	}
+
+	return pi, nil
+}
+
+func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, error) {
+	res := make([]*types.OrderPayInfo, 0, len(m.pros))
+
+	for _, pid := range m.pros {
+		oi, err := m.OrderGetPayInfoAt(ctx, pid)
+		if err != nil {
+			continue
+		}
+
+		res = append(res, oi)
+	}
+
+	return res, nil
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/jbenet/goprocess"
 
+	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -178,6 +179,28 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 						for i := 0; i < sLen; i++ {
 							m.segConfirmChan <- ss[i]
 						}
+
+						// update size
+						m.sizelk.Lock()
+						size := uint64(0)
+						for i := 0; i < sLen; i++ {
+							size += ss[i].Length * code.DefaultSegSize
+						}
+
+						m.opi.ConfirmSize += size
+
+						key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+						val, _ = m.opi.Serialize()
+						m.ds.Put(key, val)
+
+						of, ok := m.orders[msg.To]
+						if ok {
+							of.opi.ConfirmSize += size
+							key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, msg.To)
+							val, _ = of.opi.Serialize()
+							m.ds.Put(key, val)
+						}
+						m.sizelk.Unlock()
 					}
 				}
 			} else {
@@ -382,33 +405,50 @@ func (m *OrderMgr) submitOrders() error {
 				continue
 			}
 
-			err = m.addOrder(&of.SignedOrder)
+			avail, err := m.is.SettleGetBalanceInfo(m.ctx, of.UserID)
 			if err != nil {
 				pMap[proID] = struct{}{}
 				fin++
 				logger.Debug("addOrder fail to add order ", m.localID, proID, err)
 				continue
 			}
+
+			logger.Debugf("addOrder user %d has balance %d", of.UserID, avail)
+
+			err = m.is.AddOrder(&of.SignedOrder)
+			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
+				logger.Debug("addOrder fail to add order ", m.localID, proID, err)
+				continue
+			}
+
+			if err == nil {
+				pay := new(big.Int).SetInt64(of.End - of.Start)
+				pay.Mul(pay, of.Price)
+
+				m.sizelk.Lock()
+
+				m.opi.Paid.Add(m.opi.Paid, pay)
+				m.opi.OnChainSize += of.Size
+
+				key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+				val, _ := m.opi.Serialize()
+				m.ds.Put(key, val)
+
+				po, ok := m.orders[of.ProID]
+				if ok {
+					po.opi.OnChainSize += of.Size
+					po.opi.Paid.Add(po.opi.Paid, pay)
+					key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, of.ProID)
+					val, _ = po.opi.Serialize()
+					m.ds.Put(key, val)
+				}
+				m.sizelk.Unlock()
+			}
+
 		}
 		time.Sleep(10 * time.Second)
-	}
-
-	return nil
-}
-
-func (m *OrderMgr) addOrder(so *types.SignedOrder) error {
-	avail, err := m.is.SettleGetBalanceInfo(m.ctx, so.UserID)
-	if err != nil {
-		logger.Debug("addOrder fail to get balance ", so.UserID, so.ProID, err)
-		return err
-	}
-
-	logger.Debugf("addOrder user %d has balance %d", so.UserID, avail)
-
-	err = m.is.AddOrder(so)
-	if err != nil {
-		logger.Debug("addOrder fail to add order ", so.UserID, so.ProID, so.Nonce, err)
-		return err
 	}
 
 	return nil

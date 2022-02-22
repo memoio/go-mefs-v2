@@ -34,7 +34,7 @@ var orderListCmd = &cli.Command{
 		}
 		defer closer()
 
-		ois, err := api.OrderGetInfo(cctx.Context)
+		ois, err := api.OrderGetJobInfo(cctx.Context)
 		if err != nil {
 			return err
 		}

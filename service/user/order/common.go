@@ -10,7 +10,7 @@ import (
 var logger = logging.Logger("user-order")
 
 const (
-	defaultAckWaiting   = 30
+	defaultAckWaiting   = 35
 	defaultOrderLast    = 3600 // 1 day
 	defaultOrderSeqLast = 600  // 1 hour
 
