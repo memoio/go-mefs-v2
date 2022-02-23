@@ -3,6 +3,7 @@ package order
 import (
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -13,6 +14,8 @@ const (
 	defaultAckWaiting   = 35
 	defaultOrderLast    = 3600 // 1 day
 	defaultOrderSeqLast = 600  // 1 hour
+
+	orderDuration = 10 * build.OrderMin
 
 	// parallel number of net send
 	defaultWeighted = 50

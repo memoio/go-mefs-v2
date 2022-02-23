@@ -453,7 +453,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		}
 
 		start := time.Now().Unix()
-		end := ((start+build.OrderDuration)/types.Day + 1) * types.Day
+		end := ((start+orderDuration)/types.Day + 1) * types.Day
 		if end < o.prevEnd {
 			end = o.prevEnd
 		}
