@@ -114,9 +114,20 @@ type OrderFull struct {
 }
 
 func (m *OrderMgr) newProOrder(id uint64) {
+	m.lk.Lock()
+	_, ok := m.inCreation[id]
+	if ok {
+		m.lk.Unlock()
+		return
+	}
+
+	m.inCreation[id] = struct{}{}
+	m.lk.Unlock()
+
 	logger.Debug("create order for provider: ", id)
 	of := m.loadProOrder(id)
-	m.loadUnfinished(of)
+	err := m.loadUnfinished(of)
+	logger.Debug("create order for provider: ", id, err)
 	// resend tx msg
 	m.proChan <- of
 }
@@ -400,6 +411,9 @@ func saveOrderState(o *OrderFull, ds store.KVStore) error {
 	if err != nil {
 		return err
 	}
+
+	ds.Put(key, val)
+	key = store.NewKey(pb.MetaType_OrderNonceKey, o.localID, o.pro, ns.Nonce)
 	return ds.Put(key, val)
 }
 
@@ -874,8 +888,6 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 		o.seq.UserDataSig = ssig
 		o.seq.UserSig = osig
 
-		// todo: add money
-
 		// save order seq
 		err = saveOrderSeq(o, m.ds)
 		if err != nil {
@@ -944,13 +956,13 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return err
 	}
 
-	// save seq state
-	err = saveSeqState(o, m.ds)
+	err = saveOrderBase(o, m.ds)
 	if err != nil {
 		return err
 	}
 
-	err = saveOrderBase(o, m.ds)
+	// save seq state
+	err = saveSeqState(o, m.ds)
 	if err != nil {
 		return err
 	}

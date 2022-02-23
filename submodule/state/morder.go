@@ -125,7 +125,7 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 
 	err = verify(uri.base, or.Hash(), or.Usign)
 	if err != nil {
-		return err
+		return xerrors.Errorf("verify user sign fail: %s", err)
 	}
 
 	pri, ok := s.rInfo[or.ProID]
@@ -136,7 +136,7 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 
 	err = verify(pri.base, or.Hash(), or.Psign)
 	if err != nil {
-		return err
+		return xerrors.Errorf("verify provider sign fail: %s", err)
 	}
 
 	okey := orderKey{

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jbenet/goprocess"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -212,9 +213,9 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 	}(mid)
 }
 
-func (m *OrderMgr) loadUnfinished(of *OrderFull) {
+func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	ns := m.StateGetOrderState(m.ctx, of.localID, of.pro)
-	logger.Debug("resend message for : ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
+	logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
 
 	for ns.Nonce < of.nonce {
 		// add order base
@@ -224,7 +225,21 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
 				data, err := m.ds.Get(key)
 				if err != nil {
-					return
+					return xerrors.Errorf("found %s error %d", string(key), err)
+				}
+
+				ob := new(types.SignedOrder)
+				err = ob.Deserialize(data)
+				if err != nil {
+					return err
+				}
+
+				// reset size and price
+				ob.Size = 0
+				ob.Price = new(big.Int)
+				data, err = ob.Serialize()
+				if err != nil {
+					return err
 				}
 
 				msg := &tx.Message{
@@ -245,19 +260,29 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 		key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce)
 		val, err := m.ds.Get(key)
 		if err != nil {
-			return
+			return xerrors.Errorf("found %s error %d", string(key), err)
 		}
 		err = ss.Deserialize(val)
 		if err != nil {
-			return
+			return err
 		}
 
+		logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ss.Number, ss.State)
+
+		nextSeq := uint32(ns.SeqNum)
 		// add seq
 		for i := uint32(ns.SeqNum); i <= ss.Number; i++ {
+			// wait it finish?
+			if i == ss.Number {
+				if ss.State != OrderSeq_Finish {
+					break
+				}
+			}
+
 			key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, ns.Nonce, i)
 			data, err := m.ds.Get(key)
 			if err != nil {
-				return
+				return xerrors.Errorf("found %s error %d", string(key), err)
 			}
 
 			// verify last one
@@ -265,11 +290,11 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				os := new(types.SignedOrderSeq)
 				err = os.Deserialize(data)
 				if err != nil {
-					return
+					return err
 				}
 
 				if os.ProDataSig.Type == 0 || os.ProSig.Type == 0 {
-					return
+					return xerrors.Errorf("pro sig empty %d %d", os.ProDataSig.Type, os.ProSig.Type)
 				}
 			}
 
@@ -283,26 +308,39 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 
 			m.msgChan <- msg
 
+			nextSeq = i + 1
+
 			logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, i)
 		}
 
-		// commit
-		// todo: latest one
+		// check order state before commit
 		if ns.Nonce+1 == of.nonce {
-			if of.orderState != Order_Done {
-				return
+			nns := new(NonceState)
+			key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, of.pro, ns.Nonce)
+			val, err = m.ds.Get(key)
+			if err != nil {
+				return xerrors.Errorf("found %s error %d", string(key), err)
+			}
+			err = nns.Deserialize(val)
+			if err != nil {
+				return err
+			}
+
+			if nns.State != Order_Done {
+				return xerrors.Errorf("order state %s is not done at %d", nns.State, ns.Nonce)
 			}
 		}
+
 		ocp := tx.OrderCommitParas{
 			UserID: of.localID,
 			ProID:  of.pro,
 			Nonce:  ns.Nonce,
-			SeqNum: ss.Number + 1,
+			SeqNum: nextSeq,
 		}
 
 		data, err := ocp.Serialize()
 		if err != nil {
-			return
+			return err
 		}
 
 		msg := &tx.Message{
@@ -315,11 +353,13 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 
 		m.msgChan <- msg
 
-		logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, ss.Number+1)
+		logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, nextSeq)
 
 		ns.Nonce++
 		ns.SeqNum = 0
 	}
+
+	return nil
 }
 
 func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {

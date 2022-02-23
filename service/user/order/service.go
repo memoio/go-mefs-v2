@@ -45,10 +45,11 @@ type OrderMgr struct {
 	sizelk sync.RWMutex
 	opi    *types.OrderPayInfo
 
-	pros    []uint64
-	orders  map[uint64]*OrderFull // key: proID
-	buckets []uint64
-	proMap  map[uint64]*lastProsPerBucket // key: bucketID
+	inCreation map[uint64]struct{}
+	pros       []uint64
+	orders     map[uint64]*OrderFull // key: proID
+	buckets    []uint64
+	proMap     map[uint64]*lastProsPerBucket // key: bucketID
 
 	segs    map[jobKey]*segJob
 	segLock sync.RWMutex // for get state of job
@@ -99,10 +100,11 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 			Paid:    big.NewInt(0),
 		},
 
-		pros:    make([]uint64, 0, 128),
-		orders:  make(map[uint64]*OrderFull),
-		buckets: make([]uint64, 0, 16),
-		proMap:  make(map[uint64]*lastProsPerBucket),
+		inCreation: make(map[uint64]struct{}),
+		pros:       make([]uint64, 0, 128),
+		orders:     make(map[uint64]*OrderFull),
+		buckets:    make([]uint64, 0, 16),
+		proMap:     make(map[uint64]*lastProsPerBucket),
 
 		segs: make(map[jobKey]*segJob),
 
