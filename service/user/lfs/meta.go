@@ -3,6 +3,7 @@ package lfs
 import (
 	"context"
 	"encoding/binary"
+	"math/big"
 	"sync"
 	"time"
 
@@ -515,6 +516,9 @@ func (l *LfsService) save() error {
 func (l *LfsService) persistMeta() {
 	tick := time.NewTicker(60 * time.Second)
 	defer tick.Stop()
+
+	ltick := time.NewTicker(1800 * time.Second)
+	defer ltick.Stop()
 	for {
 		select {
 		case <-l.readyChan:
@@ -540,6 +544,10 @@ func (l *LfsService) persistMeta() {
 					logger.Warn("Cannot Persist Meta: ", err)
 				}
 			}
+		case <-ltick.C:
+			if l.Ready() {
+				l.getPayInfo()
+			}
 		case <-l.ctx.Done():
 			if l.Ready() {
 				err := l.save()
@@ -549,5 +557,17 @@ func (l *LfsService) persistMeta() {
 			}
 			return
 		}
+	}
+}
+
+func (l *LfsService) getPayInfo() {
+	// query regular
+	pi, err := l.OrderMgr.OrderGetPayInfoAt(l.ctx, 0)
+	if err == nil {
+		np := pi.NeedPay.Sub(pi.NeedPay, pi.Paid)
+		np.Mul(np, big.NewInt(105))
+		np.Div(np, big.NewInt(100))
+		l.needPay.Set(np)
+		l.bal.Set(pi.Balance)
 	}
 }

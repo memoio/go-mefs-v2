@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -25,6 +26,10 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 
 	if !l.Writeable() {
 		return nil, ErrLfsReadOnly
+	}
+
+	if l.needPay.Cmp(l.bal) > 0 {
+		return nil, xerrors.Errorf("not have enough balance, please rcharge at least %d", l.needPay.Sub(l.needPay, l.bal))
 	}
 
 	logger.Infof("Upload object: %s to bucket: %s begin", objectName, bucketName)

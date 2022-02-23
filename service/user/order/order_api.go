@@ -90,11 +90,18 @@ func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.Or
 	defer m.sizelk.RUnlock()
 	pi := new(types.OrderPayInfo)
 	if pid == 0 {
-		pi.Size = m.opi.Size
+		pi.Size = m.opi.Size // may be less than
 		pi.ConfirmSize = m.opi.ConfirmSize
 		pi.OnChainSize = m.opi.OnChainSize
 		pi.NeedPay = new(big.Int).Set(m.opi.NeedPay)
 		pi.Paid = new(big.Int).Set(m.opi.Paid)
+
+		bi, err := m.is.SettleGetBalanceInfo(ctx, m.localID)
+		if err != nil {
+			return nil, err
+		}
+		pi.Balance = new(big.Int).Set(bi.ErcValue)
+		pi.Balance.Add(pi.Balance, bi.FsValue)
 	} else {
 		of, ok := m.orders[pid]
 		if ok {

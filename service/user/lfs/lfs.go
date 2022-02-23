@@ -2,6 +2,7 @@ package lfs
 
 import (
 	"context"
+	"math/big"
 	"sync"
 	"time"
 
@@ -24,6 +25,9 @@ type LfsService struct {
 	ctx    context.Context
 	keyset pdpcommon.KeySet
 	ds     store.KVStore
+
+	needPay *big.Int
+	bal     *big.Int
 
 	userID     uint64
 	fsID       []byte // keyset的verifyKey的hash
@@ -51,6 +55,9 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 		ds:       ds,
 		keyset:   keyset,
 
+		needPay: new(big.Int),
+		bal:     new(big.Int),
+
 		sb:  newSuperBlock(),
 		dps: make(map[uint64]*dataProcess),
 		sw:  semaphore.NewWeighted(defaultWeighted),
@@ -60,6 +67,7 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()
+	ls.getPayInfo()
 
 	return ls, nil
 }

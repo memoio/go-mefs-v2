@@ -18,6 +18,7 @@ type OrderPayInfo struct {
 	OnChainSize uint64 // order add to settle chain
 	NeedPay     *big.Int
 	Paid        *big.Int // order is added to settle chain
+	Balance     *big.Int
 }
 
 func (pi *OrderPayInfo) Serialize() ([]byte, error) {
