@@ -12,10 +12,8 @@ func (k *KeeperNode) updateOrder() {
 	t := rand.Intn(60)
 	time.Sleep(time.Duration(t) * time.Second)
 
-	ticker := time.NewTicker(3 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
-
-	inProcess := false
 
 	for {
 		select {
@@ -23,17 +21,25 @@ func (k *KeeperNode) updateOrder() {
 			logger.Warn("update order context done ", k.ctx.Err())
 			return
 		case <-ticker.C:
-			if !inProcess {
-				inProcess = true
-				users := k.StateGetAllUsers(k.ctx)
-				for _, uid := range users {
-					//k.addOrder(uid)
-					k.subOrder(uid)
-				}
-				inProcess = false
-			}
+			k.subOrderAll()
 		}
 	}
+}
+
+func (k *KeeperNode) subOrderAll() {
+	go func() {
+		if k.inProcess {
+			return
+		}
+		k.inProcess = true
+		defer func() {
+			k.inProcess = false
+		}()
+		users := k.StateGetAllUsers(k.ctx)
+		for _, uid := range users {
+			k.subOrder(uid)
+		}
+	}()
 }
 
 func (k *KeeperNode) subOrder(userID uint64) error {

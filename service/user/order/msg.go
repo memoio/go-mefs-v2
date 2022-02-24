@@ -29,11 +29,10 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 }
 
 func (m *OrderMgr) runCheck(proc goprocess.Process) {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	// run once at start
-	m.inCheck = true
 	go m.checkBalance()
 
 	for {
@@ -41,15 +40,16 @@ func (m *OrderMgr) runCheck(proc goprocess.Process) {
 		case <-proc.Closing():
 			return
 		case <-ticker.C:
-			if !m.inCheck {
-				m.inCheck = true
-				go m.checkBalance()
-			}
+			go m.checkBalance()
 		}
 	}
 }
 
 func (m *OrderMgr) checkBalance() {
+	if m.inCheck {
+		return
+	}
+	m.inCheck = true
 	defer func() {
 		m.inCheck = false
 	}()

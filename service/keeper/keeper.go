@@ -30,6 +30,8 @@ type KeeperNode struct {
 	inp *txPool.InPool
 
 	bc bcommon.ConsensusMgr
+
+	inProcess bool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
