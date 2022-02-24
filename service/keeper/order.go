@@ -15,16 +15,22 @@ func (k *KeeperNode) updateOrder() {
 	ticker := time.NewTicker(3 * time.Minute)
 	defer ticker.Stop()
 
+	inProcess := false
+
 	for {
 		select {
 		case <-k.ctx.Done():
 			logger.Warn("update order context done ", k.ctx.Err())
 			return
 		case <-ticker.C:
-			users := k.StateGetAllUsers(k.ctx)
-			for _, uid := range users {
-				//k.addOrder(uid)
-				k.subOrder(uid)
+			if !inProcess {
+				inProcess = true
+				users := k.StateGetAllUsers(k.ctx)
+				for _, uid := range users {
+					//k.addOrder(uid)
+					k.subOrder(uid)
+				}
+				inProcess = false
 			}
 		}
 	}

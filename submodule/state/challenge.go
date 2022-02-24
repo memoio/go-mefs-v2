@@ -221,7 +221,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 	oinfo.income.Value.Add(oinfo.income.Value, totalPrice)
 
-	logger.Debugf("apply challenge proof: user %d, pro %d, epoch %d, order nonce %d, seqnum %d, size %d, price %d, total income %d, penalty %d, cost %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice, oinfo.income.Value, oinfo.income.Penalty, time.Since(nt))
+	logger.Debugf("apply challenge proof: user %d, pro %d, epoch %d, order nonce %d, seqnum %d, size %d, price %d, total income %d, penalty %d, cost %s", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice, oinfo.income.Value, oinfo.income.Penalty, time.Since(nt))
 
 	// save proof result
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID, scp.Epoch)

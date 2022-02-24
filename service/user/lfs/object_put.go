@@ -50,6 +50,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	object.Lock()
 	defer object.Unlock()
 
+	nt := time.Now()
 	err = l.upload(ctx, bucket, object, reader)
 	if err != nil {
 		return &object.ObjectInfo, err
@@ -65,6 +66,8 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	}
 
 	object.State = fmt.Sprintf("total %d, dispatch %d, done %d, confirm %d", tt, dist, donet, ct)
+
+	logger.Infof("Upload object: %s to bucket: %s end, cost: %s", objectName, bucketName, time.Since(nt))
 
 	return &object.ObjectInfo, nil
 }

@@ -316,7 +316,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 		}
 	}
 
-	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d, cost %f", rh.Height, msgCnt, rLen, time.Since(nt).Seconds())
+	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d, cost %s", rh.Height, msgCnt, rLen, time.Since(nt))
 
 	return mSet, nil
 }
@@ -374,7 +374,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		return xerrors.Errorf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 	}
 
-	logger.Debugf("create block OnPropose at height %d cost %f", sb.Height, time.Since(nt).Seconds())
+	logger.Debugf("create block OnPropose at height %d cost %s", sb.Height, time.Since(nt))
 
 	return nil
 }
