@@ -128,7 +128,7 @@ var InfoCmd = &cli.Command{
 			}
 			defer closer()
 			fmt.Println(ansi.Color("----------- Lfs Information ----------", "green"))
-			li, err := uapi.LfsGetInfo(cctx.Context)
+			li, err := uapi.LfsGetInfo(cctx.Context, true)
 			if err != nil {
 				return err
 			}
