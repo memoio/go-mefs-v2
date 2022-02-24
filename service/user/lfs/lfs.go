@@ -73,6 +73,9 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 }
 
 func (l *LfsService) Start() error {
+	// start order manager
+	l.OrderMgr.Start()
+
 	// load lfs info first
 	err := l.load()
 	if err != nil {
@@ -218,7 +221,7 @@ func (l *LfsService) Start() error {
 	for i := 0; i < int(l.sb.NextBucketID); i++ {
 		bu := l.sb.buckets[i]
 		if !bu.Deletion {
-			l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+			go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 		}
 	}
 
@@ -230,10 +233,6 @@ func (l *LfsService) Start() error {
 	if l.ready {
 		logger.Debug("lfs is ready")
 	}
-
-	// start order manager, after load all unfinished jobs
-	// in case: msg is done before load unfinished jobs
-	l.OrderMgr.Start()
 
 	return nil
 }

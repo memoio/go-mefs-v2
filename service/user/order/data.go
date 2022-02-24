@@ -413,17 +413,9 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 
 func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	//logger.Debug("finish seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
-
-	jk := jobKey{
-		bucketID: sj.BucketID,
-		jobID:    sj.JobID,
-	}
-
-	m.segLock.RLock()
-	seg, ok := m.segs[jk]
-	m.segLock.RUnlock()
-	if !ok {
-		logger.Warn("finish seg fail: ", sj.JobID, sj.Start, sj.ChunkID)
+	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	if err != nil {
+		logger.Warn("fail to finish seg:", seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
@@ -446,17 +438,9 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 
 func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 	//logger.Debug("confirm seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
-
-	jk := jobKey{
-		bucketID: sj.BucketID,
-		jobID:    sj.JobID,
-	}
-
-	m.segLock.RLock()
-	seg, ok := m.segs[jk]
-	m.segLock.RUnlock()
-	if !ok {
-		logger.Warn("confirm seg fail: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
+	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	if err != nil {
+		logger.Warn("fail to confirm seg:", seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
@@ -500,6 +484,10 @@ func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 		// done and confirm all; remove from memory
 		if uint(nsj.Length)*uint(nsj.ChunkID) == cnt {
 			logger.Debug("confirm seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID, cnt)
+			jk := jobKey{
+				bucketID: sj.BucketID,
+				jobID:    sj.JobID,
+			}
 			m.segLock.Lock()
 			delete(m.segs, jk)
 			m.segLock.Unlock()
