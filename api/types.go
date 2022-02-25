@@ -129,6 +129,7 @@ type SyncInfo struct {
 }
 
 type StateInfo struct {
+	Version uint32
 	Height  uint64      // block next height
 	Slot    uint64      // distance from basetime
 	Epoch   uint64      // challenge

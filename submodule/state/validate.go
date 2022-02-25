@@ -11,6 +11,7 @@ import (
 )
 
 func (s *StateMgr) reset() {
+	s.validateVersion = s.version
 	s.validateHeight = s.height
 	s.validateSlot = s.slot
 	s.validateRoot = s.root

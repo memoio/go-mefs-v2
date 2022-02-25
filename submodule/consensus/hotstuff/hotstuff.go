@@ -60,9 +60,7 @@ func NewHotstuffManager(ctx context.Context, localID uint64, ir api.IRole, in ap
 		localID:     localID,
 		app:         a,
 		curView: &view{
-			header: tx.RawHeader{
-				Version: build.Version,
-			},
+			header: tx.RawHeader{},
 		},
 	}
 

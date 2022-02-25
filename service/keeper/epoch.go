@@ -24,18 +24,27 @@ func (k *KeeperNode) updateChalEpoch() {
 		case <-k.ctx.Done():
 			return
 		case <-ticker.C:
-			slot := k.GetSlot(k.ctx)
-			ne := k.GetChalEpoch(k.ctx)
+			sgi, err := k.inp.StateGetInfo(k.ctx)
+			if err != nil {
+				continue
+			}
+
+			chalDur, ok := build.ChalDurMap[sgi.Version]
+			if !ok {
+				continue
+			}
+
 			ce, err := k.StateGetChalEpochInfo(k.ctx)
 			if err != nil {
 				continue
 			}
-			if ce.Slot < slot && slot-ce.Slot > build.DefaultChalDuration {
+
+			if ce.Slot < sgi.Slot && sgi.Slot-ce.Slot > chalDur {
 				// update
-				logger.Debug("update epoch to: ", ce.Epoch, ne, ce.Slot, slot)
+				logger.Debug("update epoch to: ", ce.Epoch, sgi.Epoch, ce.Slot, sgi.Slot)
 				ep := tx.SignedEpochParams{
 					EpochParams: tx.EpochParams{
-						Epoch: ne,
+						Epoch: sgi.Epoch,
 						Prev:  ce.Seed,
 					},
 					Sig: types.NewMultiSignature(types.SigSecp256k1),

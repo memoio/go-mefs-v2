@@ -27,8 +27,13 @@ func (s *StateMgr) updateChalEpoch(msg *tx.Message, tds store.TxnStore) error {
 		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.ceInfo.current.Seed)
 	}
 
-	if s.slot-s.ceInfo.current.Slot < build.DefaultChalDuration {
+	curChalEpoch, ok := build.ChalDurMap[s.version]
+	if !ok {
 		return xerrors.Errorf("add chal epoch err: duration is wrong")
+	}
+
+	if s.slot-s.ceInfo.current.Slot < curChalEpoch {
+		return xerrors.Errorf("add chal epoch err: duration is wrong, expect at least %d", curChalEpoch)
 	}
 
 	s.ceInfo.epoch++
@@ -77,8 +82,13 @@ func (s *StateMgr) canUpdateChalEpoch(msg *tx.Message) error {
 		return xerrors.Errorf("add chal epoch seed err: got %s, expected %s", sep.Prev, s.validateCeInfo.current.Seed)
 	}
 
-	if s.validateSlot-s.validateCeInfo.current.Slot < build.DefaultChalDuration {
+	curChalEpoch, ok := build.ChalDurMap[s.validateVersion]
+	if !ok {
 		return xerrors.Errorf("add chal epoch err: duration is wrong")
+	}
+
+	if s.validateSlot-s.validateCeInfo.current.Slot < curChalEpoch {
+		return xerrors.Errorf("add chal epoch err: duration is wrong, expect at least %d", curChalEpoch)
 	}
 
 	s.validateCeInfo.epoch++

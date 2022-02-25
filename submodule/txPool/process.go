@@ -150,7 +150,6 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 
 func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	nrh := tx.RawHeader{
-		Version: build.Version,
 		GroupID: mp.groupID,
 	}
 
@@ -164,24 +163,28 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 		return nrh, xerrors.Errorf("sync height expected %d, got %d", si.RemoteHeight, si.SyncedHeight)
 	}
 
-	appliedHeight := mp.GetHeight(mp.ctx)
-	if appliedHeight != si.SyncedHeight {
+	sgi, err := mp.StateGetInfo(mp.ctx)
+	if err != nil {
+		return nrh, err
+	}
+
+	if sgi.Height != si.SyncedHeight {
 		logger.Debug("create block state height is not equal")
 		return nrh, xerrors.Errorf("create block state height is not equal")
 	}
 
 	nt := time.Now().Unix()
 	slot := uint64(nt-build.BaseTime) / build.SlotDuration
-	appliedSlot := mp.GetSlot(mp.ctx)
-	if appliedSlot >= slot {
-		return nrh, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, appliedSlot)
+	if sgi.Slot >= slot {
+		return nrh, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, sgi.Slot)
 	}
 
-	logger.Debugf("create block header at height %d, slot: %d", si.SyncedHeight, slot)
+	logger.Debugf("create block header verison %d at height %d, slot: %d", sgi.Version, si.SyncedHeight, slot)
 
-	nrh.Height = si.SyncedHeight
+	nrh.Version = sgi.Version
+	nrh.Height = sgi.Height
 	nrh.Slot = slot
-	nrh.PrevID = mp.GetBlockID(mp.ctx)
+	nrh.PrevID = sgi.BlockID
 	nrh.MinerID = mp.GetLeader(slot)
 
 	return nrh, nil

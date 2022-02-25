@@ -52,8 +52,9 @@ var InfoCmd = &cli.Command{
 		st := build.BaseTime + int64(sgi.Slot*build.SlotDuration)
 		lag := (nt - st) / build.SlotDuration
 
-		fmt.Printf("Status: %t, Time: %s\n", si.Status && (si.SyncedHeight+5 > si.RemoteHeight) && (lag < 10), time.Unix(st, 0).Format(utils.SHOWTIME))
+		fmt.Printf("Status: %t, Slot: %d, Time: %s\n", si.Status && (si.SyncedHeight+5 > si.RemoteHeight) && (lag < 10), sgi.Slot, time.Unix(st, 0).Format(utils.SHOWTIME))
 		fmt.Printf("Height Synced: %d, Remote: %d\n", si.SyncedHeight, si.RemoteHeight)
+		fmt.Println("Challenge Epoch:", sgi.Epoch-1)
 
 		fmt.Println(ansi.Color("----------- Role Information -----------", "green"))
 		pri, err := api.RoleSelf(cctx.Context)

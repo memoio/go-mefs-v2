@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -37,21 +38,23 @@ type StateMgr struct {
 	threshold int
 	blkID     types.MsgID
 
-	height uint64 // next block height
-	slot   uint64 // logical time
-	ceInfo *chalEpochInfo
-	root   types.MsgID // for verify
-	oInfo  map[orderKey]*orderInfo
-	sInfo  map[uint64]*segPerUser // key: userID
-	rInfo  map[uint64]*roleInfo
+	version uint32
+	height  uint64 // next block height
+	slot    uint64 // logical time
+	ceInfo  *chalEpochInfo
+	root    types.MsgID // for verify
+	oInfo   map[orderKey]*orderInfo
+	sInfo   map[uint64]*segPerUser // key: userID
+	rInfo   map[uint64]*roleInfo
 
-	validateHeight uint64 // next block height
-	validateSlot   uint64 // logical time
-	validateCeInfo *chalEpochInfo
-	validateRoot   types.MsgID
-	validateOInfo  map[orderKey]*orderInfo
-	validateSInfo  map[uint64]*segPerUser
-	validateRInfo  map[uint64]*roleInfo
+	validateVersion uint32
+	validateHeight  uint64 // next block height
+	validateSlot    uint64 // logical time
+	validateCeInfo  *chalEpochInfo
+	validateRoot    types.MsgID
+	validateOInfo   map[orderKey]*orderInfo
+	validateSInfo   map[uint64]*segPerUser
+	validateRInfo   map[uint64]*roleInfo
 
 	handleAddRole     HanderAddRoleFunc
 	handleAddUser     HandleAddUserFunc
@@ -79,6 +82,7 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 		genesisBlockID: types.NewMsgID(buf),
 		blkID:          types.NewMsgID(buf),
 
+		version:      0,
 		root:         types.NewMsgID(buf),
 		validateRoot: types.NewMsgID(buf),
 		ceInfo: &chalEpochInfo{
@@ -90,6 +94,7 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 		sInfo: make(map[uint64]*segPerUser),
 		rInfo: make(map[uint64]*roleInfo),
 
+		validateVersion: 0,
 		validateCeInfo: &chalEpochInfo{
 			epoch:    0,
 			current:  newChalEpoch(types.NewMsgID(buf)),
@@ -158,6 +163,14 @@ func (s *StateMgr) load() {
 		s.height = binary.BigEndian.Uint64(val[:8]) + 1
 		s.slot = binary.BigEndian.Uint64(val[8:16])
 	}
+
+	for i, ue := range build.UpdateMap {
+		if s.slot > ue && s.version < i {
+			s.version = i
+		}
+	}
+
+	s.validateVersion = s.version
 
 	logger.Debug("load state at: ", s.height, s.slot)
 
@@ -390,6 +403,15 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.height++
 	s.slot = blk.Slot
 	s.blkID = blkID
+
+	// after apply all msg, update verison
+	nextVer := s.version + 1
+	ue, ok := build.UpdateMap[nextVer]
+	if ok {
+		if s.slot >= ue {
+			s.version = nextVer
+		}
+	}
 
 	logger.Debug("block apply at: ", blk.Height, time.Since(nt))
 
