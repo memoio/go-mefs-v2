@@ -101,6 +101,8 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 			return
 		}
 
+		logger.Debug("read stream: ", req.URL.Path)
+
 		readersLk.Lock()
 		ch, found := readers[u]
 		if !found {
