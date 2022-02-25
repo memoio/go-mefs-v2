@@ -32,7 +32,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		return nil, xerrors.Errorf("not have enough balance, please rcharge at least %d", l.needPay.Sub(l.needPay, l.bal))
 	}
 
-	logger.Infof("Upload object: %s to bucket: %s begin", objectName, bucketName)
+	logger.Debugf("Upload object: %s to bucket: %s begin", objectName, bucketName)
 
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
@@ -67,7 +67,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 
 	object.State = fmt.Sprintf("total %d, dispatch %d, done %d, confirm %d", tt, dist, donet, ct)
 
-	logger.Infof("Upload object: %s to bucket: %s end, cost: %s", objectName, bucketName, time.Since(nt))
+	logger.Debugf("Upload object: %s to bucket: %s end, cost: %s", objectName, bucketName, time.Since(nt))
 
 	return &object.ObjectInfo, nil
 }

@@ -175,7 +175,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		return
 	}
 
-	logger.Infof("order bucket %d expected %d, got %d", lp.bucketID, lp.dc+lp.pc, cnt)
+	logger.Debugf("order bucket %d expected %d, got %d", lp.bucketID, lp.dc+lp.pc, cnt)
 
 	otherPros := make([]uint64, 0, len(m.pros))
 	for _, pid := range m.pros {

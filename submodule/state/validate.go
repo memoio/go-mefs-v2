@@ -1,6 +1,8 @@
 package state
 
 import (
+	"time"
+
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
@@ -79,7 +81,7 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		return s.validateRoot, nil
 	}
 
-	logger.Debug("validate message:", s.validateHeight, msg.From, msg.Nonce, msg.Method, s.validateRoot)
+	nt := time.Now()
 
 	ri, ok := s.validateRInfo[msg.From]
 	if !ok {
@@ -165,6 +167,8 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 	default:
 		return s.validateRoot, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}
+
+	logger.Debug("validate message: ", s.validateHeight, msg.From, msg.Nonce, msg.Method, s.validateRoot, time.Since(nt))
 
 	return s.validateRoot, nil
 }

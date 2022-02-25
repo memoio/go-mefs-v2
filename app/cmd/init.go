@@ -58,7 +58,7 @@ var InitCmd = &cli.Command{
 			return xerrors.Errorf("repo at '%s' is already initialized", repoDir)
 		}
 
-		logger.Infof("Initializing repo at '%s'", repoDir)
+		logger.Info("Initializing repo at: ", repoDir)
 
 		rep, err := repo.NewFSRepo(repoDir, config.NewDefaultConfig())
 		if err != nil {
