@@ -62,7 +62,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	lukechampine.com/frand v1.4.2
-	memoContract v0.0.0-00010101000000-000000000000
+	memoc v0.0.0-00010101000000-000000000000
 )
 
-replace memoContract => ../memo-go-contracts-v2
+replace memoc => ../memo-go-contracts-v2

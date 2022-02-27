@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/xerrors"
 
-	callconts "memoContract/callcontracts"
-	iface "memoContract/interfaces"
+	callconts "memoc/callcontracts"
+	iface "memoc/interfaces"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
