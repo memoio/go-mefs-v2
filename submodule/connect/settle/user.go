@@ -26,7 +26,7 @@ func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
 		return err
 	}
 
-	err = cm.iRole.RegisterUser(cm.rtAddr, cm.roleID, gIndex, pdpKeySet.VerifyKey().Serialize(), nil)
+	err = cm.iRole.RegisterUser(cm.rtAddr, cm.roleID, gIndex, 0, pdpKeySet.VerifyKey().Serialize(), nil)
 	if err != nil {
 		return err
 	}
