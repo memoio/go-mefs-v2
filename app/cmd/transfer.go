@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	callconts "memoContract/callcontracts"
+	callconts "memoc/callcontracts"
 
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
