@@ -177,17 +177,16 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 					if err == nil {
 						ss := *sjq
 						sLen := sjq.Len()
-						for i := 0; i < sLen; i++ {
-							m.segConfirmChan <- ss[i]
-						}
-
-						// update size
-						m.sizelk.Lock()
 						size := uint64(0)
 						for i := 0; i < sLen; i++ {
+							m.segConfirmChan <- ss[i]
 							size += ss[i].Length * code.DefaultSegSize
 						}
 
+						logger.Debug("confirm jobs in order seq: ", msg.From, msg.To, seq.Nonce, seq.SeqNum, size)
+
+						// update size
+						m.sizelk.Lock()
 						m.opi.ConfirmSize += size
 
 						key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
