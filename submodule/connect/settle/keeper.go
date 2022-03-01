@@ -5,7 +5,7 @@ import (
 	"log"
 	"math/big"
 
-	callconts "memoContract/callcontracts"
+	callconts "memoc/callcontracts"
 
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/types"

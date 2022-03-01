@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/xerrors"
 
-	callconts "memoContract/callcontracts"
-	iface "memoContract/interfaces"
+	callconts "memoc/callcontracts"
+	iface "memoc/interfaces"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
@@ -414,14 +414,15 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 	}
 
 	gi := &api.GroupInfo{
-		ID:     gIndex,
-		Level:  level,
-		FsAddr: fsAddr.Hex(),
-		Size:   size.Uint64(),
-		Price:  new(big.Int).Set(price),
-		KCount: kc,
-		UCount: uc,
-		PCount: pc,
+		RoleAddr: cm.rAddr.String(),
+		ID:       gIndex,
+		Level:    level,
+		FsAddr:   fsAddr.String(),
+		Size:     size.Uint64(),
+		Price:    new(big.Int).Set(price),
+		KCount:   kc,
+		UCount:   uc,
+		PCount:   pc,
 	}
 
 	return gi, nil

@@ -9,7 +9,7 @@ import (
 	"math/rand"
 	"time"
 
-	callconts "memoContract/callcontracts"
+	callconts "memoc/callcontracts"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -27,6 +27,11 @@ var (
 	endpoint = callconts.EndPoint
 	RoleAddr = callconts.RoleAddr
 )
+
+// as net prefix
+func GetRolePrefix() string {
+	return RoleAddr.String()[2:10]
+}
 
 // TransferTo trans money
 func TransferTo(toAddress common.Address, value *big.Int, sk string) error {

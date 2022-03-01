@@ -10,14 +10,15 @@ import (
 )
 
 type GroupInfo struct {
-	ID     uint64
-	Level  uint16
-	Size   uint64
-	Price  *big.Int
-	KCount uint64
-	PCount uint64
-	UCount uint64
-	FsAddr string
+	RoleAddr string
+	ID       uint64
+	Level    uint16
+	Size     uint64
+	Price    *big.Int
+	KCount   uint64
+	PCount   uint64
+	UCount   uint64
+	FsAddr   string
 }
 
 type ExtendedPeerInfo struct {
