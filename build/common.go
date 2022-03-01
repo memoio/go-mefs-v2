@@ -23,6 +23,11 @@ const (
 	ChalDuration1 = 360 // slot
 )
 
+const (
+	UpdateEpoch2  = 259600
+	ChalDuration2 = 960 // slot
+)
+
 var (
 	DefaultSegPrice   = big.NewInt(1000) // per seg
 	DefaultPiecePrice = big.NewInt(1000)

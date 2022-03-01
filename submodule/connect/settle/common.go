@@ -28,6 +28,11 @@ var (
 	RoleAddr = callconts.RoleAddr
 )
 
+// as net prefix
+func GetRolePrefix() string {
+	return RoleAddr.String()[2:10]
+}
+
 // TransferTo trans money
 func TransferTo(toAddress common.Address, value *big.Int, sk string) error {
 	fmt.Println("transfer ", value, " to ", toAddress)
