@@ -108,6 +108,8 @@ var InfoCmd = &cli.Command{
 			return err
 		}
 
+		fmt.Println("Contract Address: ", gi.RoleAddr)
+		fmt.Println("Fs Address: ", gi.FsAddr)
 		fmt.Println("ID: ", gid)
 		fmt.Println("Security Level: ", gi.Level)
 		fmt.Println("Size: ", types.FormatBytes(gi.Size))

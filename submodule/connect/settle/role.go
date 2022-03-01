@@ -414,14 +414,15 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 	}
 
 	gi := &api.GroupInfo{
-		ID:     gIndex,
-		Level:  level,
-		FsAddr: fsAddr.Hex(),
-		Size:   size.Uint64(),
-		Price:  new(big.Int).Set(price),
-		KCount: kc,
-		UCount: uc,
-		PCount: pc,
+		RoleAddr: cm.rAddr.String(),
+		ID:       gIndex,
+		Level:    level,
+		FsAddr:   fsAddr.String(),
+		Size:     size.Uint64(),
+		Price:    new(big.Int).Set(price),
+		KCount:   kc,
+		UCount:   uc,
+		PCount:   pc,
 	}
 
 	return gi, nil

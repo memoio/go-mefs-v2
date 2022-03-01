@@ -206,7 +206,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		shutdownChan: make(chan struct{}),
 	}
 
-	networkName := cfg.Net.Name + "/group" + strconv.FormatInt(int64(b.groupID), 10)
+	networkName := settle.GetRolePrefix() + "/" + strconv.FormatUint(b.groupID, 10)
 
 	logger.Debug("networkName is: ", networkName)
 
