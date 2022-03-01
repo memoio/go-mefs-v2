@@ -12,9 +12,12 @@ import (
 type GroupInfo struct {
 	ID     uint64
 	Level  uint16
-	FsAddr string
 	Size   uint64
 	Price  *big.Int
+	KCount uint64
+	PCount uint64
+	UCount uint64
+	FsAddr string
 }
 
 type ExtendedPeerInfo struct {
@@ -100,7 +103,7 @@ type StoreInfo struct {
 	Price    *big.Int
 }
 
-type OrderInfo struct {
+type OrderJobInfo struct {
 	ID uint64
 
 	AvailTime int64
@@ -126,6 +129,7 @@ type SyncInfo struct {
 }
 
 type StateInfo struct {
+	Version uint32
 	Height  uint64      // block next height
 	Slot    uint64      // distance from basetime
 	Epoch   uint64      // challenge

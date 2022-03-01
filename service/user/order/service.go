@@ -42,10 +42,14 @@ type OrderMgr struct {
 	segPrice *big.Int
 	needPay  *big.Int
 
-	pros    []uint64
-	orders  map[uint64]*OrderFull // key: proID
-	buckets []uint64
-	proMap  map[uint64]*lastProsPerBucket // key: bucketID
+	sizelk sync.RWMutex
+	opi    *types.OrderPayInfo
+
+	inCreation map[uint64]struct{}
+	pros       []uint64
+	orders     map[uint64]*OrderFull // key: proID
+	buckets    []uint64
+	proMap     map[uint64]*lastProsPerBucket // key: bucketID
 
 	segs    map[jobKey]*segJob
 	segLock sync.RWMutex // for get state of job
@@ -61,9 +65,10 @@ type OrderMgr struct {
 	seqFinishChan chan *orderSeqPro       // confirm current seq
 
 	// add data
-	segAddChan  chan *types.SegJob
-	segRedoChan chan *types.SegJob
-	segDoneChan chan *types.SegJob
+	segAddChan     chan *types.SegJob
+	segRedoChan    chan *types.SegJob
+	segDoneChan    chan *types.SegJob
+	segConfirmChan chan *types.SegJob
 
 	// message send out
 	msgChan chan *tx.Message
@@ -90,10 +95,16 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		segPrice: new(big.Int).Set(build.DefaultSegPrice),
 		needPay:  big.NewInt(0),
 
-		pros:    make([]uint64, 0, 128),
-		orders:  make(map[uint64]*OrderFull),
-		buckets: make([]uint64, 0, 16),
-		proMap:  make(map[uint64]*lastProsPerBucket),
+		opi: &types.OrderPayInfo{
+			NeedPay: big.NewInt(0),
+			Paid:    big.NewInt(0),
+		},
+
+		inCreation: make(map[uint64]struct{}),
+		pros:       make([]uint64, 0, 128),
+		orders:     make(map[uint64]*OrderFull),
+		buckets:    make([]uint64, 0, 16),
+		proMap:     make(map[uint64]*lastProsPerBucket),
 
 		segs: make(map[jobKey]*segJob),
 
@@ -107,9 +118,10 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		seqNewChan:    make(chan *orderSeqPro, 16),
 		seqFinishChan: make(chan *orderSeqPro, 16),
 
-		segAddChan:  make(chan *types.SegJob, 128),
-		segRedoChan: make(chan *types.SegJob, 128),
-		segDoneChan: make(chan *types.SegJob, 128),
+		segAddChan:     make(chan *types.SegJob, 128),
+		segRedoChan:    make(chan *types.SegJob, 128),
+		segDoneChan:    make(chan *types.SegJob, 128),
+		segConfirmChan: make(chan *types.SegJob, 128),
 
 		msgChan: make(chan *tx.Message, 128),
 	}
@@ -143,22 +155,26 @@ func (m *OrderMgr) Stop() {
 }
 
 func (m *OrderMgr) load() error {
-	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID)
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
 	val, err := m.ds.Get(key)
-	if err != nil {
-		return err
+	if err == nil {
+		m.opi.Deserialize(val)
 	}
 
-	res := make([]uint64, len(val)/8)
-	for i := 0; i < len(val)/8; i++ {
-		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		res[i] = pid
-	}
+	key = store.NewKey(pb.MetaType_OrderProsKey, m.localID)
+	val, err = m.ds.Get(key)
+	if err == nil {
+		res := make([]uint64, len(val)/8)
+		for i := 0; i < len(val)/8; i++ {
+			pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+			res[i] = pid
+		}
 
-	res = removeDup(res)
+		res = removeDup(res)
 
-	for _, pid := range res {
-		go m.newProOrder(pid)
+		for _, pid := range res {
+			go m.newProOrder(pid)
+		}
 	}
 
 	return nil
@@ -192,7 +208,7 @@ func (m *OrderMgr) addPros() {
 }
 
 func (m *OrderMgr) runSched(proc goprocess.Process) {
-	st := time.NewTicker(10 * time.Second)
+	st := time.NewTicker(30 * time.Second)
 	defer st.Stop()
 
 	lt := time.NewTicker(5 * time.Minute)
@@ -209,18 +225,17 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 			m.redoSegJob(sj)
 		case sj := <-m.segDoneChan:
 			m.finishSegJob(sj)
+		case sj := <-m.segConfirmChan:
+			m.confirmSegJob(sj)
 
 		// handle order state
 		case quo := <-m.quoChan:
 			of, ok := m.orders[quo.ProID]
 			if ok {
 				if quo.SegPrice.Cmp(m.segPrice) > 0 {
-					of.quoretry += 1
-					if of.quoretry > 10 {
-						m.stopOrder(of)
-					}
+					of.failCnt++
 				} else {
-					of.quoretry = 0
+					of.failCnt = 0
 					of.availTime = time.Now().Unix()
 					err := m.createOrder(of, quo)
 					if err != nil {
@@ -263,7 +278,6 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				m.pros = append(m.pros, of.pro)
 				go m.update(of.pro)
 			}
-
 		case lp := <-m.bucketChan:
 			_, ok := m.proMap[lp.bucketID]
 			if !ok {

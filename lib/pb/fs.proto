@@ -56,6 +56,8 @@ enum MetaType {
 	OrderProsKey = 54;       // key: x/userID; value: pros; x/userID/bucketID
 	OrderUsersKey = 55;      // key: x/proID; value: users
 	OrderProsDeleteKey = 56; // key: x/userID/bucketID; val: deleted pros
+	OrderSeqJobKey= 57;      // key: x/userID/proID/nonce/seqnum; value: job
+	OrderPayInfoKey = 58;    // key: x/userID; value: order pay info
 
 	// tx message and block
 	Tx_BlockSyncedKey = 60;   // key: x; value: blk height	

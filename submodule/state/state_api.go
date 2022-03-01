@@ -28,6 +28,7 @@ func (s *StateMgr) StateGetInfo(ctx context.Context) (*api.StateInfo, error) {
 	defer s.lk.RUnlock()
 
 	si := &api.StateInfo{
+		Version: s.version,
 		Height:  s.height,
 		Slot:    s.slot,
 		Epoch:   s.ceInfo.epoch,

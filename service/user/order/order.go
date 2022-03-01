@@ -2,7 +2,6 @@ package order
 
 import (
 	"context"
-	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -28,7 +27,7 @@ const (
 )
 
 func (os OrderState) String() string {
-	return " " + string(os) + " "
+	return " " + string(os)
 }
 
 type NonceState struct {
@@ -56,7 +55,7 @@ const (
 )
 
 func (oss OrderSeqState) String() string {
-	return " " + string(oss) + " "
+	return " " + string(oss)
 }
 
 type SeqState struct {
@@ -80,17 +79,18 @@ type OrderFull struct {
 	api.IDataService // segment
 
 	ctx context.Context
-	ds  store.KVStore
 
 	localID uint64
 	fsID    []byte
 
 	pro       uint64
 	availTime int64 // last connect time
-	quoretry  int   // todo: retry > 10; change pro?
 
-	nonce  uint64 // next nonce
-	seqNum uint32 // next seq
+	nonce   uint64 // next nonce
+	seqNum  uint32 // next seq
+	prevEnd int64
+
+	opi *types.OrderPayInfo
 
 	base       *types.SignedOrder // quotation-> base
 	orderTime  int64
@@ -101,20 +101,33 @@ type OrderFull struct {
 	seqTime  int64
 	seqState OrderSeqState
 
+	sjq *types.SegJobsQueue
+
 	inflight bool // data is sending
 	buckets  []uint64
 	jobs     map[uint64]*bucketJob // buf and persist?
 
-	segDoneChan chan *types.SegJob
+	failCnt int // todo: retry > 10; change pro?
 
 	ready  bool // ready for service; network is ok
 	inStop bool // stop receiving data; duo to high price
 }
 
 func (m *OrderMgr) newProOrder(id uint64) {
+	m.lk.Lock()
+	_, ok := m.inCreation[id]
+	if ok {
+		m.lk.Unlock()
+		return
+	}
+
+	m.inCreation[id] = struct{}{}
+	m.lk.Unlock()
+
 	logger.Debug("create order for provider: ", id)
 	of := m.loadProOrder(id)
-	m.loadUnfinished(of)
+	err := m.loadUnfinished(of)
+	logger.Debug("create order for provider: ", id, err)
 	// resend tx msg
 	m.proChan <- of
 }
@@ -124,22 +137,26 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		IDataService: m.IDataService,
 
 		ctx: m.ctx,
-		ds:  m.ds,
 
-		localID:  m.localID,
-		fsID:     m.fsID,
-		pro:      id,
-		quoretry: 1, // set to 0 when get desired quotation
+		localID: m.localID,
+		fsID:    m.fsID,
+		pro:     id,
 
 		availTime: time.Now().Unix() - 300,
 
+		prevEnd: time.Now().Unix(),
+
+		opi: &types.OrderPayInfo{
+			NeedPay: big.NewInt(0),
+			Paid:    big.NewInt(0),
+		},
+
 		orderState: Order_Init,
 		seqState:   OrderSeq_Init,
+		sjq:        new(types.SegJobsQueue),
 
 		buckets: make([]uint64, 0, 8),
 		jobs:    make(map[uint64]*bucketJob),
-
-		segDoneChan: m.segDoneChan,
 	}
 
 	err := m.connect(id)
@@ -155,9 +172,15 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 	go m.sendData(op)
 
-	ns := new(NonceState)
-	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, id)
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, id)
 	val, err := m.ds.Get(key)
+	if err == nil {
+		op.opi.Deserialize(val)
+	} // recal iter all orders
+
+	ns := new(NonceState)
+	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, id)
+	val, err = m.ds.Get(key)
 	if err != nil {
 		return op
 	}
@@ -187,6 +210,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	}
 	op.base = ob
 	op.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
+	op.prevEnd = ob.End
 
 	ss := new(SeqState)
 	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, id, ns.Nonce)
@@ -215,6 +239,23 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	op.seqTime = ss.Time
 	op.seqNum = ss.Number + 1
 
+	if os.Size > op.base.Size {
+		op.base.Size = os.Size
+		op.base.Price.Set(os.Price)
+	}
+
+	key = store.NewKey(pb.MetaType_OrderSeqJobKey, m.localID, id, ns.Nonce, ss.Number)
+	val, err = m.ds.Get(key)
+	if err != nil {
+		return op
+	}
+	err = op.sjq.Deserialize(val)
+	if err != nil {
+		return op
+	}
+
+	logger.Debug("load order: ", op.pro, op.nonce, op.seqNum, op.orderState, op.seqState, op.base.Size, op.seq.Size)
+
 	return op
 }
 
@@ -241,6 +282,12 @@ func (m *OrderMgr) check(o *OrderFull) {
 		return
 	}
 
+	if o.failCnt > minFailCnt {
+		logger.Debugf("close order %d due to fail too many times", o.pro)
+		m.stopOrder(o)
+		return
+	}
+
 	switch o.orderState {
 	case Order_Init:
 		o.RLock()
@@ -252,35 +299,56 @@ func (m *OrderMgr) check(o *OrderFull) {
 		o.RUnlock()
 	case Order_Wait:
 		if nt-o.orderTime > defaultAckWaiting {
-			m.createOrder(o, nil)
+			o.failCnt++
+			err := m.createOrder(o, nil)
+			if err != nil {
+				logger.Debugf("%d order fail due to create order %d %s", o.pro, o.failCnt, err)
+			}
 		}
 	case Order_Running:
 		if nt-o.orderTime > defaultOrderLast {
-			m.closeOrder(o)
+			err := m.closeOrder(o)
+			if err != nil {
+				logger.Debugf("%d order fail due to close order %d %s", o.pro, o.failCnt, err)
+			}
 		}
 		switch o.seqState {
 		case OrderSeq_Init:
 			o.RLock()
 			if o.hasSeg() && !o.inStop {
-				m.createSeq(o)
+				err := m.createSeq(o)
 				o.RUnlock()
+				if err != nil {
+					logger.Debugf("%d order fail due to create seq %d %s", o.pro, o.failCnt, err)
+				}
 				return
 			}
 			o.RUnlock()
 		case OrderSeq_Prepare:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
-				m.createSeq(o)
+				o.failCnt++
+				err := m.createSeq(o)
+				if err != nil {
+					logger.Debugf("%d order fail due to create seq %d %s", o.pro, o.failCnt, err)
+				}
 			}
 		case OrderSeq_Send:
 			// time is up for next seq, no new data
 			if nt-o.seqTime > defaultOrderSeqLast {
-				m.commitSeq(o)
+				err := m.commitSeq(o)
+				if err != nil {
+					logger.Debugf("%d order fail due to commit seq %d %s", o.pro, o.failCnt, err)
+				}
 			}
 		case OrderSeq_Commit:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
-				m.commitSeq(o)
+				o.failCnt++
+				err := m.commitSeq(o)
+				if err != nil {
+					logger.Debugf("%d order fail due to commit seq %d", o.pro, o.failCnt)
+				}
 			}
 		case OrderSeq_Finish:
 			o.seqState = OrderSeq_Init
@@ -298,11 +366,18 @@ func (m *OrderMgr) check(o *OrderFull) {
 		case OrderSeq_Commit:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
-				m.commitSeq(o)
+				o.failCnt++
+				err := m.commitSeq(o)
+				if err != nil {
+					logger.Debugf("%d order fail due to commit seq in closing %d %s", o.pro, o.failCnt, err)
+				}
 			}
 		case OrderSeq_Init, OrderSeq_Prepare, OrderSeq_Finish:
 			o.seqState = OrderSeq_Init
-			m.doneOrder(o)
+			err := m.doneOrder(o)
+			if err != nil {
+				logger.Debugf("%d order fail due to done order %d %s", o.pro, o.failCnt, err)
+			}
 		}
 	case Order_Done:
 		o.RLock()
@@ -336,6 +411,9 @@ func saveOrderState(o *OrderFull, ds store.KVStore) error {
 	if err != nil {
 		return err
 	}
+
+	ds.Put(key, val)
+	key = store.NewKey(pb.MetaType_OrderNonceKey, o.localID, o.pro, ns.Nonce)
 	return ds.Put(key, val)
 }
 
@@ -362,6 +440,15 @@ func saveSeqState(o *OrderFull, ds store.KVStore) error {
 	return ds.Put(key, val)
 }
 
+func saveSeqJob(o *OrderFull, ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_OrderSeqJobKey, o.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
+	data, err := o.sjq.Serialize()
+	if err != nil {
+		return err
+	}
+	return ds.Put(key, data)
+}
+
 // create a new order
 func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 	logger.Debug("handle create order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
@@ -380,7 +467,10 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		}
 
 		start := time.Now().Unix()
-		end := ((start+build.OrderDuration)/types.Day + 1) * types.Day
+		end := ((start+orderDuration)/types.Day + 1) * types.Day
+		if end < o.prevEnd {
+			end = o.prevEnd
+		}
 
 		o.base = &types.SignedOrder{
 			OrderBase: types.OrderBase{
@@ -464,6 +554,7 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 
 	// nonce is add
 	o.nonce++
+	o.prevEnd = ob.End
 	o.orderState = Order_Running
 	o.orderTime = time.Now().Unix()
 	o.base.Psign = ob.Psign
@@ -495,6 +586,10 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 	}
 
 	m.msgChan <- msg
+
+	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce)
+
+	o.failCnt = 0
 
 	return nil
 }
@@ -568,6 +663,8 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 
 	m.msgChan <- msg
 
+	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce, o.seqNum)
+
 	o.orderState = Order_Done
 	o.orderTime = time.Now().Unix()
 
@@ -588,8 +685,26 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	o.seq.SeqNum = 0
 	saveSeqState(o, m.ds)
 
+	m.sizelk.Lock()
+	pay := new(big.Int).SetInt64(o.base.End - o.base.Start)
+	pay.Mul(pay, o.base.Price)
+
+	o.opi.Size += o.base.Size
+	o.opi.NeedPay.Add(o.opi.NeedPay, pay)
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, o.localID, o.pro)
+	val, _ := o.opi.Serialize()
+	m.ds.Put(key, val)
+
+	m.opi.Size += o.base.Size
+	m.opi.NeedPay.Add(m.opi.NeedPay, pay)
+	key = store.NewKey(pb.MetaType_OrderPayInfoKey, o.localID)
+	val, _ = m.opi.Serialize()
+	m.ds.Put(key, val)
+	m.sizelk.Unlock()
+
 	o.base = nil
 	o.seq = nil
+	o.sjq = new(types.SegJobsQueue)
 	o.seqNum = 0
 
 	// trigger a new order
@@ -606,17 +721,16 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 	o.inStop = true
 
 	// add redo current seq
-	if o.seq != nil {
-		for _, seg := range o.seq.Segments {
-			sj := &types.SegJob{
-				JobID:    math.MaxUint64,
-				BucketID: seg.BucketID,
-				Start:    seg.Start,
-				Length:   seg.Length,
-				ChunkID:  seg.ChunkID,
-			}
-			m.redoSegJob(sj)
+	if o.sjq != nil {
+		// should not, todo: fix
+		sLen := o.sjq.Len()
+		ss := *o.sjq
+
+		for i := 0; i < sLen; i++ {
+			m.redoSegJob(ss[i])
 		}
+
+		o.sjq = new(types.SegJobsQueue)
 	}
 
 	for _, bid := range o.buckets {
@@ -628,6 +742,9 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 		}
 		bjob.jobs = bjob.jobs[:0]
 	}
+
+	// reset
+	o.failCnt = 0
 
 	o.Unlock()
 
@@ -661,13 +778,20 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 		o.seqNum++
 		o.seqState = OrderSeq_Prepare
 		o.seqTime = time.Now().Unix()
+		o.sjq = new(types.SegJobsQueue)
 	}
 
 	if o.seq != nil && o.seqState == OrderSeq_Prepare {
 		o.seq.Segments.Merge()
+		o.sjq.Merge()
 
 		// save order seq
 		err := saveOrderSeq(o, m.ds)
+		if err != nil {
+			return err
+		}
+
+		err = saveSeqJob(o, m.ds)
 		if err != nil {
 			return err
 		}
@@ -702,11 +826,15 @@ func (m *OrderMgr) sendSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		o.seqState = OrderSeq_Send
 		o.seqTime = time.Now().Unix()
 
+		logger.Debug("seq send at: ", o.pro, o.seq.Nonce, o.seq.SeqNum, o.seq.Size)
+
 		// save seq state
 		err := saveSeqState(o, m.ds)
 		if err != nil {
 			return err
 		}
+
+		o.failCnt = 0
 
 		return nil
 	}
@@ -728,6 +856,7 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 	if o.seqState == OrderSeq_Send {
 		o.seqState = OrderSeq_Commit
 		o.seqTime = time.Now().Unix()
+		return nil
 	}
 
 	if o.seqState == OrderSeq_Commit {
@@ -758,8 +887,6 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 
 		o.seq.UserDataSig = ssig
 		o.seq.UserSig = osig
-
-		// todo: add money
 
 		// save order seq
 		err = saveOrderSeq(o, m.ds)
@@ -801,11 +928,15 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	oHash := o.seq.Hash()
 	ok, _ := m.RoleVerify(m.ctx, o.pro, oHash.Bytes(), s.ProDataSig)
 	if !ok {
+		logger.Debug("handle seq local:", o.seq.Segments.Len(), o.seq)
+		logger.Debug("handle seq remote:", s.Segments.Len(), s)
 		return xerrors.Errorf("%d has %d %d, got %d %d seq sign is wrong", o.pro, o.seq.Nonce, o.seq.SeqNum, s.Nonce, s.SeqNum)
 	}
 
 	ok, _ = m.RoleVerify(m.ctx, o.pro, o.base.Hash(), s.ProSig)
 	if !ok {
+		logger.Debug("handle order seq local:", o.seq)
+		logger.Debug("handle order seq remote:", s)
 		return xerrors.Errorf("%d has %d %d, got %d %d order sign is wrong", o.pro, o.seq.Nonce, o.seq.SeqNum, s.Nonce, s.SeqNum)
 	}
 
@@ -825,6 +956,11 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return err
 	}
 
+	err = saveOrderBase(o, m.ds)
+	if err != nil {
+		return err
+	}
+
 	// save seq state
 	err = saveSeqState(o, m.ds)
 	if err != nil {
@@ -838,6 +974,8 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 		return err
 	}
 
+	logger.Debug("end seq send at: ", o.pro, o.seq.Nonce, o.seq.SeqNum, o.seq.Size)
+
 	logger.Debugf("pro %d order %d seq %d count %d length %d", o.pro, o.seq.Nonce, o.seq.SeqNum, o.seq.Segments.Len(), len(data))
 
 	msg := &tx.Message{
@@ -850,8 +988,12 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	m.msgChan <- msg
 
+	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce, o.seq.Nonce, o.seq.SeqNum, o.seq.Size)
+
 	// reset
 	o.seqState = OrderSeq_Init
+
+	o.failCnt = 0
 
 	// trigger new seq
 	return m.createSeq(o)

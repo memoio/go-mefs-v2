@@ -106,10 +106,9 @@ func (mp *InPool) sync() {
 
 			// not add low nonce
 			if ms.nextDelete <= m.Nonce {
-				_, has := ms.info[m.Nonce]
-				if !has {
-					ms.info[m.Nonce] = m
-				}
+				ms.info[m.Nonce] = m
+			} else {
+				logger.Debug("add tx msg fail: ", id, m.From, m.Nonce, m.Method, ms.nextDelete)
 			}
 
 			mp.lk.Unlock()
@@ -119,21 +118,14 @@ func (mp *InPool) sync() {
 			mp.lk.Lock()
 			for _, md := range bh.msgs {
 				ms, ok := mp.pending[md.From]
-				if !ok {
-					ms = &msgSet{
-						nextDelete: md.Nonce,
-						info:       make(map[uint64]*tx.SignedMessage),
+				if ok {
+					if ms.nextDelete != md.Nonce {
+						logger.Debug("block delete message at: ", md.From, md.Nonce)
 					}
 
-					mp.pending[md.From] = ms
+					ms.nextDelete = md.Nonce + 1
+					delete(ms.info, md.Nonce)
 				}
-
-				if ms.nextDelete != md.Nonce {
-					logger.Debug("block delete message at: ", md.From, md.Nonce)
-				}
-
-				ms.nextDelete = md.Nonce + 1
-				delete(ms.info, md.Nonce)
 			}
 			mp.lk.Unlock()
 		}
@@ -158,7 +150,6 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 
 func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 	nrh := tx.RawHeader{
-		Version: 1,
 		GroupID: mp.groupID,
 	}
 
@@ -172,24 +163,28 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 		return nrh, xerrors.Errorf("sync height expected %d, got %d", si.RemoteHeight, si.SyncedHeight)
 	}
 
-	appliedHeight := mp.GetHeight(mp.ctx)
-	if appliedHeight != si.SyncedHeight {
+	sgi, err := mp.StateGetInfo(mp.ctx)
+	if err != nil {
+		return nrh, err
+	}
+
+	if sgi.Height != si.SyncedHeight {
 		logger.Debug("create block state height is not equal")
 		return nrh, xerrors.Errorf("create block state height is not equal")
 	}
 
 	nt := time.Now().Unix()
 	slot := uint64(nt-build.BaseTime) / build.SlotDuration
-	appliedSlot := mp.GetSlot(mp.ctx)
-	if appliedSlot >= slot {
-		return nrh, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, appliedSlot)
+	if sgi.Slot >= slot {
+		return nrh, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, sgi.Slot)
 	}
 
-	logger.Debugf("create block header at height %d, slot: %d", si.SyncedHeight, slot)
+	logger.Debugf("create block header verison %d at height %d, slot: %d", sgi.Version, si.SyncedHeight, slot)
 
-	nrh.Height = si.SyncedHeight
+	nrh.Version = sgi.Version
+	nrh.Height = sgi.Height
 	nrh.Slot = slot
-	nrh.PrevID = mp.GetBlockID(mp.ctx)
+	nrh.PrevID = sgi.BlockID
 	nrh.MinerID = mp.GetLeader(slot)
 
 	return nrh, nil
@@ -198,7 +193,7 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 
 	logger.Debugf("create block propose at height %d", rh.Height)
-	msgSet := tx.MsgSet{
+	mSet := tx.MsgSet{
 		Msgs: make([]tx.SignedMessage, 0, 16),
 	}
 
@@ -207,7 +202,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	// reset
 	oldRoot, err := mp.ValidateBlock(nil)
 	if err != nil {
-		return msgSet, err
+		return mSet, err
 	}
 
 	sb := &tx.SignedBlock{
@@ -218,11 +213,11 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 
 	newRoot, err := mp.ValidateBlock(sb)
 	if err != nil {
-		return msgSet, err
+		return mSet, err
 	}
 
-	msgSet.ParentRoot = oldRoot
-	msgSet.Root = newRoot
+	mSet.ParentRoot = oldRoot
+	mSet.Root = newRoot
 
 	mp.lk.RLock()
 	defer mp.lk.RUnlock()
@@ -254,26 +249,26 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 					}
 					nroot, err := mp.ValidateMsg(&m.Message)
 					if err != nil {
-						logger.Debug("block message invalid:", m.From, m.Nonce, err)
+						logger.Debug("block message invalid:", m.From, m.Nonce, m.Method, err)
 						tr.Err = 1
 						tr.Extra = err.Error()
 					} else {
 						cnt++
 					}
 
-					msgSet.Root = nroot
+					mSet.Root = nroot
 
-					msgSet.Msgs = append(msgSet.Msgs, *m)
-					msgSet.Receipts = append(msgSet.Receipts, tr)
+					mSet.Msgs = append(mSet.Msgs, *m)
+					mSet.Receipts = append(mSet.Receipts, tr)
 				} else {
 					break
 				}
 			}
 		}
 		if cnt < mp.GetQuorumSize() {
-			return msgSet, xerrors.Errorf("not have enough keepers")
+			return mSet, xerrors.Errorf("not have enough keepers")
 		}
-		return msgSet, nil
+		return mSet, nil
 	}
 
 	// block size should be less than 1MiB
@@ -295,15 +290,15 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 				}
 				nroot, err := mp.ValidateMsg(&m.Message)
 				if err != nil {
-					logger.Debug("block message invalid:", m.From, m.Nonce, err)
+					logger.Debug("block message invalid:", m.From, m.Nonce, m.Method, err)
 					tr.Err = 1
 					tr.Extra = err.Error()
 				}
 
-				msgSet.Root = nroot
+				mSet.Root = nroot
 
-				msgSet.Msgs = append(msgSet.Msgs, *m)
-				msgSet.Receipts = append(msgSet.Receipts, tr)
+				mSet.Msgs = append(mSet.Msgs, *m)
+				mSet.Receipts = append(mSet.Receipts, tr)
 				msgCnt++
 				rLen += len(m.Params)
 
@@ -324,9 +319,9 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 		}
 	}
 
-	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d, cost %f", rh.Height, msgCnt, rLen, time.Since(nt).Seconds())
+	logger.Debugf("create block propose at height %d, msgCnt %d, msgLen %d, cost %s", rh.Height, msgCnt, rLen, time.Since(nt))
 
-	return msgSet, nil
+	return mSet, nil
 }
 
 func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
@@ -382,7 +377,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		return xerrors.Errorf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 	}
 
-	logger.Debugf("create block OnPropose at height %d cost %f", sb.Height, time.Since(nt).Seconds())
+	logger.Debugf("create block OnPropose at height %d cost %s", sb.Height, time.Since(nt))
 
 	return nil
 }

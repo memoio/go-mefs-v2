@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -83,16 +84,9 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	// transfer eth
 	// todo: remove at mainnet
 	val := QueryBalance(eAddr)
-	if val.Cmp(big.NewInt(10_000_000_000_000_000)) < 0 {
-		TransferTo(eAddr, big.NewInt(100_000_000_000_000_000))
-	}
-
-	time.Sleep(10 * time.Second)
-
-	val = QueryBalance(eAddr)
 	logger.Debugf("%s has val %d", eAddr, val)
-	if val.Cmp(big.NewInt(10_000_000_000_000_000)) < 0 {
-		return nil, xerrors.Errorf("val %d is not enough", val)
+	if val.BitLen() == 0 {
+		return nil, xerrors.Errorf("not have tx fee on chain")
 	}
 
 	rAddr := RoleAddr
@@ -116,14 +110,11 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if val.BitLen() == 0 {
-		erc20Transfer(eAddr, big.NewInt(100_000_000_000_000_000))
-	}
-	val, err = iERC.BalanceOf(eAddr)
-	if err != nil {
-		return nil, err
-	}
 	logger.Debugf("%s has erc20 val %d", eAddr, val)
+
+	//if val.BitLen() == 0 {
+	//	return nil, xerrors.Errorf("not have erc20 token")
+	//}
 
 	ppAddr, err := iRole.PledgePool()
 	if err != nil {
@@ -263,29 +254,33 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	switch typ {
 	case pb.RoleInfo_Keeper:
 		if rType != callconts.KeeperRoleType {
-			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.KeeperRoleType, typ)
+			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.KeeperRoleType, rType)
 		}
 
 		if gid == 0 && gIndex > 0 {
-			err = cm.AddKeeperToGroup(gIndex)
-			if err != nil {
-				return err
-			}
+			fmt.Println("need grant to add keeper to group")
+			/*
+				err = AddKeeperToGroup(cm.roleID, gIndex)
+				if err != nil {
+					return err
+				}
 
-			time.Sleep(5 * time.Second)
+				time.Sleep(5 * time.Second)
 
-			_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
-			if err != nil {
-				return err
-			}
+				_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
+				if err != nil {
+					return err
+				}
 
-			if gid != gIndex {
-				return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
-			}
+				if gid != gIndex {
+					return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
+				}
+			*/
 		}
+
 	case pb.RoleInfo_Provider:
 		if rType != callconts.ProviderRoleType {
-			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.ProviderRoleType, typ)
+			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.ProviderRoleType, rType)
 		}
 
 		if gid == 0 && gIndex > 0 {
@@ -307,22 +302,18 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 	case pb.RoleInfo_User:
 		if rType != callconts.UserRoleType {
-			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.UserRoleType, typ)
-		}
-
-		_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
-		if err != nil {
-			return err
-		}
-
-		if gIndex > 0 && gid != gIndex {
-			return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
+			return xerrors.Errorf("role type wrong, expected %d, got %d", callconts.UserRoleType, rType)
 		}
 	default:
 	}
 
 	cm.roleID = rid
-	cm.groupID = gIndex
+
+	if gid == 0 {
+		cm.groupID = gIndex
+	} else {
+		cm.groupID = gid
+	}
 
 	if gIndex > 0 {
 		gi, err := cm.SettleGetGroupInfoAt(cm.ctx, gIndex)
@@ -335,9 +326,9 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		logger.Debug("fs contract address: ", cm.fsAddr.Hex())
 	}
 
-	if rType == 1 {
-		cm.Recharge(big.NewInt(10_000_000_000_000_000))
-	}
+	//if rType == 1 {
+	//	cm.Recharge(big.NewInt(10_000_000_000_000_000))
+	//}
 
 	return nil
 }
@@ -412,12 +403,25 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 
 	logger.Debugf("group %d, state %v %v %v, level %d, fsAddr %s", gIndex, isActive, isBanned, isReady, level, fsAddr)
 
+	kc, err := cm.iRole.GetGKNum(cm.groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	uc, pc, err := cm.iRole.GetGUPNum(cm.groupID)
+	if err != nil {
+		return nil, err
+	}
+
 	gi := &api.GroupInfo{
 		ID:     gIndex,
 		Level:  level,
 		FsAddr: fsAddr.Hex(),
 		Size:   size.Uint64(),
 		Price:  new(big.Int).Set(price),
+		KCount: kc,
+		UCount: uc,
+		PCount: pc,
 	}
 
 	return gi, nil

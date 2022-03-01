@@ -2,10 +2,12 @@ package lfs
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -26,7 +28,11 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		return nil, ErrLfsReadOnly
 	}
 
-	logger.Infof("Upload object: %s to bucket: %s begin", objectName, bucketName)
+	if l.needPay.Cmp(l.bal) > 0 {
+		return nil, xerrors.Errorf("not have enough balance, please rcharge at least %d", l.needPay.Sub(l.needPay, l.bal))
+	}
+
+	logger.Debugf("Upload object: %s to bucket: %s begin", objectName, bucketName)
 
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
@@ -44,10 +50,24 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	object.Lock()
 	defer object.Unlock()
 
+	nt := time.Now()
 	err = l.upload(ctx, bucket, object, reader)
 	if err != nil {
 		return &object.ObjectInfo, err
 	}
+
+	tt, dist, donet, ct := 0, 0, 0, 0
+	for _, opID := range object.ops[1:] {
+		total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
+		dist += dis
+		donet += done
+		tt += total
+		ct += c
+	}
+
+	object.State = fmt.Sprintf("total %d, dispatch %d, done %d, confirm %d", tt, dist, donet, ct)
+
+	logger.Debugf("Upload object: %s to bucket: %s end, cost: %s", objectName, bucketName, time.Since(nt))
 
 	return &object.ObjectInfo, nil
 }

@@ -102,12 +102,8 @@ func (s *SendPay) Pay(to address.Address, val *big.Int) ([]byte, error) {
 	pchk.PaySig = sig
 
 	ok, err = pchk.Verify()
-	if err != nil {
-		return nil, err
-	}
-
-	if !ok {
-		return nil, xerrors.Errorf("invalid pay check")
+	if err != nil || !ok {
+		return nil, xerrors.Errorf("invalid pay check %s", err)
 	}
 
 	data, err := pchk.Serialize()

@@ -151,14 +151,13 @@ var stateWithdrawCmd = &cli.Command{
 			fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
 
 			ksign := make([][]byte, spi.Sig.Len())
+			kindex := make([]uint64, spi.Sig.Len())
 			for i := 0; i < spi.Sig.Len(); i++ {
 				ksign[i] = spi.Sig.Data[65*i : 65*(i+1)]
+				kindex[i] = spi.Sig.Signer[i]
 			}
 
-			// for test
-			spi.Penalty = big.NewInt(1)
-
-			err = napi.SettleWithdraw(cctx.Context, spi.Value, spi.Penalty, ksign)
+			err = napi.SettleWithdraw(cctx.Context, spi.Value, spi.Penalty, kindex, ksign)
 			if err != nil {
 				fmt.Println("withdraw fail", err)
 				return err
@@ -180,7 +179,7 @@ var stateWithdrawCmd = &cli.Command{
 
 			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 
-			err = napi.SettleWithdraw(cctx.Context, big.NewInt(1_000_000_000), big.NewInt(0), nil)
+			err = napi.SettleWithdraw(cctx.Context, big.NewInt(1_000_000_000), big.NewInt(0), nil, nil)
 			if err != nil {
 				fmt.Println("withdraw fail", err)
 				return err

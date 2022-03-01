@@ -100,22 +100,19 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
 		if or.seq.Segments.Has(seg.SegmentID().GetBucketID(), seg.SegmentID().GetStripeID(), seg.SegmentID().GetChunkID()) {
 			logger.Debug("handle add data already: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
+		}
+
+		has, _ := m.ids.HasSegment(m.ctx, seg.SegmentID())
+		if has {
+			logger.Debug("handle add data already: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
 			return nil
 		}
 
-		/*
-			// put to local when received
-			err := m.PutSegmentToLocal(m.ctx, seg)
-			if err != nil {
-				return err
-			}
-		*/
-
-		id := seg.SegmentID().Bytes()
-		data, _ := seg.Content()
-		tags, _ := seg.Tags()
-
-		or.dv.Add(id, data, tags[0])
+		// put to local when received
+		err := m.ids.PutSegmentToLocal(m.ctx, seg)
+		if err != nil {
+			return err
+		}
 
 		as := &types.AggSegs{
 			BucketID: seg.SegmentID().GetBucketID(),
@@ -123,7 +120,6 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 			Length:   1,
 			ChunkID:  seg.SegmentID().GetChunkID(),
 		}
-
 		or.seq.Segments.Push(as)
 		or.seq.Segments.Merge()
 
@@ -131,10 +127,17 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		or.seq.Price.Add(or.seq.Price, or.segPrice)
 		or.seq.Size += build.DefaultSegSize
 
-		err := saveOrderSeq(or, m.ds)
-		if err != nil {
-			return err
-		}
+		saveOrderSeq(or, m.ds)
+
+		go func() {
+			id := seg.SegmentID().Bytes()
+			data, _ := seg.Content()
+			tags, _ := seg.Tags()
+
+			or.lw.Lock()
+			defer or.lw.Unlock()
+			or.dv.Add(id, data, tags[0])
+		}()
 
 		return nil
 	}
@@ -329,8 +332,8 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
 		// verify accPrice and accSize
 		if os.Price.Cmp(or.base.Price) != 0 || os.Size != or.base.Size {
-			logger.Debug("handle receive:", os.Price, os.Size)
-			logger.Debug("handle local:", or.base.Price, or.base.Size)
+			logger.Debug("handle create seq: ", os.UserID, os.Nonce, os.SeqNum, os.Size, or.base.Size)
+			return nil, xerrors.Errorf("fail create seq due to wrong size, got %d expect %d", os.Size, or.base.Size)
 		}
 
 		or.seq = os
@@ -401,6 +404,9 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 					logger.Debug("handle seq remote:", os.Segments.Len(), os)
 					logger.Warn("segments are not equal, load or re-get missing")
 
+					or.seq.Price.Set(or.base.Price)
+					or.seq.Size = or.base.Size
+
 					sid, err := segment.NewSegmentID(or.fsID, 0, 0, 0)
 					if err != nil {
 						return nil, err
@@ -419,9 +425,12 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 								return nil, err
 							}
 
-							id := sid.Bytes()
+							id := segmt.SegmentID().Bytes()
 							data, _ := segmt.Content()
 							tags, _ := segmt.Tags()
+
+							or.seq.Price.Add(or.seq.Price, or.segPrice)
+							or.seq.Size += build.DefaultSegSize
 
 							or.dv.Add(id, data, tags[0])
 						}
@@ -429,20 +438,18 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 					or.seq.Segments = os.Segments
 
 					// need verify again
-					or.seq.Price = os.Price
-					or.seq.Size = os.Size
-					lHash = rHash
-					//return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
+					lHash = or.seq.Hash()
+					if !rHash.Equal(lHash) {
+						return nil, xerrors.Errorf("segments are not equal, load or re-get missing")
+					}
 				}
 			}
 
 			ok, err := or.dv.Result()
 			if err != nil {
-				logger.Warn("data verify is wrong:", err)
-				return nil, err
+				return nil, xerrors.Errorf("data verify fails %s", err)
 			}
 			if !ok {
-				logger.Warn("data verify is wrong")
 				return nil, xerrors.Errorf("data verify is wrong")
 			}
 
@@ -502,6 +509,11 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		}
 
 		if or.seqState == OrderSeq_Done {
+			if !os.Hash().Equal(or.seq.Hash()) {
+				logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
+				logger.Debug("handle seq remote:", os.Segments.Len(), os)
+				return nil, xerrors.Errorf("done segments are not equal, load or re-get missing")
+			}
 			data, err := or.seq.Serialize()
 			if err != nil {
 				return nil, err

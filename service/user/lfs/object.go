@@ -51,15 +51,16 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 		return nil, err
 	}
 
-	dist, donet, tt := 0, 0, 0
+	tt, dist, donet, ct := 0, 0, 0, 0
 	for _, opID := range object.ops[1:] {
-		total, dis, done := l.OrderMgr.GetSegJogState(object.BucketID, opID)
+		total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
 		dist += dis
 		donet += done
 		tt += total
+		ct += c
 	}
 
-	object.State = fmt.Sprintf("total %d, dispatch %d, done %d", tt, dist, donet)
+	object.State = fmt.Sprintf("total %d, dispatch %d, done %d, confirm %d", tt, dist, donet, ct)
 
 	return &object.ObjectInfo, nil
 }

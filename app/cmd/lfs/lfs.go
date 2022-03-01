@@ -1,6 +1,7 @@
 package lfscmd
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/code"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/mgutz/ansi"
@@ -34,14 +36,14 @@ func FormatPolicy(policy uint32) string {
 func FormatBucketInfo(bucket *types.BucketInfo) string {
 	return fmt.Sprintf(
 		`Name: %s
-BucketID: %d
-CTime: %s
-MTime: %s
-ObjectCount: %d
+Bucket ID: %d
+Creation Time: %s
+Modify Time: %s
+Object Count: %d
 Policy: %s
-DataCount: %d
-ParityCount: %d
-Used: %s`,
+Data Count: %d
+Parity Count: %d
+Used Bytes: %s`,
 		ansi.Color(bucket.Name, "green"),
 		bucket.BucketID,
 		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),
@@ -52,6 +54,33 @@ Used: %s`,
 		bucket.ParityCount,
 		utils.FormatBytes(int64(bucket.UsedBytes)),
 	)
+}
+
+func FormatObjectInfo(object *types.ObjectInfo) string {
+	return fmt.Sprintf(
+		`Name: %s
+Bucket ID: %d
+Object ID: %d
+Etag: %s
+Creation Time: %s
+Modify Time: %s
+Size: %s
+Enc Method: %s
+State: %s`,
+		ansi.Color(object.Name, "green"),
+		object.BucketID,
+		object.ObjectID,
+		hex.EncodeToString(object.Etag),
+		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
+		utils.FormatBytes(int64(object.Length)),
+		object.Encryption,
+		object.State,
+	)
+}
+
+func FormatPartInfo(pi *pb.ObjectPartInfo) string {
+	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, UsedBytes: %d, Etag: %s", pi.ObjectID, pi.Length, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.RawLength, hex.EncodeToString(pi.ETag))
 }
 
 var LfsCmd = &cli.Command{

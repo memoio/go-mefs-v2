@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/jbenet/goprocess"
+	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -27,11 +29,10 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 }
 
 func (m *OrderMgr) runCheck(proc goprocess.Process) {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	// run once at start
-	m.inCheck = true
 	go m.checkBalance()
 
 	for {
@@ -39,15 +40,16 @@ func (m *OrderMgr) runCheck(proc goprocess.Process) {
 		case <-proc.Closing():
 			return
 		case <-ticker.C:
-			if !m.inCheck {
-				m.inCheck = true
-				go m.checkBalance()
-			}
+			go m.checkBalance()
 		}
 	}
 }
 
 func (m *OrderMgr) checkBalance() {
+	if m.inCheck {
+		return
+	}
+	m.inCheck = true
 	defer func() {
 		m.inCheck = false
 	}()
@@ -150,9 +152,59 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 			}
 
 			if st.Status.Err == 0 {
-				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
+				if msg.Method == tx.AddDataOrder {
+					// confirm
+
+					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To)
+
+					seq := new(types.SignedOrderSeq)
+					err := seq.Deserialize(msg.Params)
+					if err != nil {
+						return
+					}
+
+					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To, seq.Nonce, seq.SeqNum)
+
+					key := store.NewKey(pb.MetaType_OrderSeqJobKey, msg.From, msg.To, seq.Nonce, seq.SeqNum)
+					val, err := m.ds.Get(key)
+					if err != nil {
+						return
+					}
+
+					sjq := new(types.SegJobsQueue)
+					err = sjq.Deserialize(val)
+					if err == nil {
+						ss := *sjq
+						sLen := sjq.Len()
+						size := uint64(0)
+						for i := 0; i < sLen; i++ {
+							m.segConfirmChan <- ss[i]
+							size += ss[i].Length * code.DefaultSegSize
+						}
+
+						logger.Debug("confirm jobs in order seq: ", msg.From, msg.To, seq.Nonce, seq.SeqNum, size)
+
+						// update size
+						m.sizelk.Lock()
+						m.opi.ConfirmSize += size
+
+						key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+						val, _ = m.opi.Serialize()
+						m.ds.Put(key, val)
+
+						of, ok := m.orders[msg.To]
+						if ok {
+							of.opi.ConfirmSize += size
+							key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, msg.To)
+							val, _ = of.opi.Serialize()
+							m.ds.Put(key, val)
+						}
+						m.sizelk.Unlock()
+					}
+				}
 			} else {
-				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 			}
 
 			break
@@ -160,9 +212,9 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 	}(mid)
 }
 
-func (m *OrderMgr) loadUnfinished(of *OrderFull) {
+func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	ns := m.StateGetOrderState(m.ctx, of.localID, of.pro)
-	logger.Debug("resend message for : ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
+	logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
 
 	for ns.Nonce < of.nonce {
 		// add order base
@@ -172,7 +224,21 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
 				data, err := m.ds.Get(key)
 				if err != nil {
-					return
+					return xerrors.Errorf("found %s error %d", string(key), err)
+				}
+
+				ob := new(types.SignedOrder)
+				err = ob.Deserialize(data)
+				if err != nil {
+					return err
+				}
+
+				// reset size and price
+				ob.Size = 0
+				ob.Price = new(big.Int)
+				data, err = ob.Serialize()
+				if err != nil {
+					return err
 				}
 
 				msg := &tx.Message{
@@ -184,7 +250,8 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				}
 
 				m.msgChan <- msg
-				logger.Debugf("%d submit msg for create order %d", of.pro, ns.Nonce)
+
+				logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce)
 			}
 		}
 
@@ -192,19 +259,29 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 		key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, ns.Nonce)
 		val, err := m.ds.Get(key)
 		if err != nil {
-			return
+			return xerrors.Errorf("found %s error %d", string(key), err)
 		}
 		err = ss.Deserialize(val)
 		if err != nil {
-			return
+			return err
 		}
 
+		logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ss.Number, ss.State)
+
+		nextSeq := uint32(ns.SeqNum)
 		// add seq
 		for i := uint32(ns.SeqNum); i <= ss.Number; i++ {
+			// wait it finish?
+			if i == ss.Number {
+				if ss.State != OrderSeq_Finish {
+					break
+				}
+			}
+
 			key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, ns.Nonce, i)
 			data, err := m.ds.Get(key)
 			if err != nil {
-				return
+				return xerrors.Errorf("found %s error %d", string(key), err)
 			}
 
 			// verify last one
@@ -212,11 +289,11 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				os := new(types.SignedOrderSeq)
 				err = os.Deserialize(data)
 				if err != nil {
-					return
+					return err
 				}
 
 				if os.ProDataSig.Type == 0 || os.ProSig.Type == 0 {
-					return
+					return xerrors.Errorf("pro sig empty %d %d", os.ProDataSig.Type, os.ProSig.Type)
 				}
 			}
 
@@ -227,28 +304,42 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 				Method:  tx.AddDataOrder,
 				Params:  data,
 			}
+
 			m.msgChan <- msg
 
-			logger.Debugf("%d submit msg for add order %d seq", of.pro, ns.Nonce, i)
+			nextSeq = i + 1
+
+			logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, i)
 		}
 
-		// commit
-		// todo: latest one
+		// check order state before commit
 		if ns.Nonce+1 == of.nonce {
-			if of.orderState != Order_Done {
-				return
+			nns := new(NonceState)
+			key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, of.pro, ns.Nonce)
+			val, err = m.ds.Get(key)
+			if err != nil {
+				return xerrors.Errorf("found %s error %d", string(key), err)
+			}
+			err = nns.Deserialize(val)
+			if err != nil {
+				return err
+			}
+
+			if nns.State != Order_Done {
+				return xerrors.Errorf("order state %s is not done at %d", nns.State, ns.Nonce)
 			}
 		}
+
 		ocp := tx.OrderCommitParas{
 			UserID: of.localID,
 			ProID:  of.pro,
 			Nonce:  ns.Nonce,
-			SeqNum: ss.Number + 1,
+			SeqNum: nextSeq,
 		}
 
 		data, err := ocp.Serialize()
 		if err != nil {
-			return
+			return err
 		}
 
 		msg := &tx.Message{
@@ -261,11 +352,13 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) {
 
 		m.msgChan <- msg
 
-		logger.Debugf("%d submit msg for commit order %d", of.pro, ns.Nonce)
+		logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, nextSeq)
 
 		ns.Nonce++
 		ns.SeqNum = 0
 	}
+
+	return nil
 }
 
 func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
@@ -315,54 +408,86 @@ func (m *OrderMgr) submitOrders() error {
 	logger.Debug("addOrder for user: ", m.localID)
 
 	pros := m.StateGetProsAt(m.ctx, m.localID)
-	for _, proID := range pros {
-		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
-		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
-		if err != nil {
-			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
-			continue
-		}
+	pLen := len(pros)
+	fin := 0
+	pMap := make(map[uint64]struct{}, pLen)
+	for fin < pLen {
+		for _, proID := range pros {
+			_, ok := pMap[proID]
+			if ok {
+				continue
+			}
+			ns := m.StateGetOrderState(m.ctx, m.localID, proID)
+			si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
+			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
+				logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
+				continue
+			}
 
-		logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, si.Nonce, si.SubNonce, ns.Nonce)
+			logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 
-		if si.Nonce >= ns.Nonce {
-			continue
-		}
-		for i := si.Nonce; i < ns.Nonce; i++ {
-			logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, i)
+			if si.Nonce >= ns.Nonce {
+				pMap[proID] = struct{}{}
+				fin++
+				continue
+			}
+			logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, si.Nonce)
 
 			// add order here
-			of, err := m.GetOrder(m.localID, proID, i)
+			of, err := m.GetOrder(m.localID, proID, si.Nonce)
 			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
 				logger.Debug("addOrder fail to get order info", m.localID, proID, err)
 				continue
 			}
 
-			err = m.addOrder(&of.SignedOrder)
+			avail, err := m.is.SettleGetBalanceInfo(m.ctx, of.UserID)
 			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
 				logger.Debug("addOrder fail to add order ", m.localID, proID, err)
 				continue
 			}
+
+			logger.Debugf("addOrder user %d has balance %d", of.UserID, avail)
+
+			err = m.is.AddOrder(&of.SignedOrder)
+			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
+				logger.Debug("addOrder fail to add order ", m.localID, proID, err)
+				continue
+			}
+
+			if err == nil {
+				pay := new(big.Int).SetInt64(of.End - of.Start)
+				pay.Mul(pay, of.Price)
+
+				m.sizelk.Lock()
+
+				m.opi.Paid.Add(m.opi.Paid, pay)
+				m.opi.OnChainSize += of.Size
+
+				key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+				val, _ := m.opi.Serialize()
+				m.ds.Put(key, val)
+
+				po, ok := m.orders[of.ProID]
+				if ok {
+					po.opi.OnChainSize += of.Size
+					po.opi.Paid.Add(po.opi.Paid, pay)
+					key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, of.ProID)
+					val, _ = po.opi.Serialize()
+					m.ds.Put(key, val)
+				}
+				m.sizelk.Unlock()
+			}
+
 		}
-	}
-
-	return nil
-}
-
-func (m *OrderMgr) addOrder(so *types.SignedOrder) error {
-	avail, err := m.is.SettleGetBalanceInfo(m.ctx, so.UserID)
-	if err != nil {
-		logger.Debug("addOrder fail to get balance ", so.UserID, so.ProID, err)
-		return err
-	}
-
-	logger.Debugf("addOrder user %d has balance %d", so.UserID, avail)
-
-	ksigns := make([][]byte, 7)
-	err = m.is.AddOrder(so, ksigns)
-	if err != nil {
-		logger.Debug("addOrder fail to add order ", so.UserID, so.ProID, so.Nonce, err)
-		return err
+		time.Sleep(10 * time.Second)
 	}
 
 	return nil

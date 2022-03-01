@@ -145,12 +145,11 @@ func (pmgr *PeerMgr) Run(ctx context.Context) {
 			stats.Record(ctx, metrics.PeerCount.M(int64(pmgr.getPeerCount())))
 		case <-ltick.C:
 			if len(pmgr.bootstrappers) == 0 {
-				logger.Warn("no peers connected, and no bootstrappers configured")
+				//logger.Warn("no peers connected, and no bootstrappers configured")
 				return
 			}
 
-			logger.Info("connecting to bootstrap peers")
-
+			//logger.Info("connecting to bootstrap peers")
 			for _, bsp := range pmgr.bootstrappers {
 				ctx, cancel := context.WithTimeout(ctx, time.Second*3)
 				if err := pmgr.h.Connect(ctx, bsp); err != nil {
@@ -192,11 +191,11 @@ func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 	pcount := pmgr.getPeerCount()
 	if pcount == 0 {
 		if len(pmgr.bootstrappers) == 0 {
-			logger.Warn("no peers connected, and no bootstrappers configured")
+			//logger.Warn("no peers connected, and no bootstrappers configured")
 			return
 		}
 
-		logger.Info("connecting to bootstrap peers")
+		//logger.Info("connecting to bootstrap peers")
 		for _, bsp := range pmgr.bootstrappers {
 			if err := pmgr.h.Connect(ctx, bsp); err != nil {
 				logger.Warnf("failed to connect to bootstrap peer: %s", err)

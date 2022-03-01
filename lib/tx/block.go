@@ -6,7 +6,7 @@ import (
 )
 
 type RawHeader struct {
-	Version uint32
+	Version uint32 // for upgrade
 	GroupID uint64
 	Height  uint64
 	Slot    uint64 // consensus epoch; logic time

@@ -100,3 +100,25 @@ challenge-proof
 // example
 > ./mefs-user daemon --swarm-port=37201 --api=/ip4/127.0.0.1/tcp/38201 --group=2
 ```
+
+#### lfs ops
+
+```
+./mefs-user lfs
+
+NAME:
+   mefs-user lfs - Interact with lfs
+
+USAGE:
+   mefs-user lfs command [command options] [arguments...]
+
+COMMANDS:
+   createBucket  create bucket
+   listBuckets   list buckets
+   headBucket    head bucket info
+   putObject     put object
+   headObject    head object
+   getObject     get object
+   listObjects   list objects
+   help, h       Shows a list of commands or help for one command
+```

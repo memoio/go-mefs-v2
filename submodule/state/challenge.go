@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/binary"
 	"math/big"
+	"time"
 
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
@@ -17,6 +18,7 @@ import (
 )
 
 func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
+	nt := time.Now()
 	scp := new(tx.SegChalParams)
 	err := scp.Deserialize(msg.Params)
 	if err != nil {
@@ -117,7 +119,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
 		data, err = tds.Get(key)
 		if err != nil {
-			return err
+			return xerrors.Errorf("fail get: %s %s", string(key), err)
 		}
 		of := new(types.OrderFull)
 		err = of.Deserialize(data)
@@ -140,7 +142,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
 				data, err = tds.Get(key)
 				if err != nil {
-					return err
+					return xerrors.Errorf("fail get: %s %s", string(key), err)
 				}
 				sf := new(types.SeqFull)
 				err = sf.Deserialize(data)
@@ -170,7 +172,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = tds.Get(key)
 			if err != nil {
-				return err
+				return xerrors.Errorf("fail get: %s %s", string(key), err)
 			}
 			of := new(types.OrderFull)
 			err = of.Deserialize(data)
@@ -219,7 +221,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 	oinfo.income.Value.Add(oinfo.income.Value, totalPrice)
 
-	logger.Debugf("apply challenge proof: user %d, pro %d, epoch %d, order nonce %d, seqnum %d, size %d, price %d, total income %d, penalty %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice, oinfo.income.Value, oinfo.income.Penalty)
+	logger.Debugf("apply challenge proof: user %d, pro %d, epoch %d, order nonce %d, seqnum %d, size %d, price %d, total income %d, penalty %d, cost %s", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice, oinfo.income.Value, oinfo.income.Penalty, time.Since(nt))
 
 	// save proof result
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID, scp.Epoch)
@@ -249,10 +251,11 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 	// save postincome at this epoch
 	pi := &types.PostIncome{
-		UserID:  okey.userID,
-		ProID:   okey.proID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
+		UserID:     okey.userID,
+		ProID:      okey.proID,
+		TokenIndex: 0,
+		Value:      big.NewInt(0),
+		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
 	data, err = tds.Get(key)
@@ -271,9 +274,10 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 	// save acc income of this pro
 	spi := &types.AccPostIncome{
-		ProID:   okey.proID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
+		ProID:      okey.proID,
+		TokenIndex: 0,
+		Value:      big.NewInt(0),
+		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
 	data, err = tds.Get(key)
@@ -421,7 +425,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
 		data, err = s.ds.Get(key)
 		if err != nil {
-			return err
+			return xerrors.Errorf("fail get: %s %s", string(key), err)
 		}
 		of := new(types.OrderFull)
 		err = of.Deserialize(data)
@@ -444,7 +448,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
 				data, err = s.ds.Get(key)
 				if err != nil {
-					return err
+					return xerrors.Errorf("fail get: %s %s", string(key), err)
 				}
 				sf := new(types.SeqFull)
 				err = sf.Deserialize(data)
@@ -473,7 +477,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
-				return err
+				return xerrors.Errorf("fail get: %s %s", string(key), err)
 			}
 			of := new(types.OrderFull)
 			err = of.Deserialize(data)

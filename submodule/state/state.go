@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -36,21 +38,23 @@ type StateMgr struct {
 	threshold int
 	blkID     types.MsgID
 
-	height uint64 // next block height
-	slot   uint64 // logical time
-	ceInfo *chalEpochInfo
-	root   types.MsgID // for verify
-	oInfo  map[orderKey]*orderInfo
-	sInfo  map[uint64]*segPerUser // key: userID
-	rInfo  map[uint64]*roleInfo
+	version uint32
+	height  uint64 // next block height
+	slot    uint64 // logical time
+	ceInfo  *chalEpochInfo
+	root    types.MsgID // for verify
+	oInfo   map[orderKey]*orderInfo
+	sInfo   map[uint64]*segPerUser // key: userID
+	rInfo   map[uint64]*roleInfo
 
-	validateHeight uint64 // next block height
-	validateSlot   uint64 // logical time
-	validateCeInfo *chalEpochInfo
-	validateRoot   types.MsgID
-	validateOInfo  map[orderKey]*orderInfo
-	validateSInfo  map[uint64]*segPerUser
-	validateRInfo  map[uint64]*roleInfo
+	validateVersion uint32
+	validateHeight  uint64 // next block height
+	validateSlot    uint64 // logical time
+	validateCeInfo  *chalEpochInfo
+	validateRoot    types.MsgID
+	validateOInfo   map[orderKey]*orderInfo
+	validateSInfo   map[uint64]*segPerUser
+	validateRInfo   map[uint64]*roleInfo
 
 	handleAddRole     HanderAddRoleFunc
 	handleAddUser     HandleAddUserFunc
@@ -78,6 +82,7 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 		genesisBlockID: types.NewMsgID(buf),
 		blkID:          types.NewMsgID(buf),
 
+		version:      0,
 		root:         types.NewMsgID(buf),
 		validateRoot: types.NewMsgID(buf),
 		ceInfo: &chalEpochInfo{
@@ -89,6 +94,7 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 		sInfo: make(map[uint64]*segPerUser),
 		rInfo: make(map[uint64]*roleInfo),
 
+		validateVersion: 0,
 		validateCeInfo: &chalEpochInfo{
 			epoch:    0,
 			current:  newChalEpoch(types.NewMsgID(buf)),
@@ -158,7 +164,15 @@ func (s *StateMgr) load() {
 		s.slot = binary.BigEndian.Uint64(val[8:16])
 	}
 
-	logger.Debug("load: ", s.height, s.slot)
+	for i, ue := range build.UpdateMap {
+		if s.slot > ue && s.version < i {
+			s.version = i
+		}
+	}
+
+	s.validateVersion = s.version
+
+	logger.Debug("load state at: ", s.height, s.slot)
 
 	// load root
 	key = store.NewKey(pb.MetaType_ST_RootKey)
@@ -275,13 +289,15 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, nil
 	}
 
+	nt := time.Now()
+
 	if !blk.PrevID.Equal(s.blkID) {
-		logger.Errorf("apply wrong block at height %d, block prevID got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
+		//logger.Errorf("apply wrong block at height %d, block prevID got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
 		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, s.root, blk.ParentRoot)
 	}
 
 	if !s.root.Equal(blk.ParentRoot) {
-		logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
+		//logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
 		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
 	}
 
@@ -367,14 +383,14 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		msgDone := metrics.Timer(context.TODO(), metrics.TxMessageApply)
 		_, err = s.applyMsg(&msg.Message, &blk.Receipts[i], tds)
 		if err != nil {
-			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
-			return s.root, err
+			//logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
+			return s.root, xerrors.Errorf("apply msg %d %d %d at height %d fail %s", msg.From, msg.Nonce, msg.Method, blk.Height, err)
 		}
 		msgDone()
 	}
 
 	if !s.root.Equal(blk.Root) {
-		logger.Error("apply block has wrong state end at height %d, state got: %s, expected: %s", blk.Height, blk.Root, s.root)
+		//logger.Error("apply block has wrong state end at height %d, state got: %s, expected: %s", blk.Height, blk.Root, s.root)
 		return s.root, xerrors.Errorf("apply has wrong state end at height %d, state got: %s, expected: %s", blk.Height, blk.Root, s.root)
 	}
 
@@ -388,6 +404,17 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.slot = blk.Slot
 	s.blkID = blkID
 
+	// after apply all msg, update verison
+	nextVer := s.version + 1
+	ue, ok := build.UpdateMap[nextVer]
+	if ok {
+		if s.slot >= ue {
+			s.version = nextVer
+		}
+	}
+
+	logger.Debug("block apply at: ", blk.Height, time.Since(nt))
+
 	return s.root, nil
 }
 
@@ -396,7 +423,8 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore)
 		return s.root, nil
 	}
 
-	logger.Debug("block apply message:", msg.From, msg.Nonce, msg.Method, s.root)
+	nt := time.Now()
+	//logger.Debug("block apply message:", msg.From, msg.Method, msg.Nonce, s.root)
 
 	ri, ok := s.rInfo[msg.From]
 	if !ok {
@@ -421,7 +449,7 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore)
 	// not apply wrong message; but update its nonce
 	if tr.Err != 0 {
 		stats.Record(context.TODO(), metrics.TxMessageApplyFailure.M(1))
-		logger.Debug("not apply wrong message")
+		//logger.Debug("not apply wrong message")
 		return s.root, nil
 	} else {
 		stats.Record(context.TODO(), metrics.TxMessageApplySuccess.M(1))
@@ -486,6 +514,8 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore)
 	default:
 		return s.root, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}
+
+	logger.Debug("block apply message: ", msg.From, msg.Method, msg.Nonce, s.root, time.Since(nt))
 
 	return s.root, nil
 }

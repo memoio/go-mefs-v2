@@ -100,9 +100,9 @@ func (pp *PushPool) syncPush() {
 
 			pp.lk.Lock()
 			for _, md := range bh.msgs {
-				logger.Debug("tx message done: ", md.From, md.Nonce, md.ID)
 				lpending, ok := pp.pending[md.From]
 				if ok {
+					logger.Debug("tx msg done: ", md.From, md.Nonce, md.ID)
 					delete(lpending.msg, md.ID)
 					if lpending.chainNonce <= md.Nonce {
 						lpending.chainNonce = md.Nonce + 1
@@ -167,8 +167,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 	// sign
 	sig, err := pp.RoleSign(pp.ctx, mes.From, mid.Bytes(), types.SigSecp256k1)
 	if err != nil {
-		logger.Warn("add tx message to push pool: ", err)
-		return mid, err
+		return mid, xerrors.Errorf("add tx message to push pool sign fail %s", err)
 	}
 
 	sm := &tx.SignedMessage{
@@ -187,13 +186,11 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	// verify signature
 	valid, err := pp.RoleVerify(pp.ctx, sm.From, mid.Bytes(), sm.Signature)
 	if err != nil {
-		logger.Warn("add tx signed message to push pool: ", err)
-		return mid, err
+		return mid, xerrors.Errorf("add tx message to push pool verify fail %s", err)
 	}
 
 	if !valid {
-		logger.Warn("add tx message signed to push pool invalid sig: ", pp.ready, sm.From, sm.Nonce, sm.Method)
-		return mid, xerrors.Errorf("invalid sig")
+		return mid, xerrors.Errorf("add tx message to push pool invalid sign")
 	}
 
 	pp.lk.Lock()
@@ -210,7 +207,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 
 	// verify nonce
 	if sm.Nonce < lp.chainNonce {
-		return mid, xerrors.Errorf("nonce should be no less than %d, got %d", lp.chainNonce, sm.Nonce)
+		return mid, xerrors.Errorf("%d nonce should be no less than %d, got %d", sm.From, lp.chainNonce, sm.Nonce)
 	}
 
 	_, ok = lp.msg[mid]
@@ -226,8 +223,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	if !ok {
 		err := pp.PutTxMsg(sm, true)
 		if err != nil {
-			logger.Warn("add tx signed message to push pool: ", err)
-			return mid, err
+			return mid, xerrors.Errorf("add tx message to push pool put fails %s", err)
 		}
 	}
 
@@ -239,8 +235,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	// push out immediately
 	err = pp.INetService.PublishTxMsg(pp.ctx, sm)
 	if err != nil {
-		logger.Warn("add tx signed message to push pool: ", err)
-		return mid, err
+		return mid, xerrors.Errorf("add tx message to push pool publish fails %s", err)
 	}
 
 	return mid, nil

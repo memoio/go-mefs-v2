@@ -52,8 +52,9 @@ var InfoCmd = &cli.Command{
 		st := build.BaseTime + int64(sgi.Slot*build.SlotDuration)
 		lag := (nt - st) / build.SlotDuration
 
-		fmt.Printf("Status: %t, Time: %s\n", si.Status && (si.SyncedHeight+5 > si.RemoteHeight) && (lag < 10), time.Unix(st, 0).Format(utils.SHOWTIME))
+		fmt.Printf("Status: %t, Slot: %d, Time: %s\n", si.Status && (si.SyncedHeight+5 > si.RemoteHeight) && (lag < 10), sgi.Slot, time.Unix(st, 0).Format(utils.SHOWTIME))
 		fmt.Printf("Height Synced: %d, Remote: %d\n", si.SyncedHeight, si.RemoteHeight)
+		fmt.Println("Challenge Epoch:", sgi.Epoch-1)
 
 		fmt.Println(ansi.Color("----------- Role Information -----------", "green"))
 		pri, err := api.RoleSelf(cctx.Context)
@@ -84,7 +85,7 @@ var InfoCmd = &cli.Command{
 				size += si.Size
 				price.Add(price, si.Price)
 			}
-			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
+			fmt.Printf("Data Stored: size %d byte (%s), price %d\n", size, types.FormatBytes(size), price)
 		case pb.RoleInfo_User:
 			size := uint64(0)
 			price := big.NewInt(0)
@@ -97,7 +98,7 @@ var InfoCmd = &cli.Command{
 				size += si.Size
 				price.Add(price, si.Price)
 			}
-			fmt.Printf("Data Stored: size %d, price %d\n", size, price)
+			fmt.Printf("Data Stored: size %d byte (%s), price %d\n", size, types.FormatBytes(size), price)
 		}
 
 		fmt.Println(ansi.Color("----------- Group Information -----------", "green"))
@@ -111,6 +112,7 @@ var InfoCmd = &cli.Command{
 		fmt.Println("Security Level: ", gi.Level)
 		fmt.Println("Size: ", types.FormatBytes(gi.Size))
 		fmt.Println("Price: ", gi.Price)
+		fmt.Printf("Keepers: %d, Providers: %d, Users: %d\n", gi.KCount, gi.PCount, gi.UCount)
 
 		fmt.Println(ansi.Color("----------- Pledge Information ----------", "green"))
 
@@ -127,14 +129,24 @@ var InfoCmd = &cli.Command{
 			}
 			defer closer()
 			fmt.Println(ansi.Color("----------- Lfs Information ----------", "green"))
-			li, err := uapi.LfsGetInfo(cctx.Context)
+			li, err := uapi.LfsGetInfo(cctx.Context, true)
+			if err != nil {
+				return err
+			}
+
+			pi, err := uapi.OrderGetPayInfoAt(cctx.Context, 0)
 			if err != nil {
 				return err
 			}
 
 			fmt.Println("Status: ", li.Status)
-			fmt.Println("Bucket: ", li.Bucket)
+			fmt.Println("Buckets: ", li.Bucket)
 			fmt.Println("Used:", types.FormatBytes(li.Used))
+			fmt.Println("Raw Size:", types.FormatBytes(pi.Size))
+			fmt.Println("Confirmed Size:", types.FormatBytes(pi.ConfirmSize))
+			fmt.Println("OnChain Size:", types.FormatBytes(pi.OnChainSize))
+			fmt.Println("Need Pay:", types.FormatWei(pi.NeedPay))
+			fmt.Println("Paid:", types.FormatWei(pi.Paid))
 		}
 
 		return nil

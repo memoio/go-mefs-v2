@@ -151,16 +151,16 @@ func (s *SegMgr) regularChallenge() {
 }
 
 // todo: add repair after check before challenge
-
+// todo: should cancle when epoch passed
 func (s *SegMgr) challenge(userID uint64) {
 	logger.Debug("challenge for user: ", userID)
 	if s.epoch < 2 {
-		logger.Debug("not challenge at epoch: ", userID, s.epoch)
+		logger.Debug("challenge not at epoch: ", userID, s.epoch)
 		return
 	}
 	si := s.loadFs(userID)
 	if si.nextChal > s.eInfo.Epoch {
-		logger.Debug("challenged at: ", userID, s.eInfo.Epoch)
+		logger.Debug("challenge at: ", userID, s.eInfo.Epoch)
 		return
 	} else {
 		si.nextChal = s.eInfo.Epoch
@@ -169,17 +169,18 @@ func (s *SegMgr) challenge(userID uint64) {
 	if si.wait {
 		if time.Since(si.chalTime) > 10*time.Minute {
 			si.wait = false
-			logger.Debug("redo challenge at: ", userID, si.nextChal)
+			logger.Debug("challenge redo at: ", userID, si.nextChal)
 		}
 		return
 	}
 
 	if s.GetProof(userID, s.localID, si.nextChal) {
-		logger.Debug("has challenged: ", userID, si.nextChal)
+		logger.Debug("challenge has done: ", userID, si.nextChal)
 		return
 	}
 
 	// get epoch info
+	nt := time.Now()
 
 	buf := make([]byte, 8+len(s.eInfo.Seed.Bytes()))
 	binary.BigEndian.PutUint64(buf[:8], userID)
@@ -206,7 +207,7 @@ func (s *SegMgr) challenge(userID uint64) {
 
 	sid, err := segment.NewSegmentID(si.fsID, 0, 0, 0)
 	if err != nil {
-		logger.Debug("chal create seg fails:", userID, si.nextChal, err)
+		logger.Debug("challenge create seg fails: ", userID, si.nextChal, err)
 		return
 	}
 
@@ -215,13 +216,13 @@ func (s *SegMgr) challenge(userID uint64) {
 	// challenge routine
 	ns := s.GetOrderStateAt(userID, s.localID, si.nextChal)
 	if ns.Nonce == 0 && ns.SeqNum == 0 {
-		logger.Debug("chal on empty data at epoch: ", userID, si.nextChal)
+		logger.Debug("challenge on empty data at epoch: ", userID, si.nextChal)
 		return
 	}
 
 	pce, err := s.StateGetChalEpochInfoAt(s.ctx, si.nextChal-1)
 	if err != nil {
-		logger.Debug("chal at wrong epoch: ", userID, si.nextChal, err)
+		logger.Debug("challenge at wrong epoch: ", userID, si.nextChal, err)
 		return
 	}
 
@@ -230,11 +231,11 @@ func (s *SegMgr) challenge(userID uint64) {
 	chalEnd := build.BaseTime + int64(s.eInfo.Slot*build.SlotDuration)
 	chalDur := chalEnd - chalStart
 	if chalDur <= 0 {
-		logger.Debug("chal at wrong epoch: ", userID, si.nextChal)
+		logger.Debug("challenge at wrong epoch: ", userID, si.nextChal)
 		return
 	}
 
-	logger.Debug("chal duration: ", chalStart, chalEnd, ns.Nonce, ns.SeqNum)
+	//logger.Debug("challenge duration: ", chalStart, chalEnd, ns.Nonce, ns.SeqNum)
 
 	orderDur := int64(0)
 	price := new(big.Int)
@@ -248,15 +249,15 @@ func (s *SegMgr) challenge(userID uint64) {
 	if ns.SeqNum > 0 {
 		so, err := s.GetOrder(userID, s.localID, ns.Nonce)
 		if err != nil {
-			logger.Debug("chal get order fails: ", userID, ns.Nonce, err)
+			logger.Debug("challenge get order fails: ", userID, ns.Nonce, err)
 			return
 		}
 
 		if so.Start >= chalEnd {
-			logger.Debug("not challenge latest one, duo to time is not up")
+			logger.Debug("challenge not latest one, duo to time is not up")
 		} else {
 			if so.End <= chalStart {
-				logger.Debug("chal order all expired: ", userID, si.nextChal, ns.Nonce)
+				logger.Debug("challenge orders all expired: ", userID, si.nextChal, ns.Nonce)
 				return
 			}
 
@@ -273,7 +274,7 @@ func (s *SegMgr) challenge(userID uint64) {
 			for i := uint32(0); i < ns.SeqNum; i++ {
 				sf, err := s.GetOrderSeq(userID, s.localID, ns.Nonce, i)
 				if err != nil {
-					logger.Debug("chal get order seq fails: ", userID, ns.Nonce, i, err)
+					logger.Debug("challenge get order seq fails: ", userID, ns.Nonce, i, err)
 					return
 				}
 
@@ -294,7 +295,7 @@ func (s *SegMgr) challenge(userID uint64) {
 					sid.SetBucketID(seg.BucketID)
 					for j := seg.Start; j < seg.Start+seg.Length; j++ {
 						if sf.DelSegs.Has(seg.BucketID, j, seg.ChunkID) {
-							logger.Debug("skip fault seg: ", seg.BucketID, j, seg.ChunkID)
+							logger.Debug("challenge skip fault seg: ", seg.BucketID, j, seg.ChunkID)
 							continue
 						}
 
@@ -325,10 +326,11 @@ func (s *SegMgr) challenge(userID uint64) {
 				}
 
 				if fault.Len() > 0 {
+					fault.Merge()
 					srp := &tx.SegRemoveParas{
 						UserID:   si.userID,
 						ProID:    s.localID,
-						Nonce:    ns.Nonce - 1,
+						Nonce:    ns.Nonce,
 						SeqNum:   i,
 						Segments: fault,
 					}
@@ -345,9 +347,10 @@ func (s *SegMgr) challenge(userID uint64) {
 						Method:  tx.SegmentFault,
 						Params:  data,
 					}
+
 					err = s.pushAndWaitMessage(msg)
 					if err != nil {
-						logger.Debug("push remove seg msg fail: ", err)
+						logger.Debug("challenge push remove seg msg fail: ", err)
 					}
 					return
 				}
@@ -360,17 +363,17 @@ func (s *SegMgr) challenge(userID uint64) {
 		for i := uint64(0); i < ns.Nonce; i++ {
 			so, err := s.GetOrder(userID, s.localID, i)
 			if err != nil {
-				logger.Debug("chal get order fails:", userID, i, err)
+				logger.Debug("challenge get order fails:", userID, i, err)
 				return
 			}
 
 			if so.Start >= chalEnd {
-				logger.Debug("chal order not up: ", userID, si.nextChal, i, so)
+				logger.Debug("challenge order is not up: ", userID, si.nextChal, i, so)
 				continue
 			}
 
 			if so.End <= chalStart {
-				logger.Debug("chal order expired: ", userID, si.nextChal, i, so)
+				logger.Debug("challenge order expired: ", userID, si.nextChal, i, so)
 				orderStart = i + 1
 				continue
 			}
@@ -397,7 +400,7 @@ func (s *SegMgr) challenge(userID uint64) {
 			for k := uint32(0); k < so.SeqNum; k++ {
 				sf, err := s.GetOrderSeq(userID, s.localID, i, k)
 				if err != nil {
-					logger.Debug("chal get order seq fails:", userID, i, k, err)
+					logger.Debug("challenge get order seq fails:", userID, i, k, err)
 					return
 				}
 
@@ -406,7 +409,7 @@ func (s *SegMgr) challenge(userID uint64) {
 					sid.SetBucketID(seg.BucketID)
 					for j := seg.Start; j < seg.Start+seg.Length; j++ {
 						if sf.DelSegs.Has(seg.BucketID, j, seg.ChunkID) {
-							logger.Debug("skip fault seg: ", seg.BucketID, j, seg.ChunkID)
+							logger.Debug("challenge skip fault seg: ", seg.BucketID, j, seg.ChunkID)
 							continue
 						}
 
@@ -436,6 +439,7 @@ func (s *SegMgr) challenge(userID uint64) {
 				}
 
 				if fault.Len() > 0 {
+					fault.Merge()
 					srp := &tx.SegRemoveParas{
 						UserID:   si.userID,
 						ProID:    s.localID,
@@ -456,9 +460,10 @@ func (s *SegMgr) challenge(userID uint64) {
 						Method:  tx.SegmentFault,
 						Params:  data,
 					}
+
 					err = s.pushAndWaitMessage(msg)
 					if err != nil {
-						logger.Debug("push remove seg msg fail: ", err)
+						logger.Debug("challenge push remove seg msg fail: ", err)
 					}
 					return
 				}
@@ -467,14 +472,14 @@ func (s *SegMgr) challenge(userID uint64) {
 	}
 
 	if cnt == 0 {
-		logger.Debug("chal has zero size: ", userID, si.nextChal)
+		logger.Debug("challenge has zero size: ", userID, si.nextChal)
 		return
 	}
 
 	totalSize -= delSize
 
 	if totalSize == 0 {
-		logger.Debug("chal has zero size: ", userID, si.nextChal)
+		logger.Debug("challenge has zero size: ", userID, si.nextChal)
 		return
 	}
 
@@ -496,7 +501,7 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	logger.Debugf("challenge create proof: user %d, pro %d, chal %d, nonce %d, seq %d, order start %d, end %d, seg count %d, size %d, price %d", userID, s.localID, si.nextChal, ns.Nonce, ns.SeqNum, orderStart, orderEnd, cnt, totalSize, totalPrice)
+	logger.Debugf("challenge create proof: user %d, pro %d, chal %d, nonce %d, seq %d, order start %d, end %d, seg count %d, size %d, price %d, cost %s", userID, s.localID, si.nextChal, ns.Nonce, ns.SeqNum, orderStart, orderEnd, cnt, totalSize, totalPrice, time.Since(nt))
 
 	scp := &tx.SegChalParams{
 		UserID:     userID,

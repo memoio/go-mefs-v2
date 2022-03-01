@@ -2,6 +2,7 @@ package lfs
 
 import (
 	"context"
+	"math/big"
 	"sync"
 	"time"
 
@@ -24,6 +25,9 @@ type LfsService struct {
 	ctx    context.Context
 	keyset pdpcommon.KeySet
 	ds     store.KVStore
+
+	needPay *big.Int
+	bal     *big.Int
 
 	userID     uint64
 	fsID       []byte // keyset的verifyKey的hash
@@ -51,6 +55,9 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 		ds:       ds,
 		keyset:   keyset,
 
+		needPay: new(big.Int),
+		bal:     new(big.Int),
+
 		sb:  newSuperBlock(),
 		dps: make(map[uint64]*dataProcess),
 		sw:  semaphore.NewWeighted(defaultWeighted),
@@ -60,6 +67,7 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()
+	ls.getPayInfo()
 
 	return ls, nil
 }
@@ -113,9 +121,9 @@ func (l *LfsService) Start() error {
 				}
 
 				if st.Status.Err == 0 {
-					logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+					logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 				} else {
-					logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+					logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 				}
 
 				break
@@ -198,10 +206,10 @@ func (l *LfsService) Start() error {
 					}
 
 					if st.Status.Err == 0 {
-						logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+						logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 						l.bucketChan <- bucketID
 					} else {
-						logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+						logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 					}
 
 					break
@@ -246,7 +254,10 @@ func (l *LfsService) Writeable() bool {
 	return l.sb.write
 }
 
-func (l *LfsService) LfsGetInfo(ctx context.Context) (*types.LfsInfo, error) {
+func (l *LfsService) LfsGetInfo(ctx context.Context, update bool) (*types.LfsInfo, error) {
+	if update {
+		l.getPayInfo()
+	}
 	l.sb.RLock()
 	defer l.sb.RUnlock()
 

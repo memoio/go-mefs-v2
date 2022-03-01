@@ -31,7 +31,7 @@ func NewReceivePay(localAddr address.Address, ds store.KVStore) *ReceivePay {
 
 func (rp *ReceivePay) Verify(p *Paycheck, val *big.Int) error {
 	ok, err := p.Verify()
-	if !ok || err != nil {
+	if err != nil || !ok {
 		return xerrors.Errorf("pay check is invalid: %w", err)
 	}
 

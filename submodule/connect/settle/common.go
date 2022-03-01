@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"time"
@@ -23,19 +24,22 @@ import (
 var logger = logging.Logger("settle")
 
 var (
-	endpoint = "http://119.147.213.220:8193"
+	endpoint = callconts.EndPoint
 	RoleAddr = callconts.RoleAddr
 )
 
 // TransferTo trans money
-func TransferTo(toAddress common.Address, value *big.Int) error {
-	client, err := ethclient.Dial(endpoint)
+func TransferTo(toAddress common.Address, value *big.Int, sk string) error {
+	fmt.Println("transfer ", value, " to ", toAddress)
+	ctx, cancle := context.WithTimeout(context.TODO(), 10*time.Second)
+	defer cancle()
+	client, err := ethclient.DialContext(ctx, endpoint)
 	if err != nil {
-		return err
+		return xerrors.Errorf("dail %s fail %s", endpoint, err)
 	}
 	defer client.Close()
 
-	privateKey, err := crypto.HexToECDSA(callconts.AdminSk)
+	privateKey, err := crypto.HexToECDSA(sk)
 	if err != nil {
 		return err
 	}
@@ -48,19 +52,23 @@ func TransferTo(toAddress common.Address, value *big.Int) error {
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 
+	fmt.Println("transfer ", value, " from ", fromAddress, " to ", toAddress)
+
 	gasLimit := uint64(23000)           // in units
 	gasPrice := big.NewInt(30000000000) // in wei (30 gwei)
 
 	chainID, err := client.NetworkID(context.Background())
 	if err != nil {
-		logger.Debug("client.NetworkID error,use the default chainID")
 		chainID = big.NewInt(666)
 	}
 
+	bbal := QueryBalance(toAddress)
+
 	retry := 0
 	for {
+		retry++
 		if retry > 10 {
-			logger.Debug("fail transfer ", value.String(), "to", toAddress)
+			fmt.Println("fail transfer ", value.String(), "to", toAddress)
 			return errors.New("fail to transfer")
 		}
 
@@ -83,26 +91,24 @@ func TransferTo(toAddress common.Address, value *big.Int) error {
 
 		err = client.SendTransaction(context.Background(), signedTx)
 		if err != nil {
-			logger.Error("trans transcation fail:", err)
+			fmt.Println("trans transcation fail:", err)
 			continue
 		}
 
 		qCount := 0
 		for qCount < 5 {
 			balance := QueryBalance(toAddress)
-			if balance.Cmp(value) >= 0 {
-				logger.Debug("transfer ", value, " to ", toAddress)
+			if balance.Cmp(bbal) > 0 {
+				fmt.Println("transfer ", value, " to ", toAddress, " has balance: ", balance)
 				return nil
 			}
-			logger.Debug(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
+			fmt.Println(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
 
 			rand.NewSource(time.Now().UnixNano())
 			t := rand.Intn(20 * (qCount + 1))
 			time.Sleep(time.Duration(t) * time.Second)
 			qCount++
 		}
-
-		retry++
 	}
 }
 
@@ -125,7 +131,7 @@ func QueryBalance(addr common.Address) *big.Int {
 	return val
 }
 
-func erc20Transfer(addr common.Address, val *big.Int) error {
+func Erc20Transfer(addr common.Address, val *big.Int) error {
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
 		GasPrice: big.NewInt(callconts.DefaultGasPrice),
@@ -142,13 +148,15 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 
 	logger.Debug("admin has erc20 balance: ", adminVal)
 
-	err = erc20.MintToken(callconts.AdminAddr, val)
-	if err != nil {
-		logger.Debug("erc20 mintToken fail: ", callconts.ERC20Addr, callconts.AdminAddr, val)
-	}
-
-	if err = <-status; err != nil {
-		logger.Fatal("erc20 mintToken fail: ", err)
+	if adminVal.Cmp(val) < 0 {
+		err = erc20.MintToken(callconts.AdminAddr, val)
+		if err != nil {
+			logger.Debug("erc20 mintToken fail: ", callconts.ERC20Addr, callconts.AdminAddr, val)
+		} else {
+			if err = <-status; err != nil {
+				logger.Fatal("erc20 mintToken fail: ", err)
+			}
+		}
 	}
 
 	oldVal, err := erc20.BalanceOf(addr)
@@ -161,6 +169,8 @@ func erc20Transfer(addr common.Address, val *big.Int) error {
 		err = erc20.Transfer(addr, val)
 		if err != nil {
 			logger.Debug("erc20 transfer fail: ", callconts.ERC20Addr, addr, val, err)
+			retry++
+			continue
 		}
 
 		if err = <-status; err != nil {

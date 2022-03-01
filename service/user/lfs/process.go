@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
 	"golang.org/x/sync/semaphore"
@@ -109,166 +108,161 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 	breakFlag := false
 	for !breakFlag {
-		select {
-		case <-ctx.Done():
-			logger.Warn("upload cancel")
-			return nil
-		default:
-			logger.Debug("upload stripe: ", curStripe, stripeCount)
-			// clear itself
-			buf = buf[:0]
+		logger.Debug("upload stripe: ", curStripe, stripeCount)
+		// clear itself
+		buf = buf[:0]
 
-			// 读数据，限定一次处理一个stripe
-			n, err := io.ReadAtLeast(r, rdata[:dp.stripeSize], dp.stripeSize)
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				breakFlag = true
-			} else if err != nil {
-				return err
-			} else if n != dp.stripeSize {
-				logger.Warn("fail to get enough data")
-				return ErrUpload
+		// 读数据，限定一次处理一个stripe
+		n, err := io.ReadAtLeast(r, rdata[:dp.stripeSize], dp.stripeSize)
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			breakFlag = true
+		} else if err != nil {
+			return err
+		} else if n != dp.stripeSize {
+			logger.Warn("fail to get enough data")
+			return ErrUpload
+		}
+
+		buf = append(buf, rdata[:n]...)
+		if len(buf) == 0 {
+			break
+		}
+
+		// md5 of raw data
+		h.Write(buf)
+		rawLen += len(buf)
+		totalSize += len(buf)
+
+		// encrypt
+		if object.Encryption == "aes" {
+			if len(buf)%aes.BlockSize != 0 {
+				buf = aes.PKCS5Padding(buf)
 			}
 
-			buf = append(buf, rdata[:n]...)
-			if len(buf) == 0 {
-				break
-			}
-
-			// md5 of raw data
-			h.Write(buf)
-			rawLen += len(buf)
-			totalSize += len(buf)
-
-			// encrypt
-			if object.Encryption == "aes" {
-				if len(buf)%aes.BlockSize != 0 {
-					buf = aes.PKCS5Padding(buf)
-				}
-
-				aesEnc, err := aes.ContructAesEnc(dp.aesKey[:], object.ObjectID, curStripe+uint64(stripeCount))
-				if err != nil {
-					return err
-				}
-
-				crypted := make([]byte, len(buf))
-				aesEnc.CryptBlocks(crypted, buf)
-				copy(buf, crypted)
-			}
-
-			dp.segID.SetStripeID(curStripe + uint64(stripeCount))
-
-			encodedData, err := dp.coder.Encode(dp.segID, buf)
+			aesEnc, err := aes.ContructAesEnc(dp.aesKey[:], object.ObjectID, curStripe+uint64(stripeCount))
 			if err != nil {
-				logger.Warn("encode data error:", dp.segID, err)
 				return err
 			}
 
-			for i := 0; i < (dp.dataCount + dp.parityCount); i++ {
-				dp.segID.SetChunkID(uint32(i))
+			crypted := make([]byte, len(buf))
+			aesEnc.CryptBlocks(crypted, buf)
+			copy(buf, crypted)
+		}
 
-				seg := segment.NewBaseSegment(encodedData[i], dp.segID)
+		dp.segID.SetStripeID(curStripe + uint64(stripeCount))
 
-				segData, _ := seg.Content()
-				segTag, _ := seg.Tags()
+		encodedData, err := dp.coder.Encode(dp.segID, buf)
+		if err != nil {
+			logger.Warn("encode data error:", dp.segID, err)
+			return err
+		}
 
-				err := dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
-				if err != nil {
-					logger.Warn("Process data error:", dp.segID, err)
-				}
+		for i := 0; i < (dp.dataCount + dp.parityCount); i++ {
+			dp.segID.SetChunkID(uint32(i))
 
-				err = l.OrderMgr.PutSegmentToLocal(ctx, seg)
-				if err != nil {
-					logger.Warn("Process data error:", dp.segID, err)
-					return err
-				}
-			}
-			stripeCount++
-			sendCount++
-			// send some to order
-			if sendCount >= 16 || breakFlag {
-				ok, err := dp.dv.Result()
-				if !ok || err != nil {
-					return ErrEncode
-				}
+			seg := segment.NewBaseSegment(encodedData[i], dp.segID)
 
-				// put to local first
-				sjl := &types.SegJob{
-					JobID:    opID,
-					BucketID: object.BucketID,
-					Start:    curStripe,
-					Length:   uint64(stripeCount),
-					ChunkID:  bucket.DataCount + bucket.ParityCount,
-				}
+			segData, _ := seg.Content()
+			segTag, _ := seg.Tags()
 
-				data, _ := cbor.Marshal(sjl)
-				key := store.NewKey(pb.MetaType_LFS_OpJobsKey, l.userID, object.BucketID, opID)
-				err = l.ds.Put(key, data)
-				if err != nil {
-					continue
-				}
-
-				// send out
-				sj := &types.SegJob{
-					JobID:    opID,
-					BucketID: object.BucketID,
-					Start:    curStripe + uint64(stripeCount-sendCount),
-					Length:   uint64(sendCount),
-					ChunkID:  bucket.DataCount + bucket.ParityCount,
-				}
-
-				logger.Debug("send job to order manager: ", sj.BucketID, opID, sj.Start, sj.Length, sj.ChunkID)
-				l.OrderMgr.AddSegJob(sj)
-
-				sendCount = 0
-
-				// update
-				dp.dv.Reset()
+			err := dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
+			if err != nil {
+				logger.Warn("Process data error:", dp.segID, err)
 			}
 
-			// more, change opID
-			if stripeCount >= 64 || breakFlag {
-				opi := &pb.ObjectPartInfo{
-					ObjectID:  object.GetObjectID(),
-					Time:      time.Now().Unix(),
-					Offset:    uint64(dp.stripeSize) * curStripe,
-					Length:    uint64(dp.stripeSize * stripeCount),
-					RawLength: uint64(rawLen),
-					ETag:      h.Sum(nil),
-				}
-
-				payload, err := proto.Marshal(opi)
-				if err != nil {
-					return err
-				}
-				op := &pb.OpRecord{
-					Type:    pb.OpRecord_AddData,
-					Payload: payload,
-				}
-
-				// todo: add used bytes
-				bucket.Length += uint64(dp.stripeSize * stripeCount)
-				bucket.UsedBytes += uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
-
-				err = bucket.addOpRecord(l.userID, op, l.ds)
-				if err != nil {
-					return err
-				}
-
-				object.ops = append(object.ops, op.OpID)
-				object.dirty = true
-				object.addPartInfo(opi)
-				err = object.Save(l.userID, l.ds)
-				if err != nil {
-					return err
-				}
-
-				opID++
-				curStripe += uint64(stripeCount)
-
-				h.Reset()
-				rawLen = 0
-				stripeCount = 0
+			err = l.OrderMgr.PutSegmentToLocal(ctx, seg)
+			if err != nil {
+				logger.Warn("Process data error:", dp.segID, err)
+				return err
 			}
+		}
+		stripeCount++
+		sendCount++
+		// send some to order
+		if sendCount >= 16 || breakFlag {
+			ok, err := dp.dv.Result()
+			if !ok || err != nil {
+				return ErrEncode
+			}
+
+			// put to local first
+			sjl := &types.SegJob{
+				JobID:    opID,
+				BucketID: object.BucketID,
+				Start:    curStripe,
+				Length:   uint64(stripeCount),
+				ChunkID:  bucket.DataCount + bucket.ParityCount,
+			}
+
+			data, err := sjl.Serialize()
+			if err != nil {
+				return err
+			}
+
+			key := store.NewKey(pb.MetaType_LFS_OpJobsKey, l.userID, object.BucketID, opID)
+			l.ds.Put(key, data)
+
+			// send out to order manager
+			sj := &types.SegJob{
+				BucketID: object.BucketID,
+				JobID:    opID,
+				Start:    curStripe + uint64(stripeCount-sendCount),
+				Length:   uint64(sendCount),
+				ChunkID:  bucket.DataCount + bucket.ParityCount,
+			}
+
+			logger.Debug("send job to order manager: ", sj.BucketID, opID, sj.Start, sj.Length, sj.ChunkID)
+			l.OrderMgr.AddSegJob(sj)
+
+			sendCount = 0
+
+			// update
+			dp.dv.Reset()
+		}
+
+		// more, change opID
+		if stripeCount >= 64 || breakFlag {
+			opi := &pb.ObjectPartInfo{
+				ObjectID:  object.GetObjectID(),
+				Time:      time.Now().Unix(),
+				Offset:    uint64(dp.stripeSize) * curStripe,
+				Length:    uint64(dp.stripeSize * stripeCount),
+				RawLength: uint64(rawLen),
+				ETag:      h.Sum(nil),
+			}
+
+			payload, err := proto.Marshal(opi)
+			if err != nil {
+				return err
+			}
+			op := &pb.OpRecord{
+				Type:    pb.OpRecord_AddData,
+				Payload: payload,
+			}
+
+			// todo: add used bytes
+			bucket.Length += uint64(dp.stripeSize * stripeCount)
+			bucket.UsedBytes += uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
+
+			err = bucket.addOpRecord(l.userID, op, l.ds)
+			if err != nil {
+				return err
+			}
+
+			object.ops = append(object.ops, op.OpID)
+			object.dirty = true
+			object.addPartInfo(opi)
+			err = object.Save(l.userID, l.ds)
+			if err != nil {
+				return err
+			}
+
+			opID++
+			curStripe += uint64(stripeCount)
+
+			h.Reset()
+			rawLen = 0
+			stripeCount = 0
 		}
 	}
 

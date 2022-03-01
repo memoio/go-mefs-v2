@@ -154,17 +154,12 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 		return resp, nil
 	}
 
-	has, err := p.HasSegment(p.ctx, seg.SegmentID())
-	if err != nil || !has {
-		err = p.PutSegmentToLocal(p.ctx, seg)
-		if err != nil {
-			resp.Header.Type = pb.NetMessage_Err
-			resp.Data.MsgInfo = []byte(err.Error())
-			return resp, nil
-		}
+	err = p.OrderMgr.HandleData(mes.Header.From, seg)
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
 	}
-
-	go p.OrderMgr.HandleData(mes.Header.From, seg)
 
 	return resp, nil
 }

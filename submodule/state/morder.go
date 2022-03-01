@@ -41,10 +41,11 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 			SeqNum: 0,
 		},
 		income: &types.PostIncome{
-			UserID:  userID,
-			ProID:   proID,
-			Value:   big.NewInt(0),
-			Penalty: big.NewInt(0),
+			UserID:     userID,
+			ProID:      proID,
+			TokenIndex: 0,
+			Value:      big.NewInt(0),
+			Penalty:    big.NewInt(0),
 		},
 		accFr: bls.ZERO,
 		od:    new(types.OrderDuration),
@@ -124,7 +125,7 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 
 	err = verify(uri.base, or.Hash(), or.Usign)
 	if err != nil {
-		return err
+		return xerrors.Errorf("verify user sign fail: %s", err)
 	}
 
 	pri, ok := s.rInfo[or.ProID]
@@ -135,7 +136,7 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 
 	err = verify(pri.base, or.Hash(), or.Psign)
 	if err != nil {
-		return err
+		return xerrors.Errorf("verify provider sign fail: %s", err)
 	}
 
 	okey := orderKey{
@@ -457,7 +458,7 @@ func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, oinfo.base.Nonce)
 	data, err := tds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	of := new(types.OrderFull)
 	err = of.Deserialize(data)
@@ -668,7 +669,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
 	data, err := tds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	of := new(types.OrderFull)
 	err = of.Deserialize(data)
@@ -689,7 +690,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 	data, err = tds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	sf := new(types.SeqFull)
 	err = sf.Deserialize(data)
@@ -702,7 +703,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	for _, lseg := range so.Segments {
 		for i := lseg.Start; i < lseg.Start+lseg.Length; i++ {
 			if !sf.Segments.Has(lseg.BucketID, i, lseg.ChunkID) {
-				return xerrors.Errorf("seg %d_%d_%d is not found in seq", lseg.BucketID, i, lseg.ChunkID)
+				return xerrors.Errorf("seg %d_%d_%d is not found in seq %d %d %d %d", lseg.BucketID, i, lseg.ChunkID, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 			}
 			sid := segment.CreateSegmentID(uinfo.fsID, lseg.BucketID, i, lseg.ChunkID)
 			h := blake3.Sum256(sid)
@@ -768,10 +769,11 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 
 	// save penalty at epoch
 	pi := &types.PostIncome{
-		UserID:  so.UserID,
-		ProID:   so.ProID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
+		UserID:     so.UserID,
+		ProID:      so.ProID,
+		TokenIndex: 0,
+		Value:      big.NewInt(0),
+		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, so.UserID, so.ProID, s.ceInfo.current.Epoch)
 	data, err = tds.Get(key)
@@ -790,9 +792,10 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 
 	// save acc
 	spi := &types.AccPostIncome{
-		ProID:   okey.proID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
+		ProID:      okey.proID,
+		TokenIndex: 0,
+		Value:      big.NewInt(0),
+		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
 	data, err = tds.Get(key)
@@ -837,7 +840,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
 	data, err := s.ds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	of := new(types.OrderFull)
 	err = of.Deserialize(data)
@@ -859,7 +862,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 	data, err = s.ds.Get(key)
 	if err != nil {
-		return err
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
 	}
 	sf := new(types.SeqFull)
 	err = sf.Deserialize(data)
@@ -870,7 +873,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 	for _, lseg := range so.Segments {
 		for i := lseg.Start; i < lseg.Start+lseg.Length; i++ {
 			if !sf.Segments.Has(lseg.BucketID, i, lseg.ChunkID) {
-				return xerrors.Errorf("seg %d_%d_%d is not found in seq", lseg.BucketID, i, lseg.ChunkID)
+				return xerrors.Errorf("seg %d_%d_%d is not found in seq %d %d %d %d", lseg.BucketID, i, lseg.ChunkID, so.UserID, so.ProID, so.Nonce, so.SeqNum)
 			}
 		}
 	}
@@ -904,7 +907,7 @@ func (s *StateMgr) commitOrder(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	if ocp.SeqNum != oinfo.ns.SeqNum {
-		return xerrors.Errorf("commit order seqnum wrong, got %d, expected %d", ocp.SeqNum, oinfo.ns.SeqNum)
+		return xerrors.Errorf("commit order %d seqnum wrong, got %d, expected %d", ocp.Nonce, ocp.SeqNum, oinfo.ns.SeqNum)
 	}
 
 	/*
@@ -969,7 +972,7 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 	}
 
 	if ocp.SeqNum != oinfo.ns.SeqNum {
-		return xerrors.Errorf("commit order seqnum wrong, got %d, expected %d", ocp.SeqNum, oinfo.ns.SeqNum)
+		return xerrors.Errorf("commit order %d seqnum wrong, got %d, expected %d", ocp.Nonce, ocp.SeqNum, oinfo.ns.SeqNum)
 	}
 
 	/*

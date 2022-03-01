@@ -74,17 +74,17 @@ type CommonStruct struct {
 		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
 		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
 
-		SettleGetRoleID      func(context.Context) uint64                              `perm:"read"`
-		SettleGetGroupID     func(context.Context) uint64                              `perm:"read"`
-		SettleGetThreshold   func(context.Context) int                                 `perm:"read"`
-		SettleGetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)       `perm:"read"`
-		SettleGetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)         `perm:"read"`
-		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)       `perm:"read"`
-		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)        `perm:"read"`
-		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error) `perm:"read"`
-		SettleWithdraw       func(context.Context, *big.Int, *big.Int, [][]byte) error `perm:"write"`
-		SettlePledge         func(context.Context, *big.Int) error                     `perm:"write"`
-		SettleCanclePledge   func(context.Context, *big.Int) error                     `perm:"write"`
+		SettleGetRoleID      func(context.Context) uint64                                        `perm:"read"`
+		SettleGetGroupID     func(context.Context) uint64                                        `perm:"read"`
+		SettleGetThreshold   func(context.Context) int                                           `perm:"read"`
+		SettleGetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)                 `perm:"read"`
+		SettleGetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)                   `perm:"read"`
+		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)                 `perm:"read"`
+		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)                  `perm:"read"`
+		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error)           `perm:"read"`
+		SettleWithdraw       func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
+		SettlePledge         func(context.Context, *big.Int) error                               `perm:"write"`
+		SettleCanclePledge   func(context.Context, *big.Int) error                               `perm:"write"`
 
 		SyncGetInfo        func(context.Context) (*SyncInfo, error)                 `perm:"read"`
 		SyncGetTxMsgStatus func(context.Context, types.MsgID) (*tx.MsgState, error) `perm:"read"`
@@ -289,8 +289,8 @@ func (s *CommonStruct) SettleGetStoreInfo(ctx context.Context, uid, pid uint64) 
 	return s.Internal.SettleGetStoreInfo(ctx, uid, pid)
 }
 
-func (s *CommonStruct) SettleWithdraw(ctx context.Context, val, penlty *big.Int, sig [][]byte) error {
-	return s.Internal.SettleWithdraw(ctx, val, penlty, sig)
+func (s *CommonStruct) SettleWithdraw(ctx context.Context, val, penlty *big.Int, kind []uint64, sig [][]byte) error {
+	return s.Internal.SettleWithdraw(ctx, val, penlty, kind, sig)
 }
 
 func (s *CommonStruct) SettlePledge(ctx context.Context, val *big.Int) error {
@@ -333,22 +333,38 @@ type ProviderNodeStruct struct {
 	CommonStruct
 
 	Internal struct {
-		OrderList      func(ctx context.Context) ([]uint64, error)                 `perm:"read"`
-		OrderGetInfo   func(ctx context.Context) ([]*OrderInfo, error)             `perm:"read"`
-		OrderGetInfoAt func(ctx context.Context, proID uint64) (*OrderInfo, error) `perm:"read"`
+		OrderList         func(ctx context.Context) ([]uint64, error)                    `perm:"read"`
+		OrderGetJobInfo   func(ctx context.Context) ([]*OrderJobInfo, error)             `perm:"read"`
+		OrderGetJobInfoAt func(ctx context.Context, proID uint64) (*OrderJobInfo, error) `perm:"read"`
+		OrderGetPayInfo   func(context.Context) ([]*types.OrderPayInfo, error)           `perm:"read"`
+		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
+
+		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
 	}
 }
 
-func (s *ProviderNodeStruct) OrderGetInfo(ctx context.Context) ([]*OrderInfo, error) {
-	return s.Internal.OrderGetInfo(ctx)
+func (s *ProviderNodeStruct) OrderGetJobInfo(ctx context.Context) ([]*OrderJobInfo, error) {
+	return s.Internal.OrderGetJobInfo(ctx)
 }
 
-func (s *ProviderNodeStruct) OrderGetInfoAt(ctx context.Context, proID uint64) (*OrderInfo, error) {
-	return s.Internal.OrderGetInfoAt(ctx, proID)
+func (s *ProviderNodeStruct) OrderGetJobInfoAt(ctx context.Context, proID uint64) (*OrderJobInfo, error) {
+	return s.Internal.OrderGetJobInfoAt(ctx, proID)
+}
+
+func (s *ProviderNodeStruct) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, error) {
+	return s.Internal.OrderGetPayInfo(ctx)
+}
+
+func (s *ProviderNodeStruct) OrderGetPayInfoAt(ctx context.Context, proID uint64) (*types.OrderPayInfo, error) {
+	return s.Internal.OrderGetPayInfoAt(ctx, proID)
 }
 
 func (s *ProviderNodeStruct) OrderList(ctx context.Context) ([]uint64, error) {
 	return s.Internal.OrderList(ctx)
+}
+
+func (s *ProviderNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
+	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
 }
 
 type UserNodeStruct struct {
@@ -367,14 +383,18 @@ type UserNodeStruct struct {
 		HeadObject  func(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)                         `perm:"read"`
 		ListObjects func(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error)   `perm:"read"`
 
-		LfsGetInfo func(context.Context) (*types.LfsInfo, error) `perm:"read"`
+		LfsGetInfo func(context.Context, bool) (*types.LfsInfo, error) `perm:"read"`
 
 		ShowStorage       func(ctx context.Context) (uint64, error)                    `perm:"read"`
 		ShowBucketStorage func(ctx context.Context, bucketName string) (uint64, error) `perm:"read"`
 
-		OrderList      func(ctx context.Context) ([]uint64, error)                 `perm:"read"`
-		OrderGetInfo   func(ctx context.Context) ([]*OrderInfo, error)             `perm:"read"`
-		OrderGetInfoAt func(ctx context.Context, proID uint64) (*OrderInfo, error) `perm:"read"`
+		OrderList         func(ctx context.Context) ([]uint64, error)                    `perm:"read"`
+		OrderGetJobInfo   func(ctx context.Context) ([]*OrderJobInfo, error)             `perm:"read"`
+		OrderGetJobInfoAt func(ctx context.Context, proID uint64) (*OrderJobInfo, error) `perm:"read"`
+		OrderGetPayInfo   func(context.Context) ([]*types.OrderPayInfo, error)           `perm:"read"`
+		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
+
+		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
 	}
 }
 
@@ -414,8 +434,8 @@ func (s *UserNodeStruct) ListObjects(ctx context.Context, bucketName string, opt
 	return s.Internal.ListObjects(ctx, bucketName, opts)
 }
 
-func (s *UserNodeStruct) LfsGetInfo(ctx context.Context) (*types.LfsInfo, error) {
-	return s.Internal.LfsGetInfo(ctx)
+func (s *UserNodeStruct) LfsGetInfo(ctx context.Context, update bool) (*types.LfsInfo, error) {
+	return s.Internal.LfsGetInfo(ctx, update)
 }
 
 func (s *UserNodeStruct) ShowStorage(ctx context.Context) (uint64, error) {
@@ -426,16 +446,28 @@ func (s *UserNodeStruct) ShowBucketStorage(ctx context.Context, bucketName strin
 	return s.Internal.ShowBucketStorage(ctx, bucketName)
 }
 
-func (s *UserNodeStruct) OrderGetInfo(ctx context.Context) ([]*OrderInfo, error) {
-	return s.Internal.OrderGetInfo(ctx)
-}
-
-func (s *UserNodeStruct) OrderGetInfoAt(ctx context.Context, proID uint64) (*OrderInfo, error) {
-	return s.Internal.OrderGetInfoAt(ctx, proID)
-}
-
 func (s *UserNodeStruct) OrderList(ctx context.Context) ([]uint64, error) {
 	return s.Internal.OrderList(ctx)
+}
+
+func (s *UserNodeStruct) OrderGetJobInfo(ctx context.Context) ([]*OrderJobInfo, error) {
+	return s.Internal.OrderGetJobInfo(ctx)
+}
+
+func (s *UserNodeStruct) OrderGetJobInfoAt(ctx context.Context, proID uint64) (*OrderJobInfo, error) {
+	return s.Internal.OrderGetJobInfoAt(ctx, proID)
+}
+
+func (s *UserNodeStruct) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, error) {
+	return s.Internal.OrderGetPayInfo(ctx)
+}
+
+func (s *UserNodeStruct) OrderGetPayInfoAt(ctx context.Context, proID uint64) (*types.OrderPayInfo, error) {
+	return s.Internal.OrderGetPayInfoAt(ctx, proID)
+}
+
+func (s *UserNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
+	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
 }
 
 type KeeperNodeStruct struct {

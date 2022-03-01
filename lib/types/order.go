@@ -11,7 +11,23 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
-type OrderHash [32]byte
+type OrderPayInfo struct {
+	ID          uint64
+	Size        uint64
+	ConfirmSize uint64 // order submit to data
+	OnChainSize uint64 // order add to settle chain
+	NeedPay     *big.Int
+	Paid        *big.Int // order is added to settle chain
+	Balance     *big.Int
+}
+
+func (pi *OrderPayInfo) Serialize() ([]byte, error) {
+	return cbor.Marshal(pi)
+}
+
+func (pi *OrderPayInfo) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, pi)
+}
 
 // 报价单
 type Quotation struct {
@@ -95,6 +111,8 @@ func (so *SignedOrder) Hash() []byte {
 	d.Write(buf)
 	binary.BigEndian.PutUint64(buf, so.Size)
 	d.Write(buf)
+	binary.BigEndian.PutUint32(buf[:4], so.TokenIndex)
+	d.Write(buf[:4])
 	d.Write(utils.LeftPadBytes(so.Price.Bytes(), 32))
 	return d.Sum(nil)
 }

@@ -104,7 +104,7 @@ const (
 	TB = 1e12
 
 	//SHOWTIME 用于输出给使用者
-	SHOWTIME = "2006-01-02 Mon 15:04:05 MST"
+	SHOWTIME = "2006-01-02 15:04:05 MST"
 )
 
 // FormatBytes convert bytes to human readable string. Like 2 MiB, 64.2 KiB, 52 B

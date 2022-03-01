@@ -26,7 +26,7 @@ func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
 		return err
 	}
 
-	err = cm.iRole.RegisterUser(cm.rtAddr, cm.roleID, gIndex, cm.tIndex, pdpKeySet.VerifyKey().Serialize(), nil)
+	err = cm.iRole.RegisterUser(cm.rtAddr, cm.roleID, gIndex, pdpKeySet.VerifyKey().Serialize(), nil)
 	if err != nil {
 		return err
 	}
@@ -53,13 +53,11 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 			return err
 		}
 
-		logger.Debugf("erc20 balance is %d", bal)
+		logger.Debugf("recharge user approve: %d, has: %d", val, bal)
 
 		if bal.Cmp(val) < 0 {
-			erc20Transfer(cm.eAddr, val)
+			val.Set(bal)
 		}
-
-		logger.Debug("recharge user approve: ", val)
 
 		err = cm.iErc.Approve(cm.fsAddr, val)
 		if err != nil {
@@ -67,7 +65,7 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 		}
 
 		if err = <-cm.status; err != nil {
-			logger.Fatal("approve fail: ", cm.roleID, err)
+			logger.Fatal("recharge approve fail: ", cm.roleID, err)
 			return err
 		}
 		logger.Debug("recharge user charge: ", val)
@@ -95,7 +93,7 @@ func (cm *ContractMgr) Recharge(val *big.Int) error {
 	return nil
 }
 
-func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
+func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 	so.TokenIndex = cm.tIndex
 
 	avil, _, err := cm.iFS.GetBalance(so.UserID, so.TokenIndex)
@@ -112,26 +110,24 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder, ksigns [][]byte) error {
 		return xerrors.Errorf("add order insufficiecnt funds user %d has balance %s, require %s", so.UserID, types.FormatWei(avil), types.FormatWei(pay))
 	}
 
-	err = cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
+	err = cm.iRFS.AddOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data)
 	if err != nil {
 		return xerrors.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
 	}
 
-	go func() {
-		err := <-cm.status
-		if err != nil {
-			logger.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
-		} else {
-			logger.Debugf("add order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
-		}
-	}()
+	err = <-cm.status
+	if err != nil {
+		logger.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
+	} else {
+		logger.Debugf("add order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
+	}
 
-	return nil
+	return err
 }
 
-func (cm *ContractMgr) SubOrder(so *types.SignedOrder, ksigns [][]byte) error {
+func (cm *ContractMgr) SubOrder(so *types.SignedOrder) error {
 	so.TokenIndex = cm.tIndex
-	err := cm.iRFS.SubOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data, ksigns)
+	err := cm.iRFS.SubOrder(cm.rAddr, cm.rtAddr, so.UserID, so.ProID, uint64(so.Start), uint64(so.End), so.Size, so.Nonce, so.TokenIndex, so.Price, so.Usign.Data, so.Psign.Data)
 	if err != nil {
 		return xerrors.Errorf("sub order user %d pro %d nonce %d size %d start %d end %d, price %d fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, err)
 	}
