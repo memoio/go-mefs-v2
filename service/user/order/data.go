@@ -715,10 +715,25 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
 			if err != nil {
 				m.sendCtr.Release(1)
-				o.Lock()
-				o.inflight = false
-				o.Unlock()
 				logger.Debug("send segment fail:", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
+
+				// weather has been sent
+				key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+				has, err := m.ds.Has(key)
+				if err != nil || !has {
+					o.Lock()
+					o.inflight = false
+					o.Unlock()
+				} else {
+					// has sent
+					o.Lock()
+					bjob = o.jobs[bid]
+					bjob.jobs = bjob.jobs[1:]
+					o.inflight = false
+					o.Unlock()
+					m.segDoneChan <- sj
+				}
+
 				continue
 			}
 			m.sendCtr.Release(1)

@@ -6,18 +6,19 @@ go-mefs version2
 
 ### repo
 
-local repo
-
+local repo: contains config.json, token file, and data, dht, keystore, meta, state directory
 
 ### auth
 
-jsonrpc
+jsonrpc: used to interact with core service
 
 ### wallet
 
+use password to protect keystore file
 
 ### network
 
+manage network tranmission
 
 ### role
 
@@ -25,15 +26,17 @@ role manager
 
 ### txPool
 
+manage tx message and sync
 
 ### state
 
+maintain status of data chain
 
 ### node
 
 basic node
 
-## user
+## user service
 
 ### lfs
 
@@ -43,7 +46,6 @@ manage user's data
 
 send data to provider
 
-
 ## provider
 
 ### order
@@ -52,12 +54,13 @@ receive data from user
 
 ### challenge
 
-challenge-proof
+challenge local data per epoch
 
 ## keeper
 
-+ update challebeg epoch
++ update challenge epoch
 + confirm post income
++ submit subOrder when order is expired
 
 ## usage
 

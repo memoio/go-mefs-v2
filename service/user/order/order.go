@@ -552,6 +552,8 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 		return xerrors.Errorf("%d order sign is wrong", o.pro)
 	}
 
+	logger.Debug("create new order: ", o.base.ProID, o.base.Nonce, o.base.Start, o.base.End)
+
 	// nonce is add
 	o.nonce++
 	o.prevEnd = ob.End
@@ -718,6 +720,13 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 func (m *OrderMgr) stopOrder(o *OrderFull) {
 	logger.Debug("handle stop order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	o.Lock()
+
+	// data is sending, waiting
+	if o.inflight {
+		o.Unlock()
+		return
+	}
+
 	o.inStop = true
 
 	// add redo current seq
