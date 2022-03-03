@@ -123,6 +123,8 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, err
 	}
 
+	bucket.objects.Delete(MetaName(objectName))
+
 	return nil, nil
 }
 
