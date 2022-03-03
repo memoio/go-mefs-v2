@@ -332,7 +332,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		// verify accPrice and accSize
 		if os.Price.Cmp(or.base.Price) != 0 || os.Size != or.base.Size {
 			logger.Debug("handle create seq: ", os.UserID, os.Nonce, os.SeqNum, os.Size, or.base.Size)
-			return nil, xerrors.Errorf("fail create seq due to wrong size, got %d expect %d", os.Size, or.base.Size)
+			return nil, xerrors.Errorf("fail create seq %d %d due to wrong size, got %d expect %d", os.Nonce, os.SeqNum, os.Size, or.base.Size)
 		}
 
 		or.seq = os
@@ -497,6 +497,11 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			or.seqTime = time.Now().Unix()
 
 			// save order seq
+
+			err = saveOrderBase(or, m.ds)
+			if err != nil {
+				return nil, err
+			}
 
 			err = saveOrderSeq(or, m.ds)
 			if err != nil {

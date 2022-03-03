@@ -253,6 +253,22 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	op.seqState = ss.State
 	op.seqNum = ss.Number + 1
 
+	if ss.Number > 0 && ob.Size == 0 {
+		os := new(types.SignedOrderSeq)
+		key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, ns.Nonce, ss.Number-1)
+		val, err = m.ds.Get(key)
+		if err != nil {
+			return op
+		}
+		err = os.Deserialize(val)
+		if err != nil {
+			return op
+		}
+
+		op.base.Size = os.Size
+		op.base.Price.Set(os.Price)
+	}
+
 	return op
 }
 
