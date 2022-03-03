@@ -650,6 +650,11 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		SeqNum: o.seqNum,
 	}
 
+	// last seq is not finish
+	if o.base.Size == o.seq.Size {
+		ocp.SeqNum = o.seq.SeqNum
+	}
+
 	data, err := ocp.Serialize()
 	if err != nil {
 		return err
