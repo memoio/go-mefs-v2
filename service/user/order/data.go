@@ -312,6 +312,8 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool) (*segJob, uint, er
 			m.segs[jk] = seg
 			m.segLock.Unlock()
 		}
+
+		logger.Debug("load seg: ", bucketID, opID, cnt, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count())
 	}
 
 	return seg, cnt, nil
@@ -545,13 +547,15 @@ func (m *OrderMgr) dispatch() {
 	for _, seg := range m.segs {
 		cnt := uint(seg.Length) * uint(seg.ChunkID)
 		if seg.dispatchBits.Count() == cnt {
-			//logger.Debug("seg is done for bucket:", seg.BucketID, seg.JobID)
+			logger.Debug("seg is dispatched: ", seg.BucketID, seg.JobID)
 			continue
 		}
 
+		logger.Debug("seg is disptch: ", seg.BucketID, seg.JobID)
+
 		lp, ok := m.proMap[seg.BucketID]
 		if !ok {
-			logger.Debug("fail dispatch for bucket:", seg.BucketID)
+			logger.Debug("fail dispatch for bucket: ", seg.BucketID)
 			continue
 		}
 		m.updateProsForBucket(lp)
