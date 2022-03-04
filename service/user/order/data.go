@@ -254,7 +254,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 }
 
 // disptach, done, total
-func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool) (*segJob, uint, error) {
+func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob, uint, error) {
 	jk := jobKey{
 		bucketID: bucketID,
 		jobID:    opID,
@@ -307,11 +307,13 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool) (*segJob, uint, er
 			}
 		}
 
-		if seg.confirmBits.Count() != cnt {
+		if add && cnt > 0 && seg.confirmBits.Count() != cnt {
 			m.segLock.Lock()
 			m.segs[jk] = seg
 			m.segLock.Unlock()
 		}
+
+		logger.Debug("load seg: ", bucketID, opID, cnt, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count())
 	}
 
 	return seg, cnt, nil
@@ -337,7 +339,7 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int, int) {
 
 	cnt := uint(sj.Length) * uint(sj.ChunkID)
 
-	seg, _, err := m.getSegJob(bucketID, opID, false)
+	seg, _, err := m.getSegJob(bucketID, opID, false, false)
 	if err != nil {
 		return totalcnt, discnt, donecnt, confirmCnt
 	}
@@ -374,7 +376,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 	logger.Debug("load unfinished job from: ", bucketID, opDoneCount, opID)
 
 	for i := opDoneCount + 1; i < opID; i++ {
-		seg, cnt, err := m.getSegJob(bucketID, i, true)
+		seg, cnt, err := m.getSegJob(bucketID, i, true, true)
 		if err != nil {
 			continue
 		}
@@ -389,7 +391,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 	logger.Debug("add seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false, true)
 	if err != nil {
 		logger.Warn("fail to add seg:", seg.Start, seg.Length, sj.Start, err)
 		return
@@ -414,7 +416,7 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	logger.Debug("finish seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
 		logger.Warn("fail to finish seg:", seg.Start, seg.Length, sj.Start, err)
 		return
@@ -440,7 +442,7 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 	logger.Debug("confirm seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
 		logger.Warn("fail to confirm seg:", seg.Start, seg.Length, sj.Start, err)
 		return
@@ -536,13 +538,15 @@ func (m *OrderMgr) dispatch() {
 	for _, seg := range m.segs {
 		cnt := uint(seg.Length) * uint(seg.ChunkID)
 		if seg.dispatchBits.Count() == cnt {
-			//logger.Debug("seg is done for bucket:", seg.BucketID, seg.JobID)
+			logger.Debug("seg is dispatched: ", seg.BucketID, seg.JobID, cnt)
 			continue
 		}
 
+		logger.Debug("seg is disptch: ", seg.BucketID, seg.JobID)
+
 		lp, ok := m.proMap[seg.BucketID]
 		if !ok {
-			logger.Debug("fail dispatch for bucket:", seg.BucketID)
+			logger.Debug("fail dispatch for bucket: ", seg.BucketID)
 			continue
 		}
 		m.updateProsForBucket(lp)
@@ -715,10 +719,25 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
 			if err != nil {
 				m.sendCtr.Release(1)
-				o.Lock()
-				o.inflight = false
-				o.Unlock()
 				logger.Debug("send segment fail:", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
+
+				// weather has been sent
+				key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+				has, err := m.ds.Has(key)
+				if err != nil || !has {
+					o.Lock()
+					o.inflight = false
+					o.Unlock()
+				} else {
+					// has sent
+					o.Lock()
+					bjob = o.jobs[bid]
+					bjob.jobs = bjob.jobs[1:]
+					o.inflight = false
+					o.Unlock()
+					m.segDoneChan <- sj
+				}
+
 				continue
 			}
 			m.sendCtr.Release(1)

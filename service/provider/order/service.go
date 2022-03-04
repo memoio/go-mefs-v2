@@ -196,7 +196,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 
 	or.availTime = time.Now().Unix()
 
-	logger.Debug("handle create order: ", ob.UserID, or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle create order: ", ob.UserID, ob.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
 	if or.nonce == ob.Nonce {
 		// handle previous
 		if or.base != nil && or.orderState == Order_Ack {
@@ -220,7 +220,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			or.base = ob
 			or.orderState = Order_Ack
 			or.orderTime = time.Now().Unix()
-			or.nonce++
+			or.nonce = ob.Nonce + 1
 
 			or.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 
@@ -255,7 +255,6 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 
 	// been acked
 	if or.base != nil && or.base.Nonce == ob.Nonce && or.orderState == Order_Ack {
-
 		if bytes.Equal(ob.Hash(), or.base.Hash()) {
 			data, err := or.base.Serialize()
 			if err != nil {
@@ -269,7 +268,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 				or.base = ob
 				or.orderState = Order_Ack
 				or.orderTime = time.Now().Unix()
-				or.nonce++
+				or.nonce = ob.Nonce + 1
 
 				or.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 
@@ -323,9 +322,9 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 
 	or.availTime = time.Now().Unix()
 
-	logger.Debug("handle create seq: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle create seq: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
 
-	if or.base == nil || or.orderState != Order_Ack {
+	if or.base == nil || or.orderState != Order_Ack || or.base.Nonce != os.Nonce {
 		return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 	}
 
@@ -333,7 +332,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		// verify accPrice and accSize
 		if os.Price.Cmp(or.base.Price) != 0 || os.Size != or.base.Size {
 			logger.Debug("handle create seq: ", os.UserID, os.Nonce, os.SeqNum, os.Size, or.base.Size)
-			return nil, xerrors.Errorf("fail create seq due to wrong size, got %d expect %d", os.Size, or.base.Size)
+			return nil, xerrors.Errorf("fail create seq %d %d due to wrong size, got %d expect %d", os.Nonce, os.SeqNum, os.Size, or.base.Size)
 		}
 
 		or.seq = os
@@ -386,7 +385,11 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 	or.availTime = time.Now().Unix()
 
-	logger.Debug("handle finish seq: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle finish seq: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
+
+	if or.base == nil || or.orderState != Order_Ack || or.base.Nonce != os.Nonce {
+		return nil, xerrors.Errorf("fail finish seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
+	}
 
 	if or.seq != nil && or.seq.SeqNum == os.SeqNum {
 		if or.seqState == OrderSeq_Ack {
@@ -494,6 +497,11 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			or.seqTime = time.Now().Unix()
 
 			// save order seq
+
+			err = saveOrderBase(or, m.ds)
+			if err != nil {
+				return nil, err
+			}
 
 			err = saveOrderSeq(or, m.ds)
 			if err != nil {

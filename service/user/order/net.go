@@ -35,6 +35,7 @@ func (m *OrderMgr) connect(proID uint64) error {
 func (m *OrderMgr) update(proID uint64) {
 	err := m.connect(proID)
 	if err != nil {
+		logger.Debug("fail connect: ", proID)
 		return
 	}
 

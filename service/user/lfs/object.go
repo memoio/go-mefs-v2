@@ -123,6 +123,8 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, err
 	}
 
+	bucket.objects.Delete(MetaName(objectName))
+
 	return nil, nil
 }
 
@@ -146,15 +148,18 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	defer bucket.RUnlock()
 
 	var objects []*types.ObjectInfo
-	objectIter := bucket.objects.Iterator()
-	for objectIter != nil {
-		object := objectIter.Value.(*object)
-		if !object.deletion {
-			if strings.HasPrefix(object.GetName(), opts.Prefix) {
-				objects = append(objects, &object.ObjectInfo)
+
+	if !bucket.objects.Empty() {
+		objectIter := bucket.objects.Iterator()
+		for objectIter != nil {
+			object, ok := objectIter.Value.(*object)
+			if ok && !object.deletion {
+				if strings.HasPrefix(object.GetName(), opts.Prefix) {
+					objects = append(objects, &object.ObjectInfo)
+				}
 			}
+			objectIter = objectIter.Next()
 		}
-		objectIter = objectIter.Next()
 	}
 
 	return objects, nil
