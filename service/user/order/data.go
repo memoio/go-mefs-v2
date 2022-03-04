@@ -307,7 +307,7 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool) (*segJob, uint, er
 			}
 		}
 
-		if seg.confirmBits.Count() != cnt {
+		if cnt > 0 && seg.confirmBits.Count() != cnt {
 			m.segLock.Lock()
 			m.segs[jk] = seg
 			m.segLock.Unlock()
@@ -389,13 +389,22 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 	logger.Debug("add seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	seg, cnt, err := m.getSegJob(sj.BucketID, sj.JobID, false)
 	if err != nil {
 		logger.Warn("fail to add seg:", seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
 	if seg.Start+seg.Length == sj.Start {
+		if cnt == 0 {
+			jk := jobKey{
+				bucketID: sj.BucketID,
+				jobID:    sj.JobID,
+			}
+			m.segLock.Lock()
+			m.segs[jk] = seg
+			m.segLock.Unlock()
+		}
 		seg.Length += sj.Length
 	} else {
 		logger.Warn("fail to add seg:", seg.Start, seg.Length, sj.Start)
