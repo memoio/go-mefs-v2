@@ -404,7 +404,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.slot = blk.Slot
 	s.blkID = blkID
 
-	// after apply all msg, update verison
+	// after apply all msg, update version
 	nextVer := s.version + 1
 	ue, ok := build.UpdateMap[nextVer]
 	if ok {
