@@ -254,7 +254,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 }
 
 // disptach, done, total
-func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool) (*segJob, uint, error) {
+func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob, uint, error) {
 	jk := jobKey{
 		bucketID: bucketID,
 		jobID:    opID,
@@ -307,7 +307,7 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool) (*segJob, uint, er
 			}
 		}
 
-		if cnt > 0 && seg.confirmBits.Count() != cnt {
+		if add && cnt > 0 && seg.confirmBits.Count() != cnt {
 			m.segLock.Lock()
 			m.segs[jk] = seg
 			m.segLock.Unlock()
@@ -339,7 +339,7 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int, int) {
 
 	cnt := uint(sj.Length) * uint(sj.ChunkID)
 
-	seg, _, err := m.getSegJob(bucketID, opID, false)
+	seg, _, err := m.getSegJob(bucketID, opID, false, false)
 	if err != nil {
 		return totalcnt, discnt, donecnt, confirmCnt
 	}
@@ -376,7 +376,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 	logger.Debug("load unfinished job from: ", bucketID, opDoneCount, opID)
 
 	for i := opDoneCount + 1; i < opID; i++ {
-		seg, cnt, err := m.getSegJob(bucketID, i, true)
+		seg, cnt, err := m.getSegJob(bucketID, i, true, true)
 		if err != nil {
 			continue
 		}
@@ -391,22 +391,13 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 	logger.Debug("add seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, cnt, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false, true)
 	if err != nil {
 		logger.Warn("fail to add seg:", seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
 	if seg.Start+seg.Length == sj.Start {
-		if cnt == 0 {
-			jk := jobKey{
-				bucketID: sj.BucketID,
-				jobID:    sj.JobID,
-			}
-			m.segLock.Lock()
-			m.segs[jk] = seg
-			m.segLock.Unlock()
-		}
 		seg.Length += sj.Length
 	} else {
 		logger.Warn("fail to add seg:", seg.Start, seg.Length, sj.Start)
@@ -425,7 +416,7 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	logger.Debug("finish seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
 		logger.Warn("fail to finish seg:", seg.Start, seg.Length, sj.Start, err)
 		return
@@ -451,7 +442,7 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 	logger.Debug("confirm seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false)
+	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
 		logger.Warn("fail to confirm seg:", seg.Start, seg.Length, sj.Start, err)
 		return
@@ -547,7 +538,7 @@ func (m *OrderMgr) dispatch() {
 	for _, seg := range m.segs {
 		cnt := uint(seg.Length) * uint(seg.ChunkID)
 		if seg.dispatchBits.Count() == cnt {
-			logger.Debug("seg is dispatched: ", seg.BucketID, seg.JobID)
+			logger.Debug("seg is dispatched: ", seg.BucketID, seg.JobID, cnt)
 			continue
 		}
 
