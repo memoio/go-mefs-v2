@@ -287,6 +287,8 @@ func (s *SegMgr) challenge(userID uint64) {
 
 				if i == ns.SeqNum-1 {
 					totalSize += sf.Size
+					price.Set(sf.Price)
+					price.Mul(price, big.NewInt(orderDur))
 					totalPrice.Add(totalPrice, sf.Price)
 				}
 

@@ -4,31 +4,40 @@ go-mefs deploy
 
 ## system prepare
 
+准备事项：
 1. deploy erc, pledge, role and fs contarct on settle chain  
 2. create new group with security level(1 or at least 4)
 
-### role init 
+## 角色初始化 
 
-1. init
-2. charge (eth and erc20)
-3. register
+账户创建
 
-## keeper
+1. init，初始化
+2. charge (eth and erc20)，给此账户充值，由管理方操作
+3. register， 注册账户
 
-1. pledge
-2. register as a keeper
-3. add to group (by admin)
-4. start
+### keeper
 
-## provider
+1. pledge 质押
+2. register as a keeper， 注册成为keeper角色
+3. add to group (by admin)，加入某个组，由管理方操作
+4. start，启动
+
+### provider
 
 1. pledge 
 2. register as a provider
 3. add to group
 4. start
 
-## user
+### user
  
 1. add to group
 2. start
 
+
+## 查看信息
+
+```
+mefs-user info
+```

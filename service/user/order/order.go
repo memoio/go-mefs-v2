@@ -358,6 +358,8 @@ func (m *OrderMgr) check(o *OrderFull) {
 		if o.inStop {
 			o.seqState = OrderSeq_Init
 			m.doneOrder(o)
+			o.RUnlock()
+			return
 		}
 		o.RUnlock()
 		switch o.seqState {
@@ -648,6 +650,11 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		ProID:  o.base.ProID,
 		Nonce:  o.base.Nonce,
 		SeqNum: o.seqNum,
+	}
+
+	// last seq is not finish
+	if o.seq.Segments.Len() == 0 {
+		ocp.SeqNum = o.seq.SeqNum
 	}
 
 	data, err := ocp.Serialize()

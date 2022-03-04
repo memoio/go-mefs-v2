@@ -159,8 +159,9 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 				if i == ns.SeqNum-1 {
 					totalSize += sf.Size
-					totalSize -= delSize
-					totalPrice.Add(totalPrice, sf.Price)
+					price.Set(sf.Price)
+					price.Mul(price, big.NewInt(orderDur))
+					totalPrice.Add(totalPrice, price)
 				}
 			}
 		}
@@ -194,11 +195,13 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
 			totalSize += of.Size
-			totalSize -= of.DelPart.Size
+			delSize += of.DelPart.Size
 
 			chal.Add(bls.SubFr(of.AccFr, of.DelPart.AccFr))
 		}
 	}
+
+	totalSize -= delSize
 
 	if totalSize != scp.Size {
 		return xerrors.Errorf("wrong challenge proof: %d %d %d %d %d, size expected: %d, got %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, scp.Size)
@@ -465,7 +468,9 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 
 				if i == ns.SeqNum-1 {
 					totalSize += sf.Size
-					totalPrice.Add(totalPrice, sf.Price)
+					price.Set(sf.Price)
+					price.Mul(price, big.NewInt(orderDur))
+					totalPrice.Add(totalPrice, price)
 				}
 			}
 		}
