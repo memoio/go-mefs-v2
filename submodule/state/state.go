@@ -165,7 +165,7 @@ func (s *StateMgr) load() {
 	}
 
 	for i, ue := range build.UpdateMap {
-		if s.slot > ue && s.version < i {
+		if s.height > ue && s.version < i {
 			s.version = i
 		}
 	}
@@ -408,7 +408,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	nextVer := s.version + 1
 	ue, ok := build.UpdateMap[nextVer]
 	if ok {
-		if s.slot >= ue {
+		if s.height >= ue {
 			s.version = nextVer
 		}
 	}
