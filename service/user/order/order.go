@@ -653,7 +653,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	}
 
 	// last seq is not finish
-	if o.seq.Segments.Len() == 0 {
+	if o.sjq.Len() == 0 {
 		ocp.SeqNum = o.seq.SeqNum
 	}
 
