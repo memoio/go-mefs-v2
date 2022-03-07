@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"path/filepath"
 	"strconv"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
+	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
@@ -38,7 +40,16 @@ var registerCmd = &cli.Command{
 
 		repoDir := cctx.String(FlagNodeRepo)
 
-		configFile := filepath.Join(repoDir, "config.json")
+		fmt.Println("repoDir: ", repoDir)
+		//
+		absHomeDir, err := homedir.Expand(repoDir)
+		if err != nil {
+			return err
+		}
+		fmt.Println("absHomeDir:", absHomeDir)
+
+		configFile := filepath.Join(absHomeDir, "config.json")
+		fmt.Println("configFile:", configFile)
 		cfg, err := config.ReadFile(configFile)
 		if err != nil {
 			return xerrors.Errorf("failed to read config file at %q %w", configFile, err)
@@ -49,7 +60,9 @@ var registerCmd = &cli.Command{
 			return xerrors.Errorf("failed to parse addr %s %w", cfg.Wallet.DefaultAddress, err)
 		}
 
-		ksp := filepath.Join(repoDir, "keystore")
+		fmt.Println("wallet addr: ", ar)
+
+		ksp := filepath.Join(absHomeDir, "keystore")
 
 		ks, err := keystore.NewKeyRepo(ksp)
 		if err != nil {
