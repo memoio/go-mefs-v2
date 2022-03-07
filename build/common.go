@@ -19,12 +19,12 @@ const (
 
 // version 1
 const (
-	UpdateEpoch1  = 248780
+	UpdateHeight1 = 2880
 	ChalDuration1 = 360 // slot
 )
 
 const (
-	UpdateEpoch2  = 259600
+	UpdateHeight2 = 2880 * 5
 	ChalDuration2 = 960 // slot
 )
 

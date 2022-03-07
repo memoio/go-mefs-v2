@@ -179,7 +179,7 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 		return nrh, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, sgi.Slot)
 	}
 
-	logger.Debugf("create block header verison %d at height %d, slot: %d", sgi.Version, si.SyncedHeight, slot)
+	logger.Debugf("create block header version %d at height %d, slot: %d", sgi.Version, si.SyncedHeight, slot)
 
 	nrh.Version = sgi.Version
 	nrh.Height = sgi.Height
