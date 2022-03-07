@@ -80,7 +80,6 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	}
 
 	eAddr := crypto.PubkeyToAddress(*publicKeyECDSA)
-	fmt.Println("caller addr: ", eAddr)
 
 	// transfer eth
 	// todo: remove at mainnet

@@ -158,7 +158,6 @@ var createBucketCmd = &cli.Command{
 		fmt.Printf("\nSecurity level: %s\n\n", secLevel)
 
 		fmt.Println(FormatBucketInfo(bi))
-		fmt.Println()
 
 		return nil
 	},

@@ -60,8 +60,6 @@ var registerCmd = &cli.Command{
 			return xerrors.Errorf("failed to parse addr %s %w", cfg.Wallet.DefaultAddress, err)
 		}
 
-		fmt.Println("wallet addr: ", ar)
-
 		ksp := filepath.Join(absHomeDir, "keystore")
 
 		ks, err := keystore.NewKeyRepo(ksp)
