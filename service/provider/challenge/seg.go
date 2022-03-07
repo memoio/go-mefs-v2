@@ -289,7 +289,7 @@ func (s *SegMgr) challenge(userID uint64) {
 					totalSize += sf.Size
 					price.Set(sf.Price)
 					price.Mul(price, big.NewInt(orderDur))
-					totalPrice.Add(totalPrice, sf.Price)
+					totalPrice.Add(totalPrice, price)
 				}
 
 				var fault types.AggSegsQueue
