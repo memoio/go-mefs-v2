@@ -17,6 +17,7 @@ const (
 	FlagRoleType = "roleType"
 )
 
+// new repo and create wallet for you
 var InitCmd = &cli.Command{
 	Name:  "init",
 	Usage: "Initialize a memoriae repo",
@@ -60,6 +61,7 @@ var InitCmd = &cli.Command{
 
 		logger.Info("Initializing repo at: ", repoDir)
 
+		// new repo
 		rep, err := repo.NewFSRepo(repoDir, config.NewDefaultConfig())
 		if err != nil {
 			return err
@@ -72,6 +74,7 @@ var InitCmd = &cli.Command{
 		rType := cctx.String(FlagRoleType)
 		rep.Config().Identity.Role = rType
 
+		// create wallet
 		if err := minit.Create(cctx.Context, rep, pw); err != nil {
 			logger.Errorf("Error initializing node %s", err)
 			return err

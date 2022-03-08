@@ -225,3 +225,45 @@ var getObjectCmd = &cli.Command{
 		return nil
 	},
 }
+
+var delObjectCmd = &cli.Command{
+	Name:  "delObject",
+	Usage: "delete object",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
+		},
+		&cli.StringFlag{
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		napi, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		bucketName := cctx.String("bucket")
+		objectName := cctx.String("object")
+
+		_, err = napi.DeleteObject(cctx.Context, bucketName, objectName)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("object ", objectName, " deleted")
+
+		return nil
+	},
+}
