@@ -215,7 +215,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 		// find peer first
 		npi, err := ns.NetFindPeer(ctx, pai.ID)
 		if err != nil {
-			return nil
+			return err
 		}
 		pai = npi
 	}

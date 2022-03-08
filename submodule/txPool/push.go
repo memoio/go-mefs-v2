@@ -238,6 +238,8 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 		return mid, xerrors.Errorf("add tx message to push pool publish fails %s", err)
 	}
 
+	logger.Debug("add tx message signed to publish pool: ", pp.ready, sm.From, sm.Nonce, sm.Method)
+
 	return mid, nil
 }
 

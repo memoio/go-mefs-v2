@@ -169,6 +169,7 @@ func NewContractMgr(ctx context.Context, sk []byte) (*ContractMgr, error) {
 	return cm, nil
 }
 
+// register account and register role
 func Register(ctx context.Context, sk []byte, typ pb.RoleInfo_Type, gIndex uint64) (uint64, uint64, error) {
 	cm, err := NewContractMgr(ctx, sk)
 	if err != nil {
@@ -195,9 +196,9 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 
 	logger.Debug("get roleinfo: ", rid)
 
+	// register account
 	if rid == 0 {
-		// registerRole
-		err := cm.RegisterRole()
+		err := cm.RegisterAcc()
 		if err != nil {
 			return err
 		}
@@ -208,7 +209,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return err
 	}
 
-	logger.Debug("get roleinfo: ", rid, gid, rType)
+	logger.Debug("get roleinfo after register account: ", rid, gid, rType)
 
 	if rid == 0 {
 		return xerrors.Errorf("register fails")
@@ -216,6 +217,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 
 	cm.roleID = rid
 
+	// register role
 	if rType == 0 {
 		switch typ {
 		case pb.RoleInfo_Keeper:
@@ -249,7 +251,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return err
 	}
 
-	logger.Debug("get roleinfo: ", rid, gid, rType)
+	logger.Debug("get roleinfo after register role: ", rid, gid, rType)
 
 	switch typ {
 	case pb.RoleInfo_Keeper:
@@ -383,8 +385,9 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 	return pri, nil
 }
 
-func (cm *ContractMgr) RegisterRole() error {
-	logger.Debug("contract mgr register role")
+func (cm *ContractMgr) RegisterAcc() error {
+	logger.Debug("contract mgr register an account to get an accIndex for it.")
+	// call role.Register
 	err := cm.iRole.Register(cm.eAddr, nil)
 	if err != nil {
 		return err

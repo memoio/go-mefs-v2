@@ -41,7 +41,7 @@ func (cm *ContractMgr) AddProviderToGroup(gIndex uint64) error {
 	}
 
 	if err = <-cm.status; err != nil {
-		logger.Fatal("add keeper to group fail: ", cm.roleID, gIndex, err)
+		logger.Fatal("add provider to group fail: ", cm.roleID, gIndex, err)
 		return err
 	}
 

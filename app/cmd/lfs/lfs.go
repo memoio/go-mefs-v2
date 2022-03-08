@@ -94,6 +94,7 @@ var LfsCmd = &cli.Command{
 		headObjectCmd,
 		getObjectCmd,
 		listObjectsCmd,
+		delObjectCmd,
 	},
 }
 
@@ -153,8 +154,11 @@ var createBucketCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("create bucket: ", bi.BucketID, bi.Name)
+		secLevel := SecLevel(opts.DataCount, opts.ParityCount)
+		fmt.Printf("\nSecurity level: %s\n\n", secLevel)
+
 		fmt.Println(FormatBucketInfo(bi))
+
 		return nil
 	},
 }
@@ -233,4 +237,24 @@ var headBucketCmd = &cli.Command{
 
 		return nil
 	},
+}
+
+// get security level from dataCount and parityCount
+func SecLevel(dataCount uint32, parityCount uint32) string {
+	secLevel := ""
+
+	// low security
+	if dataCount > parityCount {
+		secLevel = "LOW"
+	}
+	// medium security
+	if dataCount == parityCount {
+		secLevel = "MEDIUM"
+	}
+	// high security
+	if dataCount < parityCount {
+		secLevel = "HIGH"
+	}
+
+	return secLevel
 }

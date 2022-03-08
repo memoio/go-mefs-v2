@@ -84,6 +84,7 @@ var DaemonCmd = &cli.Command{
 	},
 }
 
+// create a node with repo data and start it
 func daemonFunc(cctx *cli.Context) (_err error) {
 	logger.Info("Initializing daemon...")
 
@@ -99,6 +100,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	defer stopFunc()
 
 	repoDir := cctx.String(FlagNodeRepo)
+	// generate a repo from repoDir
 	rep, err := repo.NewFSRepo(repoDir, nil)
 	if err != nil {
 		return err
@@ -147,6 +149,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	}
 
 	var node minit.Node
+	// create the node with opts above
 	switch cctx.String(FlagRoleType) {
 	case pb.RoleInfo_Keeper.String():
 		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
