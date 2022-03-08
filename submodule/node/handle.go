@@ -211,7 +211,7 @@ func (n *BaseNode) UpdateNetAddr() error {
 		break
 	}
 
-	logger.Debug("role is registered")
+	logger.Debug("net addr is updated to: ", pi.String())
 
 	return nil
 }
