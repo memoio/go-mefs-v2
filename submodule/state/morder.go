@@ -924,7 +924,7 @@ func (s *StateMgr) commitOrder(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	if oinfo.base.Size == 0 {
-		return xerrors.Errorf("commit order size is zero")
+		return xerrors.Errorf("commit order size is zero at %d %d", ocp.Nonce, ocp.SeqNum)
 	}
 
 	oinfo.ns.Nonce++
@@ -987,7 +987,7 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 	}
 
 	if oinfo.base.Size == 0 {
-		return xerrors.Errorf("commit order size is zero")
+		return xerrors.Errorf("commit order size is zero at %d %d", ocp.Nonce, ocp.SeqNum)
 	}
 
 	oinfo.ns.Nonce++
