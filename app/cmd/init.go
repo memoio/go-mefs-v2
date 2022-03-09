@@ -74,12 +74,13 @@ var InitCmd = &cli.Command{
 		rType := cctx.String(FlagRoleType)
 		rep.Config().Identity.Role = rType
 
-		// create wallet
+		// create wallet into repo path
 		if err := minit.Create(cctx.Context, rep, pw); err != nil {
 			logger.Errorf("Error initializing node %s", err)
 			return err
 		}
 
+		// save config
 		if err := rep.ReplaceConfig(rep.Config()); err != nil {
 			logger.Errorf("Error replacing config %s", err)
 			return err

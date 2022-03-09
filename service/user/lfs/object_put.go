@@ -28,6 +28,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		return nil, ErrLfsReadOnly
 	}
 
+	// verify balance
 	if l.needPay.Cmp(l.bal) > 0 {
 		return nil, xerrors.Errorf("not have enough balance, please rcharge at least %d", l.needPay.Sub(l.needPay, l.bal))
 	}
@@ -42,6 +43,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	bucket.Lock()
 	defer bucket.Unlock()
 
+	// create object with params and opts
 	object, err := l.createObject(ctx, bucket, objectName, opts)
 	if err != nil {
 		return nil, err
@@ -51,6 +53,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	defer object.Unlock()
 
 	nt := time.Now()
+	// upload object into bucket
 	err = l.upload(ctx, bucket, object, reader)
 	if err != nil {
 		return &object.ObjectInfo, err
