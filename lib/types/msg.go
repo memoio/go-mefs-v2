@@ -57,7 +57,7 @@ func (m MsgID) Equal(old MsgID) bool {
 }
 
 // json encode and decode
-func (m *MsgID) MarshalJSON() ([]byte, error) {
+func (m MsgID) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + m.String() + `"`), nil
 }
 

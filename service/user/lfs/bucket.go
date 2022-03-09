@@ -87,7 +87,7 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 		return nil, ErrBucketNameInvalid
 	}
 
-	if len(l.sb.buckets) >= int(MaxBucket) {
+	if len(l.sb.buckets) >= int(maxBucket) {
 		return nil, ErrBucketTooMany
 	}
 

@@ -429,8 +429,29 @@ func (s *SegMgr) challenge(userID uint64) {
 							continue
 						}
 
-						segData, _ := segm.Content()
-						segTag, _ := segm.Tags()
+						segData, err := segm.Content()
+						if err != nil {
+							logger.Debug("challenge have fault chunk for stripe: ", userID, sid)
+							fault.Push(&types.AggSegs{
+								BucketID: seg.BucketID,
+								Start:    j,
+								Length:   1,
+								ChunkID:  seg.ChunkID,
+							})
+							continue
+						}
+						segTag, err := segm.Tags()
+						if err != nil || len(segTag) == 0 {
+							logger.Debug("challenge have fault chunk for stripe: ", userID, sid)
+							fault.Push(&types.AggSegs{
+								BucketID: seg.BucketID,
+								Start:    j,
+								Length:   1,
+								ChunkID:  seg.ChunkID,
+							})
+							continue
+						}
+
 						err = pf.Add(sid.Bytes(), segData, segTag[0])
 						if err != nil {
 							logger.Debug("challenge add to proof: ", userID, sid.ShortString(), err)
