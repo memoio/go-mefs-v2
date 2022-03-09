@@ -1048,11 +1048,12 @@ func (s *StateMgr) subOrder(msg *tx.Message, tds store.TxnStore) error {
 	oinfo.ns.SubNonce++
 
 	// save state
-	key = store.NewKey(pb.MetaType_ST_OrderStateKey, osp.UserID, osp.ProID)
 	data, err = oinfo.ns.Serialize()
 	if err != nil {
 		return err
 	}
+
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, osp.UserID, osp.ProID)
 	err = tds.Put(key, data)
 	if err != nil {
 		return err
@@ -1094,7 +1095,7 @@ func (s *StateMgr) canSubOrder(msg *tx.Message) error {
 	}
 
 	if osp.Nonce > oinfo.ns.Nonce {
-		return xerrors.Errorf("commit order nonce wrong, got %d, expected less than %d", osp.Nonce, oinfo.ns.Nonce)
+		return xerrors.Errorf("sub order nonce wrong, got %d, expected less than %d", osp.Nonce, oinfo.ns.Nonce)
 	}
 
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, osp.UserID, osp.ProID, osp.Nonce)
