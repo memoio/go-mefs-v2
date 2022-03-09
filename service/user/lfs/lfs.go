@@ -300,7 +300,7 @@ func (l *LfsService) ShowStorage(ctx context.Context) (uint64, error) {
 
 // ShowBucketStorage show lfs used spaceBucket
 func (l *LfsService) ShowBucketStorage(ctx context.Context, bucketName string) (uint64, error) {
-	bucket, err := l.getBucketInfo(bucketName)
+	bucket, err := l.getBucket(bucketName)
 	if err != nil {
 		return 0, err
 	}

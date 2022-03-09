@@ -24,7 +24,8 @@ type LfsInfo struct {
 type BucketInfo struct {
 	pb.BucketOption
 	pb.BucketInfo
-	Confirmed bool `json:"Confirmed"`
+	Reliability string ""
+	Confirmed   bool   `json:"Confirmed"`
 }
 
 func (bi BucketInfo) String() string {

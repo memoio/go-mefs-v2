@@ -19,7 +19,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		return nil, ErrLfsServiceNotReady
 	}
 
-	bucket, err := l.getBucketInfo(bucketName)
+	bucket, err := l.getBucket(bucketName)
 	if err != nil {
 		return nil, err
 	}

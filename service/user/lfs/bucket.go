@@ -49,16 +49,19 @@ func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.
 	return &bucket.BucketInfo, nil
 }
 
-func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
+// get bucket with bucket name
+func (l *LfsService) getBucket(bucketName string) (*bucket, error) {
 	if !l.Ready() {
 		return nil, ErrLfsServiceNotReady
 	}
 
+	// get bucket ID
 	bucketID, ok := l.sb.bucketNameToID[bucketName]
 	if !ok {
 		return nil, ErrBucketNotExist
 	}
 
+	// check bucket ID
 	if bucketID >= l.sb.bucketVerify {
 		return nil, ErrBucketIsConfirm
 	}
@@ -67,6 +70,7 @@ func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
 		return nil, ErrBucketNotExist
 	}
 
+	// get bucket with ID
 	bucket := l.sb.buckets[bucketID]
 	if bucket.BucketInfo.Deletion {
 		return nil, ErrBucketNotExist
@@ -131,7 +135,7 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) (*type
 	l.sb.RLock()
 	defer l.sb.RUnlock()
 
-	bucket, err := l.getBucketInfo(bucketName)
+	bucket, err := l.getBucket(bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +170,8 @@ func (l *LfsService) HeadBucket(ctx context.Context, bucketName string) (*types.
 		return nil, err
 	}
 
-	bucket, err := l.getBucketInfo(bucketName)
+	// get bucket from bucket name
+	bucket, err := l.getBucket(bucketName)
 	if err != nil {
 		return nil, err
 	}

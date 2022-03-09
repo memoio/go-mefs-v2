@@ -41,7 +41,7 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 		return nil, ErrLfsServiceNotReady
 	}
 
-	bu, err := l.getBucketInfo(bucketName)
+	bu, err := l.getBucket(bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, ErrLfsReadOnly
 	}
 
-	bucket, err := l.getBucketInfo(bucketName)
+	bucket, err := l.getBucket(bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 		return nil, ErrLfsServiceNotReady
 	}
 
-	bucket, err := l.getBucketInfo(bucketName)
+	bucket, err := l.getBucket(bucketName)
 	if err != nil {
 		return nil, err
 	}

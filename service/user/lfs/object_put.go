@@ -35,7 +35,8 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 
 	logger.Debugf("Upload object: %s to bucket: %s begin", objectName, bucketName)
 
-	bucket, err := l.getBucketInfo(bucketName)
+	// get bucket with bucket name
+	bucket, err := l.getBucket(bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +44,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	bucket.Lock()
 	defer bucket.Unlock()
 
-	// create object with params and opts
+	// create new object and insert into rbtree
 	object, err := l.createObject(ctx, bucket, objectName, opts)
 	if err != nil {
 		return nil, err
@@ -53,6 +54,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	defer object.Unlock()
 
 	nt := time.Now()
+
 	// upload object into bucket
 	err = l.upload(ctx, bucket, object, reader)
 	if err != nil {
@@ -75,7 +77,9 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	return &object.ObjectInfo, nil
 }
 
+// create object with bucket, object name, opts
 func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectName string, opts *types.PutObjectOptions) (*object, error) {
+	// check if object exists in rbtree
 	objectElement := bucket.objects.Find(MetaName(objectName))
 	if objectElement != nil {
 		return nil, ErrObjectAlreadyExist
@@ -85,6 +89,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 	// 2. save bucket
 	// 3. save object
 
+	// new object info
 	poi := pb.ObjectInfo{
 		ObjectID:   bucket.NextObjectID,
 		BucketID:   bucket.BucketID,
@@ -93,6 +98,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		Encryption: "aes", // todo, from options
 	}
 
+	// serialize
 	payload, err := proto.Marshal(&poi)
 	if err != nil {
 		return nil, err
@@ -103,13 +109,14 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		Payload: payload,
 	}
 
+	// update objectID in bucket
 	bucket.NextObjectID++
 	err = bucket.addOpRecord(l.userID, op, l.ds)
 	if err != nil {
 		return nil, err
 	}
 
-	// object 实例
+	// new object instance
 	object := &object{
 		ObjectInfo: types.ObjectInfo{
 			ObjectInfo: poi,
@@ -119,13 +126,16 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		deletion: false,
 	}
 
+	// save op
 	object.ops = append(object.ops, op.OpID)
 	object.dirty = true
+	// clean object
 	err = object.Save(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}
 
+	// insert new object into rbtree of bucket
 	bucket.objects.Insert(MetaName(objectName), object)
 
 	logger.Debugf("Upload create object: %s in bucket: %s", object.GetName(), bucket.GetName(), op.OpID)
