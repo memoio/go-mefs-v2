@@ -37,6 +37,7 @@ const (
 
 	SegmentProof MsgType = 31 // segment proof; by provider
 	SegmentFault MsgType = 32 // segment remove; by provider
+	SubDataOrder MsgType = 33 // order is expired; by provider
 )
 
 // MsgID(message) as key

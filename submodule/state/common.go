@@ -64,22 +64,14 @@ type orderKey struct {
 	proID  uint64
 }
 
-type perOrder struct {
-	Start int64
-	End   int64
-	Size  uint64
-	Price *big.Int
-	AccFr []byte
-}
-
 type orderInfo struct {
-	prove  uint64 // next prove epoch
-	income *types.PostIncome
-	ns     *types.NonceSeq
-	accFr  bls.Fr
-	base   *types.SignedOrder
-	od     *types.OrderDuration
-	//orders map[uint64]*perOrder // cache it in memory
+	prove    uint64 // next prove epoch
+	income   *types.PostIncome
+	ns       *types.NonceSeq
+	accFr    bls.Fr // for base
+	base     *types.SignedOrder
+	preStart int64
+	preEnd   int64
 }
 
 type segPerUser struct {

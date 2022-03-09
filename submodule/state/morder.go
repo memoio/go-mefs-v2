@@ -48,7 +48,6 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 			Penalty:    big.NewInt(0),
 		},
 		accFr: bls.ZERO,
-		od:    new(types.OrderDuration),
 	}
 
 	// load pay
@@ -86,11 +85,21 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	oinfo.base = &of.SignedOrder
 	bls.FrFromBytes(&oinfo.accFr, of.AccFr)
 
-	// load order durations
-	key = store.NewKey(pb.MetaType_ST_OrderDurationKey, userID, proID)
-	data, err = s.ds.Get(key)
-	if err == nil {
-		oinfo.od.Deserialize(data)
+	// load pre order start and end
+	if oinfo.ns.Nonce > 0 {
+		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.ns.Nonce-1)
+		data, err = s.ds.Get(key)
+		if err != nil {
+			return oinfo
+		}
+		of := new(types.OrderFull)
+		err = of.Deserialize(data)
+		if err != nil {
+			return oinfo
+		}
+
+		oinfo.preStart = of.Start
+		oinfo.preEnd = of.End
 	}
 
 	return oinfo
@@ -162,9 +171,16 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 		return xerrors.Errorf("add order base wrong, should be empty")
 	}
 
-	err = oinfo.od.Add(or.Start, or.End)
-	if err != nil {
-		return err
+	if or.Start >= or.End {
+		return xerrors.Errorf("start %d is later than end %d", or.Start, or.End)
+	}
+
+	if oinfo.preStart > or.Start {
+		return xerrors.Errorf("start %d is early than previous %d", or.Start, oinfo.preStart)
+	}
+
+	if oinfo.preEnd > or.End {
+		return xerrors.Errorf("end %d is early than previous %d", or.End, oinfo.preEnd)
 	}
 
 	oinfo.base = or
@@ -181,16 +197,6 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 		},
 	}
 	data, err := of.Serialize()
-	if err != nil {
-		return err
-	}
-	err = tds.Put(key, data)
-	if err != nil {
-		return err
-	}
-
-	key = store.NewKey(pb.MetaType_ST_OrderDurationKey, or.UserID, or.ProID)
-	data, err = oinfo.od.Serialize()
 	if err != nil {
 		return err
 	}
@@ -310,9 +316,16 @@ func (s *StateMgr) canCreateOrder(msg *tx.Message) error {
 		return xerrors.Errorf("add order base wrong, should be empty")
 	}
 
-	err = oinfo.od.Add(or.Start, or.End)
-	if err != nil {
-		return err
+	if or.Start >= or.End {
+		return xerrors.Errorf("start %d is later than end %d", or.Start, or.End)
+	}
+
+	if oinfo.preStart > or.Start {
+		return xerrors.Errorf("start %d is early than previous %d", or.Start, oinfo.preStart)
+	}
+
+	if oinfo.preEnd > or.End {
+		return xerrors.Errorf("end %d is early than previous %d", or.End, oinfo.preEnd)
 	}
 
 	//oinfo.ns.Nonce++
@@ -910,11 +923,9 @@ func (s *StateMgr) commitOrder(msg *tx.Message, tds store.TxnStore) error {
 		return xerrors.Errorf("commit order %d seqnum wrong, got %d, expected %d", ocp.Nonce, ocp.SeqNum, oinfo.ns.SeqNum)
 	}
 
-	/*
-		if oinfo.base.Size == 0 {
-			return xerrors.Errorf("commit order size wrong, got %d, expected larger than zero", oinfo.base.Size)
-		}
-	*/
+	if oinfo.base.Size == 0 {
+		return xerrors.Errorf("commit order size is zero")
+	}
 
 	oinfo.ns.Nonce++
 	oinfo.ns.SeqNum = 0
@@ -975,11 +986,9 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 		return xerrors.Errorf("commit order %d seqnum wrong, got %d, expected %d", ocp.Nonce, ocp.SeqNum, oinfo.ns.SeqNum)
 	}
 
-	/*
-		if oinfo.base.Size == 0 {
-			return xerrors.Errorf("commit order size wrong, got %d, expected larger than zero", oinfo.base.Size)
-		}
-	*/
+	if oinfo.base.Size == 0 {
+		return xerrors.Errorf("commit order size is zero")
+	}
 
 	oinfo.ns.Nonce++
 	oinfo.ns.SeqNum = 0
@@ -989,4 +998,122 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 	return nil
 }
 
-// todo: add confirmOrder
+// todo: add subOrder when order is expired
+func (s *StateMgr) subOrder(msg *tx.Message, tds store.TxnStore) error {
+	osp := new(tx.OrderSubParas)
+	err := osp.Deserialize(msg.Params)
+	if err != nil {
+		return err
+	}
+
+	if msg.From != osp.ProID {
+		return xerrors.Errorf("wrong provider expected %d, got %d", msg.From, osp.ProID)
+	}
+
+	okey := orderKey{
+		userID: osp.UserID,
+		proID:  osp.ProID,
+	}
+
+	oinfo, ok := s.oInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(osp.UserID, osp.ProID)
+		s.oInfo[okey] = oinfo
+	}
+
+	if osp.Nonce != oinfo.ns.SubNonce {
+		return xerrors.Errorf("sub order nonce wrong, got %d, expected  %d", osp.Nonce, oinfo.ns.SubNonce)
+	}
+
+	if osp.Nonce > oinfo.ns.Nonce {
+		return xerrors.Errorf("sub order nonce wrong, got %d, expected less than %d", osp.Nonce, oinfo.ns.Nonce)
+	}
+
+	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, osp.UserID, osp.ProID, osp.Nonce)
+	data, err := tds.Get(key)
+	if err != nil {
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
+	}
+	of := new(types.OrderFull)
+	err = of.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	stime := build.BaseTime + int64(s.ceInfo.previous.Slot*build.SlotDuration)
+	if of.End > stime {
+		return xerrors.Errorf("wrong time %d, expected after %d at nonce %d", stime, of.End, osp.Nonce)
+	}
+
+	oinfo.ns.SubNonce++
+
+	// save state
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, osp.UserID, osp.ProID)
+	data, err = oinfo.ns.Serialize()
+	if err != nil {
+		return err
+	}
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	key = store.NewKey(pb.MetaType_ST_OrderStateKey, osp.UserID, osp.ProID, s.ceInfo.epoch)
+	err = tds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *StateMgr) canSubOrder(msg *tx.Message) error {
+	osp := new(tx.OrderSubParas)
+	err := osp.Deserialize(msg.Params)
+	if err != nil {
+		return err
+	}
+
+	if msg.From != osp.ProID {
+		return xerrors.Errorf("wrong provider expected %d, got %d", msg.From, osp.ProID)
+	}
+
+	okey := orderKey{
+		userID: osp.UserID,
+		proID:  osp.ProID,
+	}
+
+	oinfo, ok := s.oInfo[okey]
+	if !ok {
+		oinfo = s.loadOrder(osp.UserID, osp.ProID)
+		s.oInfo[okey] = oinfo
+	}
+
+	if osp.Nonce != oinfo.ns.SubNonce {
+		return xerrors.Errorf("sub order nonce wrong, got %d, expected  %d", osp.Nonce, oinfo.ns.SubNonce)
+	}
+
+	if osp.Nonce > oinfo.ns.Nonce {
+		return xerrors.Errorf("commit order nonce wrong, got %d, expected less than %d", osp.Nonce, oinfo.ns.Nonce)
+	}
+
+	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, osp.UserID, osp.ProID, osp.Nonce)
+	data, err := s.ds.Get(key)
+	if err != nil {
+		return xerrors.Errorf("fail get: %s %s", string(key), err)
+	}
+	of := new(types.OrderFull)
+	err = of.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	stime := build.BaseTime + int64(s.ceInfo.previous.Slot*build.SlotDuration)
+	if of.End > stime {
+		return xerrors.Errorf("wrong time %d, expected after %d at nonce %d", stime, of.End, osp.Nonce)
+	}
+
+	oinfo.ns.SubNonce++
+
+	return nil
+}
