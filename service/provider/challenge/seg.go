@@ -39,7 +39,8 @@ type SegMgr struct {
 	users []uint64
 	sInfo map[uint64]*segInfo // key: userID
 
-	chalChan chan *chal
+	chalChan chan *chalRes
+	subChan  chan *subRes
 }
 
 func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDataService, pp *txPool.PushPool) *SegMgr {
@@ -52,7 +53,8 @@ func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDa
 		users:        make([]uint64, 0, 128),
 		sInfo:        make(map[uint64]*segInfo),
 
-		chalChan: make(chan *chal, 8),
+		chalChan: make(chan *chalRes, 16),
+		subChan:  make(chan *subRes, 32),
 	}
 
 	return s
@@ -127,6 +129,10 @@ func (s *SegMgr) regularChallenge() {
 			si.chalTime = time.Now()
 			si.wait = false
 			si.nextChal++
+		case sc := <-s.subChan:
+			if sc.errCode == 0 {
+				go s.removeSegInExpiredOrder(sc.userID, sc.nonce)
+			}
 		case <-tc.C:
 			s.epoch = s.GetChalEpoch(s.ctx)
 			s.eInfo, _ = s.StateGetChalEpochInfo(s.ctx)
@@ -177,6 +183,11 @@ func (s *SegMgr) challenge(userID uint64) {
 	if s.GetProof(userID, s.localID, si.nextChal) {
 		logger.Debug("challenge has done: ", userID, si.nextChal)
 		return
+	}
+
+	err := s.subDataOrder(userID)
+	if err != nil {
+		logger.Debug("challenge sub order fails")
 	}
 
 	// get epoch info
@@ -243,7 +254,7 @@ func (s *SegMgr) challenge(userID uint64) {
 	totalSize := uint64(0)
 	delSize := uint64(0)
 
-	orderStart := uint64(0)
+	orderStart := ns.SubNonce
 	orderEnd := ns.Nonce
 
 	if ns.SeqNum > 0 {
@@ -362,7 +373,7 @@ func (s *SegMgr) challenge(userID uint64) {
 
 	if ns.Nonce > 0 {
 		// todo: choose some from [0, ns.Nonce)
-		for i := uint64(0); i < ns.Nonce; i++ {
+		for i := ns.SubNonce; i < ns.Nonce; i++ {
 			so, err := s.GetOrder(userID, s.localID, i)
 			if err != nil {
 				logger.Debug("challenge get order fails:", userID, i, err)
@@ -553,5 +564,5 @@ func (s *SegMgr) challenge(userID uint64) {
 
 	si.chalTime = time.Now()
 	si.wait = true
-	s.pushMessage(msg, si.nextChal)
+	s.pushMessage(msg)
 }

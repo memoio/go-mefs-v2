@@ -121,3 +121,17 @@ func (ocp *OrderCommitParas) Serialize() ([]byte, error) {
 func (ocp *OrderCommitParas) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, ocp)
 }
+
+type OrderSubParas struct {
+	UserID uint64
+	ProID  uint64
+	Nonce  uint64
+}
+
+func (osp *OrderSubParas) Serialize() ([]byte, error) {
+	return cbor.Marshal(osp)
+}
+
+func (osp *OrderSubParas) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, osp)
+}

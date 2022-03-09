@@ -46,8 +46,9 @@ func (q *Quotation) Deserialize(b []byte) error {
 }
 
 type NonceSeq struct {
-	Nonce  uint64
-	SeqNum uint32
+	Nonce    uint64
+	SeqNum   uint32
+	SubNonce uint64
 }
 
 func (ns *NonceSeq) Serialize() ([]byte, error) {

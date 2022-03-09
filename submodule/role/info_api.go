@@ -209,7 +209,7 @@ func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (
 		if ri.Type != pb.RoleInfo_User {
 			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_User, ri.Type)
 		}
-	case tx.SegmentProof, tx.SegmentFault:
+	case tx.SegmentProof, tx.SegmentFault, tx.SubDataOrder:
 		// verify tx.From provider
 		if ri.Type != pb.RoleInfo_Provider {
 			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_Provider, ri.Type)
