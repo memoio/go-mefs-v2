@@ -93,6 +93,10 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		return xerrors.Errorf("no order seq for %d", userID)
 	}
 
+	if or.seq.Size-or.base.Size > seqMaxSize {
+		return xerrors.Errorf("%d order %d seq %d size %d is larger than %d", userID, or.seq.Nonce, or.seq.SeqNum, or.seq.Size-or.base.Size, seqMaxSize)
+	}
+
 	or.availTime = time.Now().Unix()
 
 	logger.Debug("handle add data: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
@@ -206,6 +210,10 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			err = saveOrderState(or, m.ds)
 			if err != nil {
 				return nil, err
+			}
+
+			if or.base.Size == 0 {
+				return nil, xerrors.Errorf("not create order due to prevous order %d is empty", or.base.Nonce)
 			}
 
 			or.base = nil
@@ -333,6 +341,11 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		if os.Price.Cmp(or.base.Price) != 0 || os.Size != or.base.Size {
 			logger.Debug("handle create seq: ", os.UserID, os.Nonce, os.SeqNum, os.Size, or.base.Size)
 			return nil, xerrors.Errorf("fail create seq %d %d due to wrong size, got %d expect %d", os.Nonce, os.SeqNum, os.Size, or.base.Size)
+		}
+
+		// space time should not too large
+		if or.base.Size > orderMaxSize/uint64(or.base.End-or.base.Start) {
+			return nil, xerrors.Errorf("fail create seq %d %d due to large size, got %d sgould less than %d", os.Nonce, os.SeqNum, or.base.Size, orderMaxSize/uint64(or.base.End-or.base.Start))
 		}
 
 		or.seq = os

@@ -486,6 +486,11 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore)
 		if err != nil {
 			return s.root, err
 		}
+	case tx.SubDataOrder:
+		err := s.subOrder(msg, tds)
+		if err != nil {
+			return s.root, err
+		}
 	case tx.SegmentFault:
 		err := s.removeSeg(msg, tds)
 		if err != nil {
