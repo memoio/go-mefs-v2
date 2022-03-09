@@ -43,8 +43,6 @@ var statePostIncomeCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("post income: ", nid.ID)
-
 		users := napi.StateGetUsersAt(cctx.Context, nid.ID)
 		fmt.Println("post income: ", nid.ID, users)
 
@@ -83,8 +81,6 @@ var statePayCmd = &cli.Command{
 
 		switch nid.Type {
 		case pb.RoleInfo_Provider:
-			fmt.Println("pay info: ", nid.ID)
-
 			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.ID)
 			if err != nil {
 				return err
