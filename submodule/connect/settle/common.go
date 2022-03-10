@@ -5,12 +5,14 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"math/rand"
 	"time"
 
 	callconts "memoc/callcontracts"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -19,28 +21,140 @@ import (
 	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 var logger = logging.Logger("settle")
 
-var (
-	endpoint = callconts.EndPoint
-	RoleAddr = callconts.RoleAddr
+const (
+	sendTransactionRetryCount = 5
+	checkTxRetryCount         = 8
+	retryTxSleepTime          = time.Minute
+	retryGetInfoSleepTime     = 30 * time.Second
+	checkTxSleepTime          = 6 // 先等待6s（出块时间加1）
+	nextBlockTime             = 5 // 出块时间5s
+
+	InvalidAddr = "0x0000000000000000000000000000000000000000"
+	// DefaultGasLimit default gas limit in sending transaction
+	DefaultGasLimit = uint64(5000000) // as small as possible
+	DefaultGasPrice = 200
 )
 
-// as net prefix
-func GetRolePrefix() string {
-	return RoleAddr.String()[2:10]
+type roleInfo struct {
+	pri      *pb.RoleInfo
+	isActive bool
+	isBanned bool
+}
+
+func getClient(endPoint string) *ethclient.Client {
+	client, err := rpc.Dial(endPoint)
+	if err != nil {
+		log.Println(err)
+	}
+	return ethclient.NewClient(client)
+}
+
+func getBalance(endPoint string, addr common.Address) *big.Int {
+	client, err := rpc.Dial(endPoint)
+	if err != nil {
+		logger.Error("rpc.dial err:", err)
+		return big.NewInt(0)
+	}
+	defer client.Close()
+
+	var result string
+	err = client.Call(&result, "eth_getBalance", addr.String(), "latest")
+	if err != nil {
+		logger.Error("client.call err:", err)
+		return big.NewInt(0)
+	}
+
+	val, _ := new(big.Int).SetString(result[2:], 16)
+	return val
+}
+
+// makeAuth make the transactOpts to call contract
+func makeAuth(hexSk string, moneyToContract, gasPrice *big.Int) (*bind.TransactOpts, error) {
+	auth := &bind.TransactOpts{}
+	sk, err := crypto.HexToECDSA(hexSk)
+	if err != nil {
+		return auth, err
+	}
+
+	chainID := new(big.Int).SetUint64(35896)
+	auth, err = bind.NewKeyedTransactorWithChainID(sk, chainID)
+	if err != nil {
+		return nil, xerrors.Errorf("new keyed transaction failed %s", err)
+	}
+
+	auth.Value = moneyToContract //放进合约里的钱
+	auth.GasLimit = DefaultGasLimit
+	auth.GasPrice = gasPrice
+	return auth, nil
+}
+
+//CheckTx check whether transaction is successful through receipt
+func checkTx(endPoint string, tx *types.Transaction, name string) error {
+	logger.Debug("Check Tx hash:", tx.Hash(), "nonce:", tx.Nonce(), "gasPrice:", tx.GasPrice())
+
+	var receipt *types.Receipt
+	t := checkTxSleepTime
+	for i := 0; i < 10; i++ {
+		if i != 0 {
+			t = nextBlockTime * i
+		}
+		logger.Debug("getting txReceipt, waiting %v sec.\n", t)
+		time.Sleep(time.Duration(t) * time.Second)
+		receipt = getTransactionReceipt(endPoint, tx.Hash())
+		if receipt != nil {
+			break
+		}
+	}
+
+	// 矿工挂掉等情况导致交易无法被打包
+	if receipt == nil { //231s获取不到交易信息，判定交易失败
+		return xerrors.Errorf("%s cann't get tx receipt, tx not packaged", name)
+	}
+
+	logger.Debug("GasUsed:", receipt.GasUsed, "CumulativeGasUsed:", receipt.CumulativeGasUsed)
+
+	if receipt.Status == 0 { //等于0表示交易失败，等于1表示成功
+		if receipt.GasUsed != receipt.CumulativeGasUsed {
+			log.Println(name, ": tx exceed gas limit")
+		}
+		return xerrors.Errorf("%s transaction mined but execution failed, please check your tx input", name)
+	}
+
+	// 交易成功
+	logger.Debug(name, "has been successful!")
+	return nil
+}
+
+//GetTransactionReceipt 通过交易hash获得交易详情
+func getTransactionReceipt(endPoint string, hash common.Hash) *types.Receipt {
+	client, err := ethclient.Dial(endPoint)
+	if err != nil {
+		log.Fatal("rpc.Dial err", err)
+		return nil
+	}
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	receipt, err := client.TransactionReceipt(ctx, hash)
+	if err != nil {
+		logger.Debug("get transaction %s receipt: ", hash, err)
+	}
+	return receipt
 }
 
 // TransferTo trans money
-func TransferTo(toAddress common.Address, value *big.Int, sk string) error {
+func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk string) error {
 	fmt.Println("transfer ", value, " to ", toAddress)
 	ctx, cancle := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancle()
-	client, err := ethclient.DialContext(ctx, endpoint)
+	client, err := ethclient.DialContext(ctx, endPoint)
 	if err != nil {
-		return xerrors.Errorf("dail %s fail %s", endpoint, err)
+		return xerrors.Errorf("dail %s fail %s", endPoint, err)
 	}
 	defer client.Close()
 
@@ -67,7 +181,7 @@ func TransferTo(toAddress common.Address, value *big.Int, sk string) error {
 		chainID = big.NewInt(666)
 	}
 
-	bbal := QueryBalance(toAddress)
+	bbal := getBalance(endPoint, toAddress)
 
 	retry := 0
 	for {
@@ -102,7 +216,7 @@ func TransferTo(toAddress common.Address, value *big.Int, sk string) error {
 
 		qCount := 0
 		for qCount < 5 {
-			balance := QueryBalance(toAddress)
+			balance := getBalance(endPoint, toAddress)
 			if balance.Cmp(bbal) > 0 {
 				fmt.Println("transfer ", value, " to ", toAddress, " has balance: ", balance)
 				return nil
@@ -117,34 +231,15 @@ func TransferTo(toAddress common.Address, value *big.Int, sk string) error {
 	}
 }
 
-func QueryBalance(addr common.Address) *big.Int {
-	client, err := rpc.Dial(endpoint)
-	if err != nil {
-		logger.Error("rpc.dial err:", err)
-		return big.NewInt(0)
-	}
-	defer client.Close()
-
-	var result string
-	err = client.Call(&result, "eth_getBalance", addr.String(), "latest")
-	if err != nil {
-		logger.Error("client.call err:", err)
-		return big.NewInt(0)
-	}
-
-	val, _ := new(big.Int).SetString(result[2:], 16)
-	return val
-}
-
-func Erc20Transfer(addr common.Address, val *big.Int) error {
+func TransferErc20To(endPoint string, tAddr, addr common.Address, val *big.Int) error {
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
-		GasPrice: big.NewInt(callconts.DefaultGasPrice),
-		GasLimit: callconts.DefaultGasLimit,
+		GasPrice: big.NewInt(DefaultGasPrice),
+		GasLimit: DefaultGasLimit,
 	}
 
 	status := make(chan error)
-	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint, status)
+	erc20 := callconts.NewERC20(tAddr, callconts.AdminAddr, callconts.AdminSk, txopts, endPoint, status)
 
 	adminVal, err := erc20.BalanceOf(callconts.AdminAddr)
 	if err != nil {

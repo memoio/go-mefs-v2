@@ -286,6 +286,14 @@ func (r *FSRepo) loadConfig() error {
 		return xerrors.Errorf("failed to read config file at %q %w", configFile, err)
 	}
 
+	if cfg.Contract.EndPoint == "" {
+		cfg.Contract.EndPoint = "http://119.147.213.220:8191"
+	}
+
+	if cfg.Contract.RoleContract == "" {
+		cfg.Contract.RoleContract = "0x3A014045154403aFF1C07C19553Bc985C123CB6E"
+	}
+
 	r.cfg = cfg
 	return nil
 }

@@ -23,6 +23,19 @@ type Config struct {
 	API       APIConfig       `json:"api"`
 	Bootstrap BootstrapConfig `json:"bootstrap"`
 	Data      StorePathConfig `json:"data"`
+	Contract  ContractConfig
+}
+
+type ContractConfig struct {
+	EndPoint     string `json:"endPoint"`
+	RoleContract string `json:"roleContract"`
+}
+
+func newDefaultContractConfig() ContractConfig {
+	return ContractConfig{
+		EndPoint:     "http://119.147.213.220:8191",
+		RoleContract: "0x3A014045154403aFF1C07C19553Bc985C123CB6E",
+	}
 }
 
 type WalletConfig struct {

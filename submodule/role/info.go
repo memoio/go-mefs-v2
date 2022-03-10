@@ -135,7 +135,7 @@ func (rm *RoleMgr) syncFromChain() {
 				nkey := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Keeper.String())
 				data, _ := rm.ds.Get(nkey)
 				for i := kCnt; i < kcnt; i++ {
-					kindex, err := rm.is.GetGroupK(i)
+					kindex, err := rm.is.GetGroupK(rm.groupID, i)
 					if err != nil {
 						logger.Debugf("get group %d keeper %d fail %w", rm.groupID, i, err)
 						continue
@@ -166,7 +166,7 @@ func (rm *RoleMgr) syncFromChain() {
 				data, _ := rm.ds.Get(nkey)
 
 				for i := pCnt; i < pcnt; i++ {
-					pindex, err := rm.is.GetGroupP(i)
+					pindex, err := rm.is.GetGroupP(rm.groupID, i)
 					if err != nil {
 						logger.Debugf("get group %d pro %d fail %w", rm.groupID, i, err)
 						continue
@@ -191,7 +191,7 @@ func (rm *RoleMgr) syncFromChain() {
 
 			if ucnt > uCnt {
 				for i := uCnt; i < ucnt; i++ {
-					uindex, err := rm.is.GetGroupU(i)
+					uindex, err := rm.is.GetGroupU(rm.groupID, i)
 					if err != nil {
 						logger.Debugf("get group %d user %d fail %w", rm.groupID, i, err)
 						continue

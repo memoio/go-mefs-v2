@@ -97,12 +97,12 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 
 	defer rep.Close()
 
-	// handle config
-	config := rep.Config()
+	// handle cfg
+	cfg := rep.Config()
 
 	if swarmPort := cctx.String(swarmPortKwd); swarmPort != "" {
-		changed := make([]string, 0, len(config.Net.Addresses))
-		for _, swarmAddr := range config.Net.Addresses {
+		changed := make([]string, 0, len(cfg.Net.Addresses))
+		for _, swarmAddr := range cfg.Net.Addresses {
 			strs := strings.Split(swarmAddr, "/")
 			for i, str := range strs {
 				if str == "tcp" || str == "udp" {
@@ -111,14 +111,14 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			}
 			changed = append(changed, strings.Join(strs, "/"))
 		}
-		config.Net.Addresses = changed
+		cfg.Net.Addresses = changed
 	}
 
 	if apiAddr := cctx.String(apiAddrKwd); apiAddr != "" {
-		config.API.Address = apiAddr
+		cfg.API.Address = apiAddr
 	}
 
-	rep.ReplaceConfig(config)
+	rep.ReplaceConfig(cfg)
 
 	pwd := cctx.String("password")
 	opts, err := basenode.OptionsFromRepo(rep)
@@ -127,7 +127,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	}
 	opts = append(opts, basenode.SetPassword(pwd))
 
-	laddr, err := address.NewFromString(config.Wallet.DefaultAddress)
+	laddr, err := address.NewFromString(cfg.Wallet.DefaultAddress)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	// create the node with opts above
 	switch cctx.String(FlagRoleType) {
 	case pb.RoleInfo_Keeper.String():
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
+		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	case pb.RoleInfo_Provider.String():
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
+		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	case pb.RoleInfo_User.String():
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
+		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	default:
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
+		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}

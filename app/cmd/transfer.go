@@ -84,7 +84,7 @@ var addKeeperToGroupCmd = &cli.Command{
 			return err
 		}
 
-		cm, err := settle.NewContractMgr(cctx.Context, ki.SecretKey)
+		cm, err := settle.NewContractMgr(cctx.Context, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
 		if err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ var addKeeperToGroupCmd = &cli.Command{
 		}
 
 		if ri.GroupID == 0 && gid > 0 {
-			err = settle.AddKeeperToGroup(ri.GetID(), gid)
+			err = settle.AddKeeperToGroup(cfg.Contract.EndPoint, cfg.Contract.RoleContract, ri.GetID(), gid)
 			if err != nil {
 				return err
 			}
@@ -132,14 +132,16 @@ var transferEthCmd = &cli.Command{
 			}
 
 			toAdderss = common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
+
+			val, err := types.ParsetValue(cctx.Args().Get(1))
+			if err != nil {
+				return xerrors.Errorf("parsing 'amount' argument: %w", err)
+			}
+
+			return settle.TransferTo(cfg.Contract.EndPoint, toAdderss, val, callconts.AdminSk)
 		}
 
-		val, err := types.ParsetValue(cctx.Args().Get(1))
-		if err != nil {
-			return xerrors.Errorf("parsing 'amount' argument: %w", err)
-		}
-
-		return settle.TransferTo(toAdderss, val, callconts.AdminSk)
+		return nil
 	},
 }
 
@@ -169,13 +171,15 @@ var transferErcCmd = &cli.Command{
 			}
 
 			toAdderss = common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
+
+			val, err := types.ParsetValue(cctx.Args().Get(1))
+			if err != nil {
+				return xerrors.Errorf("parsing 'amount' argument: %w", err)
+			}
+
+			return settle.TransferErc20To(cfg.Contract.EndPoint, callconts.ERC20Addr, toAdderss, val)
 		}
 
-		val, err := types.ParsetValue(cctx.Args().Get(1))
-		if err != nil {
-			return xerrors.Errorf("parsing 'amount' argument: %w", err)
-		}
-
-		return settle.Erc20Transfer(toAdderss, val)
+		return nil
 	},
 }

@@ -81,7 +81,7 @@ var registerCmd = &cli.Command{
 			return err
 		}
 
-		cm, err := settle.NewContractMgr(cctx.Context, ki.SecretKey)
+		cm, err := settle.NewContractMgr(cctx.Context, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
 		if err != nil {
 			return err
 		}
