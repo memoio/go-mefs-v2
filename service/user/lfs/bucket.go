@@ -135,7 +135,7 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) (*type
 	l.sb.RLock()
 	defer l.sb.RUnlock()
 
-	bucket, err := l.getBucket(bucketName)
+	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func (l *LfsService) HeadBucket(ctx context.Context, bucketName string) (*types.
 	}
 
 	// get bucket from bucket name
-	bucket, err := l.getBucket(bucketName)
+	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
 	}

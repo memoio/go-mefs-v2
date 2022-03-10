@@ -60,9 +60,9 @@ func NewGenericNode(ctx context.Context, addr string, requestHeader http.Header)
 // create an user node with package api
 func NewUserNode(ctx context.Context, addr string, requestHeader http.Header) (api.UserNode, jsonrpc.ClientCloser, error) {
 	var res api.UserNodeStruct
-	encoder := httpio.ReaderParamEncoder("http://" + addr + "/rpc/streams/v0/push")
+	re := httpio.ReaderParamEncoder("http://" + addr + "/rpc/streams/v0/push")
 	closer, err := jsonrpc.NewMergeClient(ctx, "ws://"+addr+"/rpc/v0", "Memoriae",
-		api.GetInternalStructs(&res), requestHeader, encoder)
+		api.GetInternalStructs(&res), requestHeader, re)
 
 	return &res, closer, err
 }
