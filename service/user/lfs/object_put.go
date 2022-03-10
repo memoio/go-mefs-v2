@@ -54,6 +54,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	defer object.Unlock()
 
 	nt := time.Now()
+
 	// upload object into bucket
 	err = l.upload(ctx, bucket, object, reader)
 	if err != nil {
@@ -97,6 +98,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		Encryption: "aes", // todo, from options
 	}
 
+	// serialize
 	payload, err := proto.Marshal(&poi)
 	if err != nil {
 		return nil, err
