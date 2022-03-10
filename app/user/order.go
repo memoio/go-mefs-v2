@@ -8,6 +8,7 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/utils"
+
 	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"

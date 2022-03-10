@@ -37,7 +37,7 @@ var DaemonCmd = &cli.Command{
 
 var daemonStartCmd = &cli.Command{
 	Name:  "start",
-	Usage: "Start a running lotus daemon",
+	Usage: "Start a running mefs daemon",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  pwKwd,
@@ -67,7 +67,7 @@ var daemonStartCmd = &cli.Command{
 
 var daemonStopCmd = &cli.Command{
 	Name:  "stop",
-	Usage: "Stop a running lotus daemon",
+	Usage: "Stop a running mefs daemon",
 	Action: func(cctx *cli.Context) error {
 		return daemonStopFunc(cctx)
 	},
