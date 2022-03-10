@@ -57,6 +57,7 @@ func NewGenericNode(ctx context.Context, addr string, requestHeader http.Header)
 	return &res, closer, err
 }
 
+// create an user node with package api
 func NewUserNode(ctx context.Context, addr string, requestHeader http.Header) (api.UserNode, jsonrpc.ClientCloser, error) {
 	var res api.UserNodeStruct
 	re := httpio.ReaderParamEncoder("http://" + addr + "/rpc/streams/v0/push")
