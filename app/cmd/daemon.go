@@ -68,7 +68,6 @@ var daemonStartCmd = &cli.Command{
 var daemonStopCmd = &cli.Command{
 	Name:  "stop",
 	Usage: "Stop a running lotus daemon",
-	//Flags: []cli.Flag{},
 	Action: func(cctx *cli.Context) error {
 		return daemonStopFunc(cctx)
 	},

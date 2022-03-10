@@ -401,6 +401,7 @@ func (ob *object) addPartInfo(opi *pb.ObjectPartInfo) error {
 	return nil
 }
 
+// after save, object is clean
 func (ob *object) Save(userID uint64, ds store.KVStore) error {
 	// to local
 	if ob.dirty {

@@ -49,16 +49,19 @@ func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.
 	return &bucket.BucketInfo, nil
 }
 
+// get bucket with bucket name
 func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
 	if !l.Ready() {
 		return nil, ErrLfsServiceNotReady
 	}
 
+	// get bucket ID
 	bucketID, ok := l.sb.bucketNameToID[bucketName]
 	if !ok {
 		return nil, ErrBucketNotExist
 	}
 
+	// check bucket ID
 	if bucketID >= l.sb.bucketVerify {
 		return nil, ErrBucketIsConfirm
 	}
