@@ -608,8 +608,13 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	if !o.inStop && o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
 		// should not close empty seq
 		logger.Debug("should not close empty order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
-		if o.base.End > time.Now().Unix()+600 {
-			o.orderTime = time.Now().Unix()
+		if o.base.End > time.Now().Unix() {
+			// not close order when data is empty
+			o.orderTime += defaultOrderLast
+			err := saveOrderState(o, m.ds)
+			if err != nil {
+				return err
+			}
 			return nil
 		} else {
 			m.stopOrder(o)
@@ -634,6 +639,10 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	// order is closing
 	if o.base == nil || o.orderState != Order_Closing {
 		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Closing, o.orderState)
+	}
+
+	if o.base.Size == 0 {
+		return xerrors.Errorf("%d has empty data at order %d", o.pro, o.base.Nonce)
 	}
 
 	// seq finished

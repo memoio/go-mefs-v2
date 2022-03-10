@@ -74,6 +74,10 @@ enum MetaType {
 	ConfirmPayKey = 73;      // key: x; val: epoch
 	Chal_UsersKey = 74;      // key: x/roleID; val: users
 	Chal_ProsKey = 75;       // key: x/roleID; val: pros  
+
+	// read pay 
+	ReadPay_NonceKey = 80;     // key: x/userAddr/proAddr; val: nonce
+	ReadPay_ChannelKey = 81;   // key: x/userAddr/proAddr/nonce; val: check
 }
 
 //    =============  lfs information  ================

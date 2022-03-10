@@ -11,7 +11,7 @@ var logger = logging.Logger("lfs")
 
 const (
 	defaultWeighted = 100
-	MaxBucket       = 16
+	maxBucket       = 256
 )
 
 var (

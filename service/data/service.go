@@ -186,6 +186,7 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 }
 
 func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) error {
+	logger.Debug("delete segment in local: ", sid)
 	d.cache.Remove(sid)
 	return d.segStore.Delete(sid)
 }

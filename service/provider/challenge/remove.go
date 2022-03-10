@@ -12,6 +12,8 @@ func (s *SegMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 		return
 	}
 
+	logger.Debug("remove faulted data in order: ", srp.UserID, srp.Nonce, srp.SeqNum)
+
 	si := s.loadFs(srp.UserID)
 
 	for _, seg := range srp.Segments {

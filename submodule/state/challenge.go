@@ -96,7 +96,11 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	if ns.Nonce != scp.OrderEnd {
-		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
+		return xerrors.Errorf("chal has wrong order end %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
+	}
+
+	if ns.SubNonce != scp.OrderStart {
+		logger.Debugf("%d chal has wrong order start %d, expected %d at epoch: %d ", scp.OrderStart, ns.SubNonce, s.ceInfo.epoch)
 	}
 
 	chalStart := build.BaseTime + int64(s.ceInfo.previous.Slot*build.SlotDuration)
@@ -405,7 +409,11 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	}
 
 	if ns.Nonce != scp.OrderEnd {
-		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
+		return xerrors.Errorf("chal has wrong order end %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
+	}
+
+	if ns.SubNonce != scp.OrderStart {
+		logger.Debugf("%d chal has wrong order start %d, expected %d at epoch: %d ", scp.OrderStart, ns.SubNonce, s.ceInfo.epoch)
 	}
 
 	chalStart := build.BaseTime + int64(s.validateCeInfo.previous.Slot*build.SlotDuration)
