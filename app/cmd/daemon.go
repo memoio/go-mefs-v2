@@ -25,35 +25,19 @@ const (
 	groupKwd     = "group"
 )
 
-var daemonStopCmd = &cli.Command{
-	Name:  "stop",
-	Usage: "Stop a running lotus daemon",
-	Flags: []cli.Flag{},
-	Action: func(cctx *cli.Context) error {
-		repoDir := cctx.String(FlagNodeRepo)
-		addr, headers, err := client.GetMemoClientInfo(repoDir)
-		if err != nil {
-			return err
-		}
-
-		napi, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
-		err = napi.Shutdown(cctx.Context)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	},
-}
-
 var DaemonCmd = &cli.Command{
 	Name:  "daemon",
 	Usage: "Run a network-connected Memoriae node.",
+
+	Subcommands: []*cli.Command{
+		daemonStartCmd,
+		daemonStopCmd,
+	},
+}
+
+var daemonStartCmd = &cli.Command{
+	Name:  "start",
+	Usage: "Start a running lotus daemon",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  pwKwd,
@@ -77,15 +61,20 @@ var DaemonCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		return daemonFunc(cctx)
+		return daemonStartFunc(cctx)
 	},
-	Subcommands: []*cli.Command{
-		daemonStopCmd,
+}
+
+var daemonStopCmd = &cli.Command{
+	Name:  "stop",
+	Usage: "Stop a running lotus daemon",
+	Action: func(cctx *cli.Context) error {
+		return daemonStopFunc(cctx)
 	},
 }
 
 // create a node with repo data and start it
-func daemonFunc(cctx *cli.Context) (_err error) {
+func daemonStartFunc(cctx *cli.Context) (_err error) {
 	logger.Info("Initializing daemon...")
 
 	ctx := cctx.Context
@@ -211,4 +200,26 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	}
 
 	return node.RunDaemon()
+}
+
+// stop a node
+func daemonStopFunc(cctx *cli.Context) (_err error) {
+	repoDir := cctx.String(FlagNodeRepo)
+	addr, headers, err := client.GetMemoClientInfo(repoDir)
+	if err != nil {
+		return err
+	}
+
+	napi, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+	if err != nil {
+		return err
+	}
+	defer closer()
+
+	err = napi.Shutdown(cctx.Context)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
