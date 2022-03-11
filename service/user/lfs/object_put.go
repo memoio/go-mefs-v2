@@ -138,7 +138,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 	// insert new object into rbtree of bucket
 	bucket.objects.Insert(MetaName(objectName), object)
 
-	logger.Debugf("Upload create object: %s in bucket: %s", object.GetName(), bucket.GetName(), op.OpID)
+	logger.Debugf("Upload create object: %s in bucket: %s %d", object.GetName(), bucket.GetName(), op.OpID)
 
 	return object, nil
 }
