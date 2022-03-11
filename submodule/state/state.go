@@ -172,8 +172,6 @@ func (s *StateMgr) load() {
 
 	s.validateVersion = s.version
 
-	logger.Debug("load state at: ", s.height, s.slot)
-
 	// load root
 	key = store.NewKey(pb.MetaType_ST_RootKey)
 	val, err = s.ds.Get(key)
@@ -196,6 +194,8 @@ func (s *StateMgr) load() {
 			}
 		}
 	}
+
+	logger.Debug("load state at: ", s.height, s.slot, s.root, s.blkID)
 
 	// load keepers
 	key = store.NewKey(pb.MetaType_ST_KeepersKey)
@@ -298,7 +298,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	if !s.root.Equal(blk.ParentRoot) {
 		//logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
-		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
+		return s.root, xerrors.Errorf("apply wrong block at height %d, blk root got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
 	}
 
 	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
