@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
-	"fmt"
 	"time"
 
 	"memoc/contracts/role"
@@ -203,7 +202,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 
 		if ri.pri.GroupID == 0 && gIndex > 0 {
-			fmt.Println("need grant to add keeper to group")
+			logger.Debug("need grant to add keeper to group")
 			/*
 				err = AddKeeperToGroup(cm.roleID, gIndex)
 				if err != nil {

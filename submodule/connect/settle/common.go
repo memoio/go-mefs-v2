@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
-	"log"
 	"math/big"
 	"math/rand"
 	"time"
@@ -100,7 +98,7 @@ func makeAuth(hexSk string, moneyToContract, gasPrice *big.Int) (*bind.TransactO
 
 //CheckTx check whether transaction is successful through receipt
 func checkTx(endPoint string, tx *types.Transaction, name string) error {
-	logger.Debug("Check Tx hash:", tx.Hash(), "nonce:", tx.Nonce(), "gasPrice:", tx.GasPrice())
+	logger.Debug("check transcation:%s %s nonce %d", name, tx.Hash(), tx.Nonce())
 
 	var receipt *types.Receipt
 	t := checkTxSleepTime
@@ -108,7 +106,7 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 		if i != 0 {
 			t = nextBlockTime * i
 		}
-		logger.Debug("getting txReceipt, waiting %v sec.\n", t)
+		logger.Debug("getting txReceipt, waiting %d sec", t)
 		time.Sleep(time.Duration(t) * time.Second)
 		receipt = getTransactionReceipt(endPoint, tx.Hash())
 		if receipt != nil {
@@ -118,20 +116,20 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 
 	// 矿工挂掉等情况导致交易无法被打包
 	if receipt == nil { //231s获取不到交易信息，判定交易失败
-		return xerrors.Errorf("%s cann't get tx receipt, tx not packaged", name)
+		return xerrors.Errorf("%s %s cann't get tx receipt, tx not packaged", name, tx.Hash())
 	}
 
-	logger.Debug("GasUsed:", receipt.GasUsed, "CumulativeGasUsed:", receipt.CumulativeGasUsed)
+	logger.Debug("%s %s GasUsed: %d, CumulativeGasUsed: %d", name, tx.Hash(), receipt.GasUsed, receipt.CumulativeGasUsed)
 
 	if receipt.Status == 0 { //等于0表示交易失败，等于1表示成功
 		if receipt.GasUsed != receipt.CumulativeGasUsed {
-			logger.Debug(name, ": tx exceed gas limit")
+			return xerrors.Errorf("%s %s transaction exceed gas limit", name, tx.Hash())
 		}
-		return xerrors.Errorf("%s transaction mined but execution failed, please check your tx input", name)
+		return xerrors.Errorf("%s %s transaction mined but execution failed, please check your tx input", name, tx.Hash())
 	}
 
 	// 交易成功
-	logger.Debug(name, "has been successful!")
+	logger.Debug("%s %s has been successful!", name, tx.Hash())
 	return nil
 }
 
@@ -139,7 +137,6 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 func getTransactionReceipt(endPoint string, hash common.Hash) *types.Receipt {
 	client, err := ethclient.Dial(endPoint)
 	if err != nil {
-		log.Fatal("rpc.Dial err", err)
 		return nil
 	}
 	defer client.Close()
@@ -147,14 +144,14 @@ func getTransactionReceipt(endPoint string, hash common.Hash) *types.Receipt {
 	defer cancel()
 	receipt, err := client.TransactionReceipt(ctx, hash)
 	if err != nil {
-		logger.Debug("get transaction %s receipt: ", hash, err)
+		logger.Debugf("get transaction %s receipt fail: %s", hash, err)
 	}
 	return receipt
 }
 
 // TransferTo trans money
 func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk string) error {
-	fmt.Println("transfer ", value, " to ", toAddress)
+	logger.Debug("transfer ", value, " to ", toAddress)
 	ctx, cancle := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancle()
 	client, err := ethclient.DialContext(ctx, endPoint)
@@ -176,7 +173,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 
-	fmt.Println("transfer ", value, " from ", fromAddress, " to ", toAddress)
+	logger.Debug("transfer ", value, " from ", fromAddress, " to ", toAddress)
 
 	gasLimit := uint64(23000) // in units
 
@@ -191,7 +188,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 	for {
 		retry++
 		if retry > 10 {
-			fmt.Println("fail transfer ", value.String(), "to", toAddress)
+			logger.Debug("fail transfer ", value.String(), "to", toAddress)
 			return errors.New("fail to transfer")
 		}
 
@@ -214,7 +211,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 
 		err = client.SendTransaction(context.Background(), signedTx)
 		if err != nil {
-			fmt.Println("trans transcation fail:", err)
+			logger.Debug("trans transcation fail:", err)
 			continue
 		}
 
@@ -222,10 +219,10 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 		for qCount < 5 {
 			balance := getBalance(endPoint, toAddress)
 			if balance.Cmp(bbal) > 0 {
-				fmt.Println("transfer ", value, " to ", toAddress, " has balance: ", balance)
+				logger.Debug("transfer ", value, " to ", toAddress, " has balance: ", balance)
 				return nil
 			}
-			fmt.Println(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
+			logger.Debug(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
 
 			rand.NewSource(time.Now().UnixNano())
 			t := rand.Intn(20 * (qCount + 1))
