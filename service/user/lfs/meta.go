@@ -529,13 +529,14 @@ func (l *LfsService) persistMeta() {
 			logger.Debug("lfs bucket is verified: ", bid)
 			l.sb.Lock()
 			if bid < l.sb.NextBucketID {
-				if l.sb.bucketVerify == bid {
-					l.sb.bucketVerify++
-					bu := l.sb.buckets[bid]
-					bu.Confirmed = true
-					// register in order
-					go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+				if l.sb.bucketVerify <= bid {
+					l.sb.bucketVerify = bid + 1
 				}
+
+				bu := l.sb.buckets[bid]
+				bu.Confirmed = true
+				// register in order
+				go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 			}
 			l.sb.Unlock()
 		case <-tick.C:
