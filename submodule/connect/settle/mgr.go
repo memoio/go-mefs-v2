@@ -307,7 +307,7 @@ func (cm *ContractMgr) getTokenAddr(tIndex uint32) (common.Address, error) {
 
 	client := getClient(cm.endPoint)
 	defer client.Close()
-	rToken, err := role.NewRToken(cm.rAddr, client)
+	rToken, err := role.NewRToken(cm.rtAddr, client)
 	if err != nil {
 		return taddr, err
 	}
