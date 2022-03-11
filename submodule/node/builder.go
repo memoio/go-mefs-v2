@@ -185,7 +185,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, err
 	}
 
-	cm, err := settle.NewContractMgr(ctx, ki.SecretKey)
+	cm, err := settle.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		shutdownChan: make(chan struct{}),
 	}
 
-	networkName := settle.GetRolePrefix() + "/" + strconv.FormatUint(b.groupID, 10)
+	networkName := cfg.Contract.RoleContract[2:10] + "/" + strconv.FormatUint(b.groupID, 10)
 
 	logger.Debug("networkName is: ", networkName)
 
@@ -263,7 +263,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.Store = txs
 
 	// state mgr
-	stDB := state.NewStateMgr(settle.RoleAddr.Bytes(), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
+	stDB := state.NewStateMgr(cm.GetRoleAddr().Bytes(), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
 
 	// sync pool
 	sp := txPool.NewSyncPool(ctx, b.groupID, nd.SettleGetThreshold(ctx), stDB, txs, cs)

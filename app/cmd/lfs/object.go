@@ -74,35 +74,43 @@ var putObjectCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		// get repo path from flag
 		repoDir := cctx.String(cmd.FlagNodeRepo)
-		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		// parse api ip:port from repo
+		ip, headers, err := client.GetMemoClientInfo(repoDir)
 		if err != nil {
 			return err
 		}
 
-		napi, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		// create user node from server, type: api.UserNodeStruct
+		napi, closer, err := client.NewUserNode(cctx.Context, ip, headers)
 		if err != nil {
 			return err
 		}
 		defer closer()
 
+		// get data from params
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
 		path := cctx.String("path")
 
+		// get full path of home dir
 		p, err := homedir.Expand(path)
 		if err != nil {
 			return err
 		}
 
+		// open repo dir
 		pf, err := os.Open(p)
 		if err != nil {
 			return err
 		}
 		defer pf.Close()
 
+		// create put object options
 		poo := types.DefaultUploadOption()
 
+		// execute putObject
 		oi, err := napi.PutObject(cctx.Context, bucketName, objectName, pf, poo)
 		if err != nil {
 			return err

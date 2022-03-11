@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"math/big"
 	"math/rand"
 	"time"
 
 	callconts "memoc/callcontracts"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -19,106 +19,46 @@ import (
 	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 var logger = logging.Logger("settle")
 
-var (
-	endpoint = callconts.EndPoint
-	RoleAddr = callconts.RoleAddr
+const (
+	EndPoint     = "http://119.147.213.220:8191"
+	RoleContract = "0x3A014045154403aFF1C07C19553Bc985C123CB6E"
 )
 
-// as net prefix
-func GetRolePrefix() string {
-	return RoleAddr.String()[2:10]
+const (
+	sendTransactionRetryCount = 5
+	checkTxRetryCount         = 8
+	retryTxSleepTime          = time.Minute
+	retryGetInfoSleepTime     = 30 * time.Second
+	checkTxSleepTime          = 6 // 先等待6s（出块时间加1）
+	nextBlockTime             = 5 // 出块时间5s
+
+	InvalidAddr = "0x0000000000000000000000000000000000000000"
+	// DefaultGasLimit default gas limit in sending transaction
+	DefaultGasLimit = uint64(5000000) // as small as possible
+	DefaultGasPrice = 200
+)
+
+type roleInfo struct {
+	pri      *pb.RoleInfo
+	isActive bool
+	isBanned bool
 }
 
-// TransferTo trans money
-func TransferTo(toAddress common.Address, value *big.Int, sk string) error {
-	fmt.Println("transfer ", value, " to ", toAddress)
-	ctx, cancle := context.WithTimeout(context.TODO(), 10*time.Second)
-	defer cancle()
-	client, err := ethclient.DialContext(ctx, endpoint)
+func getClient(endPoint string) *ethclient.Client {
+	client, err := rpc.Dial(endPoint)
 	if err != nil {
-		return xerrors.Errorf("dail %s fail %s", endpoint, err)
+		logger.Debug(err)
 	}
-	defer client.Close()
-
-	privateKey, err := crypto.HexToECDSA(sk)
-	if err != nil {
-		return err
-	}
-
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		return xerrors.Errorf("error casting public key to ECDSA")
-	}
-
-	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
-
-	fmt.Println("transfer ", value, " from ", fromAddress, " to ", toAddress)
-
-	gasLimit := uint64(23000)           // in units
-	gasPrice := big.NewInt(30000000000) // in wei (30 gwei)
-
-	chainID, err := client.NetworkID(context.Background())
-	if err != nil {
-		chainID = big.NewInt(666)
-	}
-
-	bbal := QueryBalance(toAddress)
-
-	retry := 0
-	for {
-		retry++
-		if retry > 10 {
-			fmt.Println("fail transfer ", value.String(), "to", toAddress)
-			return errors.New("fail to transfer")
-		}
-
-		nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
-		if err != nil {
-			continue
-		}
-
-		gasPrice, err = client.SuggestGasPrice(context.Background())
-		if err != nil {
-			continue
-		}
-
-		tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, nil)
-
-		signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
-		if err != nil {
-			continue
-		}
-
-		err = client.SendTransaction(context.Background(), signedTx)
-		if err != nil {
-			fmt.Println("trans transcation fail:", err)
-			continue
-		}
-
-		qCount := 0
-		for qCount < 5 {
-			balance := QueryBalance(toAddress)
-			if balance.Cmp(bbal) > 0 {
-				fmt.Println("transfer ", value, " to ", toAddress, " has balance: ", balance)
-				return nil
-			}
-			fmt.Println(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
-
-			rand.NewSource(time.Now().UnixNano())
-			t := rand.Intn(20 * (qCount + 1))
-			time.Sleep(time.Duration(t) * time.Second)
-			qCount++
-		}
-	}
+	return ethclient.NewClient(client)
 }
 
-func QueryBalance(addr common.Address) *big.Int {
-	client, err := rpc.Dial(endpoint)
+func getBalance(endPoint string, addr common.Address) *big.Int {
+	client, err := rpc.Dial(endPoint)
 	if err != nil {
 		logger.Error("rpc.dial err:", err)
 		return big.NewInt(0)
@@ -136,15 +76,171 @@ func QueryBalance(addr common.Address) *big.Int {
 	return val
 }
 
-func Erc20Transfer(addr common.Address, val *big.Int) error {
+// makeAuth make the transactOpts to call contract
+func makeAuth(hexSk string, moneyToContract, gasPrice *big.Int) (*bind.TransactOpts, error) {
+	auth := &bind.TransactOpts{}
+	sk, err := crypto.HexToECDSA(hexSk)
+	if err != nil {
+		return auth, err
+	}
+
+	chainID := new(big.Int).SetUint64(35896)
+	auth, err = bind.NewKeyedTransactorWithChainID(sk, chainID)
+	if err != nil {
+		return nil, xerrors.Errorf("new keyed transaction failed %s", err)
+	}
+
+	auth.Value = moneyToContract //放进合约里的钱
+	auth.GasLimit = DefaultGasLimit
+	auth.GasPrice = gasPrice
+	return auth, nil
+}
+
+//CheckTx check whether transaction is successful through receipt
+func checkTx(endPoint string, tx *types.Transaction, name string) error {
+	logger.Debug("check transcation:%s %s nonce %d", name, tx.Hash(), tx.Nonce())
+
+	var receipt *types.Receipt
+	t := checkTxSleepTime
+	for i := 0; i < 10; i++ {
+		if i != 0 {
+			t = nextBlockTime * i
+		}
+		logger.Debug("getting txReceipt, waiting %d sec", t)
+		time.Sleep(time.Duration(t) * time.Second)
+		receipt = getTransactionReceipt(endPoint, tx.Hash())
+		if receipt != nil {
+			break
+		}
+	}
+
+	// 矿工挂掉等情况导致交易无法被打包
+	if receipt == nil { //231s获取不到交易信息，判定交易失败
+		return xerrors.Errorf("%s %s cann't get tx receipt, tx not packaged", name, tx.Hash())
+	}
+
+	logger.Debug("%s %s GasUsed: %d, CumulativeGasUsed: %d", name, tx.Hash(), receipt.GasUsed, receipt.CumulativeGasUsed)
+
+	if receipt.Status == 0 { //等于0表示交易失败，等于1表示成功
+		if receipt.GasUsed != receipt.CumulativeGasUsed {
+			return xerrors.Errorf("%s %s transaction exceed gas limit", name, tx.Hash())
+		}
+		return xerrors.Errorf("%s %s transaction mined but execution failed, please check your tx input", name, tx.Hash())
+	}
+
+	// 交易成功
+	logger.Debug("%s %s has been successful!", name, tx.Hash())
+	return nil
+}
+
+//GetTransactionReceipt 通过交易hash获得交易详情
+func getTransactionReceipt(endPoint string, hash common.Hash) *types.Receipt {
+	client, err := ethclient.Dial(endPoint)
+	if err != nil {
+		return nil
+	}
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	receipt, err := client.TransactionReceipt(ctx, hash)
+	if err != nil {
+		logger.Debugf("get transaction %s receipt fail: %s", hash, err)
+	}
+	return receipt
+}
+
+// TransferTo trans money
+func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk string) error {
+	logger.Debug("transfer ", value, " to ", toAddress)
+	ctx, cancle := context.WithTimeout(context.TODO(), 10*time.Second)
+	defer cancle()
+	client, err := ethclient.DialContext(ctx, endPoint)
+	if err != nil {
+		return xerrors.Errorf("dail %s fail %s", endPoint, err)
+	}
+	defer client.Close()
+
+	privateKey, err := crypto.HexToECDSA(sk)
+	if err != nil {
+		return err
+	}
+
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return xerrors.Errorf("error casting public key to ECDSA")
+	}
+
+	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	logger.Debug("transfer ", value, " from ", fromAddress, " to ", toAddress)
+
+	gasLimit := uint64(23000) // in units
+
+	chainID, err := client.NetworkID(context.Background())
+	if err != nil {
+		chainID = big.NewInt(666)
+	}
+
+	bbal := getBalance(endPoint, toAddress)
+
+	retry := 0
+	for {
+		retry++
+		if retry > 10 {
+			logger.Debug("fail transfer ", value.String(), "to", toAddress)
+			return errors.New("fail to transfer")
+		}
+
+		nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+		if err != nil {
+			continue
+		}
+
+		gasPrice, err := client.SuggestGasPrice(context.Background())
+		if err != nil {
+			continue
+		}
+
+		tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, nil)
+
+		signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+		if err != nil {
+			continue
+		}
+
+		err = client.SendTransaction(context.Background(), signedTx)
+		if err != nil {
+			logger.Debug("trans transcation fail:", err)
+			continue
+		}
+
+		qCount := 0
+		for qCount < 5 {
+			balance := getBalance(endPoint, toAddress)
+			if balance.Cmp(bbal) > 0 {
+				logger.Debug("transfer ", value, " to ", toAddress, " has balance: ", balance)
+				return nil
+			}
+			logger.Debug(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
+
+			rand.NewSource(time.Now().UnixNano())
+			t := rand.Intn(20 * (qCount + 1))
+			time.Sleep(time.Duration(t) * time.Second)
+			qCount++
+		}
+	}
+}
+
+func TransferErc20To(endPoint string, tAddr, addr common.Address, val *big.Int) error {
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
-		GasPrice: big.NewInt(callconts.DefaultGasPrice),
-		GasLimit: callconts.DefaultGasLimit,
+		GasPrice: big.NewInt(DefaultGasPrice),
+		GasLimit: DefaultGasLimit,
 	}
 
 	status := make(chan error)
-	erc20 := callconts.NewERC20(callconts.ERC20Addr, callconts.AdminAddr, callconts.AdminSk, txopts, endpoint, status)
+	erc20 := callconts.NewERC20(tAddr, callconts.AdminAddr, callconts.AdminSk, txopts, endPoint, status)
 
 	adminVal, err := erc20.BalanceOf(callconts.AdminAddr)
 	if err != nil {

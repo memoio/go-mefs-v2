@@ -25,35 +25,19 @@ const (
 	groupKwd     = "group"
 )
 
-var daemonStopCmd = &cli.Command{
-	Name:  "stop",
-	Usage: "Stop a running lotus daemon",
-	Flags: []cli.Flag{},
-	Action: func(cctx *cli.Context) error {
-		repoDir := cctx.String(FlagNodeRepo)
-		addr, headers, err := client.GetMemoClientInfo(repoDir)
-		if err != nil {
-			return err
-		}
-
-		napi, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
-		err = napi.Shutdown(cctx.Context)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	},
-}
-
 var DaemonCmd = &cli.Command{
 	Name:  "daemon",
 	Usage: "Run a network-connected Memoriae node.",
+
+	Subcommands: []*cli.Command{
+		daemonStartCmd,
+		daemonStopCmd,
+	},
+}
+
+var daemonStartCmd = &cli.Command{
+	Name:  "start",
+	Usage: "Start a running mefs daemon",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  pwKwd,
@@ -77,15 +61,20 @@ var DaemonCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		return daemonFunc(cctx)
+		return daemonStartFunc(cctx)
 	},
-	Subcommands: []*cli.Command{
-		daemonStopCmd,
+}
+
+var daemonStopCmd = &cli.Command{
+	Name:  "stop",
+	Usage: "Stop a running mefs daemon",
+	Action: func(cctx *cli.Context) error {
+		return daemonStopFunc(cctx)
 	},
 }
 
 // create a node with repo data and start it
-func daemonFunc(cctx *cli.Context) (_err error) {
+func daemonStartFunc(cctx *cli.Context) (_err error) {
 	logger.Info("Initializing daemon...")
 
 	ctx := cctx.Context
@@ -108,12 +97,12 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 
 	defer rep.Close()
 
-	// handle config
-	config := rep.Config()
+	// handle cfg
+	cfg := rep.Config()
 
 	if swarmPort := cctx.String(swarmPortKwd); swarmPort != "" {
-		changed := make([]string, 0, len(config.Net.Addresses))
-		for _, swarmAddr := range config.Net.Addresses {
+		changed := make([]string, 0, len(cfg.Net.Addresses))
+		for _, swarmAddr := range cfg.Net.Addresses {
 			strs := strings.Split(swarmAddr, "/")
 			for i, str := range strs {
 				if str == "tcp" || str == "udp" {
@@ -122,14 +111,14 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 			}
 			changed = append(changed, strings.Join(strs, "/"))
 		}
-		config.Net.Addresses = changed
+		cfg.Net.Addresses = changed
 	}
 
 	if apiAddr := cctx.String(apiAddrKwd); apiAddr != "" {
-		config.API.Address = apiAddr
+		cfg.API.Address = apiAddr
 	}
 
-	rep.ReplaceConfig(config)
+	rep.ReplaceConfig(cfg)
 
 	pwd := cctx.String("password")
 	opts, err := basenode.OptionsFromRepo(rep)
@@ -138,7 +127,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	}
 	opts = append(opts, basenode.SetPassword(pwd))
 
-	laddr, err := address.NewFromString(config.Wallet.DefaultAddress)
+	laddr, err := address.NewFromString(cfg.Wallet.DefaultAddress)
 	if err != nil {
 		return err
 	}
@@ -152,7 +141,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	// create the node with opts above
 	switch cctx.String(FlagRoleType) {
 	case pb.RoleInfo_Keeper.String():
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
+		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
@@ -165,7 +154,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	case pb.RoleInfo_Provider.String():
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
+		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
@@ -178,7 +167,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	case pb.RoleInfo_User.String():
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
+		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
@@ -191,7 +180,7 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	default:
-		rid, gid, err := settle.Register(ctx, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
+		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
 		if err != nil {
 			return err
 		}
@@ -211,4 +200,26 @@ func daemonFunc(cctx *cli.Context) (_err error) {
 	}
 
 	return node.RunDaemon()
+}
+
+// stop a node
+func daemonStopFunc(cctx *cli.Context) (_err error) {
+	repoDir := cctx.String(FlagNodeRepo)
+	addr, headers, err := client.GetMemoClientInfo(repoDir)
+	if err != nil {
+		return err
+	}
+
+	napi, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+	if err != nil {
+		return err
+	}
+	defer closer()
+
+	err = napi.Shutdown(cctx.Context)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

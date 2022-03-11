@@ -16,6 +16,7 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 
 	"github.com/ipfs/go-datastore"
 	levelds "github.com/ipfs/go-ds-leveldb"
@@ -284,6 +285,14 @@ func (r *FSRepo) loadConfig() error {
 	cfg, err := config.ReadFile(configFile)
 	if err != nil {
 		return xerrors.Errorf("failed to read config file at %q %w", configFile, err)
+	}
+
+	if cfg.Contract.EndPoint == "" {
+		cfg.Contract.EndPoint = settle.EndPoint
+	}
+
+	if cfg.Contract.RoleContract == "" {
+		cfg.Contract.RoleContract = settle.RoleContract
 	}
 
 	r.cfg = cfg

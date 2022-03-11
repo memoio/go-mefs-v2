@@ -8,6 +8,7 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/utils"
+
 	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -27,6 +28,13 @@ var OrderCmd = &cli.Command{
 var orderListJobCmd = &cli.Command{
 	Name:  "jobList",
 	Usage: "list jobs of all pros",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "verbose",
+			Usage: "filter output",
+			Value: false,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(cmd.FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -45,7 +53,12 @@ var orderListJobCmd = &cli.Command{
 			return err
 		}
 
+		verbose := cctx.Bool("verbose")
+
 		for _, oi := range ois {
+			if !verbose && oi.InStop {
+				continue
+			}
 			fmt.Printf("proID: %d, jobs: %d, order: %d %s %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Jobs, oi.Nonce, ansi.Color(oi.OrderState, "green"), time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, ansi.Color(oi.SeqState, "green"), oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
 		}
 

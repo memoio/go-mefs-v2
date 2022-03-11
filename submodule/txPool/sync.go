@@ -473,7 +473,7 @@ func (sp *SyncPool) getTxBlockByHeight(ht uint64) {
 func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
 	nonce := sp.StateGetNonce(sp.ctx, msg.From)
 	if msg.Nonce < nonce {
-		return xerrors.Errorf("nonce expected no less than %d, got %d", nonce, msg.Nonce)
+		return xerrors.Errorf("%d nonce expected no less than %d, got %d", msg.From, nonce, msg.Nonce)
 	}
 
 	mid := msg.Hash()

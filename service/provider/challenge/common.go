@@ -75,18 +75,6 @@ func (s *SegMgr) pushMessage(msg *tx.Message) {
 					epoch:   scp.Epoch,
 					errCode: uint16(st.Status.Err),
 				}
-			case tx.SubDataOrder:
-				osp := new(tx.OrderSubParas)
-				err = osp.Deserialize(msg.Params)
-				if err != nil {
-					return
-				}
-
-				s.subChan <- &subRes{
-					userID:  msg.To,
-					nonce:   osp.Nonce,
-					errCode: uint16(st.Status.Err),
-				}
 			}
 
 			return

@@ -97,7 +97,7 @@ func (mp *InPool) sync() {
 			ms, ok := mp.pending[m.From]
 			if !ok {
 				ms = &msgSet{
-					nextDelete: m.Nonce,
+					nextDelete: mp.StateGetNonce(mp.ctx, m.From),
 					info:       make(map[uint64]*tx.SignedMessage),
 				}
 

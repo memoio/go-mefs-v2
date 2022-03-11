@@ -2,10 +2,13 @@ package challenge
 
 import (
 	"context"
+	"encoding/binary"
 
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 func (s *SegMgr) subDataOrder(userID uint64) error {
@@ -58,10 +61,14 @@ func (s *SegMgr) subDataOrder(userID uint64) error {
 func (s *SegMgr) removeSegInExpiredOrder(userID, nonce uint64) error {
 	logger.Debug("remove data in expired order: ", userID, nonce)
 
+	of, err := s.GetOrder(userID, s.localID, nonce)
+	if err != nil {
+		return err
+	}
+
 	si := s.loadFs(userID)
-	seqNum := uint32(0)
-	for {
-		sf, err := s.GetOrderSeq(userID, s.localID, nonce, seqNum)
+	for i := uint32(0); i < of.SeqNum; i++ {
+		sf, err := s.GetOrderSeq(userID, s.localID, nonce, i)
 		if err != nil {
 			return err
 		}
@@ -75,7 +82,10 @@ func (s *SegMgr) removeSegInExpiredOrder(userID, nonce uint64) error {
 				s.DeleteSegment(context.TODO(), sid)
 			}
 		}
-
-		seqNum++
 	}
+
+	key := store.NewKey(pb.MetaType_OrderExpiredKey, userID, s.localID)
+	val := make([]byte, 8)
+	binary.BigEndian.PutUint64(val, nonce+1)
+	return s.ds.Put(key, val)
 }

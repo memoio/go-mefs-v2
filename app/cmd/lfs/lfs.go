@@ -34,6 +34,9 @@ func FormatPolicy(policy uint32) string {
 }
 
 func FormatBucketInfo(bucket *types.BucketInfo) string {
+	// get reliability with dc and pc
+	reliability := ReliabilityLevel(bucket.DataCount, bucket.ParityCount)
+
 	return fmt.Sprintf(
 		`Name: %s
 Bucket ID: %d
@@ -43,6 +46,7 @@ Object Count: %d
 Policy: %s
 Data Count: %d
 Parity Count: %d
+Reliability: %s
 Used Bytes: %s`,
 		ansi.Color(bucket.Name, "green"),
 		bucket.BucketID,
@@ -52,6 +56,7 @@ Used Bytes: %s`,
 		FormatPolicy(bucket.Policy),
 		bucket.DataCount,
 		bucket.ParityCount,
+		reliability,
 		utils.FormatBytes(int64(bucket.UsedBytes)),
 	)
 }
@@ -154,9 +159,6 @@ var createBucketCmd = &cli.Command{
 			return err
 		}
 
-		secLevel := SecLevel(opts.DataCount, opts.ParityCount)
-		fmt.Printf("\nSecurity level: %s\n\n", secLevel)
-
 		fmt.Println(FormatBucketInfo(bi))
 
 		return nil
@@ -240,21 +242,21 @@ var headBucketCmd = &cli.Command{
 }
 
 // get security level from dataCount and parityCount
-func SecLevel(dataCount uint32, parityCount uint32) string {
-	secLevel := ""
+func ReliabilityLevel(dataCount uint32, parityCount uint32) string {
+	reLevel := ""
 
 	// low security
 	if dataCount > parityCount {
-		secLevel = "LOW"
+		reLevel = "LOW"
 	}
 	// medium security
 	if dataCount == parityCount {
-		secLevel = "MEDIUM"
+		reLevel = "MEDIUM"
 	}
 	// high security
 	if dataCount < parityCount {
-		secLevel = "HIGH"
+		reLevel = "HIGH"
 	}
 
-	return secLevel
+	return reLevel
 }
