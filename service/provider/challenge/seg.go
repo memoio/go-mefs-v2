@@ -130,6 +130,7 @@ func (s *SegMgr) regularChallenge() {
 			si.wait = false
 			si.nextChal++
 		case sc := <-s.subChan:
+			logger.Debug("expire data in", sc)
 			if sc.errCode == 0 {
 				go s.removeSegInExpiredOrder(sc.userID, sc.nonce)
 			}

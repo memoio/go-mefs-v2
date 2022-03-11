@@ -79,6 +79,7 @@ func (s *SegMgr) pushMessage(msg *tx.Message) {
 				osp := new(tx.OrderSubParas)
 				err = osp.Deserialize(msg.Params)
 				if err != nil {
+					logger.Debug("expired Deserialize fail: %s", err)
 					return
 				}
 
