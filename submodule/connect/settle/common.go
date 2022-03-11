@@ -178,8 +178,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 
 	fmt.Println("transfer ", value, " from ", fromAddress, " to ", toAddress)
 
-	gasLimit := uint64(23000)           // in units
-	gasPrice := big.NewInt(30000000000) // in wei (30 gwei)
+	gasLimit := uint64(23000) // in units
 
 	chainID, err := client.NetworkID(context.Background())
 	if err != nil {
@@ -201,7 +200,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 			continue
 		}
 
-		gasPrice, err = client.SuggestGasPrice(context.Background())
+		gasPrice, err := client.SuggestGasPrice(context.Background())
 		if err != nil {
 			continue
 		}

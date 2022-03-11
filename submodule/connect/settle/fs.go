@@ -337,14 +337,12 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 		return xerrors.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
 	}
 
-	go func(rtx *etypes.Transaction) {
-		err := checkTx(cm.endPoint, tx, "AddOrder")
-		if err != nil {
-			logger.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
-		} else {
-			logger.Debugf("add order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
-		}
-	}(tx)
+	err = checkTx(cm.endPoint, tx, "AddOrder")
+	if err != nil {
+		logger.Errorf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatWei(avil), err)
+	} else {
+		logger.Debugf("add order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
+	}
 
 	return nil
 }
@@ -356,7 +354,7 @@ func (cm *ContractMgr) SubOrder(so *types.SignedOrder) error {
 	}
 
 	go func(rtx *etypes.Transaction) {
-		err := checkTx(cm.endPoint, tx, "AddOrder")
+		err := checkTx(cm.endPoint, tx, "SubOrder")
 		if err != nil {
 			logger.Errorf("sub order user %d pro %d nonce %d size %d start %d end %d, price %d tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, err)
 		} else {
