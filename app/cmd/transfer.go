@@ -10,6 +10,7 @@ import (
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
@@ -39,6 +40,11 @@ var addKeeperToGroupCmd = &cli.Command{
 			Name:    pwKwd,
 			Aliases: []string{"pw"},
 			Value:   "memoriae",
+		},
+		&cli.StringFlag{
+			Name:  "sk",
+			Usage: "secret key of admin",
+			Value: callconts.AdminSk,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -94,8 +100,18 @@ var addKeeperToGroupCmd = &cli.Command{
 			return err
 		}
 
+		if ri.ID != 0 {
+			return xerrors.Errorf("role is not registered")
+		}
+
+		if ri.Type != pb.RoleInfo_Keeper {
+			return xerrors.Errorf("role is not keeper")
+		}
+
+		sk := cctx.String("sk")
+
 		if ri.GroupID == 0 && gid > 0 {
-			err = settle.AddKeeperToGroup(cfg.Contract.EndPoint, cfg.Contract.RoleContract, ri.GetID(), gid)
+			err = settle.AddKeeperToGroup(cfg.Contract.EndPoint, cfg.Contract.RoleContract, sk, ri.GetID(), gid)
 			if err != nil {
 				return err
 			}

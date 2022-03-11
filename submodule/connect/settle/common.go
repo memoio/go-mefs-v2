@@ -27,6 +27,11 @@ import (
 var logger = logging.Logger("settle")
 
 const (
+	EndPoint     = "http://119.147.213.220:8191"
+	RoleContract = "0x3A014045154403aFF1C07C19553Bc985C123CB6E"
+)
+
+const (
 	sendTransactionRetryCount = 5
 	checkTxRetryCount         = 8
 	retryTxSleepTime          = time.Minute
@@ -49,7 +54,7 @@ type roleInfo struct {
 func getClient(endPoint string) *ethclient.Client {
 	client, err := rpc.Dial(endPoint)
 	if err != nil {
-		log.Println(err)
+		logger.Debug(err)
 	}
 	return ethclient.NewClient(client)
 }
@@ -120,7 +125,7 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 
 	if receipt.Status == 0 { //等于0表示交易失败，等于1表示成功
 		if receipt.GasUsed != receipt.CumulativeGasUsed {
-			log.Println(name, ": tx exceed gas limit")
+			logger.Debug(name, ": tx exceed gas limit")
 		}
 		return xerrors.Errorf("%s transaction mined but execution failed, please check your tx input", name)
 	}

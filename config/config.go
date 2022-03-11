@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"golang.org/x/xerrors"
 )
 
@@ -33,8 +34,8 @@ type ContractConfig struct {
 
 func newDefaultContractConfig() ContractConfig {
 	return ContractConfig{
-		EndPoint:     "http://119.147.213.220:8191",
-		RoleContract: "0x3A014045154403aFF1C07C19553Bc985C123CB6E",
+		EndPoint:     settle.EndPoint,
+		RoleContract: settle.RoleContract,
 	}
 }
 

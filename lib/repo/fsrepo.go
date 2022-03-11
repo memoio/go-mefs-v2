@@ -16,6 +16,7 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 
 	"github.com/ipfs/go-datastore"
 	levelds "github.com/ipfs/go-ds-leveldb"
@@ -287,11 +288,11 @@ func (r *FSRepo) loadConfig() error {
 	}
 
 	if cfg.Contract.EndPoint == "" {
-		cfg.Contract.EndPoint = "http://119.147.213.220:8191"
+		cfg.Contract.EndPoint = settle.EndPoint
 	}
 
 	if cfg.Contract.RoleContract == "" {
-		cfg.Contract.RoleContract = "0x3A014045154403aFF1C07C19553Bc985C123CB6E"
+		cfg.Contract.RoleContract = settle.RoleContract
 	}
 
 	r.cfg = cfg

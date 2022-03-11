@@ -1,0 +1,415 @@
+package settle
+
+import (
+	"context"
+	"crypto/ecdsa"
+	"encoding/hex"
+	"fmt"
+	"time"
+
+	"memoc/contracts/role"
+
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"golang.org/x/xerrors"
+
+	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/pb"
+)
+
+var _ api.ISettle = &ContractMgr{}
+
+type ContractMgr struct {
+	ctx context.Context
+
+	endPoint string
+
+	hexSK   string
+	roleID  uint64
+	groupID uint64
+	level   int
+	tIndex  uint32
+
+	eAddr   common.Address // local address
+	rAddr   common.Address // role contract address
+	rtAddr  common.Address // token mgr address
+	tAddr   common.Address // token address
+	ppAddr  common.Address // pledge pool address
+	isAddr  common.Address // issurance address
+	rfsAddr common.Address // issurance address
+	fsAddr  common.Address // fs contract addr
+}
+
+func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (*ContractMgr, error) {
+	logger.Debug("create contract mgr: ", endPoint, roleAddr)
+
+	// convert key
+	hexSk := hex.EncodeToString(sk)
+	privateKey, err := crypto.HexToECDSA(hexSk)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, xerrors.Errorf("error casting public key to ECDSA")
+	}
+
+	eAddr := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	// transfer eth
+	// todo: remove at mainnet
+	val := getBalance(endPoint, eAddr)
+	logger.Debugf("%s has val %d", eAddr, val)
+	if val.BitLen() == 0 {
+		return nil, xerrors.Errorf("not have tx fee on chain")
+	}
+
+	rAddr := common.HexToAddress(roleAddr)
+	tIndex := uint32(0)
+	cm := &ContractMgr{
+		ctx:      ctx,
+		endPoint: endPoint,
+
+		hexSK:  hexSk,
+		tIndex: tIndex,
+
+		eAddr: eAddr,
+		rAddr: rAddr,
+	}
+
+	rtAddr, err := cm.getRoleTokenAddr()
+	if err != nil {
+		return nil, err
+	}
+	cm.rtAddr = rtAddr
+
+	tAddr, err := cm.getTokenAddr(cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
+	cm.tAddr = tAddr
+
+	val = cm.getBalanceInErc(eAddr)
+	logger.Debugf("%s has erc20 val %d", eAddr, val)
+
+	//if val.BitLen() == 0 {
+	//	return nil, xerrors.Errorf("not have erc20 token")
+	//}
+
+	ppAddr, err := cm.getPledgeAddr()
+	if err != nil {
+		return nil, err
+	}
+	cm.ppAddr = ppAddr
+
+	rfsAddr, err := cm.getRolefsAddr()
+	if err != nil {
+		return nil, err
+	}
+	cm.rfsAddr = rfsAddr
+
+	isAddr, err := cm.getIssuanceAddr()
+	if err != nil {
+		return nil, err
+	}
+	cm.isAddr = isAddr
+
+	logger.Debug("role contract address: ", rAddr.Hex())
+	logger.Debug("token mgr contract address: ", rtAddr.Hex())
+	logger.Debug("token contract address: ", tAddr.Hex())
+	logger.Debug("role fs contract address: ", rfsAddr.Hex())
+	logger.Debug("issu contract address: ", isAddr.Hex())
+	logger.Debug("pledge contract address: ", ppAddr.Hex())
+
+	return cm, nil
+}
+
+func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
+	if gIndex == 0 {
+		return nil
+	}
+	logger.Debug("start contract mgr: ", typ, gIndex)
+	ri, err := cm.getRoleInfo(cm.eAddr)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("get roleinfo: ", ri.pri.ID)
+
+	// register account
+	if ri.pri.ID == 0 {
+		err := cm.RegisterAcc()
+		if err != nil {
+			return err
+		}
+	}
+
+	ri, err = cm.getRoleInfo(cm.eAddr)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("get roleinfo after register account: ", ri)
+
+	if ri.pri.ID == 0 {
+		return xerrors.Errorf("register fails")
+	}
+
+	cm.roleID = ri.pri.ID
+
+	// register role
+	if ri.pri.Type == pb.RoleInfo_Unknown {
+		switch typ {
+		case pb.RoleInfo_Keeper:
+			err = cm.RegisterKeeper()
+			if err != nil {
+				logger.Debug("register keeper fail: ", err)
+				return err
+			}
+		case pb.RoleInfo_Provider:
+			// provider: register,register; add to group
+			err = cm.RegisterProvider()
+			if err != nil {
+				logger.Debug("register provider fail: ", err)
+				return err
+			}
+		case pb.RoleInfo_User:
+			// user: resgister user
+			// get extra byte
+			err = cm.RegisterUser(gIndex)
+			if err != nil {
+				logger.Debug("register user fail: ", err)
+				return err
+			}
+		}
+	}
+
+	time.Sleep(5 * time.Second)
+
+	ri, err = cm.getRoleInfo(cm.eAddr)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("get roleinfo after register role: ", ri)
+
+	switch typ {
+	case pb.RoleInfo_Keeper:
+		if ri.pri.Type != typ {
+			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_Keeper, ri.pri.Type)
+		}
+
+		if ri.pri.GroupID == 0 && gIndex > 0 {
+			fmt.Println("need grant to add keeper to group")
+			/*
+				err = AddKeeperToGroup(cm.roleID, gIndex)
+				if err != nil {
+					return err
+				}
+
+				time.Sleep(5 * time.Second)
+
+				_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
+				if err != nil {
+					return err
+				}
+
+				if gid != gIndex {
+					return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
+				}
+			*/
+		}
+
+	case pb.RoleInfo_Provider:
+		if ri.pri.Type != typ {
+			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_Provider, ri.pri.Type)
+		}
+
+		if ri.pri.GroupID == 0 && gIndex > 0 {
+			err = cm.AddProviderToGroup(gIndex)
+			if err != nil {
+				return err
+			}
+
+			time.Sleep(5 * time.Second)
+
+			ri, err = cm.getRoleInfo(cm.eAddr)
+			if err != nil {
+				return err
+			}
+
+			if ri.pri.GroupID != gIndex {
+				return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, ri.pri.GroupID)
+			}
+		}
+	case pb.RoleInfo_User:
+		if ri.pri.Type != typ {
+			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_User, ri.pri.Type)
+		}
+	default:
+	}
+
+	cm.roleID = ri.pri.ID
+
+	if ri.pri.GroupID == 0 {
+		cm.groupID = gIndex
+	} else {
+		cm.groupID = ri.pri.GroupID
+	}
+
+	if gIndex > 0 {
+		gi, err := cm.SettleGetGroupInfoAt(cm.ctx, gIndex)
+		if err != nil {
+			return err
+		}
+		cm.fsAddr = common.HexToAddress(gi.FsAddr)
+		cm.level = int(gi.Level)
+		logger.Debug("fs contract address: ", cm.fsAddr.Hex())
+	}
+
+	return nil
+}
+
+func (cm *ContractMgr) getRoleTokenAddr() (common.Address, error) {
+	var rt common.Address
+
+	client := getClient(cm.endPoint)
+	defer client.Close()
+
+	roleIns, err := role.NewRole(cm.rAddr, client)
+	if err != nil {
+		return rt, err
+	}
+
+	retryCount := 0
+	for {
+		retryCount++
+		rt, err = roleIns.RToken(&bind.CallOpts{
+			From: cm.eAddr,
+		})
+		if err != nil {
+			if retryCount > sendTransactionRetryCount {
+				return rt, err
+			}
+			time.Sleep(retryGetInfoSleepTime)
+			continue
+		}
+
+		return rt, nil
+	}
+}
+
+func (cm *ContractMgr) getTokenAddr(tIndex uint32) (common.Address, error) {
+	var taddr common.Address
+
+	client := getClient(cm.endPoint)
+	defer client.Close()
+	rToken, err := role.NewRToken(cm.rAddr, client)
+	if err != nil {
+		return taddr, err
+	}
+
+	retryCount := 0
+	for {
+		retryCount++
+		taddr, err = rToken.GetTA(&bind.CallOpts{
+			From: cm.eAddr,
+		}, tIndex)
+		if err != nil {
+			if retryCount > sendTransactionRetryCount {
+				return taddr, err
+			}
+			time.Sleep(retryGetInfoSleepTime)
+			continue
+		}
+
+		return taddr, nil
+	}
+}
+
+func (cm *ContractMgr) getPledgeAddr() (common.Address, error) {
+	var pp common.Address
+	client := getClient(cm.endPoint)
+	defer client.Close()
+	roleIns, err := role.NewRole(cm.rAddr, client)
+	if err != nil {
+		return pp, err
+	}
+
+	retryCount := 0
+	for {
+		retryCount++
+		pp, err = roleIns.PledgePool(&bind.CallOpts{
+			From: cm.eAddr,
+		})
+		if err != nil {
+			if retryCount > sendTransactionRetryCount {
+				return pp, err
+			}
+			time.Sleep(retryGetInfoSleepTime)
+			continue
+		}
+
+		return pp, nil
+	}
+}
+
+func (cm *ContractMgr) getRolefsAddr() (common.Address, error) {
+	var rfs common.Address
+
+	client := getClient(cm.endPoint)
+	defer client.Close()
+
+	roleIns, err := role.NewRole(cm.rAddr, client)
+	if err != nil {
+		return rfs, err
+	}
+
+	retryCount := 0
+	for {
+		retryCount++
+		rfs, err = roleIns.Rolefs(&bind.CallOpts{
+			From: cm.eAddr,
+		})
+		if err != nil {
+			if retryCount > sendTransactionRetryCount {
+				return rfs, err
+			}
+			time.Sleep(retryGetInfoSleepTime)
+			continue
+		}
+
+		return rfs, nil
+	}
+}
+
+func (cm *ContractMgr) getIssuanceAddr() (common.Address, error) {
+	var is common.Address
+
+	client := getClient(cm.endPoint)
+	defer client.Close()
+	roleIns, err := role.NewRole(cm.rAddr, client)
+	if err != nil {
+		return is, err
+	}
+
+	retryCount := 0
+	for {
+		retryCount++
+		is, err = roleIns.Issuance(&bind.CallOpts{
+			From: cm.eAddr,
+		})
+		if err != nil {
+			if retryCount > sendTransactionRetryCount {
+				return is, err
+			}
+			time.Sleep(retryGetInfoSleepTime)
+			continue
+		}
+
+		return is, nil
+	}
+}
