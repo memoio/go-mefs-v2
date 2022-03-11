@@ -1084,10 +1084,10 @@ func (s *StateMgr) canSubOrder(msg *tx.Message) error {
 		proID:  osp.ProID,
 	}
 
-	oinfo, ok := s.oInfo[okey]
+	oinfo, ok := s.validateOInfo[okey]
 	if !ok {
 		oinfo = s.loadOrder(osp.UserID, osp.ProID)
-		s.oInfo[okey] = oinfo
+		s.validateOInfo[okey] = oinfo
 	}
 
 	if osp.Nonce != oinfo.ns.SubNonce {
