@@ -7,15 +7,16 @@ require (
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
 	github.com/bits-and-blooms/bitset v1.2.1
 	github.com/btcsuite/btcd v0.22.0-beta
-	github.com/chrislusf/seaweedfs v0.0.0-20211012155459-7700bf62f0ce
 	github.com/dgraph-io/badger/v2 v2.2007.4
 	github.com/ethereum/go-ethereum v1.10.12
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gbrlsnchs/jwt/v3 v3.0.1
-	github.com/go-errors/errors v1.4.1 // indirect
+	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2
+	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
@@ -49,6 +50,8 @@ require (
 	github.com/multiformats/go-multiaddr v0.3.3
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/multiformats/go-multihash v0.0.15
+	github.com/onsi/ginkgo v1.14.2 // indirect
+	github.com/onsi/gomega v1.10.4 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sakeven/RbTree v0.0.0-20190505104653-18ee3093df2f
 	github.com/stretchr/testify v1.7.0
@@ -56,10 +59,15 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/zeebo/blake3 v0.2.1
 	go.opencensus.io v0.23.0
+	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1
 	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
+	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sys v0.0.0-20210908233432-aa78b53d3365 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+	google.golang.org/grpc v1.40.0 // indirect
+	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	lukechampine.com/frand v1.4.2
 	memoc v0.0.0-00010101000000-000000000000
