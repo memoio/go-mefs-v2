@@ -13,6 +13,7 @@ import (
 	"github.com/memoio/go-mefs-v2/build"
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -40,7 +41,8 @@ type SegMgr struct {
 	sInfo map[uint64]*segInfo // key: userID
 
 	chalChan chan *chalRes
-	subChan  chan *subRes
+
+	inRemove bool
 }
 
 func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDataService, pp *txPool.PushPool) *SegMgr {
@@ -54,7 +56,6 @@ func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDa
 		sInfo:        make(map[uint64]*segInfo),
 
 		chalChan: make(chan *chalRes, 16),
-		subChan:  make(chan *subRes, 32),
 	}
 
 	return s
@@ -63,6 +64,7 @@ func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDa
 func (s *SegMgr) Start() {
 	s.load()
 	go s.regularChallenge()
+	go s.regularRemove()
 }
 
 // load from state
@@ -129,11 +131,6 @@ func (s *SegMgr) regularChallenge() {
 			si.chalTime = time.Now()
 			si.wait = false
 			si.nextChal++
-		case sc := <-s.subChan:
-			logger.Debug("expire data in", sc)
-			if sc.errCode == 0 {
-				go s.removeSegInExpiredOrder(sc.userID, sc.nonce)
-			}
 		case <-tc.C:
 			s.epoch = s.GetChalEpoch(s.ctx)
 			s.eInfo, _ = s.StateGetChalEpochInfo(s.ctx)
@@ -153,6 +150,46 @@ func (s *SegMgr) regularChallenge() {
 			userID := s.users[i]
 			s.challenge(userID)
 			i++
+		}
+	}
+}
+
+func (s *SegMgr) regularRemove() {
+	tc := time.NewTicker(time.Minute)
+	defer tc.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-tc.C:
+			go s.removeExpiredChunk()
+		}
+	}
+}
+
+func (s *SegMgr) removeExpiredChunk() {
+	if s.inRemove {
+		return
+	}
+	s.inRemove = true
+	defer func() {
+		s.inRemove = false
+	}()
+
+	users := s.StateGetUsersAt(s.ctx, s.localID)
+	for _, userID := range users {
+		subNonce := uint64(0)
+		key := store.NewKey(pb.MetaType_OrderExpiredKey, userID, s.localID)
+		val, err := s.ds.Get(key)
+		if err == nil && len(val) >= 8 {
+			subNonce = binary.BigEndian.Uint64(val)
+		}
+
+		ns := s.StateGetOrderState(s.ctx, userID, s.localID)
+
+		for i := subNonce; i < ns.SubNonce; i++ {
+			s.removeSegInExpiredOrder(userID, i)
 		}
 	}
 }
