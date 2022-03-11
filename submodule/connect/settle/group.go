@@ -138,7 +138,7 @@ func (cm *ContractMgr) GetGroupK(gIndex uint64, index uint64) (uint64, error) {
 		return kIndex, err
 	}
 	if index >= gkNum {
-		return kIndex, xerrors.Errorf("index %s is larger than group keeper count %d", index, gkNum)
+		return kIndex, xerrors.Errorf("index %d is larger than group keeper count %d", index, gkNum)
 	}
 
 	client := getClient(cm.endPoint)
@@ -222,7 +222,7 @@ func (cm *ContractMgr) GetGroupU(gIndex uint64, index uint64) (uint64, error) {
 		return uIndex, err
 	}
 	if index >= ukNum {
-		return uIndex, xerrors.Errorf("index %s is larger than group user count %d", index, ukNum)
+		return uIndex, xerrors.Errorf("index %d is larger than group user count %d", index, ukNum)
 	}
 
 	client := getClient(cm.endPoint)

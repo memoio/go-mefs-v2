@@ -42,7 +42,7 @@ type ContractMgr struct {
 }
 
 func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (*ContractMgr, error) {
-	logger.Debug("create contract mgr: ", endPoint, roleAddr)
+	logger.Debug("create contract mgr: ", endPoint, ", ", roleAddr)
 
 	// convert key
 	hexSk := hex.EncodeToString(sk)
@@ -68,6 +68,8 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 	}
 
 	rAddr := common.HexToAddress(roleAddr)
+	logger.Debug("role contract address: ", rAddr.Hex())
+
 	tIndex := uint32(0)
 	cm := &ContractMgr{
 		ctx:      ctx,
@@ -85,12 +87,14 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 		return nil, err
 	}
 	cm.rtAddr = rtAddr
+	logger.Debug("token mgr contract address: ", rtAddr.Hex())
 
 	tAddr, err := cm.getTokenAddr(cm.tIndex)
 	if err != nil {
 		return nil, err
 	}
 	cm.tAddr = tAddr
+	logger.Debug("token contract address: ", tAddr.Hex())
 
 	val = cm.getBalanceInErc(eAddr)
 	logger.Debugf("%s has erc20 val %d", eAddr, val)
@@ -104,25 +108,21 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 		return nil, err
 	}
 	cm.ppAddr = ppAddr
+	logger.Debug("pledge contract address: ", ppAddr.Hex())
 
 	rfsAddr, err := cm.getRolefsAddr()
 	if err != nil {
 		return nil, err
 	}
 	cm.rfsAddr = rfsAddr
+	logger.Debug("role fs contract address: ", rfsAddr.Hex())
 
 	isAddr, err := cm.getIssuanceAddr()
 	if err != nil {
 		return nil, err
 	}
 	cm.isAddr = isAddr
-
-	logger.Debug("role contract address: ", rAddr.Hex())
-	logger.Debug("token mgr contract address: ", rtAddr.Hex())
-	logger.Debug("token contract address: ", tAddr.Hex())
-	logger.Debug("role fs contract address: ", rfsAddr.Hex())
 	logger.Debug("issu contract address: ", isAddr.Hex())
-	logger.Debug("pledge contract address: ", ppAddr.Hex())
 
 	return cm, nil
 }
