@@ -24,7 +24,7 @@ type Config struct {
 	API       APIConfig       `json:"api"`
 	Bootstrap BootstrapConfig `json:"bootstrap"`
 	Data      StorePathConfig `json:"data"`
-	Contract  ContractConfig
+	Contract  ContractConfig  `json:"contract"`
 }
 
 type ContractConfig struct {
