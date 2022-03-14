@@ -8,6 +8,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
+	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
@@ -21,7 +22,7 @@ func main() {
 	app := &cli.App{
 		Name:                 "mefs-keeper",
 		Usage:                "Memoriae decentralized storage network node",
-		Version:              "1.0.0",
+		Version:              build.UserVersion(),
 		EnableBashCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
