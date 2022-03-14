@@ -143,9 +143,9 @@ func (cm *ContractMgr) recharge(rTokenAddr common.Address, uIndex uint64, tIndex
 
 	logger.Debug("begin Recharge in Role contract...")
 
-	auth, errMA := makeAuth(cm.hexSK, nil, nil)
-	if errMA != nil {
-		return errMA
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
+	if err != nil {
+		return err
 	}
 	tx, err := roleIns.Recharge(auth, uIndex, tIndex, money, sign)
 	if err != nil {
@@ -241,7 +241,7 @@ func (cm *ContractMgr) addOrder(roleAddr, rTokenAddr common.Address, uIndex, pIn
 
 	logger.Debug("begin AddOrder in RoleFS contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (cm *ContractMgr) subOrder(roleAddr, rTokenAddr common.Address, uIndex, pIn
 
 	logger.Debug("begin SubOrder in RoleFS contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return nil, err
 	}

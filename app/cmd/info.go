@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
 
@@ -68,7 +68,7 @@ var InfoCmd = &cli.Command{
 		}
 		fmt.Println("ID: ", pri.ID)
 		fmt.Println("Type: ", pri.Type.String())
-		fmt.Printf("Wallet: %s \n", "0x"+hex.EncodeToString(pri.ChainVerifyKey))
+		fmt.Println("Wallet: ", common.BytesToAddress(pri.ChainVerifyKey))
 
 		bi, err := api.SettleGetBalanceInfo(cctx.Context, pri.ID)
 		if err != nil {
@@ -113,6 +113,7 @@ var InfoCmd = &cli.Command{
 			return err
 		}
 
+		fmt.Println("EndPoint: ", gi.EndPoint)
 		fmt.Println("Contract Address: ", gi.RoleAddr)
 		fmt.Println("Fs Address: ", gi.FsAddr)
 		fmt.Println("ID: ", gid)

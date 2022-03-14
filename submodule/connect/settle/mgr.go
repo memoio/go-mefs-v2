@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"math/big"
 	"time"
 
 	"memoc/contracts/role"
@@ -23,6 +24,7 @@ type ContractMgr struct {
 	ctx context.Context
 
 	endPoint string
+	chainID  *big.Int
 
 	hexSK   string
 	roleID  uint64
@@ -42,6 +44,12 @@ type ContractMgr struct {
 
 func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (*ContractMgr, error) {
 	logger.Debug("create contract mgr: ", endPoint, ", ", roleAddr)
+
+	client := getClient(endPoint)
+	chainID, err := client.NetworkID(context.Background())
+	if err != nil {
+		return nil, err
+	}
 
 	// convert key
 	hexSk := hex.EncodeToString(sk)
@@ -73,6 +81,7 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 	cm := &ContractMgr{
 		ctx:      ctx,
 		endPoint: endPoint,
+		chainID:  chainID,
 
 		hexSK:  hexSk,
 		tIndex: tIndex,
@@ -136,7 +145,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return err
 	}
 
-	logger.Debug("get roleinfo: ", ri.pri.ID)
+	logger.Debug("get roleinfo: ", ri.pri, ri.isActive, ri.isBanned)
 
 	// register account
 	if ri.pri.ID == 0 {
@@ -144,6 +153,8 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		if err != nil {
 			return err
 		}
+
+		time.Sleep(10 * time.Second)
 	}
 
 	ri, err = cm.getRoleInfo(cm.eAddr)
@@ -151,7 +162,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return err
 	}
 
-	logger.Debug("get roleinfo after register account: ", ri)
+	logger.Debug("get roleinfo after register account: ", ri.pri, ri.isActive, ri.isBanned)
 
 	if ri.pri.ID == 0 {
 		return xerrors.Errorf("register fails")
@@ -193,7 +204,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return err
 	}
 
-	logger.Debug("get roleinfo after register role: ", ri)
+	logger.Debug("get roleinfo after register role: ", ri.pri, ri.isActive, ri.isBanned)
 
 	switch typ {
 	case pb.RoleInfo_Keeper:
@@ -202,7 +213,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 
 		if ri.pri.GroupID == 0 && gIndex > 0 {
-			logger.Debug("need grant to add keeper to group")
+			return xerrors.Errorf("need grant to add keeper %d to group %d", ri.pri.ID, gIndex)
 			/*
 				err = AddKeeperToGroup(cm.roleID, gIndex)
 				if err != nil {

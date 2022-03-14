@@ -73,6 +73,7 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 	}
 
 	gi := &api.GroupInfo{
+		EndPoint: cm.endPoint,
 		RoleAddr: cm.rAddr.String(),
 		ID:       gIndex,
 		Level:    level,

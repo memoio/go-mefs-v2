@@ -100,7 +100,7 @@ var addKeeperToGroupCmd = &cli.Command{
 			return err
 		}
 
-		if ri.ID != 0 {
+		if ri.ID == 0 {
 			return xerrors.Errorf("role is not registered")
 		}
 
@@ -108,9 +108,8 @@ var addKeeperToGroupCmd = &cli.Command{
 			return xerrors.Errorf("role is not keeper")
 		}
 
-		sk := cctx.String("sk")
-
 		if ri.GroupID == 0 && gid > 0 {
+			sk := cctx.String("sk")
 			err = settle.AddKeeperToGroup(cfg.Contract.EndPoint, cfg.Contract.RoleContract, sk, ri.GetID(), gid)
 			if err != nil {
 				return err
@@ -165,6 +164,13 @@ var transferErcCmd = &cli.Command{
 	Name:      "erc",
 	Usage:     "transfer erc",
 	ArgsUsage: "[wallet address] [value]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "ea",
+			Usage: "erc20 address",
+			Value: callconts.ERC20Addr.String(),
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 2 {
 			return xerrors.Errorf("need two parameters")
@@ -193,7 +199,10 @@ var transferErcCmd = &cli.Command{
 				return xerrors.Errorf("parsing 'amount' argument: %w", err)
 			}
 
-			return settle.TransferErc20To(cfg.Contract.EndPoint, callconts.ERC20Addr, toAdderss, val)
+			ea := cctx.String("ea")
+			ercAddr := common.HexToAddress(ea)
+
+			return settle.TransferErc20To(cfg.Contract.EndPoint, ercAddr, toAdderss, val)
 		}
 
 		return nil

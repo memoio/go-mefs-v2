@@ -166,11 +166,6 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 		return xerrors.Errorf("addr %d balance %d is lower than pledge %d", cm.roleID, bal, val)
 	}
 
-	//err = cm.iPP.Pledge(cm.tAddr, cm.rAddr, cm.roleID, val, nil)
-
-	client := getClient(cm.endPoint)
-	defer client.Close()
-
 	ri, err := cm.getRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
@@ -181,6 +176,8 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 	}
 
 	// check whether the allowance[addr][pledgePoolAddr] is not less than value, if not, will approve automatically by code.
+	client := getClient(cm.endPoint)
+	defer client.Close()
 	erc20Ins, err := erc20.NewERC20(cm.tAddr, client)
 	if err != nil {
 		return err
@@ -194,7 +191,7 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 	}
 	if allo.Cmp(val) < 0 {
 		tmp := new(big.Int).Sub(val, allo)
-		logger.Debug("The allowance of ", cm.eAddr, " to ", cm.ppAddr, " is not enough, also need to add allowance", tmp)
+		logger.Debugf("The allowance of %s to %s is not enough,need to add allowance %d", cm.eAddr, cm.ppAddr, tmp)
 		// if called by the account itself， then call IncreaseAllowance directly.
 		err = cm.increaseAllowance(cm.ppAddr, tmp)
 		if err != nil {
@@ -202,13 +199,13 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 		}
 	}
 
-	logger.Debug("begin Pledge in PledgePool contract with value", val, " and rindex", ri.pri.ID)
+	logger.Debugf("%d begin Pledge %d in PledgePool contract", ri.pri.ID, val)
 
 	ppIns, err := pledgepool.NewPledgePool(cm.ppAddr, client)
 	if err != nil {
 		return err
 	}
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -236,13 +233,13 @@ func (cm *ContractMgr) canclePledge(roleAddr, rTokenAddr common.Address, rindex 
 
 	// check if tindex is valid
 
-	logger.Debug("begin Withdraw in PledgePool contract with value", value, " and rindex", rindex, " and tindex", tindex, " ...")
+	logger.Debug("%d begin Withdraw %d in PledgePool contract", rindex, value)
 
 	ppIns, err := pledgepool.NewPledgePool(cm.ppAddr, client)
 	if err != nil {
 		return err
 	}
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}

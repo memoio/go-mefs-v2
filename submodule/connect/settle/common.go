@@ -77,14 +77,13 @@ func getBalance(endPoint string, addr common.Address) *big.Int {
 }
 
 // makeAuth make the transactOpts to call contract
-func makeAuth(hexSk string, moneyToContract, gasPrice *big.Int) (*bind.TransactOpts, error) {
+func makeAuth(chainID *big.Int, hexSk string, moneyToContract, gasPrice *big.Int) (*bind.TransactOpts, error) {
 	auth := &bind.TransactOpts{}
 	sk, err := crypto.HexToECDSA(hexSk)
 	if err != nil {
 		return auth, err
 	}
 
-	chainID := new(big.Int).SetUint64(35896)
 	auth, err = bind.NewKeyedTransactorWithChainID(sk, chainID)
 	if err != nil {
 		return nil, xerrors.Errorf("new keyed transaction failed %s", err)
@@ -92,13 +91,13 @@ func makeAuth(hexSk string, moneyToContract, gasPrice *big.Int) (*bind.TransactO
 
 	auth.Value = moneyToContract //放进合约里的钱
 	auth.GasLimit = DefaultGasLimit
-	auth.GasPrice = gasPrice
+	auth.GasPrice = big.NewInt(DefaultGasPrice)
 	return auth, nil
 }
 
 //CheckTx check whether transaction is successful through receipt
 func checkTx(endPoint string, tx *types.Transaction, name string) error {
-	logger.Debug("check transcation:%s %s nonce %d", name, tx.Hash(), tx.Nonce())
+	logger.Debugf("check transcation:%s %s nonce %d", name, tx.Hash(), tx.Nonce())
 
 	var receipt *types.Receipt
 	t := checkTxSleepTime
@@ -106,7 +105,7 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 		if i != 0 {
 			t = nextBlockTime * i
 		}
-		logger.Debug("getting txReceipt, waiting %d sec", t)
+		logger.Debugf("getting txReceipt, waiting %d sec", t)
 		time.Sleep(time.Duration(t) * time.Second)
 		receipt = getTransactionReceipt(endPoint, tx.Hash())
 		if receipt != nil {
@@ -119,7 +118,7 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 		return xerrors.Errorf("%s %s cann't get tx receipt, tx not packaged", name, tx.Hash())
 	}
 
-	logger.Debug("%s %s GasUsed: %d, CumulativeGasUsed: %d", name, tx.Hash(), receipt.GasUsed, receipt.CumulativeGasUsed)
+	logger.Debugf("%s %s GasUsed: %d, CumulativeGasUsed: %d", name, tx.Hash(), receipt.GasUsed, receipt.CumulativeGasUsed)
 
 	if receipt.Status == 0 { //等于0表示交易失败，等于1表示成功
 		if receipt.GasUsed != receipt.CumulativeGasUsed {
@@ -129,7 +128,7 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 	}
 
 	// 交易成功
-	logger.Debug("%s %s has been successful!", name, tx.Hash())
+	logger.Debugf("%s %s has been successful!", name, tx.Hash())
 	return nil
 }
 
@@ -233,6 +232,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 }
 
 func TransferErc20To(endPoint string, tAddr, addr common.Address, val *big.Int) error {
+	logger.Debugf("%s ERC20 %s transfer %d to %s", endPoint, tAddr, val, addr)
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
 		GasPrice: big.NewInt(DefaultGasPrice),
@@ -247,15 +247,15 @@ func TransferErc20To(endPoint string, tAddr, addr common.Address, val *big.Int) 
 		return err
 	}
 
-	logger.Debug("admin has erc20 balance: ", adminVal)
+	logger.Debug("admin has ERC20 balance: ", adminVal)
 
 	if adminVal.Cmp(val) < 0 {
 		err = erc20.MintToken(callconts.AdminAddr, val)
 		if err != nil {
-			logger.Debug("erc20 mintToken fail: ", callconts.ERC20Addr, callconts.AdminAddr, val)
+			logger.Debug("ERC20 mintToken fail: ", tAddr, callconts.AdminAddr, val)
 		} else {
 			if err = <-status; err != nil {
-				logger.Fatal("erc20 mintToken fail: ", err)
+				logger.Fatal("ERC20 mintToken fail: ", err)
 			}
 		}
 	}
@@ -269,13 +269,13 @@ func TransferErc20To(endPoint string, tAddr, addr common.Address, val *big.Int) 
 	for retry < 10 {
 		err = erc20.Transfer(addr, val)
 		if err != nil {
-			logger.Debug("erc20 transfer fail: ", callconts.ERC20Addr, addr, val, err)
+			logger.Debug("ERC20 transfer fail: ", tAddr, addr, val, err)
 			retry++
 			continue
 		}
 
 		if err = <-status; err != nil {
-			logger.Fatal("erc20 transfer fail: ", err)
+			logger.Fatal("ERC20 transfer fail: ", err)
 		}
 
 		newVal, err := erc20.BalanceOf(addr)
@@ -285,6 +285,7 @@ func TransferErc20To(endPoint string, tAddr, addr common.Address, val *big.Int) 
 
 		newVal.Sub(newVal, oldVal)
 		if newVal.Cmp(val) >= 0 {
+			logger.Debugf("ERC20 %s has balance %d now", addr, newVal)
 			return nil
 		}
 
@@ -295,5 +296,5 @@ func TransferErc20To(endPoint string, tAddr, addr common.Address, val *big.Int) 
 		time.Sleep(time.Duration(t) * time.Second)
 	}
 
-	return xerrors.Errorf("fail to transfer erc20 %d to %s", val, addr)
+	return xerrors.Errorf("ERC20 %s transfer %d to %s fail", tAddr, val, addr)
 }
