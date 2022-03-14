@@ -13,8 +13,9 @@ go-mefs deploy
 账户创建
 
 1. init，初始化
-2. charge (eth and erc20)，给此账户充值，由管理方操作
-3. register， 注册账户
+2. 设置config.endPoint和roleContract 
+3. charge (eth and erc20)，给此账户充值，由管理方操作
+4. register， 注册账户
 
 ### keeper
 
