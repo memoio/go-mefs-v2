@@ -173,13 +173,6 @@ var transferErcCmd = &cli.Command{
 	Name:      "erc",
 	Usage:     "transfer erc",
 	ArgsUsage: "[wallet address] [value]",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "ea",
-			Usage: "erc20 address",
-			Value: callconts.ERC20Addr.String(),
-		},
-	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 2 {
 			return xerrors.Errorf("need two parameters")
@@ -212,10 +205,17 @@ var transferErcCmd = &cli.Command{
 				return xerrors.Errorf("parsing 'amount' argument: %w", err)
 			}
 
-			ea := cctx.String("ea")
-			ercAddr := common.HexToAddress(ea)
+			rAddr := common.HexToAddress(cfg.Contract.RoleContract)
+			rtAddr, err := settle.GetRoleTokenAddr(cfg.Contract.EndPoint, rAddr, toAdderss)
+			if err != nil {
+				return err
+			}
 
-			return settle.TransferErc20To(cfg.Contract.EndPoint, ercAddr, toAdderss, val)
+			tAddr, err := settle.GetTokenAddr(cfg.Contract.EndPoint, rtAddr, toAdderss, 0)
+			if err != nil {
+				return err
+			}
+			return settle.TransferErc20To(cfg.Contract.EndPoint, tAddr, toAdderss, val)
 		}
 
 		return nil

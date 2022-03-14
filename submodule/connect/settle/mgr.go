@@ -90,14 +90,14 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 		rAddr: rAddr,
 	}
 
-	rtAddr, err := cm.getRoleTokenAddr()
+	rtAddr, err := GetRoleTokenAddr(cm.endPoint, cm.rAddr, cm.eAddr)
 	if err != nil {
 		return nil, err
 	}
 	cm.rtAddr = rtAddr
 	logger.Debug("token mgr contract address: ", rtAddr.Hex())
 
-	tAddr, err := cm.getTokenAddr(cm.tIndex)
+	tAddr, err := GetTokenAddr(cm.endPoint, cm.rtAddr, cm.eAddr, cm.tIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -111,21 +111,21 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 	//	return nil, xerrors.Errorf("not have erc20 token")
 	//}
 
-	ppAddr, err := cm.getPledgeAddr()
+	ppAddr, err := GetPledgeAddr(cm.endPoint, cm.rAddr, cm.eAddr)
 	if err != nil {
 		return nil, err
 	}
 	cm.ppAddr = ppAddr
 	logger.Debug("pledge contract address: ", ppAddr.Hex())
 
-	rfsAddr, err := cm.getRolefsAddr()
+	rfsAddr, err := GetRolefsAddr(cm.endPoint, cm.rAddr, cm.eAddr)
 	if err != nil {
 		return nil, err
 	}
 	cm.rfsAddr = rfsAddr
 	logger.Debug("role fs contract address: ", rfsAddr.Hex())
 
-	isAddr, err := cm.getIssuanceAddr()
+	isAddr, err := GetIssuanceAddr(cm.endPoint, cm.rAddr, cm.eAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -283,13 +283,13 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	return nil
 }
 
-func (cm *ContractMgr) getRoleTokenAddr() (common.Address, error) {
+func GetRoleTokenAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
 	var rt common.Address
 
-	client := getClient(cm.endPoint)
+	client := getClient(endPoint)
 	defer client.Close()
 
-	roleIns, err := role.NewRole(cm.rAddr, client)
+	roleIns, err := role.NewRole(rAddr, client)
 	if err != nil {
 		return rt, err
 	}
@@ -298,7 +298,7 @@ func (cm *ContractMgr) getRoleTokenAddr() (common.Address, error) {
 	for {
 		retryCount++
 		rt, err = roleIns.RToken(&bind.CallOpts{
-			From: cm.eAddr,
+			From: addr,
 		})
 		if err != nil {
 			if retryCount > sendTransactionRetryCount {
@@ -312,12 +312,12 @@ func (cm *ContractMgr) getRoleTokenAddr() (common.Address, error) {
 	}
 }
 
-func (cm *ContractMgr) getTokenAddr(tIndex uint32) (common.Address, error) {
+func GetTokenAddr(endPoint string, rtAddr, addr common.Address, tIndex uint32) (common.Address, error) {
 	var taddr common.Address
 
-	client := getClient(cm.endPoint)
+	client := getClient(endPoint)
 	defer client.Close()
-	rToken, err := role.NewRToken(cm.rtAddr, client)
+	rToken, err := role.NewRToken(rtAddr, client)
 	if err != nil {
 		return taddr, err
 	}
@@ -326,7 +326,7 @@ func (cm *ContractMgr) getTokenAddr(tIndex uint32) (common.Address, error) {
 	for {
 		retryCount++
 		taddr, err = rToken.GetTA(&bind.CallOpts{
-			From: cm.eAddr,
+			From: addr,
 		}, tIndex)
 		if err != nil {
 			if retryCount > sendTransactionRetryCount {
@@ -340,11 +340,11 @@ func (cm *ContractMgr) getTokenAddr(tIndex uint32) (common.Address, error) {
 	}
 }
 
-func (cm *ContractMgr) getPledgeAddr() (common.Address, error) {
+func GetPledgeAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
 	var pp common.Address
-	client := getClient(cm.endPoint)
+	client := getClient(endPoint)
 	defer client.Close()
-	roleIns, err := role.NewRole(cm.rAddr, client)
+	roleIns, err := role.NewRole(rAddr, client)
 	if err != nil {
 		return pp, err
 	}
@@ -353,7 +353,7 @@ func (cm *ContractMgr) getPledgeAddr() (common.Address, error) {
 	for {
 		retryCount++
 		pp, err = roleIns.PledgePool(&bind.CallOpts{
-			From: cm.eAddr,
+			From: addr,
 		})
 		if err != nil {
 			if retryCount > sendTransactionRetryCount {
@@ -367,13 +367,13 @@ func (cm *ContractMgr) getPledgeAddr() (common.Address, error) {
 	}
 }
 
-func (cm *ContractMgr) getRolefsAddr() (common.Address, error) {
+func GetRolefsAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
 	var rfs common.Address
 
-	client := getClient(cm.endPoint)
+	client := getClient(endPoint)
 	defer client.Close()
 
-	roleIns, err := role.NewRole(cm.rAddr, client)
+	roleIns, err := role.NewRole(rAddr, client)
 	if err != nil {
 		return rfs, err
 	}
@@ -382,7 +382,7 @@ func (cm *ContractMgr) getRolefsAddr() (common.Address, error) {
 	for {
 		retryCount++
 		rfs, err = roleIns.Rolefs(&bind.CallOpts{
-			From: cm.eAddr,
+			From: addr,
 		})
 		if err != nil {
 			if retryCount > sendTransactionRetryCount {
@@ -396,12 +396,12 @@ func (cm *ContractMgr) getRolefsAddr() (common.Address, error) {
 	}
 }
 
-func (cm *ContractMgr) getIssuanceAddr() (common.Address, error) {
+func GetIssuanceAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
 	var is common.Address
 
-	client := getClient(cm.endPoint)
+	client := getClient(endPoint)
 	defer client.Close()
-	roleIns, err := role.NewRole(cm.rAddr, client)
+	roleIns, err := role.NewRole(rAddr, client)
 	if err != nil {
 		return is, err
 	}
@@ -410,7 +410,7 @@ func (cm *ContractMgr) getIssuanceAddr() (common.Address, error) {
 	for {
 		retryCount++
 		is, err = roleIns.Issuance(&bind.CallOpts{
-			From: cm.eAddr,
+			From: addr,
 		})
 		if err != nil {
 			if retryCount > sendTransactionRetryCount {
