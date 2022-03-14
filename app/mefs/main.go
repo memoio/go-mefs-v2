@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
 
@@ -22,7 +23,7 @@ func main() {
 	app := &cli.App{
 		Name:                 "mefs",
 		Usage:                "Memoriae decentralized storage network node",
-		Version:              "1.0.0",
+		Version:              build.UserVersion(),
 		EnableBashCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
