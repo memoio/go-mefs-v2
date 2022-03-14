@@ -37,14 +37,7 @@ func Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.Rol
 }
 
 func (cm *ContractMgr) RegisterAcc() error {
-	logger.Debug("register an account to get an accIndex for it.")
-
-	client := getClient(cm.endPoint)
-	defer client.Close()
-	roleIns, err := role.NewRole(cm.rAddr, client)
-	if err != nil {
-		return err
-	}
+	logger.Debug("register an account to get an unique ID")
 
 	// check if addr has registered
 	ri, err := cm.getRoleInfo(cm.eAddr)
@@ -58,10 +51,16 @@ func (cm *ContractMgr) RegisterAcc() error {
 
 	logger.Debug("begin Register in Role contract...")
 
-	// txopts.gasPrice参数赋值为nil
-	auth, errMA := makeAuth(cm.hexSK, nil, nil)
-	if errMA != nil {
-		return errMA
+	client := getClient(cm.endPoint)
+	defer client.Close()
+	roleIns, err := role.NewRole(cm.rAddr, client)
+	if err != nil {
+		return err
+	}
+
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
+	if err != nil {
+		return err
 	}
 	tx, err := roleIns.Register(auth, cm.eAddr, nil)
 	if err != nil {
@@ -96,8 +95,13 @@ func (cm *ContractMgr) RegisterKeeper() error {
 	if err != nil {
 		return err
 	}
-	if pl.Cmp(pledgek) < 0 {
-		return xerrors.Errorf("%d is not enough, shouldn't less than %d", pl, pledgek)
+
+	pledgek.Sub(pledgek, pl)
+	if pledgek.Cmp(big.NewInt(0)) > 0 {
+		err := cm.pledge(pledgek)
+		if err != nil {
+			return xerrors.Errorf("%d pledge fails %s", cm.roleID, err)
+		}
 	}
 
 	logger.Debug("begin RegisterKeeper in Role contract...")
@@ -123,7 +127,7 @@ func (cm *ContractMgr) RegisterKeeper() error {
 		return err
 	}
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -150,7 +154,9 @@ func (cm *ContractMgr) RegisterProvider() error {
 		return err
 	}
 
-	if ple.Cmp(pledgep) < 0 {
+	pledgep.Sub(pledgep, ple)
+
+	if pledgep.Cmp(big.NewInt(0)) > 0 {
 		err = cm.pledge(pledgep)
 		if err != nil {
 			return err
@@ -179,7 +185,7 @@ func (cm *ContractMgr) RegisterProvider() error {
 
 	logger.Debug("begin RegisterProvider in Role contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -243,7 +249,7 @@ func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
 	// don't need to check fs
 	logger.Debug("begin RegisterUser in Role contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -265,7 +271,7 @@ func (cm *ContractMgr) AddProviderToGroup(gIndex uint64) error {
 
 	logger.Debug("begin AddProviderToGroup in Role contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}

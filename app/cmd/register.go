@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"path/filepath"
 	"strconv"
 
@@ -39,17 +38,12 @@ var registerCmd = &cli.Command{
 		}
 
 		repoDir := cctx.String(FlagNodeRepo)
-
-		fmt.Println("repoDir: ", repoDir)
-		//
 		absHomeDir, err := homedir.Expand(repoDir)
 		if err != nil {
 			return err
 		}
-		fmt.Println("absHomeDir:", absHomeDir)
 
 		configFile := filepath.Join(absHomeDir, "config.json")
-		fmt.Println("configFile:", configFile)
 		cfg, err := config.ReadFile(configFile)
 		if err != nil {
 			return xerrors.Errorf("failed to read config file at %q %w", configFile, err)

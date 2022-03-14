@@ -100,7 +100,7 @@ func (cm *ContractMgr) increaseAllowance(recipient common.Address, value *big.In
 
 	logger.Debug("begin IncreaseAllowance to", recipient.Hex(), " with value", value, " in ERC20 contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (cm *ContractMgr) approve(addr common.Address, value *big.Int) error {
 
 	logger.Debug("begin Approve", addr.Hex(), " with value", value, " in ERC20 contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func (cm *ContractMgr) proWithdraw(roleAddr, rTokenAddr common.Address, pIndex u
 
 	logger.Debug("begin call ProWithdraw in RoleFS contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -238,7 +238,7 @@ func (cm *ContractMgr) withdrawFromFs(rTokenAddr common.Address, rIndex uint64, 
 
 	logger.Debug("begin WithdrawFromFs in Role contract...")
 
-	auth, err := makeAuth(cm.hexSK, nil, nil)
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
 	if err != nil {
 		return err
 	}

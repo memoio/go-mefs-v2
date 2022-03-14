@@ -4,11 +4,13 @@ import (
 	"context"
 	"log"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/zeebo/blake3"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
@@ -25,7 +27,7 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 
 	w := wallet.New(password, r.KeyStore())
 
-	log.Println("generating wallet key...")
+	log.Println("generating wallet address...")
 
 	privkey, err := signature.GenerateKey(types.Secp256k1)
 	if err != nil {
@@ -47,7 +49,9 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 		return err
 	}
 
-	log.Println("generated wallet: ", addr.String())
+	wa := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
+
+	log.Println("generated wallet address: ", wa)
 
 	log.Println("generating bls key...")
 
@@ -65,7 +69,7 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 		return err
 	}
 
-	log.Println("genenrated bls: ", blsAddr.String())
+	log.Println("genenrated bls key: ", blsAddr.String())
 
 	r.Config().Wallet.DefaultAddress = addr.String()
 

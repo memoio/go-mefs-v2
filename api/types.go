@@ -10,6 +10,7 @@ import (
 )
 
 type GroupInfo struct {
+	EndPoint string
 	RoleAddr string
 	ID       uint64
 	Level    uint16
