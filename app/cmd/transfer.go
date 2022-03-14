@@ -15,6 +15,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
+	"github.com/mitchellh/go-homedir"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
@@ -58,6 +59,10 @@ var addKeeperToGroupCmd = &cli.Command{
 		}
 
 		repoDir := cctx.String(FlagNodeRepo)
+		repoDir, err = homedir.Expand(repoDir)
+		if err != nil {
+			return err
+		}
 
 		configFile := filepath.Join(repoDir, "config.json")
 		cfg, err := config.ReadFile(configFile)
@@ -130,6 +135,10 @@ var transferEthCmd = &cli.Command{
 		}
 
 		repoDir := cctx.String(FlagNodeRepo)
+		repoDir, err := homedir.Expand(repoDir)
+		if err != nil {
+			return err
+		}
 
 		addr := cctx.Args().Get(0)
 
@@ -177,6 +186,10 @@ var transferErcCmd = &cli.Command{
 		}
 
 		repoDir := cctx.String(FlagNodeRepo)
+		repoDir, err := homedir.Expand(repoDir)
+		if err != nil {
+			return err
+		}
 
 		addr := cctx.Args().Get(0)
 		toAdderss := common.HexToAddress(addr)
