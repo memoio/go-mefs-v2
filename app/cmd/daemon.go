@@ -3,6 +3,7 @@ package cmd
 import (
 	_ "net/http/pprof"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -122,7 +123,6 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	}
 
 	rep.ReplaceConfig(cfg)
-
 	opts, err := basenode.OptionsFromRepo(rep)
 	if err != nil {
 		return err
@@ -153,6 +153,11 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 
+		cfg.Identity.Role = "keeper"
+		cfg.Identity.Group = strconv.Itoa(int(gid))
+
+		rep.ReplaceConfig(cfg)
+
 		opts = append(opts, basenode.SetRoleID(rid))
 		opts = append(opts, basenode.SetGroupID(gid))
 
@@ -165,6 +170,10 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 		if err != nil {
 			return err
 		}
+
+		cfg.Identity.Role = "provider"
+		cfg.Identity.Group = strconv.Itoa(int(gid))
+		rep.ReplaceConfig(cfg)
 
 		opts = append(opts, basenode.SetRoleID(rid))
 		opts = append(opts, basenode.SetGroupID(gid))
@@ -179,6 +188,10 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 
+		cfg.Identity.Role = "user"
+		cfg.Identity.Group = strconv.Itoa(int(gid))
+		rep.ReplaceConfig(cfg)
+
 		opts = append(opts, basenode.SetRoleID(rid))
 		opts = append(opts, basenode.SetGroupID(gid))
 
@@ -191,6 +204,10 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 		if err != nil {
 			return err
 		}
+
+		cfg.Identity.Role = "unkown"
+		cfg.Identity.Group = strconv.Itoa(int(gid))
+		rep.ReplaceConfig(cfg)
 
 		opts = append(opts, basenode.SetRoleID(rid))
 		opts = append(opts, basenode.SetGroupID(gid))
