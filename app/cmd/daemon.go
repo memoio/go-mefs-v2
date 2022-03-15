@@ -61,7 +61,7 @@ var daemonStartCmd = &cli.Command{
 		&cli.Uint64Flag{
 			Name:  groupKwd,
 			Usage: "set the group number",
-			Value: 1,
+			Value: 0,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
