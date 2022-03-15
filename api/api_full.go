@@ -66,7 +66,7 @@ type IWallet interface {
 	WalletList(context.Context) ([]address.Address, error)
 	WalletHas(context.Context, address.Address) (bool, error)
 	WalletDelete(context.Context, address.Address) error
-	WalletExport(context.Context, address.Address) (*types.KeyInfo, error)
+	WalletExport(context.Context, address.Address, string) (*types.KeyInfo, error)
 	WalletImport(context.Context, *types.KeyInfo) (address.Address, error)
 }
 

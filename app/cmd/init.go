@@ -28,7 +28,7 @@ var InitCmd = &cli.Command{
 			Value: false,
 		},
 		&cli.StringFlag{
-			Name:    "password",
+			Name:    pwKwd,
 			Aliases: []string{"pw"},
 			Usage:   "set password for access secret key",
 			Value:   "memoriae",
@@ -43,7 +43,7 @@ var InitCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		logger.Info("Initializing memoriae node")
 
-		pw := cctx.String("pw")
+		pw := cctx.String(pwKwd)
 		setpass := cctx.Bool("setPass")
 		if setpass {
 			npw, err := minit.GetPassWord()

@@ -70,7 +70,7 @@ var registerCmd = &cli.Command{
 		}
 
 		lw := wallet.New(pw, ks)
-		ki, err := lw.WalletExport(cctx.Context, ar)
+		ki, err := lw.WalletExport(cctx.Context, ar, pw)
 		if err != nil {
 			return err
 		}

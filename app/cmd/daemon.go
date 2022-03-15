@@ -2,6 +2,7 @@ package cmd
 
 import (
 	_ "net/http/pprof"
+	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -19,10 +20,11 @@ import (
 )
 
 const (
-	apiAddrKwd   = "api"
-	swarmPortKwd = "swarm-port"
-	pwKwd        = "password"
-	groupKwd     = "group"
+	apiAddrKwd    = "api"
+	swarmPortKwd  = "swarm-port"
+	pwKwd         = "password"
+	groupKwd      = "group"
+	MEMO_PASSWORD = "MEMO_PASSWORD"
 )
 
 var DaemonCmd = &cli.Command{
@@ -40,9 +42,10 @@ var daemonStartCmd = &cli.Command{
 	Usage: "Start a running mefs daemon",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  pwKwd,
-			Usage: "password for asset private key",
-			Value: "memoriae",
+			Name:    pwKwd,
+			Aliases: []string{"pw"},
+			Usage:   "password for asset private key",
+			Value:   "memoriae",
 		},
 		&cli.StringFlag{
 			Name:  apiAddrKwd,
@@ -120,10 +123,14 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 
 	rep.ReplaceConfig(cfg)
 
-	pwd := cctx.String("password")
 	opts, err := basenode.OptionsFromRepo(rep)
 	if err != nil {
 		return err
+	}
+
+	pwd := cctx.String(pwKwd)
+	if os.Getenv(MEMO_PASSWORD) != "" {
+		pwd = os.Getenv(MEMO_PASSWORD)
 	}
 	opts = append(opts, basenode.SetPassword(pwd))
 

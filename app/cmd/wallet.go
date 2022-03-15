@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/client"
+	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -138,6 +139,13 @@ var walletExportCmd = &cli.Command{
 	Name:      "export",
 	Usage:     "export wallet address",
 	ArgsUsage: "[wallet address]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    pwKwd,
+			Aliases: []string{"pw"},
+			Value:   "memoriae",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 1 {
 			return xerrors.Errorf("need one parameter")
@@ -162,7 +170,14 @@ var walletExportCmd = &cli.Command{
 			return err
 		}
 
-		ki, err := api.WalletExport(cctx.Context, maddr)
+		pw := cctx.String(pwKwd)
+		if pw == "" {
+			pw, err = minit.GetPassWord()
+			if err != nil {
+				return err
+			}
+		}
+		ki, err := api.WalletExport(cctx.Context, maddr, pw)
 		if err != nil {
 			return err
 		}

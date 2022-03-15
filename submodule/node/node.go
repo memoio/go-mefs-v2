@@ -64,6 +64,7 @@ type BaseNode struct {
 
 	roleID  uint64
 	groupID uint64
+	pw      string
 
 	isOnline bool
 
@@ -202,6 +203,10 @@ func (n *BaseNode) RunDaemon() error {
 
 func (n *BaseNode) Online() bool {
 	return n.isOnline
+}
+
+func (n *BaseNode) PassWord() string {
+	return n.pw
 }
 
 func (n *BaseNode) Shutdown(ctx context.Context) error {

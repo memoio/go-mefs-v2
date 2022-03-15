@@ -180,7 +180,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 
 	lw := wallet.New(b.walletPassword, b.repo.KeyStore())
-	ki, err := lw.WalletExport(ctx, defaultAddr)
+	ki, err := lw.WalletExport(ctx, defaultAddr, b.walletPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +201,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		Repo:         b.repo,
 		roleID:       b.roleID,
 		groupID:      b.groupID,
+		pw:           b.walletPassword,
 		ContractMgr:  cm,
 		LocalWallet:  lw,
 		shutdownChan: make(chan struct{}),

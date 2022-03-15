@@ -24,13 +24,13 @@ type CommonStruct struct {
 		ConfigSet func(context.Context, string, string) error        `perm:"write"`
 		ConfigGet func(context.Context, string) (interface{}, error) `perm:"write"`
 
-		WalletNew    func(context.Context, types.KeyType) (address.Address, error)  `perm:"write"`
-		WalletSign   func(context.Context, address.Address, []byte) ([]byte, error) `perm:"sign"`
-		WalletList   func(context.Context) ([]address.Address, error)               `perm:"write"`
-		WalletHas    func(context.Context, address.Address) (bool, error)           `perm:"write"`
-		WalletDelete func(context.Context, address.Address) error                   `perm:"write"`
-		WalletExport func(context.Context, address.Address) (*types.KeyInfo, error) `perm:"write"`
-		WalletImport func(context.Context, *types.KeyInfo) (address.Address, error) `perm:"write"`
+		WalletNew    func(context.Context, types.KeyType) (address.Address, error)          `perm:"write"`
+		WalletSign   func(context.Context, address.Address, []byte) ([]byte, error)         `perm:"sign"`
+		WalletList   func(context.Context) ([]address.Address, error)                       `perm:"write"`
+		WalletHas    func(context.Context, address.Address) (bool, error)                   `perm:"write"`
+		WalletDelete func(context.Context, address.Address) error                           `perm:"write"`
+		WalletExport func(context.Context, address.Address, string) (*types.KeyInfo, error) `perm:"admin"`
+		WalletImport func(context.Context, *types.KeyInfo) (address.Address, error)         `perm:"write"`
 
 		NetAddrInfo func(context.Context) (peer.AddrInfo, error) `perm:"write"`
 
@@ -133,8 +133,8 @@ func (s *CommonStruct) WalletList(ctx context.Context) ([]address.Address, error
 	return s.Internal.WalletList(ctx)
 }
 
-func (s *CommonStruct) WalletExport(ctx context.Context, addr address.Address) (*types.KeyInfo, error) {
-	return s.Internal.WalletExport(ctx, addr)
+func (s *CommonStruct) WalletExport(ctx context.Context, addr address.Address, pw string) (*types.KeyInfo, error) {
+	return s.Internal.WalletExport(ctx, addr, pw)
 }
 
 func (s *CommonStruct) WalletImport(ctx context.Context, ki *types.KeyInfo) (address.Address, error) {
