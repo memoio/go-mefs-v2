@@ -129,6 +129,17 @@ var transferEthCmd = &cli.Command{
 	Name:      "eth",
 	Usage:     "transfer eth",
 	ArgsUsage: "[wallet address] [value]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "endPoint",
+			Value: callconts.EndPoint,
+		},
+		&cli.StringFlag{
+			Name:  "sk",
+			Usage: "secret key of admin",
+			Value: callconts.AdminSk,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 2 {
 			return xerrors.Errorf("need two parameters")
@@ -141,8 +152,16 @@ var transferEthCmd = &cli.Command{
 		}
 
 		addr := cctx.Args().Get(0)
-
 		toAdderss := common.HexToAddress(addr)
+
+		val, err := types.ParsetValue(cctx.Args().Get(1))
+		if err != nil {
+			return xerrors.Errorf("parsing 'amount' argument: %w", err)
+		}
+
+		ep := cctx.String("endPoint")
+		sk := cctx.String("sk")
+
 		if addr == "0x0" {
 			configFile := filepath.Join(repoDir, "config.json")
 			cfg, err := config.ReadFile(configFile)
@@ -156,16 +175,9 @@ var transferEthCmd = &cli.Command{
 			}
 
 			toAdderss = common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
-
-			val, err := types.ParsetValue(cctx.Args().Get(1))
-			if err != nil {
-				return xerrors.Errorf("parsing 'amount' argument: %w", err)
-			}
-
-			return settle.TransferTo(cfg.Contract.EndPoint, toAdderss, val, callconts.AdminSk)
 		}
 
-		return nil
+		return settle.TransferTo(ep, toAdderss, val, sk)
 	},
 }
 
@@ -173,6 +185,22 @@ var transferErcCmd = &cli.Command{
 	Name:      "erc",
 	Usage:     "transfer erc",
 	ArgsUsage: "[wallet address] [value]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "endPoint",
+			Value: callconts.EndPoint,
+		},
+		&cli.StringFlag{
+			Name:  "roleContract",
+			Usage: "address role contract",
+			Value: callconts.RoleAddr.String(),
+		},
+		&cli.StringFlag{
+			Name:  "sk",
+			Usage: "secret key of admin",
+			Value: callconts.AdminSk,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 2 {
 			return xerrors.Errorf("need two parameters")
@@ -187,6 +215,15 @@ var transferErcCmd = &cli.Command{
 		addr := cctx.Args().Get(0)
 		toAdderss := common.HexToAddress(addr)
 
+		val, err := types.ParsetValue(cctx.Args().Get(1))
+		if err != nil {
+			return xerrors.Errorf("parsing 'amount' argument: %w", err)
+		}
+
+		ep := cctx.String("endPoint")
+		rAddr := common.HexToAddress(cctx.String("roleContract"))
+		sk := cctx.String("sk")
+
 		if addr == "0x0" {
 			configFile := filepath.Join(repoDir, "config.json")
 			cfg, err := config.ReadFile(configFile)
@@ -200,24 +237,19 @@ var transferErcCmd = &cli.Command{
 
 			toAdderss = common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
 
-			val, err := types.ParsetValue(cctx.Args().Get(1))
-			if err != nil {
-				return xerrors.Errorf("parsing 'amount' argument: %w", err)
-			}
-
-			rAddr := common.HexToAddress(cfg.Contract.RoleContract)
-			rtAddr, err := settle.GetRoleTokenAddr(cfg.Contract.EndPoint, rAddr, toAdderss)
-			if err != nil {
-				return err
-			}
-
-			tAddr, err := settle.GetTokenAddr(cfg.Contract.EndPoint, rtAddr, toAdderss, 0)
-			if err != nil {
-				return err
-			}
-			return settle.TransferErc20To(cfg.Contract.EndPoint, tAddr, toAdderss, val)
+			rAddr = common.HexToAddress(cfg.Contract.RoleContract)
+			ep = cfg.Contract.EndPoint
 		}
 
-		return nil
+		rtAddr, err := settle.GetRoleTokenAddr(ep, rAddr, toAdderss)
+		if err != nil {
+			return err
+		}
+
+		tAddr, err := settle.GetTokenAddr(ep, rtAddr, toAdderss, 0)
+		if err != nil {
+			return err
+		}
+		return settle.TransferErc20To(ep, sk, tAddr, toAdderss, val)
 	},
 }
