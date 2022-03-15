@@ -150,7 +150,7 @@ func getTransactionReceipt(endPoint string, hash common.Hash) *types.Receipt {
 
 // TransferTo trans money
 func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk string) error {
-	logger.Debug("transfer ", value, " to ", toAddress)
+	logger.Debugf("%s transfer tx fee %d to %s", endPoint, value, toAddress)
 	ctx, cancle := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancle()
 	client, err := ethclient.DialContext(ctx, endPoint)
@@ -172,7 +172,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 
-	logger.Debug("transfer ", value, " from ", fromAddress, " to ", toAddress)
+	logger.Debugf("transfer %d from %s to %s", value, fromAddress, toAddress)
 
 	gasLimit := uint64(23000) // in units
 
@@ -187,7 +187,6 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 	for {
 		retry++
 		if retry > 10 {
-			logger.Debug("fail transfer ", value.String(), "to", toAddress)
 			return errors.New("fail to transfer")
 		}
 
@@ -218,10 +217,10 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 		for qCount < 5 {
 			balance := getBalance(endPoint, toAddress)
 			if balance.Cmp(bbal) > 0 {
-				logger.Debug("transfer ", value, " to ", toAddress, " has balance: ", balance)
+				logger.Debug("transfer ok %s has balance %d", toAddress, balance)
 				return nil
 			}
-			logger.Debug(toAddress, "'s Balance now:", balance.String(), ", waiting for transfer success")
+			logger.Debugf("%s balance now: %d, waiting for transfer success", toAddress, balance)
 
 			rand.NewSource(time.Now().UnixNano())
 			t := rand.Intn(20 * (qCount + 1))
@@ -231,28 +230,41 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 	}
 }
 
-func TransferErc20To(endPoint string, tAddr, addr common.Address, val *big.Int) error {
-	logger.Debugf("%s ERC20 %s transfer %d to %s", endPoint, tAddr, val, addr)
+func TransferErc20To(endPoint, sk string, tAddr, addr common.Address, val *big.Int) error {
+	logger.Debugf("ERC20 %s %s transfer %d to %s", endPoint, tAddr, val, addr)
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
 		GasPrice: big.NewInt(DefaultGasPrice),
 		GasLimit: DefaultGasLimit,
 	}
 
-	status := make(chan error)
-	erc20 := callconts.NewERC20(tAddr, callconts.AdminAddr, callconts.AdminSk, txopts, endPoint, status)
-
-	adminVal, err := erc20.BalanceOf(callconts.AdminAddr)
+	privateKey, err := crypto.HexToECDSA(sk)
 	if err != nil {
 		return err
 	}
 
-	logger.Debug("admin has ERC20 balance: ", adminVal)
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return xerrors.Errorf("error casting public key to ECDSA")
+	}
+
+	adminAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	status := make(chan error)
+	erc20 := callconts.NewERC20(tAddr, adminAddress, sk, txopts, endPoint, status)
+
+	adminVal, err := erc20.BalanceOf(adminAddress)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("ERC20 admin %s has balance %d", adminAddress, adminVal)
 
 	if adminVal.Cmp(val) < 0 {
-		err = erc20.MintToken(callconts.AdminAddr, val)
+		err = erc20.MintToken(adminAddress, val)
 		if err != nil {
-			logger.Debug("ERC20 mintToken fail: ", tAddr, callconts.AdminAddr, val)
+			logger.Debug("ERC20 mintToken fail: ", tAddr, adminAddress, val)
 		} else {
 			if err = <-status; err != nil {
 				logger.Fatal("ERC20 mintToken fail: ", err)

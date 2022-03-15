@@ -3,7 +3,6 @@ package order
 import (
 	"github.com/bits-and-blooms/bitset"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -12,10 +11,10 @@ var logger = logging.Logger("user-order")
 
 const (
 	defaultAckWaiting   = 35
-	defaultOrderLast    = 3600 * 12 // 1 day
+	defaultOrderLast    = 3600 * 12 // half day
 	defaultOrderSeqLast = 3600      // 1 hour
 
-	orderDuration = 100 * build.OrderMin
+	orderDuration = 100 * 86400 // 100 days
 
 	// parallel number of net send
 	defaultWeighted = 50

@@ -136,13 +136,14 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 }
 
 func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
-	if gIndex == 0 {
-		return nil
-	}
 	logger.Debug("start contract mgr: ", typ, gIndex)
 	ri, err := cm.getRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
+	}
+
+	if gIndex == 0 && ri.pri.GroupID == 0 {
+		return xerrors.Errorf("group should be larger than zero")
 	}
 
 	logger.Debug("get roleinfo: ", ri.pri, ri.isActive, ri.isBanned)
@@ -252,7 +253,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			}
 
 			if ri.pri.GroupID != gIndex {
-				return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, ri.pri.GroupID)
+				return xerrors.Errorf("group add wrong, expected %d, got %d", gIndex, ri.pri.GroupID)
 			}
 		}
 	case pb.RoleInfo_User:
@@ -270,8 +271,12 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		cm.groupID = ri.pri.GroupID
 	}
 
-	if gIndex > 0 {
-		gi, err := cm.SettleGetGroupInfoAt(cm.ctx, gIndex)
+	if cm.groupID > 0 {
+		if cm.groupID != gIndex && gIndex > 0 {
+			return xerrors.Errorf("group is wrong, expected %d, got %d", ri.pri.GroupID, gIndex)
+		}
+
+		gi, err := cm.SettleGetGroupInfoAt(cm.ctx, cm.groupID)
 		if err != nil {
 			return err
 		}

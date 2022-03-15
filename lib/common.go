@@ -16,9 +16,11 @@ func CheckOrder(or types.OrderBase) error {
 		return xerrors.Errorf("empty piece price")
 	}
 
-	if or.End-or.Start < build.OrderMin {
-		return xerrors.Errorf("order duration %d is short than %d", or.End-or.Start, build.OrderMin)
-	}
+	/*
+		if or.End-or.Start < build.OrderMin {
+			return xerrors.Errorf("order duration %d is short than %d", or.End-or.Start, build.OrderMin)
+		}
+	*/
 
 	if or.End-or.Start > build.OrderMax {
 		return xerrors.Errorf("order duration %d is greater than %d", or.End-or.Start, build.OrderMax)
