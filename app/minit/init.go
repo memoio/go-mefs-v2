@@ -2,6 +2,7 @@ package minit
 
 import (
 	"context"
+	"encoding/hex"
 	"log"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -16,7 +17,7 @@ import (
 )
 
 // init ops for mefs
-func Create(ctx context.Context, r repo.Repo, password string) error {
+func Create(ctx context.Context, r repo.Repo, password, sk string) error {
 	if _, _, err := network.GetSelfNetKey(r.KeyStore()); err != nil {
 		return err
 	}
@@ -27,18 +28,29 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 
 	w := wallet.New(password, r.KeyStore())
 
-	log.Println("generating wallet address...")
+	var sBytes []byte
+	if sk == "" {
+		log.Println("generating wallet address...")
 
-	privkey, err := signature.GenerateKey(types.Secp256k1)
-	if err != nil {
-		return err
+		privkey, err := signature.GenerateKey(types.Secp256k1)
+		if err != nil {
+			return err
+		}
+
+		sbytes, err := privkey.Raw()
+		if err != nil {
+			return err
+		}
+		sBytes = sbytes
+	} else {
+		sbytes, err := hex.DecodeString(sk)
+		if err != nil {
+			return err
+		}
+
+		sBytes = sbytes
+
 	}
-
-	sBytes, err := privkey.Raw()
-	if err != nil {
-		return err
-	}
-
 	wki := &types.KeyInfo{
 		Type:      types.Secp256k1,
 		SecretKey: sBytes,
@@ -51,7 +63,11 @@ func Create(ctx context.Context, r repo.Repo, password string) error {
 
 	wa := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
 
-	log.Println("generated wallet address: ", wa)
+	if sk == "" {
+		log.Println("generated wallet address: ", wa)
+	} else {
+		log.Println("import wallet address: ", wa)
+	}
 
 	log.Println("generating bls key...")
 
