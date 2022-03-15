@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 
@@ -23,6 +24,7 @@ var WalletCmd = &cli.Command{
 		walletnewCmd,
 		walletListCmd,
 		walletDefaultCmd,
+		walletExportCmd,
 	},
 }
 
@@ -97,7 +99,10 @@ var walletListCmd = &cli.Command{
 		}
 
 		for _, as := range addrs {
-			fmt.Println(as)
+			if as.Len() == 20 {
+				toAddress := common.BytesToAddress(as.Bytes())
+				fmt.Println(toAddress)
+			}
 		}
 		return nil
 	},
@@ -124,6 +129,44 @@ var walletnewCmd = &cli.Command{
 			return err
 		}
 		fmt.Println(waddr)
+
+		return nil
+	},
+}
+
+var walletExportCmd = &cli.Command{
+	Name:      "export",
+	Usage:     "export wallet address",
+	ArgsUsage: "[wallet address]",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 1 {
+			return xerrors.Errorf("need one parameter")
+		}
+
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ethAddr := cctx.Args().Get(0)
+		toAdderss := common.HexToAddress(ethAddr)
+		maddr, err := address.NewAddress(toAdderss.Bytes())
+		if err != nil {
+			return err
+		}
+
+		ki, err := api.WalletExport(cctx.Context, maddr)
+		if err != nil {
+			return err
+		}
+		fmt.Println("secret key: ", hex.EncodeToString(ki.SecretKey))
 
 		return nil
 	},
