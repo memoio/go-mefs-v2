@@ -14,18 +14,23 @@ const (
 
 // version 0
 const (
-	ChalDuration0 = 120 // slot
+	ChalDuration0 = 120 // slot, 1h
 )
 
 // version 1
 const (
 	UpdateHeight1 = 2880
-	ChalDuration1 = 360 // slot
+	ChalDuration1 = 360 // slot, 3h
 )
 
 const (
 	UpdateHeight2 = 2880 * 5
-	ChalDuration2 = 960 // slot
+	ChalDuration2 = 960 // slot, 8h
+)
+
+const (
+	UpdateHeight3 = 2880 * 14
+	ChalDuration3 = 2880 // slot, 24h
 )
 
 var (
