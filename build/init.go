@@ -2,6 +2,7 @@ package build
 
 var UpdateMap map[uint32]uint64
 var ChalDurMap map[uint32]uint64
+var OrderDurMap map[uint32]int64
 
 func init() {
 	UpdateMap = make(map[uint32]uint64)
@@ -14,4 +15,10 @@ func init() {
 	ChalDurMap[1] = ChalDuration1
 	ChalDurMap[2] = ChalDuration2
 	ChalDurMap[3] = ChalDuration3
+
+	OrderDurMap = make(map[uint32]int64)
+	OrderDurMap[0] = OrderMin0
+	OrderDurMap[1] = OrderMin1
+	OrderDurMap[2] = OrderMin2
+	OrderDurMap[3] = OrderMin3
 }

@@ -116,6 +116,11 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 		return xerrors.Errorf("wrong paras price")
 	}
 
+	orderMin := build.OrderDurMap[s.version]
+	if or.End-or.Start < orderMin {
+		return xerrors.Errorf("order duration %d is short than %d", or.End-or.Start, orderMin)
+	}
+
 	err = lib.CheckOrder(or.OrderBase)
 	if err != nil {
 		return err
@@ -263,6 +268,11 @@ func (s *StateMgr) canCreateOrder(msg *tx.Message) error {
 
 	if or.Price == nil {
 		return xerrors.Errorf("wrong paras price")
+	}
+
+	orderMin := build.OrderDurMap[s.validateVersion]
+	if or.End-or.Start < orderMin {
+		return xerrors.Errorf("order duration %d is short than %d", or.End-or.Start, orderMin)
 	}
 
 	err = lib.CheckOrder(or.OrderBase)
