@@ -12,10 +12,10 @@ var logger = logging.Logger("user-order")
 
 const (
 	defaultAckWaiting   = 35
-	defaultOrderLast    = 3600 // 1 day
-	defaultOrderSeqLast = 600  // 1 hour
+	defaultOrderLast    = 3600 * 12 // 1 day
+	defaultOrderSeqLast = 3600      // 1 hour
 
-	orderDuration = 10 * build.OrderMin
+	orderDuration = 100 * build.OrderMin
 
 	// parallel number of net send
 	defaultWeighted = 50

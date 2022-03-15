@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 
@@ -10,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/client"
+	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -23,6 +25,7 @@ var WalletCmd = &cli.Command{
 		walletnewCmd,
 		walletListCmd,
 		walletDefaultCmd,
+		walletExportCmd,
 	},
 }
 
@@ -97,7 +100,10 @@ var walletListCmd = &cli.Command{
 		}
 
 		for _, as := range addrs {
-			fmt.Println(as)
+			if as.Len() == 20 {
+				toAddress := common.BytesToAddress(as.Bytes())
+				fmt.Println(toAddress)
+			}
 		}
 		return nil
 	},
@@ -124,6 +130,58 @@ var walletnewCmd = &cli.Command{
 			return err
 		}
 		fmt.Println(waddr)
+
+		return nil
+	},
+}
+
+var walletExportCmd = &cli.Command{
+	Name:      "export",
+	Usage:     "export wallet address",
+	ArgsUsage: "[wallet address]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    pwKwd,
+			Aliases: []string{"pw"},
+			Value:   "memoriae",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 1 {
+			return xerrors.Errorf("need one parameter")
+		}
+
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ethAddr := cctx.Args().Get(0)
+		toAdderss := common.HexToAddress(ethAddr)
+		maddr, err := address.NewAddress(toAdderss.Bytes())
+		if err != nil {
+			return err
+		}
+
+		pw := cctx.String(pwKwd)
+		if pw == "" {
+			pw, err = minit.GetPassWord()
+			if err != nil {
+				return err
+			}
+		}
+		ki, err := api.WalletExport(cctx.Context, maddr, pw)
+		if err != nil {
+			return err
+		}
+		fmt.Println("secret key: ", hex.EncodeToString(ki.SecretKey))
 
 		return nil
 	},

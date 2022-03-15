@@ -28,15 +28,22 @@ var InitCmd = &cli.Command{
 			Value: false,
 		},
 		&cli.StringFlag{
-			Name:  "password",
-			Usage: "set password for access private key",
-			Value: "memoriae",
+			Name:    pwKwd,
+			Aliases: []string{"pw"},
+			Usage:   "set password for access secret key",
+			Value:   "memoriae",
+		},
+		&cli.StringFlag{
+			Name:    "secretKey",
+			Aliases: []string{"sk"},
+			Usage:   "secret key",
+			Value:   "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
 		logger.Info("Initializing memoriae node")
 
-		pw := cctx.String("password")
+		pw := cctx.String(pwKwd)
 		setpass := cctx.Bool("setPass")
 		if setpass {
 			npw, err := minit.GetPassWord()
@@ -75,7 +82,8 @@ var InitCmd = &cli.Command{
 		rep.Config().Identity.Role = rType
 
 		// create wallet into repo path
-		if err := minit.Create(cctx.Context, rep, pw); err != nil {
+		sk := cctx.String("sk")
+		if err := minit.Create(cctx.Context, rep, pw, sk); err != nil {
 			logger.Errorf("Error initializing node %s", err)
 			return err
 		}

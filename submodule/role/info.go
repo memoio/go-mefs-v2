@@ -11,8 +11,6 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -300,26 +298,4 @@ func (rm *RoleMgr) GetPubKey(roleID uint64, typ types.KeyType) (address.Address,
 	default:
 		return address.Undef, xerrors.New("key not supported")
 	}
-}
-
-func (rm *RoleMgr) RoleGetKeyset(roleID uint64) (pdpcommon.KeySet, error) {
-	addr, err := rm.GetPubKey(roleID, types.Secp256k1)
-	if err != nil {
-		return nil, err
-	}
-
-	ki, err := rm.WalletExport(rm.ctx, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	privBytes := ki.SecretKey
-
-	privBytes = append(privBytes, byte(types.PDP))
-
-	keyset, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, privBytes)
-	if err != nil {
-		return nil, err
-	}
-	return keyset, nil
 }

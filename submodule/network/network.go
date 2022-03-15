@@ -23,6 +23,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/utils/net"
 )
@@ -62,10 +63,10 @@ func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
 func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 // NewNetworkSubmodule creates a new network submodule.
-func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName string) (*NetworkSubmodule, error) {
+func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName string) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
 
-	libP2pOpts := append(config.Libp2pOpts(), Transport())
+	libP2pOpts := append(nconfig.Libp2pOpts(), Transport())
 	libP2pOpts = append(libP2pOpts, libp2p.BandwidthReporter(bandwidthTracker))
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
@@ -86,13 +87,32 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 
 	// setup dht
 	validator := blankValidator{}
-	bootNodes, err := net.ParseAddresses(config.Repo().Config().Bootstrap.Addresses)
+	bootNodes, err := net.ParseAddresses(nconfig.Repo().Config().Bootstrap.Addresses)
 	if err != nil {
 		return nil, err
 	}
 
+	cbootNodes, err := net.ParseAddresses(config.DefaultBootstrapConfig.Addresses)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cbn := range cbootNodes {
+		has := false
+		for _, bn := range bootNodes {
+			if bn.ID == cbn.ID {
+				has = true
+				break
+			}
+		}
+
+		if !has {
+			bootNodes = append(bootNodes, cbn)
+		}
+	}
+
 	dhtopts := []dht.Option{dht.Mode(dht.ModeAutoServer),
-		dht.Datastore(config.Repo().DhtStore()),
+		dht.Datastore(nconfig.Repo().DhtStore()),
 		dht.Validator(validator),
 		dht.ProtocolPrefix(build.MemoriaeDHT(networkName)),
 		// uncomment these in mainnet

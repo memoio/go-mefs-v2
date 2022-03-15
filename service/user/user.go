@@ -7,9 +7,12 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/service/data"
 	"github.com/memoio/go-mefs-v2/service/user/lfs"
 	uorder "github.com/memoio/go-mefs-v2/service/user/order"
@@ -47,17 +50,26 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
-	keyset, err := bn.RoleMgr.RoleGetKeyset(bn.RoleID())
-	if err != nil {
-		return nil, err
-	}
-
 	pri, err := bn.RoleMgr.RoleSelf(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	localAddr, err := address.NewAddress(pri.ChainVerifyKey)
+	if err != nil {
+		return nil, err
+	}
+
+	ki, err := bn.WalletExport(ctx, localAddr, bn.PassWord())
+	if err != nil {
+		return nil, err
+	}
+
+	privBytes := ki.SecretKey
+
+	privBytes = append(privBytes, byte(types.PDP))
+
+	keyset, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, privBytes)
 	if err != nil {
 		return nil, err
 	}
