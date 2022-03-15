@@ -140,7 +140,7 @@ func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode
 		t.Fatal(err)
 	}
 
-	if err := minit.Create(context.Background(), rp, pw); err != nil {
+	if err := minit.Create(context.Background(), rp, pw, ""); err != nil {
 		t.Fatal(err)
 	}
 
