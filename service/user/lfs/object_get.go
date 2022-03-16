@@ -3,13 +3,12 @@ package lfs
 import (
 	"bytes"
 	"context"
-	"io"
 
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 // read at most one stripe
-func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) (io.Reader, error) {
+func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) {
 	ok := l.sw.TryAcquire(10)
 	if !ok {
 		return nil, ErrResourceUnavailable
@@ -101,5 +100,5 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 		accLen += part.RawLength
 	}
-	return buf, nil
+	return buf.Bytes(), nil
 }
