@@ -78,6 +78,11 @@ var putObjectCmd = &cli.Command{
 			Name:  "path",
 			Usage: "path of file",
 		},
+		&cli.StringFlag{
+			Name:  "etag",
+			Usage: "etag medthd",
+			Value: "md5",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		// get repo path from flag
@@ -99,6 +104,7 @@ var putObjectCmd = &cli.Command{
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
 		path := cctx.String("path")
+		etagFlag := cctx.String("etag")
 
 		// get full path of home dir
 		p, err := homedir.Expand(path)
@@ -115,6 +121,11 @@ var putObjectCmd = &cli.Command{
 
 		// create put object options
 		poo := types.DefaultUploadOption()
+
+		switch etagFlag {
+		case "cid":
+			poo = types.CidUploadOption()
+		}
 
 		// execute putObject
 		oi, err := napi.PutObject(cctx.Context, bucketName, objectName, pf, poo)
