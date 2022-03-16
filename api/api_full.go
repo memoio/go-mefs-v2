@@ -177,6 +177,7 @@ type IChainState interface {
 	StateGetChalEpochInfoAt(context.Context, uint64) (*types.ChalEpoch, error)
 
 	StateGetNonce(context.Context, uint64) uint64
+	StateGetNetInfo(context.Context, uint64) (peer.AddrInfo, error)
 
 	StateGetAllKeepers(context.Context) []uint64
 	StateGetAllUsers(context.Context) []uint64

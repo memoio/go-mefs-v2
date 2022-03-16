@@ -34,6 +34,11 @@ var InfoCmd = &cli.Command{
 		}
 		defer closer()
 
+		pri, err := api.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
+
 		fmt.Println(ansi.Color("----------- Information -----------", "green"))
 
 		fmt.Println(time.Now())
@@ -62,9 +67,15 @@ var InfoCmd = &cli.Command{
 
 			addrs = append(addrs, saddr)
 		}
-		fmt.Println("ID: ", npi.ID, addrs)
-		fmt.Println("IP: ", npi.ID, addrs)
+
+		fmt.Println("ID: ", npi.ID)
+		fmt.Println("IP: ", addrs)
 		fmt.Printf("Type: %s %s\n", nni.Reachability, nni.PublicAddr)
+
+		sni, err := api.StateGetNetInfo(cctx.Context, pri.ID)
+		if err == nil {
+			fmt.Println("Declared Address: ", sni.String())
+		}
 
 		fmt.Println(ansi.Color("----------- Sync Information -----------", "green"))
 		si, err := api.SyncGetInfo(cctx.Context)
@@ -91,10 +102,7 @@ var InfoCmd = &cli.Command{
 		fmt.Println("Challenge Epoch:", ce.Epoch, time.Unix(build.BaseTime+int64(ce.Slot*build.SlotDuration), 0).Format(utils.SHOWTIME))
 
 		fmt.Println(ansi.Color("----------- Role Information -----------", "green"))
-		pri, err := api.RoleSelf(cctx.Context)
-		if err != nil {
-			return err
-		}
+
 		fmt.Println("ID: ", pri.ID)
 		fmt.Println("Type: ", pri.Type.String())
 		fmt.Println("Wallet: ", common.BytesToAddress(pri.ChainVerifyKey))
