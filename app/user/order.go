@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -52,11 +53,24 @@ var orderListProvidersCmd = &cli.Command{
 			if oi.PeerID != peer.ID("") {
 				epi, err := api.NetPeerInfo(cctx.Context, oi.PeerID)
 				if err == nil {
-					fmt.Printf("proID: %d, ready: %t, stop %t, net: %s %s", oi.ID, oi.Ready, oi.InStop, oi.PeerID, epi.Addrs)
+					addrs := make([]string, 0, len(epi.Addrs))
+					for _, maddr := range epi.Addrs {
+						if strings.Contains(maddr, "/127.0.0.1/") {
+							continue
+						}
+
+						if strings.Contains(maddr, "/::1/") {
+							continue
+						}
+
+						addrs = append(addrs, maddr)
+					}
+
+					fmt.Printf("proID: %d, ready: %t, stop %t, net: %s %s\n", oi.ID, oi.Ready, oi.InStop, oi.PeerID, addrs)
 				}
 			}
 
-			fmt.Printf("proID: %d, ready: %t, stop %t, net: %s", oi.ID, oi.Ready, oi.InStop, oi.PeerID)
+			fmt.Printf("proID: %d, ready: %t, stop %t, net: %s\n", oi.ID, oi.Ready, oi.InStop, oi.PeerID)
 		}
 
 		return nil

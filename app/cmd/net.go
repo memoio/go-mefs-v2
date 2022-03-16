@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -75,7 +76,21 @@ var netPeersCmd = &cli.Command{
 		}
 
 		for _, peer := range info {
-			fmt.Printf("%s\n", peer.String())
+			addrs := make([]string, 0, len(peer.Addrs))
+			for _, maddr := range peer.Addrs {
+				saddr := maddr.String()
+				if strings.Contains(saddr, "/127.0.0.1/") {
+					continue
+				}
+
+				if strings.Contains(saddr, "/::1/") {
+					continue
+				}
+
+				addrs = append(addrs, saddr)
+			}
+
+			fmt.Printf("%s %s\n", peer.ID, addrs)
 		}
 		return nil
 	},
