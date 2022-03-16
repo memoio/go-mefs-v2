@@ -62,7 +62,8 @@ var InfoCmd = &cli.Command{
 
 			addrs = append(addrs, saddr)
 		}
-		fmt.Printf("ID %s, IP %s\n", npi.ID, addrs)
+		fmt.Println("ID: ", npi.ID, addrs)
+		fmt.Println("IP: ", npi.ID, addrs)
 		fmt.Printf("Type: %s %s\n", nni.Reachability, nni.PublicAddr)
 
 		fmt.Println(ansi.Color("----------- Sync Information -----------", "green"))
