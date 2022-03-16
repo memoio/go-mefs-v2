@@ -1,16 +1,22 @@
 package lfscmd
 
 import (
+	"bytes"
 	"crypto/md5"
-	"encoding/hex"
+	"crypto/sha256"
 	"fmt"
 	"os"
+
+	"github.com/ipfs/go-cid"
+	"github.com/mitchellh/go-homedir"
+	mh "github.com/multiformats/go-multihash"
+	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/mitchellh/go-homedir"
-	"github.com/urfave/cli/v2"
+	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 var listObjectsCmd = &cli.Command{
@@ -206,6 +212,11 @@ var getObjectCmd = &cli.Command{
 		objectName := cctx.String("object")
 		path := cctx.String("path")
 
+		objInfo, err := napi.HeadObject(cctx.Context, bucketName, objectName)
+		if err != nil {
+			return err
+		}
+
 		p, err := homedir.Expand(path)
 		if err != nil {
 			return err
@@ -226,9 +237,36 @@ var getObjectCmd = &cli.Command{
 
 		f.Write(data)
 
-		etag := md5.Sum(data)
+		var etagb []byte
+		if len(objInfo.Etag) == md5.Size {
+			etag16 := md5.Sum(data)
+			etagb = etag16[:]
+		} else {
+			etag32 := sha256.Sum256(data)
+			mhtag, err := mh.Encode(etag32[:], mh.SHA2_256)
+			if err != nil {
+				return err
+			}
 
-		fmt.Println("get object: ", objectName, hex.EncodeToString(etag[:]))
+			cidEtag := cid.NewCidV1(cid.Raw, mhtag)
+			etagb = cidEtag.Bytes()
+		}
+
+		gotEtag, err := etag.ToString(etagb)
+		if err != nil {
+			return err
+		}
+
+		origEtag, err := etag.ToString(objInfo.Etag)
+		if err != nil {
+			return err
+		}
+
+		if !bytes.Equal(etagb, objInfo.Etag) {
+			return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
+		}
+
+		fmt.Printf("object %s (etag: %s) stored in file %s\n", objectName, gotEtag, p)
 
 		return nil
 	},

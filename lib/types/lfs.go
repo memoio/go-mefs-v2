@@ -107,7 +107,19 @@ type PutObjectOptions struct {
 }
 
 func DefaultUploadOption() *PutObjectOptions {
-	return &PutObjectOptions{
+	poo := &PutObjectOptions{
 		UserDefined: make(map[string]string),
 	}
+
+	poo.UserDefined["etag"] = "md5"
+	return poo
+}
+
+func CidUploadOption() *PutObjectOptions {
+	poo := &PutObjectOptions{
+		UserDefined: make(map[string]string),
+	}
+
+	poo.UserDefined["etag"] = "cid"
+	return poo
 }

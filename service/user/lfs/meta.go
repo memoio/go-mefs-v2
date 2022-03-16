@@ -380,18 +380,24 @@ func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 func (ob *object) addPartInfo(opi *pb.ObjectPartInfo) error {
 	ob.Parts = append(ob.Parts, opi)
 
-	if len(ob.ObjectInfo.Parts) == 1 {
-		newTag := make([]byte, len(opi.ETag))
-		copy(newTag, opi.ETag)
-		ob.ObjectInfo.Etag = newTag
-	} else {
-		newEtag, err := xor(ob.ObjectInfo.Etag, opi.ETag)
-		if err != nil {
-			return err
-		}
+	/*
+		if len(ob.ObjectInfo.Parts) == 1 {
+			newTag := make([]byte, len(opi.ETag))
+			copy(newTag, opi.ETag)
+			ob.ObjectInfo.Etag = newTag
+		} else {
+			newEtag, err := xor(ob.ObjectInfo.Etag, opi.ETag)
+			if err != nil {
+				return err
+			}
 
-		ob.ObjectInfo.Etag = newEtag
-	}
+			ob.ObjectInfo.Etag = newEtag
+		}
+	*/
+
+	newTag := make([]byte, len(opi.ETag))
+	copy(newTag, opi.ETag)
+	ob.ObjectInfo.Etag = newTag
 
 	ob.Length += opi.GetRawLength() // record object raw length acc
 	if ob.Mtime < opi.GetTime() {
