@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -36,6 +37,32 @@ var InfoCmd = &cli.Command{
 		fmt.Println(ansi.Color("----------- Information -----------", "green"))
 
 		fmt.Println(time.Now())
+
+		fmt.Println(ansi.Color("----------- Network Information -----------", "green"))
+		npi, err := api.NetAddrInfo(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		nni, err := api.NetAutoNatStatus(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		addrs := make([]string, 0, len(npi.Addrs))
+		for _, maddr := range npi.Addrs {
+			saddr := maddr.String()
+			if strings.Contains(saddr, "/127.0.0.1/") {
+				continue
+			}
+
+			if strings.Contains(saddr, "/::1/") {
+				continue
+			}
+
+			addrs = append(addrs, saddr)
+		}
+		fmt.Printf("Network ID %s, IP %s, Type: %s %s\n", npi.ID, addrs, nni.Reachability, nni.PublicAddr)
 
 		fmt.Println(ansi.Color("----------- Sync Information -----------", "green"))
 		si, err := api.SyncGetInfo(cctx.Context)
