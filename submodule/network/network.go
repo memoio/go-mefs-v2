@@ -318,7 +318,7 @@ func (ns *NetworkSubmodule) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 	conns := ns.Host.Network().Conns()
 	out := make([]peer.AddrInfo, 0, len(conns))
 
-	for i, conn := range conns {
+	for _, conn := range conns {
 		id := conn.RemotePeer()
 		protos, err := ns.Host.Peerstore().GetProtocols(id)
 		if err != nil {
@@ -338,12 +338,12 @@ func (ns *NetworkSubmodule) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 			continue
 		}
 
-		out[i] = peer.AddrInfo{
+		out = append(out, peer.AddrInfo{
 			ID: id,
 			Addrs: []ma.Multiaddr{
 				conn.RemoteMultiaddr(),
 			},
-		}
+		})
 	}
 
 	return out, nil
