@@ -86,8 +86,9 @@ type INetwork interface {
 
 	NetPeers(context.Context) ([]peer.AddrInfo, error)
 
+	NetAutoNatStatus(context.Context) (NatInfo, error)
 	// status; add more
-	//NetAutoNatStatus(context.Context) (NatInfo, error)
+
 	//NetBandwidthStats(ctx context.Context) (metrics.Stats, error)
 	//NetBandwidthStatsByPeer(ctx context.Context) (map[string]metrics.Stats, error)
 	//NetBandwidthStatsByProtocol(ctx context.Context) (map[protocol.ID]metrics.Stats, error)

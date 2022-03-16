@@ -48,7 +48,27 @@ var netInfoCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Println(pi.String())
+
+		ni, err := napi.NetAutoNatStatus(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		addrs := make([]string, 0, len(pi.Addrs))
+		for _, maddr := range pi.Addrs {
+			saddr := maddr.String()
+			if strings.Contains(saddr, "/127.0.0.1/") {
+				continue
+			}
+
+			if strings.Contains(saddr, "/::1/") {
+				continue
+			}
+
+			addrs = append(addrs, saddr)
+		}
+
+		fmt.Println(pi.ID, addrs, ni.Reachability, ni.PublicAddr)
 
 		return nil
 	},
