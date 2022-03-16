@@ -316,11 +316,30 @@ func (ns *NetworkSubmodule) NetPeerInfo(ctx context.Context, p peer.ID) (*api.Ex
 
 func (ns *NetworkSubmodule) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 	conns := ns.Host.Network().Conns()
-	out := make([]peer.AddrInfo, len(conns))
+	out := make([]peer.AddrInfo, 0, len(conns))
 
 	for i, conn := range conns {
+		id := conn.RemotePeer()
+		protos, err := ns.Host.Peerstore().GetProtocols(id)
+		if err != nil {
+			continue
+		}
+
+		has := false
+		for _, pro := range protos {
+			if strings.Contains(pro, ns.NetworkName) {
+				has = true
+				break
+			}
+		}
+
+		if !has {
+			ns.Host.Network().ClosePeer(id)
+			continue
+		}
+
 		out[i] = peer.AddrInfo{
-			ID: conn.RemotePeer(),
+			ID: id,
 			Addrs: []ma.Multiaddr{
 				conn.RemoteMultiaddr(),
 			},

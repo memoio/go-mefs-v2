@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/utils"
@@ -48,7 +49,14 @@ var orderListProvidersCmd = &cli.Command{
 		}
 
 		for _, oi := range ois {
-			fmt.Printf("proID: %d, ready: %t, stop %t, netID: %s", oi.ID, oi.Ready, oi.InStop, oi.PeerID)
+			if oi.PeerID != peer.ID("") {
+				epi, err := api.NetPeerInfo(cctx.Context, oi.PeerID)
+				if err == nil {
+					fmt.Printf("proID: %d, ready: %t, stop %t, net: %s %s", oi.ID, oi.Ready, oi.InStop, oi.PeerID, epi.Addrs)
+				}
+			}
+
+			fmt.Printf("proID: %d, ready: %t, stop %t, net: %s", oi.ID, oi.Ready, oi.InStop, oi.PeerID)
 		}
 
 		return nil
