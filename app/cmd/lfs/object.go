@@ -230,6 +230,11 @@ var getObjectCmd = &cli.Command{
 		objectName := cctx.String("object")
 		path := cctx.String("path")
 
+		buInfo, err := napi.HeadBucket(cctx.Context, bucketName)
+		if err != nil {
+			return err
+		}
+
 		objInfo, err := napi.HeadObject(cctx.Context, bucketName, objectName)
 		if err != nil {
 			return err
@@ -246,22 +251,41 @@ var getObjectCmd = &cli.Command{
 		}
 		defer f.Close()
 
-		doo := types.DefaultDownloadOption()
-
-		data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
-		if err != nil {
-			return err
+		h := md5.New()
+		if len(objInfo.Etag) != md5.Size {
+			h = sha256.New()
 		}
 
-		f.Write(data)
+		stepLen := int64(254 * 1024 * 1024 * buInfo.DataCount * 16)
+		start := int64(0)
+		oSize := int64(objInfo.Size)
+		for start < oSize {
+			readLen := stepLen
+			if oSize-start < stepLen {
+				readLen = oSize - start
+			}
+
+			doo := &types.DownloadObjectOptions{
+				Start:  start,
+				Length: readLen,
+			}
+
+			data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
+			if err != nil {
+				return err
+			}
+
+			f.Write(data)
+			h.Write(data)
+
+			start += readLen
+		}
 
 		var etagb []byte
 		if len(objInfo.Etag) == md5.Size {
-			etag16 := md5.Sum(data)
-			etagb = etag16[:]
+			etagb = h.Sum(nil)
 		} else {
-			etag32 := sha256.Sum256(data)
-			mhtag, err := mh.Encode(etag32[:], mh.SHA2_256)
+			mhtag, err := mh.Encode(h.Sum(nil), mh.SHA2_256)
 			if err != nil {
 				return err
 			}
