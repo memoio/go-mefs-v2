@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -68,7 +69,12 @@ var netInfoCmd = &cli.Command{
 			addrs = append(addrs, saddr)
 		}
 
-		fmt.Println(pi.ID, addrs, ni.Reachability, ni.PublicAddr)
+		switch ni.Reachability {
+		case network.ReachabilityPublic:
+			fmt.Printf("Network ID %s, IP %s, Type: %s, %s \n", pi.ID, addrs, ni.Reachability, ni.PublicAddr)
+		default:
+			fmt.Printf("Network ID %s, IP %s, Type: %s \n", pi.ID, addrs, ni.Reachability)
+		}
 
 		return nil
 	},
