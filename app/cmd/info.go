@@ -62,7 +62,8 @@ var InfoCmd = &cli.Command{
 
 			addrs = append(addrs, saddr)
 		}
-		fmt.Printf("Network ID %s, IP %s, Type: %s %s\n", npi.ID, addrs, nni.Reachability, nni.PublicAddr)
+		fmt.Printf("ID %s, IP %s\n", npi.ID, addrs)
+		fmt.Printf("Type: %s %s\n", nni.Reachability, nni.PublicAddr)
 
 		fmt.Println(ansi.Color("----------- Sync Information -----------", "green"))
 		si, err := api.SyncGetInfo(cctx.Context)
