@@ -108,7 +108,7 @@ type StoreInfo struct {
 type OrderJobInfo struct {
 	ID uint64
 
-	PeerID peer.ID
+	PeerID string
 
 	AvailTime int64
 
