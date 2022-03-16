@@ -15,6 +15,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
@@ -258,7 +259,7 @@ var getObjectCmd = &cli.Command{
 
 		// around 64MB
 		stripeCnt := 4 * 64 / buInfo.DataCount
-		stepLen := int64(254 * 1024 * stripeCnt * buInfo.DataCount)
+		stepLen := int64(build.DefaultSegSize * 1024 * stripeCnt * buInfo.DataCount)
 		start := int64(0)
 		oSize := int64(objInfo.Size)
 		for start < oSize {
