@@ -256,7 +256,9 @@ var getObjectCmd = &cli.Command{
 			h = sha256.New()
 		}
 
-		stepLen := int64(254 * 1024 * 1024 * buInfo.DataCount * 16)
+		// around 64MB
+		stripeCnt := 4 * 64 / buInfo.DataCount
+		stepLen := int64(254 * 1024 * stripeCnt * buInfo.DataCount)
 		start := int64(0)
 		oSize := int64(objInfo.Size)
 		for start < oSize {

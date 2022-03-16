@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"golang.org/x/xerrors"
 )
 
 // read at most one stripe
@@ -17,6 +18,11 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 	if !l.Ready() {
 		return nil, ErrLfsServiceNotReady
+	}
+
+	// 1GB?
+	if opts.Length > 1024*1024*1024 {
+		return nil, xerrors.Errorf("get size is too large")
 	}
 
 	bucket, err := l.getBucketInfo(bucketName)
