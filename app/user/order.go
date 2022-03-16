@@ -67,6 +67,7 @@ var orderListProvidersCmd = &cli.Command{
 					}
 
 					fmt.Printf("proID: %d, ready: %t, stop %t, net: %s %s\n", oi.ID, oi.Ready, oi.InStop, oi.PeerID, addrs)
+					continue
 				}
 			}
 
