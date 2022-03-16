@@ -277,8 +277,8 @@ var getObjectCmd = &cli.Command{
 				return err
 			}
 
-			f.Write(data)
 			h.Write(data)
+			f.Write(data)
 
 			start += readLen
 		}
