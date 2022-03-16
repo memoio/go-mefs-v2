@@ -383,9 +383,9 @@ type UserNodeStruct struct {
 		HeadBucket  func(ctx context.Context, bucketName string) (*types.BucketInfo, error) `perm:"read"`
 		ListBuckets func(ctx context.Context, prefix string) ([]*types.BucketInfo, error)   `perm:"read"`
 
-		GetObject   func(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) `perm:"read"`
-		HeadObject  func(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)                         `perm:"read"`
-		ListObjects func(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error)   `perm:"read"`
+		GetObject   func(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) (io.Reader, error) `perm:"read"`
+		HeadObject  func(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)                            `perm:"read"`
+		ListObjects func(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error)      `perm:"read"`
 
 		LfsGetInfo func(context.Context, bool) (*types.LfsInfo, error) `perm:"read"`
 
@@ -426,7 +426,7 @@ func (s *UserNodeStruct) ListBuckets(ctx context.Context, prefix string) ([]*typ
 	return s.Internal.ListBuckets(ctx, prefix)
 }
 
-func (s *UserNodeStruct) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) {
+func (s *UserNodeStruct) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) (io.Reader, error) {
 	return s.Internal.GetObject(ctx, bucketName, objectName, opts)
 }
 

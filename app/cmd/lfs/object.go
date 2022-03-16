@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/ipfs/go-cid"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
-	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
@@ -231,11 +231,6 @@ var getObjectCmd = &cli.Command{
 		objectName := cctx.String("object")
 		path := cctx.String("path")
 
-		buInfo, err := napi.HeadBucket(cctx.Context, bucketName)
-		if err != nil {
-			return err
-		}
-
 		objInfo, err := napi.HeadObject(cctx.Context, bucketName, objectName)
 		if err != nil {
 			return err
@@ -258,30 +253,28 @@ var getObjectCmd = &cli.Command{
 		}
 
 		// around 64MB
-		stripeCnt := 4 * 64 / buInfo.DataCount
-		stepLen := int64(build.DefaultSegSize * 1024 * stripeCnt * buInfo.DataCount)
-		start := int64(0)
-		oSize := int64(objInfo.Size)
-		for start < oSize {
-			readLen := stepLen
-			if oSize-start < stepLen {
-				readLen = oSize - start
-			}
 
-			doo := &types.DownloadObjectOptions{
-				Start:  start,
-				Length: readLen,
-			}
+		doo := types.DefaultDownloadOption()
 
-			data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
-			if err != nil {
+		reader, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
+		if err != nil {
+			return err
+		}
+
+		buf := make([]byte, 248*1024)
+
+		breakFlag := false
+		for !breakFlag {
+			buf = buf[:0]
+			_, err := io.ReadAtLeast(reader, buf, 248*1024)
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				breakFlag = true
+			} else if err != nil {
 				return err
 			}
 
-			h.Write(data)
-			f.Write(data)
-
-			start += readLen
+			h.Write(buf)
+			f.Write(buf)
 		}
 
 		var etagb []byte

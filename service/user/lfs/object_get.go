@@ -3,13 +3,13 @@ package lfs
 import (
 	"bytes"
 	"context"
+	"io"
 
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"golang.org/x/xerrors"
 )
 
 // read at most one stripe
-func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) {
+func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) (io.Reader, error) {
 	ok := l.sw.TryAcquire(10)
 	if !ok {
 		return nil, ErrResourceUnavailable
@@ -18,11 +18,6 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 	if !l.Ready() {
 		return nil, ErrLfsServiceNotReady
-	}
-
-	// 1GB?
-	if opts.Length > 1024*1024*1024 {
-		return nil, xerrors.Errorf("get size is too large")
 	}
 
 	bucket, err := l.getBucketInfo(bucketName)
@@ -106,5 +101,5 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 		accLen += part.RawLength
 	}
-	return buf.Bytes(), nil
+	return buf, nil
 }
