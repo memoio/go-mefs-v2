@@ -166,7 +166,7 @@ func (n *BaseNode) UpdateNetAddr() error {
 		return err
 	}
 
-	opi, err := n.PushPool.GetNetInfo(n.ctx, n.RoleID())
+	opi, err := n.PushPool.StateGetNetInfo(n.ctx, n.RoleID())
 	if err == nil {
 		if pi.ID == opi.ID {
 			logger.Debug("net addr has been on chain")

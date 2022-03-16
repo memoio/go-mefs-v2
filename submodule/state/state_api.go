@@ -155,7 +155,7 @@ func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
 	return pri, nil
 }
 
-func (s *StateMgr) GetNetInfo(ctx context.Context, roleID uint64) (peer.AddrInfo, error) {
+func (s *StateMgr) StateGetNetInfo(ctx context.Context, roleID uint64) (peer.AddrInfo, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 

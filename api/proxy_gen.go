@@ -53,7 +53,8 @@ type CommonStruct struct {
 		StateGetChalEpochInfo   func(context.Context) (*types.ChalEpoch, error)         `perm:"read"`
 		StateGetChalEpochInfoAt func(context.Context, uint64) (*types.ChalEpoch, error) `perm:"read"`
 
-		StateGetNonce func(context.Context, uint64) uint64 `perm:"read"`
+		StateGetNonce   func(context.Context, uint64) uint64                 `perm:"read"`
+		StateGetNetInfo func(context.Context, uint64) (peer.AddrInfo, error) `perm:"read"`
 
 		StateGetAllKeepers   func(context.Context) []uint64         `perm:"read"`
 		StateGetAllUsers     func(context.Context) []uint64         `perm:"read"`
@@ -210,6 +211,10 @@ func (s *CommonStruct) StateGetChalEpochInfoAt(ctx context.Context, epoch uint64
 
 func (s *CommonStruct) StateGetNonce(ctx context.Context, roleID uint64) uint64 {
 	return s.Internal.StateGetNonce(ctx, roleID)
+}
+
+func (s *CommonStruct) StateGetNetInfo(ctx context.Context, roleID uint64) (peer.AddrInfo, error) {
+	return s.Internal.StateGetNetInfo(ctx, roleID)
 }
 
 func (s *CommonStruct) StateGetUsersAt(ctx context.Context, proID uint64) []uint64 {
