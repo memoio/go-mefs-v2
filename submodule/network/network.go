@@ -78,7 +78,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	// set up host
 	rawHost, err := libp2p.New(
 		ctx,
-		libp2p.UserAgent("memoriae"),
+		libp2p.UserAgent("memoriae-"+build.UserVersion()),
 		libp2p.ChainOptions(libP2pOpts...),
 		libp2p.Ping(true),
 	)
