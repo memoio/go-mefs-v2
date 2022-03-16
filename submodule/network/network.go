@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -130,7 +131,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 
 	peerHost := routed.Wrap(rawHost, router)
 
-	peerMgr, err := NewPeerMgr(peerHost, router, bootNodes)
+	peerMgr, err := NewPeerMgr(networkName, peerHost, router, bootNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +247,23 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 	}
 
 	swrm.Backoff().Clear(pai.ID)
-	return ns.Host.Connect(ctx, pai)
+	err := ns.Host.Connect(ctx, pai)
+	if err != nil {
+		return err
+	}
+
+	protos, err := ns.Host.Peerstore().GetProtocols(pai.ID)
+	if err != nil {
+		return err
+	}
+
+	for _, pro := range protos {
+		if strings.Contains(pro, ns.NetworkName) {
+			return nil
+		}
+	}
+
+	return ns.Host.Network().ClosePeer(pai.ID)
 }
 
 func (ns *NetworkSubmodule) NetDisconnect(ctx context.Context, p peer.ID) error {
