@@ -110,6 +110,7 @@ type INetService interface {
 
 	// todo: should be swap network
 	Fetch(ctx context.Context, key []byte) ([]byte, error)
+	GetPeerIDAt(ctx context.Context, id uint64) (peer.ID, error)
 
 	// broadcast using pubsub
 	PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error

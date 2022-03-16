@@ -123,6 +123,15 @@ func (c *NetServiceImpl) PublishEvent(ctx context.Context, em *pb.EventMessage) 
 	return c.eventTopic.Publish(ctx, data)
 }
 
+func (c *NetServiceImpl) GetPeerIDAt(ctx context.Context, id uint64) (peer.ID, error) {
+	pid, ok := c.idMap[id]
+	if ok {
+		return pid, nil
+	}
+
+	return peer.ID(""), xerrors.Errorf("not found peer.ID for %d", id)
+}
+
 func disorder(array []peer.AddrInfo) {
 	var temp peer.AddrInfo
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))

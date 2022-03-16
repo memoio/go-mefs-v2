@@ -108,6 +108,8 @@ type StoreInfo struct {
 type OrderJobInfo struct {
 	ID uint64
 
+	PeerID peer.ID
+
 	AvailTime int64
 
 	Nonce      uint64

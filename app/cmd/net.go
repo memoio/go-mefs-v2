@@ -142,7 +142,12 @@ var findpeerCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("got %s\n", info.String())
+		epi, err := napi.NetPeerInfo(cctx.Context, pid)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(info.String(), epi.Agent, epi.Protocols)
 
 		return nil
 	},
