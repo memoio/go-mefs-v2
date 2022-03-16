@@ -399,7 +399,8 @@ func (ob *object) addPartInfo(opi *pb.ObjectPartInfo) error {
 	copy(newTag, opi.ETag)
 	ob.ObjectInfo.Etag = newTag
 
-	ob.Length += opi.GetRawLength() // record object raw length acc
+	ob.Size += opi.GetRawLength() // record object raw length acc
+	ob.StoredBytes += opi.GetLength()
 	if ob.Mtime < opi.GetTime() {
 		ob.Mtime = opi.GetTime()
 	}

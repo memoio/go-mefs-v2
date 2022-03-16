@@ -314,7 +314,7 @@ func (l *LfsService) ShowBucketStorage(ctx context.Context, bucketName string) (
 		if object.deletion {
 			continue
 		}
-		storageSpace += uint64(object.Length)
+		storageSpace += uint64(object.Size)
 	}
 	return storageSpace, nil
 }

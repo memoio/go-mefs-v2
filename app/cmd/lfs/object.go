@@ -154,6 +154,11 @@ var headObjectCmd = &cli.Command{
 			Aliases: []string{"on"},
 			Usage:   "objectName",
 		},
+		&cli.BoolFlag{
+			Name:  "all",
+			Usage: "show all information",
+			Value: false,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(cmd.FlagNodeRepo)
@@ -179,8 +184,10 @@ var headObjectCmd = &cli.Command{
 		fmt.Println("Head object: ")
 		fmt.Println(FormatObjectInfo(oi))
 
-		for i, part := range oi.Parts {
-			fmt.Printf("Part: %d, %s\n", i, FormatPartInfo(part))
+		if cctx.Bool("all") {
+			for i, part := range oi.Parts {
+				fmt.Printf("Part: %d, %s\n", i, FormatPartInfo(part))
+			}
 		}
 
 		return nil

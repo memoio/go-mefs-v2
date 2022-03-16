@@ -36,15 +36,15 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		return nil, ErrObjectNotExist
 	}
 
-	if object.Length == 0 {
+	if object.Size == 0 {
 		return nil, ErrObjectIsNil
 	}
 
 	readStart := opts.Start
 	readLength := opts.Length
 
-	if readStart > int64(object.Length) ||
-		readStart+readLength > int64(object.Length) {
+	if readStart > int64(object.Size) ||
+		readStart+readLength > int64(object.Size) {
 		return nil, ErrObjectOptionsInvalid
 	}
 
@@ -58,7 +58,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	}
 
 	if readLength <= 0 {
-		readLength = int64(object.Length - uint64(readStart))
+		readLength = int64(object.Size - uint64(readStart))
 	}
 
 	buf := new(bytes.Buffer)
@@ -77,8 +77,8 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 			break
 		}
 
-		if part.Length+accLen < uint64(readStart) {
-			accLen += part.Length
+		if part.RawLength+accLen < uint64(readStart) {
+			accLen += part.RawLength
 			continue
 		}
 
@@ -87,8 +87,8 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 			partStart += (uint64(readStart) - accLen)
 		}
 
-		partLength := part.Length
-		if uint64(readStart+readLength) < accLen+part.Length {
+		partLength := part.RawLength
+		if uint64(readStart+readLength) < accLen+part.RawLength {
 			partLength = (uint64(readStart+readLength) - accLen)
 		}
 
@@ -98,7 +98,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		}
 		rLen += partLength
 
-		accLen += part.Length
+		accLen += part.RawLength
 	}
 	return buf.Bytes(), nil
 }

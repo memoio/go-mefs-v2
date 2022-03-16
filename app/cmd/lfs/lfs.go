@@ -68,26 +68,28 @@ func FormatObjectInfo(object *types.ObjectInfo) string {
 Bucket ID: %d
 Object ID: %d
 Etag: %s
-Creation Time: %s
-Modify Time: %s
 Size: %s
+UsedBytes: %s
 Enc Method: %s
-State: %s`,
+State: %s
+Creation Time: %s
+Modify Time: %s`,
 		ansi.Color(object.Name, "green"),
 		object.BucketID,
 		object.ObjectID,
 		setag,
-		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
-		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
-		utils.FormatBytes(int64(object.Length)),
+		utils.FormatBytes(int64(object.Size)),
+		utils.FormatBytes(int64(object.StoredBytes)),
 		object.Encryption,
 		object.State,
+		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
 	)
 }
 
 func FormatPartInfo(pi *pb.ObjectPartInfo) string {
 	setag, _ := etag.ToString(pi.ETag)
-	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, UsedBytes: %d, Etag: %s", pi.ObjectID, pi.Length, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.RawLength, setag)
+	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, DataBytes: %d, Etag: %s", pi.ObjectID, pi.RawLength, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.Length, setag)
 }
 
 var LfsCmd = &cli.Command{

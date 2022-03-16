@@ -245,12 +245,13 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				}
 			}
 
+			usedBytes := uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
 			opi := &pb.ObjectPartInfo{
 				ObjectID:  object.GetObjectID(),
 				Time:      time.Now().Unix(),
 				Offset:    uint64(dp.stripeSize) * curStripe,
-				Length:    uint64(dp.stripeSize * stripeCount),
-				RawLength: uint64(rawLen),
+				Length:    usedBytes,      // used bytes
+				RawLength: uint64(rawLen), // file size
 				ETag:      etag,
 			}
 
@@ -265,7 +266,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			// todo: add used bytes
 			bucket.Length += uint64(dp.stripeSize * stripeCount)
-			bucket.UsedBytes += uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
+			bucket.UsedBytes += usedBytes
 
 			err = bucket.addOpRecord(l.userID, op, l.ds)
 			if err != nil {
