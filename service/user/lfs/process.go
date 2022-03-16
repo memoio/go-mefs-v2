@@ -298,6 +298,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 }
 
 func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *bucket, object *object, start, length int, w io.Writer) error {
+	logger.Debug("download object: ", object.BucketID, object.ObjectID, start, length)
 
 	sizeReceived := 0
 
@@ -310,7 +311,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 		default:
 			stripeID := start / dp.stripeSize
 
-			logger.Debug("download object: ", object.BucketID, object.ObjectID, stripeID)
+			logger.Debug("download object stripe: ", object.BucketID, object.ObjectID, stripeID)
 
 			// add parallel chunks download
 			// release when get chunk fails or get datacount chunk succcess
