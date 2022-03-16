@@ -3,8 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -47,7 +49,32 @@ var netInfoCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Println(pi.String())
+
+		ni, err := napi.NetAutoNatStatus(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		addrs := make([]string, 0, len(pi.Addrs))
+		for _, maddr := range pi.Addrs {
+			saddr := maddr.String()
+			if strings.Contains(saddr, "/127.0.0.1/") {
+				continue
+			}
+
+			if strings.Contains(saddr, "/::1/") {
+				continue
+			}
+
+			addrs = append(addrs, saddr)
+		}
+
+		switch ni.Reachability {
+		case network.ReachabilityPublic:
+			fmt.Printf("Network ID %s, IP %s, Type: %s, %s \n", pi.ID, addrs, ni.Reachability, ni.PublicAddr)
+		default:
+			fmt.Printf("Network ID %s, IP %s, Type: %s \n", pi.ID, addrs, ni.Reachability)
+		}
 
 		return nil
 	},
@@ -75,7 +102,21 @@ var netPeersCmd = &cli.Command{
 		}
 
 		for _, peer := range info {
-			fmt.Printf("%s\n", peer.String())
+			addrs := make([]string, 0, len(peer.Addrs))
+			for _, maddr := range peer.Addrs {
+				saddr := maddr.String()
+				if strings.Contains(saddr, "/127.0.0.1/") {
+					continue
+				}
+
+				if strings.Contains(saddr, "/::1/") {
+					continue
+				}
+
+				addrs = append(addrs, saddr)
+			}
+
+			fmt.Printf("%s %s\n", peer.ID, addrs)
 		}
 		return nil
 	},
@@ -142,7 +183,12 @@ var findpeerCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("got %s\n", info.String())
+		epi, err := napi.NetPeerInfo(cctx.Context, pid)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(info.String(), epi.Agent, epi.Protocols)
 
 		return nil
 	},

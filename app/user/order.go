@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/utils"
@@ -22,6 +24,57 @@ var OrderCmd = &cli.Command{
 		orderListPayCmd,
 		orderGetCmd,
 		orderDetailCmd,
+		orderListProvidersCmd,
+	},
+}
+
+var orderListProvidersCmd = &cli.Command{
+	Name:  "proList",
+	Usage: "list all pros",
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ois, err := api.OrderGetJobInfo(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		for _, oi := range ois {
+			if oi.PeerID != peer.ID("") {
+				epi, err := api.NetPeerInfo(cctx.Context, oi.PeerID)
+				if err == nil {
+					addrs := make([]string, 0, len(epi.Addrs))
+					for _, maddr := range epi.Addrs {
+						if strings.Contains(maddr, "/127.0.0.1/") {
+							continue
+						}
+
+						if strings.Contains(maddr, "/::1/") {
+							continue
+						}
+
+						addrs = append(addrs, maddr)
+					}
+
+					fmt.Printf("proID: %d, ready: %t, stop %t, net: %s %s\n", oi.ID, oi.Ready, oi.InStop, oi.PeerID, addrs)
+					continue
+				}
+			}
+
+			fmt.Printf("proID: %d, ready: %t, stop %t, net: %s\n", oi.ID, oi.Ready, oi.InStop, oi.PeerID)
+		}
+
+		return nil
 	},
 }
 

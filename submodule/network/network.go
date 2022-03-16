@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -77,7 +78,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	// set up host
 	rawHost, err := libp2p.New(
 		ctx,
-		libp2p.UserAgent("memoriae"),
+		libp2p.UserAgent("memoriae-"+build.UserVersion()),
 		libp2p.ChainOptions(libP2pOpts...),
 		libp2p.Ping(true),
 	)
@@ -130,7 +131,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 
 	peerHost := routed.Wrap(rawHost, router)
 
-	peerMgr, err := NewPeerMgr(peerHost, router, bootNodes)
+	peerMgr, err := NewPeerMgr(networkName, peerHost, router, bootNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +247,23 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 	}
 
 	swrm.Backoff().Clear(pai.ID)
-	return ns.Host.Connect(ctx, pai)
+	err := ns.Host.Connect(ctx, pai)
+	if err != nil {
+		return err
+	}
+
+	protos, err := ns.Host.Peerstore().GetProtocols(pai.ID)
+	if err != nil {
+		return err
+	}
+
+	for _, pro := range protos {
+		if strings.Contains(pro, ns.NetworkName) {
+			return nil
+		}
+	}
+
+	return ns.Host.Network().ClosePeer(pai.ID)
 }
 
 func (ns *NetworkSubmodule) NetDisconnect(ctx context.Context, p peer.ID) error {
@@ -299,15 +316,34 @@ func (ns *NetworkSubmodule) NetPeerInfo(ctx context.Context, p peer.ID) (*api.Ex
 
 func (ns *NetworkSubmodule) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 	conns := ns.Host.Network().Conns()
-	out := make([]peer.AddrInfo, len(conns))
+	out := make([]peer.AddrInfo, 0, len(conns))
 
-	for i, conn := range conns {
-		out[i] = peer.AddrInfo{
-			ID: conn.RemotePeer(),
+	for _, conn := range conns {
+		id := conn.RemotePeer()
+		protos, err := ns.Host.Peerstore().GetProtocols(id)
+		if err != nil {
+			continue
+		}
+
+		has := false
+		for _, pro := range protos {
+			if strings.Contains(pro, ns.NetworkName) {
+				has = true
+				break
+			}
+		}
+
+		if !has {
+			ns.Host.Network().ClosePeer(id)
+			continue
+		}
+
+		out = append(out, peer.AddrInfo{
+			ID: id,
 			Addrs: []ma.Multiaddr{
 				conn.RemoteMultiaddr(),
 			},
-		}
+		})
 	}
 
 	return out, nil

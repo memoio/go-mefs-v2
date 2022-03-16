@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +34,7 @@ type IPeerMgr interface {
 var _ IPeerMgr = &PeerMgr{}
 
 type PeerMgr struct {
+	netName       string
 	bootstrappers []peer.AddrInfo
 
 	peersLk sync.Mutex
@@ -56,8 +58,9 @@ type NewPeer struct {
 	Id peer.ID //nolint
 }
 
-func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*PeerMgr, error) {
+func NewPeerMgr(netName string, h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*PeerMgr, error) {
 	pm := &PeerMgr{
+		netName:       netName,
 		h:             h,
 		dht:           dht,
 		bootstrappers: bootstrap,
@@ -152,10 +155,28 @@ func (pmgr *PeerMgr) Run(ctx context.Context) {
 			//logger.Info("connecting to bootstrap peers")
 			for _, bsp := range pmgr.bootstrappers {
 				ctx, cancel := context.WithTimeout(ctx, time.Second*3)
-				if err := pmgr.h.Connect(ctx, bsp); err != nil {
-					logger.Warnf("failed to connect to bootstrap peer: %s", err)
-				}
+				err := pmgr.h.Connect(ctx, bsp)
 				cancel()
+				if err != nil {
+					continue
+				}
+				protos, err := pmgr.h.Peerstore().GetProtocols(bsp.ID)
+				if err != nil {
+					continue
+				}
+
+				has := false
+				for _, pro := range protos {
+					if strings.Contains(pro, pmgr.netName) {
+						has = true
+						break
+					}
+				}
+
+				if !has {
+					pmgr.h.Network().ClosePeer(bsp.ID)
+				}
+
 			}
 		case <-pmgr.done:
 			logger.Warn("exiting peermgr run")
@@ -197,8 +218,27 @@ func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 
 		//logger.Info("connecting to bootstrap peers")
 		for _, bsp := range pmgr.bootstrappers {
-			if err := pmgr.h.Connect(ctx, bsp); err != nil {
-				logger.Warnf("failed to connect to bootstrap peer: %s", err)
+			ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+			err := pmgr.h.Connect(ctx, bsp)
+			cancel()
+			if err != nil {
+				continue
+			}
+			protos, err := pmgr.h.Peerstore().GetProtocols(bsp.ID)
+			if err != nil {
+				continue
+			}
+
+			has := false
+			for _, pro := range protos {
+				if strings.Contains(pro, pmgr.netName) {
+					has = true
+					break
+				}
+			}
+
+			if !has {
+				pmgr.h.Network().ClosePeer(bsp.ID)
 			}
 		}
 		return

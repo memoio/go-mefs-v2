@@ -86,8 +86,9 @@ type INetwork interface {
 
 	NetPeers(context.Context) ([]peer.AddrInfo, error)
 
+	NetAutoNatStatus(context.Context) (NatInfo, error)
 	// status; add more
-	//NetAutoNatStatus(context.Context) (NatInfo, error)
+
 	//NetBandwidthStats(ctx context.Context) (metrics.Stats, error)
 	//NetBandwidthStatsByPeer(ctx context.Context) (map[string]metrics.Stats, error)
 	//NetBandwidthStatsByProtocol(ctx context.Context) (map[protocol.ID]metrics.Stats, error)
@@ -110,6 +111,7 @@ type INetService interface {
 
 	// todo: should be swap network
 	Fetch(ctx context.Context, key []byte) ([]byte, error)
+	GetPeerIDAt(ctx context.Context, id uint64) (peer.ID, error)
 
 	// broadcast using pubsub
 	PublishTxMsg(ctx context.Context, msg *tx.SignedMessage) error

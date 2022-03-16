@@ -94,7 +94,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	}
 
 	if or.seq.Size-or.base.Size > seqMaxSize {
-		return xerrors.Errorf("%d order %d seq %d size %d is larger than %d", userID, or.seq.Nonce, or.seq.SeqNum, or.seq.Size-or.base.Size, seqMaxSize)
+		return xerrors.Errorf("%d order %d seq %d sub size %d %d is larger than %d", userID, or.seq.Nonce, or.seq.SeqNum, or.seq.Size, or.base.Size, seqMaxSize)
 	}
 
 	or.availTime = time.Now().Unix()
@@ -361,8 +361,8 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		}
 
 		// space time should not too large
-		if or.base.Size > orderMaxSize/uint64(or.base.End-or.base.Start) {
-			return nil, xerrors.Errorf("fail create seq %d %d due to large size, got %d sgould less than %d", os.Nonce, os.SeqNum, or.base.Size, orderMaxSize/uint64(or.base.End-or.base.Start))
+		if or.base.Size > orderMaxSize {
+			return nil, xerrors.Errorf("fail create seq %d %d due to large size, got %d sgould less than %d", os.Nonce, os.SeqNum, or.base.Size, orderMaxSize)
 		}
 
 		or.seq = os

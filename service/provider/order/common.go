@@ -7,6 +7,6 @@ import (
 var logger = logging.Logger("pro-order")
 
 const (
-	orderMaxSize = 100 * 24 * 3600 * 10 * 1024 * 1024 * 1024 // 100 day*10GB
-	seqMaxSize   = 1024 * 1024 * 1024                        // 1 GB
+	orderMaxSize = 10 * 1024 * 1024 * 1024 * 1024 // 10 TB
+	seqMaxSize   = 1024 * 1024 * 1024 * 1024      // 1 TB
 )

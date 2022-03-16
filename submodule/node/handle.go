@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 // todo: remove it
@@ -173,6 +174,20 @@ func (n *BaseNode) UpdateNetAddr() error {
 		}
 	}
 
+	addrs := make([]ma.Multiaddr, 0, len(pi.Addrs))
+	for _, maddr := range pi.Addrs {
+		if strings.Contains(maddr.String(), "/127.0.0.1/") {
+			continue
+		}
+
+		if strings.Contains(maddr.String(), "/::1/") {
+			continue
+		}
+
+		addrs = append(addrs, maddr)
+	}
+
+	pi.Addrs = addrs
 	data, err := pi.MarshalJSON()
 	if err != nil {
 		return err

@@ -13,7 +13,7 @@ func (m *OrderMgr) connect(proID uint64) error {
 	if err == nil {
 		m.ns.AddNode(proID, pi.ID)
 		// todo: fix this
-		m.ns.Host().Connect(m.ctx, pi)
+		//m.ns.Host().Connect(m.ctx, pi)
 	}
 
 	// test remote service is ready or not

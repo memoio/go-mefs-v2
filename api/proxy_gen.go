@@ -32,19 +32,14 @@ type CommonStruct struct {
 		WalletExport func(context.Context, address.Address, string) (*types.KeyInfo, error) `perm:"admin"`
 		WalletImport func(context.Context, *types.KeyInfo) (address.Address, error)         `perm:"write"`
 
-		NetAddrInfo func(context.Context) (peer.AddrInfo, error) `perm:"write"`
-
-		NetConnectedness func(context.Context, peer.ID) (network.Connectedness, error) `perm:"write"`
-
-		NetConnect func(context.Context, peer.AddrInfo) error `perm:"write"`
-
-		NetDisconnect func(context.Context, peer.ID) error `perm:"write"`
-
-		NetFindPeer func(context.Context, peer.ID) (peer.AddrInfo, error) `perm:"write"`
-
-		NetPeerInfo func(context.Context, peer.ID) (*ExtendedPeerInfo, error) `perm:"write"`
-
-		NetPeers func(context.Context) ([]peer.AddrInfo, error) `perm:"write"`
+		NetAddrInfo      func(context.Context) (peer.AddrInfo, error)                  `perm:"read"`
+		NetAutoNatStatus func(context.Context) (NatInfo, error)                        `perm:"read"`
+		NetConnectedness func(context.Context, peer.ID) (network.Connectedness, error) `perm:"read"`
+		NetConnect       func(context.Context, peer.AddrInfo) error                    `perm:"write"`
+		NetDisconnect    func(context.Context, peer.ID) error                          `perm:"write"`
+		NetFindPeer      func(context.Context, peer.ID) (peer.AddrInfo, error)         `perm:"read"`
+		NetPeerInfo      func(context.Context, peer.ID) (*ExtendedPeerInfo, error)     `perm:"read"`
+		NetPeers         func(context.Context) ([]peer.AddrInfo, error)                `perm:"read"`
 
 		RoleSelf        func(context.Context) (*pb.RoleInfo, error)                                   `perm:"read"`
 		RoleGet         func(context.Context, uint64) (*pb.RoleInfo, error)                           `perm:"read"`
@@ -143,6 +138,10 @@ func (s *CommonStruct) WalletImport(ctx context.Context, ki *types.KeyInfo) (add
 
 func (s *CommonStruct) NetAddrInfo(ctx context.Context) (peer.AddrInfo, error) {
 	return s.Internal.NetAddrInfo(ctx)
+}
+
+func (s *CommonStruct) NetAutoNatStatus(ctx context.Context) (NatInfo, error) {
+	return s.Internal.NetAutoNatStatus(ctx)
 }
 
 func (s *CommonStruct) NetConnectedness(ctx context.Context, p peer.ID) (network.Connectedness, error) {
