@@ -3,6 +3,7 @@ package lfs
 import (
 	"context"
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/binary"
 	"io"
 	"sync"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/ipfs/go-cid"
+	mh "github.com/multiformats/go-multihash"
 	"github.com/zeebo/blake3"
 	"golang.org/x/sync/semaphore"
 
@@ -80,8 +83,7 @@ func (l *LfsService) newDataProcess(bucketID uint64, bopt *pb.BucketOption) (*da
 	return dp, nil
 }
 
-//
-func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object, r io.Reader) error {
+func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object, r io.Reader, opts *types.PutObjectOptions) error {
 	nt := time.Now()
 	logger.Debug("upload begin at: ", nt)
 	dp, ok := l.dps[bucket.BucketID]
@@ -106,6 +108,12 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	curStripe := bucket.Length / uint64(dp.stripeSize)
 
 	h := md5.New()
+	if opts.UserDefined != nil {
+		val, ok := opts.UserDefined["etag"]
+		if ok && val == "cid" {
+			h = sha256.New()
+		}
+	}
 
 	breakFlag := false
 	for !breakFlag {
@@ -129,7 +137,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			break
 		}
 
-		// md5 of raw data
+		// hash of raw data
 		h.Write(buf)
 		rawLen += len(buf)
 		totalSize += len(buf)
@@ -223,13 +231,27 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 		// more, change opID
 		if stripeCount >= 64 || breakFlag {
+			etag := h.Sum(nil)
+			if opts.UserDefined != nil {
+				val, ok := opts.UserDefined["etag"]
+				if ok && val == "cid" {
+					mhtag, err := mh.Encode(etag, mh.SHA2_256)
+					if err != nil {
+						return err
+					}
+
+					cidEtag := cid.NewCidV1(cid.Raw, mhtag)
+					etag = cidEtag.Bytes()
+				}
+			}
+
 			opi := &pb.ObjectPartInfo{
 				ObjectID:  object.GetObjectID(),
 				Time:      time.Now().Unix(),
 				Offset:    uint64(dp.stripeSize) * curStripe,
 				Length:    uint64(dp.stripeSize * stripeCount),
 				RawLength: uint64(rawLen),
-				ETag:      h.Sum(nil),
+				ETag:      etag,
 			}
 
 			payload, err := proto.Marshal(opi)
@@ -261,7 +283,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			opID++
 			curStripe += uint64(stripeCount)
 
-			h.Reset()
+			// not reset to get hash
+			//h.Reset()
 			rawLen = 0
 			stripeCount = 0
 		}

@@ -56,7 +56,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	nt := time.Now()
 
 	// upload object into bucket
-	err = l.upload(ctx, bucket, object, reader)
+	err = l.upload(ctx, bucket, object, reader, opts)
 	if err != nil {
 		return &object.ObjectInfo, err
 	}

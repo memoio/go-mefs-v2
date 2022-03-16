@@ -1,7 +1,6 @@
 package lfscmd
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
+	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
 )
@@ -62,6 +62,7 @@ Used Bytes: %s`,
 }
 
 func FormatObjectInfo(object *types.ObjectInfo) string {
+	setag, _ := etag.ToString(object.Etag)
 	return fmt.Sprintf(
 		`Name: %s
 Bucket ID: %d
@@ -75,7 +76,7 @@ State: %s`,
 		ansi.Color(object.Name, "green"),
 		object.BucketID,
 		object.ObjectID,
-		hex.EncodeToString(object.Etag),
+		setag,
 		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
 		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
 		utils.FormatBytes(int64(object.Length)),
@@ -85,7 +86,8 @@ State: %s`,
 }
 
 func FormatPartInfo(pi *pb.ObjectPartInfo) string {
-	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, UsedBytes: %d, Etag: %s", pi.ObjectID, pi.Length, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.RawLength, hex.EncodeToString(pi.ETag))
+	setag, _ := etag.ToString(pi.ETag)
+	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, UsedBytes: %d, Etag: %s", pi.ObjectID, pi.Length, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.RawLength, setag)
 }
 
 var LfsCmd = &cli.Command{
