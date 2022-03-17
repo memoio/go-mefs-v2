@@ -6,9 +6,10 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/mitchellh/go-homedir"
-	"github.com/redmask-hb/GoSimplePrint/goPrint"
+	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -261,20 +262,33 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
-		bar := goPrint.NewBar(100)
-		bar.SetNotice("Download: ")
-		bar.HideRatio()
-		bar.SetGraph(">")
-		bar.SetBackColor(goPrint.FontColor.Green)
-		bar.SetPercentColor(goPrint.FontColor.Green)
+		bar := progressbar.NewOptions64(
+			int64(objInfo.Size),
+			progressbar.OptionSetDescription("download:"),
+			progressbar.OptionEnableColorCodes(true),
+			progressbar.OptionSetWidth(10),
+			progressbar.OptionThrottle(65*time.Millisecond),
+			progressbar.OptionShowCount(),
+			progressbar.OptionShowBytes(true),
+			progressbar.OptionOnCompletion(func() {
+				fmt.Printf("\n")
+			}),
+			progressbar.OptionSetTheme(progressbar.Theme{
+				Saucer:        "[green]=[reset]",
+				SaucerHead:    "[green]>[reset]",
+				SaucerPadding: " ",
+				BarStart:      "[",
+				BarEnd:        "]",
+			}),
+			progressbar.OptionSpinnerType(14),
+			progressbar.OptionFullWidth(),
+		)
 
 		stripeCnt := 4 * 64 / buInfo.DataCount
 		stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
 		start := int64(0)
 		oSize := int64(objInfo.Size)
-		readSize := int64(0)
 		for start < oSize {
-			bar.PrintBar(int(readSize * 100 / oSize))
 			readLen := stepLen
 			if oSize-start < stepLen {
 				readLen = oSize - start
@@ -290,15 +304,13 @@ var getObjectCmd = &cli.Command{
 				return err
 			}
 
-			readSize += readLen
+			bar.Add(int(readLen))
+
 			h.Write(data)
 			f.Write(data)
 
 			start += readLen
 		}
-
-		bar.PrintBar(100)
-		bar.PrintEnd("Download Completed!")
 
 		var etagb []byte
 		if len(objInfo.ETag) == md5.Size {

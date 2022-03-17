@@ -52,8 +52,8 @@ require (
 	github.com/onsi/ginkgo v1.14.2 // indirect
 	github.com/onsi/gomega v1.10.4 // indirect
 	github.com/prometheus/client_golang v1.11.0
-	github.com/redmask-hb/GoSimplePrint v0.0.0-20210302075413-3a3af92bcb7d
 	github.com/sakeven/RbTree v0.0.0-20190505104653-18ee3093df2f
+	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/shirou/gopsutil/v3 v3.22.2
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
@@ -62,7 +62,7 @@ require (
 	go.opencensus.io v0.23.0
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1
-	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
+	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
