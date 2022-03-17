@@ -175,6 +175,7 @@ var transferEthCmd = &cli.Command{
 			}
 
 			toAdderss = common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
+			ep = cfg.Contract.EndPoint
 		}
 
 		return settle.TransferTo(ep, toAdderss, val, sk)
