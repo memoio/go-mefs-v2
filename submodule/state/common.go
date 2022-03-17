@@ -109,7 +109,7 @@ func verify(ri *pb.RoleInfo, msg []byte, sig types.Signature) error {
 			return err
 		}
 		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", ri.ID, sig.Type)
+			return xerrors.Errorf("%d sign %d is wrong", ri.RoleID, sig.Type)
 		}
 	case types.SigBLS:
 		ok, err := signature.Verify(ri.BlsVerifyKey, msg, sig.Data)
@@ -117,7 +117,7 @@ func verify(ri *pb.RoleInfo, msg []byte, sig types.Signature) error {
 			return err
 		}
 		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", ri.ID, sig.Type)
+			return xerrors.Errorf("%d sign %d is wrong", ri.RoleID, sig.Type)
 		}
 	default:
 		return xerrors.Errorf("sign type %d is not supported", sig.Type)

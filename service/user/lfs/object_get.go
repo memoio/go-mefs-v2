@@ -67,7 +67,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	accLen := uint64(0)
 	rLen := uint64(0)
 	for _, part := range object.Parts {
-		logger.Debug("part: ", part.Offset, part.Length, part.RawLength)
+		logger.Debug("part: ", part.Offset, part.StoredBytes, part.Length)
 
 		if rLen >= uint64(readLength) {
 			break
@@ -77,8 +77,8 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 			break
 		}
 
-		if part.RawLength+accLen < uint64(readStart) {
-			accLen += part.RawLength
+		if part.Length+accLen < uint64(readStart) {
+			accLen += part.Length
 			continue
 		}
 
@@ -87,8 +87,8 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 			partStart += (uint64(readStart) - accLen)
 		}
 
-		partLength := part.RawLength
-		if uint64(readStart+readLength) < accLen+part.RawLength {
+		partLength := part.Length
+		if uint64(readStart+readLength) < accLen+part.Length {
 			partLength = (uint64(readStart+readLength) - accLen)
 		}
 
@@ -98,7 +98,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		}
 		rLen += partLength
 
-		accLen += part.RawLength
+		accLen += part.Length
 	}
 	return buf.Bytes(), nil
 }

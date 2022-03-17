@@ -43,15 +43,15 @@ var statePostIncomeCmd = &cli.Command{
 			return err
 		}
 
-		users := napi.StateGetUsersAt(cctx.Context, nid.ID)
-		fmt.Println("post income: ", nid.ID, users)
+		users := napi.StateGetUsersAt(cctx.Context, nid.RoleID)
+		fmt.Println("post income: ", nid.RoleID, users)
 
 		for _, uid := range users {
-			pi, err := napi.StateGetPostIncome(cctx.Context, uid, nid.ID)
+			pi, err := napi.StateGetPostIncome(cctx.Context, uid, nid.RoleID)
 			if err != nil {
 				continue
 			}
-			fmt.Printf("post income: proID %d, userID %d, value: %s, penalty: %s \n", nid.ID, uid, types.FormatWei(pi.Value), types.FormatWei(pi.Penalty))
+			fmt.Printf("post income: proID %d, userID %d, value: %s, penalty: %s \n", nid.RoleID, uid, types.FormatWei(pi.Value), types.FormatWei(pi.Penalty))
 		}
 
 		return nil
@@ -81,26 +81,26 @@ var statePayCmd = &cli.Command{
 
 		switch nid.Type {
 		case pb.RoleInfo_Provider:
-			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.ID)
+			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
+			fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.RoleID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
 
-			bi, err := napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bi, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("pay info max: proID %d, expected income: %s, has balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
+			fmt.Printf("pay info max: proID %d, expected income: %s, has balance: %s \n", nid.RoleID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
 		default:
-			bi, err := napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bi, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("pay info max: roleID %d, expected income: %s, has balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
+			fmt.Printf("pay info max: roleID %d, expected income: %s, has balance: %s \n", nid.RoleID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
 		}
 
 		return nil
@@ -132,19 +132,19 @@ var stateWithdrawCmd = &cli.Command{
 
 		switch nid.Type {
 		case pb.RoleInfo_Provider:
-			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.ID)
+			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+			fmt.Printf("%d has balance %s %s %s \n", nid.RoleID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 
-			fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
+			fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.RoleID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
 
 			ksign := make([][]byte, spi.Sig.Len())
 			kindex := make([]uint64, spi.Sig.Len())
@@ -161,19 +161,19 @@ var stateWithdrawCmd = &cli.Command{
 
 			time.Sleep(10 * time.Second)
 
-			bal, err = napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bal, err = napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+			fmt.Printf("%d has balance %s %s %s \n", nid.RoleID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 		default:
-			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+			fmt.Printf("%d has balance %s %s %s \n", nid.RoleID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 
 			err = napi.SettleWithdraw(cctx.Context, big.NewInt(1_000_000_000), big.NewInt(0), nil, nil)
 			if err != nil {
@@ -183,12 +183,12 @@ var stateWithdrawCmd = &cli.Command{
 
 			time.Sleep(10 * time.Second)
 
-			bal, err = napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bal, err = napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+			fmt.Printf("%d has balance %s %s %s \n", nid.RoleID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
 		}
 
 		return nil

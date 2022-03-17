@@ -62,12 +62,12 @@ Used Bytes: %s`,
 }
 
 func FormatObjectInfo(object *types.ObjectInfo) string {
-	setag, _ := etag.ToString(object.Etag)
+	setag, _ := etag.ToString(object.ETag)
 	return fmt.Sprintf(
 		`Name: %s
 Bucket ID: %d
 Object ID: %d
-Etag: %s
+ETag: %s
 Size: %s
 UsedBytes: %s
 Enc Method: %s
@@ -89,7 +89,7 @@ Modify Time: %s`,
 
 func FormatPartInfo(pi *pb.ObjectPartInfo) string {
 	setag, _ := etag.ToString(pi.ETag)
-	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, DataBytes: %d, Etag: %s", pi.ObjectID, pi.RawLength, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.Length, setag)
+	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, DataBytes: %d, ETag: %s", pi.ObjectID, pi.Length, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.StoredBytes, setag)
 }
 
 var LfsCmd = &cli.Command{

@@ -114,7 +114,7 @@ func (cm *ContractMgr) getRoleInfo(addr common.Address) (*roleInfo, error) {
 
 		ri.isActive = isActive
 		ri.isBanned = isBanned
-		ri.pri.ID = rid
+		ri.pri.RoleID = rid
 		ri.pri.GroupID = gid
 		ri.pri.ChainVerifyKey = addr.Bytes()
 

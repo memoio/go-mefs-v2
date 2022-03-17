@@ -105,7 +105,7 @@ var addKeeperToGroupCmd = &cli.Command{
 			return err
 		}
 
-		if ri.ID == 0 {
+		if ri.RoleID == 0 {
 			return xerrors.Errorf("role is not registered")
 		}
 
@@ -115,7 +115,7 @@ var addKeeperToGroupCmd = &cli.Command{
 
 		if ri.GroupID == 0 && gid > 0 {
 			sk := cctx.String("sk")
-			err = settle.AddKeeperToGroup(cfg.Contract.EndPoint, cfg.Contract.RoleContract, sk, ri.GetID(), gid)
+			err = settle.AddKeeperToGroup(cfg.Contract.EndPoint, cfg.Contract.RoleContract, sk, ri.RoleID, gid)
 			if err != nil {
 				return err
 			}

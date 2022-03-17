@@ -72,7 +72,7 @@ var InfoCmd = &cli.Command{
 		fmt.Println("IP: ", addrs)
 		fmt.Printf("Type: %s %s\n", nni.Reachability, nni.PublicAddr)
 
-		sni, err := api.StateGetNetInfo(cctx.Context, pri.ID)
+		sni, err := api.StateGetNetInfo(cctx.Context, pri.RoleID)
 		if err == nil {
 			fmt.Println("Declared Address: ", sni.String())
 		}
@@ -103,11 +103,11 @@ var InfoCmd = &cli.Command{
 
 		fmt.Println(ansi.Color("----------- Role Information -----------", "green"))
 
-		fmt.Println("ID: ", pri.ID)
+		fmt.Println("ID: ", pri.RoleID)
 		fmt.Println("Type: ", pri.Type.String())
 		fmt.Println("Wallet: ", common.BytesToAddress(pri.ChainVerifyKey))
 
-		bi, err := api.SettleGetBalanceInfo(cctx.Context, pri.ID)
+		bi, err := api.SettleGetBalanceInfo(cctx.Context, pri.RoleID)
 		if err != nil {
 			return err
 		}
@@ -118,9 +118,9 @@ var InfoCmd = &cli.Command{
 		case pb.RoleInfo_Provider:
 			size := uint64(0)
 			price := big.NewInt(0)
-			users := api.StateGetUsersAt(context.TODO(), pri.ID)
+			users := api.StateGetUsersAt(context.TODO(), pri.RoleID)
 			for _, uid := range users {
-				si, err := api.SettleGetStoreInfo(context.TODO(), uid, pri.ID)
+				si, err := api.SettleGetStoreInfo(context.TODO(), uid, pri.RoleID)
 				if err != nil {
 					continue
 				}
@@ -131,9 +131,9 @@ var InfoCmd = &cli.Command{
 		case pb.RoleInfo_User:
 			size := uint64(0)
 			price := big.NewInt(0)
-			pros := api.StateGetProsAt(context.TODO(), pri.ID)
+			pros := api.StateGetProsAt(context.TODO(), pri.RoleID)
 			for _, pid := range pros {
-				si, err := api.SettleGetStoreInfo(context.TODO(), pri.ID, pid)
+				si, err := api.SettleGetStoreInfo(context.TODO(), pri.RoleID, pid)
 				if err != nil {
 					continue
 				}
@@ -161,7 +161,7 @@ var InfoCmd = &cli.Command{
 
 		fmt.Println(ansi.Color("----------- Pledge Information ----------", "green"))
 
-		pi, err := api.SettleGetPledgeInfo(cctx.Context, pri.ID)
+		pi, err := api.SettleGetPledgeInfo(cctx.Context, pri.RoleID)
 		if err != nil {
 			return err
 		}

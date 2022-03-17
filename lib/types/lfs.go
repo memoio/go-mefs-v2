@@ -62,15 +62,15 @@ type ObjectInfo struct {
 	StoredBytes uint64               `json:"StoredBytes"` // stored size(sum of part.Length)
 	Mtime       int64                `json:"Mtime"`
 	State       string               `json:"State"`
-	Etag        []byte               `json:"MD5"`
+	ETag        []byte               `json:"MD5"`
 }
 
 func (oi ObjectInfo) String() string {
-	return fmt.Sprintf("Name: %s, BucketID: %d, ObjectID: %d, Etag: %s, CreationTime: %s, ModifyTime: %s, Size: %s, EncMethod: %s, State: %s",
+	return fmt.Sprintf("Name: %s, BucketID: %d, ObjectID: %d, ETag: %s, CreationTime: %s, ModifyTime: %s, Size: %s, EncMethod: %s, State: %s",
 		ansi.Color(oi.Name, "green"),
 		oi.BucketID,
 		oi.ObjectID,
-		hex.EncodeToString(oi.Etag),
+		hex.EncodeToString(oi.ETag),
 		time.Unix(int64(oi.Time), 0).Format(utils.SHOWTIME),
 		time.Unix(int64(oi.Mtime), 0).Format(utils.SHOWTIME),
 		utils.FormatBytes(int64(oi.Size)),

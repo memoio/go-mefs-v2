@@ -247,12 +247,12 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			usedBytes := uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
 			opi := &pb.ObjectPartInfo{
-				ObjectID:  object.GetObjectID(),
-				Time:      time.Now().Unix(),
-				Offset:    uint64(dp.stripeSize) * curStripe,
-				Length:    usedBytes,      // used bytes
-				RawLength: uint64(rawLen), // file size
-				ETag:      etag,
+				ObjectID:    object.GetObjectID(),
+				Time:        time.Now().Unix(),
+				Offset:      uint64(dp.stripeSize) * curStripe,
+				Length:      uint64(rawLen), // file size
+				StoredBytes: usedBytes,      // used bytes
+				ETag:        etag,
 			}
 
 			payload, err := proto.Marshal(opi)

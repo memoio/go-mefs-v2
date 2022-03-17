@@ -61,30 +61,30 @@ func (s *StateMgr) addRole(msg *tx.Message, tds store.TxnStore) error {
 		return err
 	}
 
-	if pri.ID != msg.From {
-		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.ID, msg.From)
+	if pri.RoleID != msg.From {
+		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.RoleID, msg.From)
 	}
 
 	// has?
-	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.ID)
+	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.RoleID)
 	ok, err := tds.Has(key)
 	if err == nil && ok {
-		return xerrors.Errorf("local already has role: %d", pri.ID)
+		return xerrors.Errorf("local already has role: %d", pri.RoleID)
 	}
 
-	ri, ok := s.rInfo[pri.ID]
+	ri, ok := s.rInfo[pri.RoleID]
 	if ok {
 		if ri.base != nil {
-			return xerrors.Errorf("already has role: %d", pri.ID)
+			return xerrors.Errorf("already has role: %d", pri.RoleID)
 		}
 
 		ri.base = pri
 	} else {
 		ri = &roleInfo{
 			base: pri,
-			val:  s.loadVal(pri.ID),
+			val:  s.loadVal(pri.RoleID),
 		}
-		s.rInfo[pri.ID] = ri
+		s.rInfo[pri.RoleID] = ri
 	}
 
 	// save
@@ -131,7 +131,7 @@ func (s *StateMgr) addRole(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	if s.handleAddRole != nil {
-		s.handleAddRole(pri.ID, pri.Type)
+		s.handleAddRole(pri.RoleID, pri.Type)
 	}
 
 	return nil
@@ -144,30 +144,30 @@ func (s *StateMgr) canAddRole(msg *tx.Message) error {
 		return err
 	}
 
-	if pri.ID != msg.From {
-		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.ID, msg.From)
+	if pri.RoleID != msg.From {
+		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.RoleID, msg.From)
 	}
 
 	// has?
-	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.ID)
+	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.RoleID)
 	ok, err := s.ds.Has(key)
 	if err == nil && ok {
-		return xerrors.Errorf("local already has role: %d", pri.ID)
+		return xerrors.Errorf("local already has role: %d", pri.RoleID)
 	}
 
-	ri, ok := s.validateRInfo[pri.ID]
+	ri, ok := s.validateRInfo[pri.RoleID]
 	if ok {
 		if ri.base != nil {
-			return xerrors.Errorf("already has role: %d", pri.ID)
+			return xerrors.Errorf("already has role: %d", pri.RoleID)
 		}
 
 		ri.base = pri
 		return nil
 	}
 
-	s.validateRInfo[pri.ID] = &roleInfo{
+	s.validateRInfo[pri.RoleID] = &roleInfo{
 		base: pri,
-		val:  s.loadVal(pri.ID),
+		val:  s.loadVal(pri.RoleID),
 	}
 
 	return nil

@@ -248,7 +248,7 @@ var getObjectCmd = &cli.Command{
 		defer f.Close()
 
 		h := md5.New()
-		if len(objInfo.Etag) != md5.Size {
+		if len(objInfo.ETag) != md5.Size {
 			h = sha256.New()
 		}
 
@@ -284,7 +284,7 @@ var getObjectCmd = &cli.Command{
 		}
 
 		var etagb []byte
-		if len(objInfo.Etag) == md5.Size {
+		if len(objInfo.ETag) == md5.Size {
 			etagb = h.Sum(nil)
 		} else {
 			mhtag, err := mh.Encode(h.Sum(nil), mh.SHA2_256)
@@ -301,12 +301,12 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
-		origEtag, err := etag.ToString(objInfo.Etag)
+		origEtag, err := etag.ToString(objInfo.ETag)
 		if err != nil {
 			return err
 		}
 
-		if !bytes.Equal(etagb, objInfo.Etag) {
+		if !bytes.Equal(etagb, objInfo.ETag) {
 			return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 		}
 

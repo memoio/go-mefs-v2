@@ -111,7 +111,7 @@ message BucketInfo {
 	uint64 UsedBytes = 5;  // chunk_count * (segSize + prefix + tagCount*tagSize)
 	uint64 NextObjectID = 6;
 	uint64 NextOpID = 7;  
-	bool deletion = 8;
+	bool Deletion = 8;
 	string Name = 9;
 	bytes Root = 10;  // merkle root of ops; used for verify
 }
@@ -139,11 +139,11 @@ message ObjectDeleteInfo {
 // opart informations, insert into object when add data to an existing object
 message ObjectPartInfo {
 	uint64 ObjectID = 1;          // 此分块所属的ObjectID
-	int64 Time = 2;               // append此Part的时间
-	uint64 Offset = 3;            // offset in bucket space; per stripe  
-	uint64 Length = 4;            // mod stripeSize; stripeCount
-	uint64 RawLength = 5;         // actual size of this part  
-	bytes ETag = 7;               // MD5 of this part
+	uint64 Length = 2;            // actual size of this part 
+	uint64 Offset = 3;            // offset in bucket space; per stripe
+	uint64 StoredBytes = 4;       // mod stripeSize; stripeCount
+	int64 Time = 5;               // append此Part的时间
+	bytes ETag = 6;               // MD5 of this part
 }
 
 // 'OpDoneKey'/fsID/bucketID
