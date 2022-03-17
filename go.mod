@@ -52,6 +52,7 @@ require (
 	github.com/onsi/ginkgo v1.14.2 // indirect
 	github.com/onsi/gomega v1.10.4 // indirect
 	github.com/prometheus/client_golang v1.11.0
+	github.com/redmask-hb/GoSimplePrint v0.0.0-20210302075413-3a3af92bcb7d
 	github.com/sakeven/RbTree v0.0.0-20190505104653-18ee3093df2f
 	github.com/shirou/gopsutil/v3 v3.22.2
 	github.com/stretchr/testify v1.7.0

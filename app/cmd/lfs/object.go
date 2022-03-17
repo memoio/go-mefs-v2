@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
 	mh "github.com/multiformats/go-multihash"
+	"github.com/redmask-hb/GoSimplePrint/goPrint"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -236,6 +237,10 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
+		if objInfo.Size == 0 {
+			return xerrors.Errorf("empty file")
+		}
+
 		p, err := homedir.Expand(path)
 		if err != nil {
 			return err
@@ -257,11 +262,19 @@ var getObjectCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+
+		bar := goPrint.NewBar(100)
+		bar.SetNotice("Download: ")
+		bar.SetGraph(">")
+		bar.SetNoticeColor(goPrint.FontColor.Red)
+
 		stripeCnt := 4 * 64 / buInfo.DataCount
 		stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
 		start := int64(0)
 		oSize := int64(objInfo.Size)
+		readSize := int64(0)
 		for start < oSize {
+			bar.PrintBar(int(readSize / oSize))
 			readLen := stepLen
 			if oSize-start < stepLen {
 				readLen = oSize - start
@@ -281,7 +294,11 @@ var getObjectCmd = &cli.Command{
 			f.Write(data)
 
 			start += readLen
+			readSize += readLen
+
 		}
+
+		bar.PrintEnd("Download Completed!")
 
 		var etagb []byte
 		if len(objInfo.ETag) == md5.Size {
