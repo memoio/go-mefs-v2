@@ -50,8 +50,12 @@ var orderListProvidersCmd = &cli.Command{
 		}
 
 		for _, oi := range ois {
-			if oi.PeerID != peer.ID("") {
-				epi, err := api.NetPeerInfo(cctx.Context, oi.PeerID)
+			if oi.PeerID != "" {
+				pid, err := peer.Decode(oi.PeerID)
+				if err != nil {
+					continue
+				}
+				epi, err := api.NetPeerInfo(cctx.Context, pid)
 				if err == nil {
 					addrs := make([]string, 0, len(epi.Addrs))
 					for _, maddr := range epi.Addrs {

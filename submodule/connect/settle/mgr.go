@@ -149,7 +149,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	logger.Debug("get roleinfo: ", ri.pri, ri.isActive, ri.isBanned)
 
 	// register account
-	if ri.pri.ID == 0 {
+	if ri.pri.RoleID == 0 {
 		err := cm.RegisterAcc()
 		if err != nil {
 			return err
@@ -165,11 +165,11 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 
 	logger.Debug("get roleinfo after register account: ", ri.pri, ri.isActive, ri.isBanned)
 
-	if ri.pri.ID == 0 {
+	if ri.pri.RoleID == 0 {
 		return xerrors.Errorf("register fails")
 	}
 
-	cm.roleID = ri.pri.ID
+	cm.roleID = ri.pri.RoleID
 
 	// register role
 	if ri.pri.Type == pb.RoleInfo_Unknown {
@@ -214,7 +214,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 
 		if ri.pri.GroupID == 0 && gIndex > 0 {
-			return xerrors.Errorf("need grant to add keeper %d to group %d", ri.pri.ID, gIndex)
+			return xerrors.Errorf("need grant to add keeper %d to group %d", ri.pri.RoleID, gIndex)
 			/*
 				err = AddKeeperToGroup(cm.roleID, gIndex)
 				if err != nil {
@@ -263,7 +263,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	default:
 	}
 
-	cm.roleID = ri.pri.ID
+	cm.roleID = ri.pri.RoleID
 
 	if ri.pri.GroupID == 0 {
 		cm.groupID = gIndex

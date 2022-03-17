@@ -15,6 +15,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
@@ -78,6 +79,11 @@ var putObjectCmd = &cli.Command{
 			Name:  "path",
 			Usage: "path of file",
 		},
+		&cli.StringFlag{
+			Name:  "etag",
+			Usage: "etag medthd",
+			Value: "md5",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		// get repo path from flag
@@ -99,6 +105,7 @@ var putObjectCmd = &cli.Command{
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
 		path := cctx.String("path")
+		etagFlag := cctx.String("etag")
 
 		// get full path of home dir
 		p, err := homedir.Expand(path)
@@ -115,6 +122,11 @@ var putObjectCmd = &cli.Command{
 
 		// create put object options
 		poo := types.DefaultUploadOption()
+
+		switch etagFlag {
+		case "cid":
+			poo = types.CidUploadOption()
+		}
 
 		// execute putObject
 		oi, err := napi.PutObject(cctx.Context, bucketName, objectName, pf, poo)
@@ -143,6 +155,11 @@ var headObjectCmd = &cli.Command{
 			Aliases: []string{"on"},
 			Usage:   "objectName",
 		},
+		&cli.BoolFlag{
+			Name:  "all",
+			Usage: "show all information",
+			Value: false,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(cmd.FlagNodeRepo)
@@ -168,8 +185,10 @@ var headObjectCmd = &cli.Command{
 		fmt.Println("Head object: ")
 		fmt.Println(FormatObjectInfo(oi))
 
-		for i, part := range oi.Parts {
-			fmt.Printf("Part: %d, %s\n", i, FormatPartInfo(part))
+		if cctx.Bool("all") {
+			for i, part := range oi.Parts {
+				fmt.Printf("Part: %d, %s\n", i, FormatPartInfo(part))
+			}
 		}
 
 		return nil
@@ -228,22 +247,47 @@ var getObjectCmd = &cli.Command{
 		}
 		defer f.Close()
 
-		doo := types.DefaultDownloadOption()
+		h := md5.New()
+		if len(objInfo.ETag) != md5.Size {
+			h = sha256.New()
+		}
 
-		data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
+		// around 64MB
+		buInfo, err := napi.HeadBucket(cctx.Context, bucketName)
 		if err != nil {
 			return err
 		}
+		stripeCnt := 4 * 64 / buInfo.DataCount
+		stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
+		start := int64(0)
+		oSize := int64(objInfo.Size)
+		for start < oSize {
+			readLen := stepLen
+			if oSize-start < stepLen {
+				readLen = oSize - start
+			}
 
-		f.Write(data)
+			doo := &types.DownloadObjectOptions{
+				Start:  start,
+				Length: readLen,
+			}
+
+			data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
+			if err != nil {
+				return err
+			}
+
+			h.Write(data)
+			f.Write(data)
+
+			start += readLen
+		}
 
 		var etagb []byte
-		if len(objInfo.Etag) == md5.Size {
-			etag16 := md5.Sum(data)
-			etagb = etag16[:]
+		if len(objInfo.ETag) == md5.Size {
+			etagb = h.Sum(nil)
 		} else {
-			etag32 := sha256.Sum256(data)
-			mhtag, err := mh.Encode(etag32[:], mh.SHA2_256)
+			mhtag, err := mh.Encode(h.Sum(nil), mh.SHA2_256)
 			if err != nil {
 				return err
 			}
@@ -257,12 +301,12 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
-		origEtag, err := etag.ToString(objInfo.Etag)
+		origEtag, err := etag.ToString(objInfo.ETag)
 		if err != nil {
 			return err
 		}
 
-		if !bytes.Equal(etagb, objInfo.Etag) {
+		if !bytes.Equal(etagb, objInfo.ETag) {
 			return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 		}
 

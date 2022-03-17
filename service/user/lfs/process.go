@@ -15,6 +15,7 @@ import (
 	mh "github.com/multiformats/go-multihash"
 	"github.com/zeebo/blake3"
 	"golang.org/x/sync/semaphore"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
@@ -245,13 +246,14 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				}
 			}
 
+			usedBytes := uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
 			opi := &pb.ObjectPartInfo{
-				ObjectID:  object.GetObjectID(),
-				Time:      time.Now().Unix(),
-				Offset:    uint64(dp.stripeSize) * curStripe,
-				Length:    uint64(dp.stripeSize * stripeCount),
-				RawLength: uint64(rawLen),
-				ETag:      etag,
+				ObjectID:    object.GetObjectID(),
+				Time:        time.Now().Unix(),
+				Offset:      uint64(dp.stripeSize) * curStripe,
+				Length:      uint64(rawLen), // file size
+				StoredBytes: usedBytes,      // used bytes
+				ETag:        etag,
 			}
 
 			payload, err := proto.Marshal(opi)
@@ -265,7 +267,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			// todo: add used bytes
 			bucket.Length += uint64(dp.stripeSize * stripeCount)
-			bucket.UsedBytes += uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
+			bucket.UsedBytes += usedBytes
 
 			err = bucket.addOpRecord(l.userID, op, l.ds)
 			if err != nil {
@@ -297,6 +299,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 }
 
 func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *bucket, object *object, start, length int, w io.Writer) error {
+	logger.Debug("download object: ", object.BucketID, object.ObjectID, start, length)
 
 	sizeReceived := 0
 
@@ -309,7 +312,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 		default:
 			stripeID := start / dp.stripeSize
 
-			logger.Debug("download object: ", object.BucketID, object.ObjectID, stripeID)
+			logger.Debug("download object stripe: ", object.BucketID, object.ObjectID, stripeID)
 
 			// add parallel chunks download
 			// release when get chunk fails or get datacount chunk succcess
@@ -352,7 +355,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 					if err != nil {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
-						logger.Warn("get seg fail: ", segID, err)
+						logger.Warn("download chunk fail: ", segID, err)
 						return
 					}
 
@@ -361,7 +364,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 					if err != nil || !ok {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
-						logger.Warn("seg is wrong: ", chunkID, segID, err)
+						logger.Warn("download chunk is wrong: ", chunkID, segID, err)
 						return
 					}
 
@@ -378,12 +381,12 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 			wg.Wait()
 
 			if sucCnt < int32(dp.dataCount) {
-				logger.Debugf("not get enough chunks, expected %d, got %d", dp.dataCount, sucCnt)
+				return xerrors.Errorf("download not get enough chunks, expected %d, got %d", dp.dataCount, sucCnt)
 			}
 
 			res, err := dp.coder.Decode(nil, stripe)
 			if err != nil {
-				logger.Debug("decode object error: ", object.BucketID, object.ObjectID, stripeID, err)
+				logger.Debug("download decode object error: ", object.BucketID, object.ObjectID, stripeID, err)
 				return err
 			}
 

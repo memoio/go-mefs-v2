@@ -25,7 +25,7 @@ message RoleInfo {
     }
 
     Type type = 1;  
-    uint64 ID = 2;
+    uint64 roleID = 2;
     uint64 groupID = 3;
     bytes chainVerifyKey = 4;      // address/pubkey on chain
 	bytes blsVerifyKey = 5;    

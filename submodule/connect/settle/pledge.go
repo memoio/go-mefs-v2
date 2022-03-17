@@ -199,7 +199,7 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 		}
 	}
 
-	logger.Debugf("%d begin Pledge %d in PledgePool contract", ri.pri.ID, val)
+	logger.Debugf("%d begin Pledge %d in PledgePool contract", ri.pri.RoleID, val)
 
 	ppIns, err := pledgepool.NewPledgePool(cm.ppAddr, client)
 	if err != nil {
@@ -209,7 +209,7 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 	if err != nil {
 		return err
 	}
-	tx, err := ppIns.Pledge(auth, ri.pri.ID, val, nil)
+	tx, err := ppIns.Pledge(auth, ri.pri.RoleID, val, nil)
 	if err != nil {
 		return err
 	}

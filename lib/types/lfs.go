@@ -57,22 +57,23 @@ func (bi BucketInfo) String() string {
 
 type ObjectInfo struct {
 	pb.ObjectInfo
-	Parts  []*pb.ObjectPartInfo `json:"Parts"`
-	Length uint64               `json:"Length"`
-	Mtime  int64                `json:"Mtime"`
-	State  string               `json:"State"`
-	Etag   []byte               `json:"MD5"`
+	Parts       []*pb.ObjectPartInfo `json:"Parts"`
+	Size        uint64               `json:"Size"`        // file size(sum of part.RawLength)
+	StoredBytes uint64               `json:"StoredBytes"` // stored size(sum of part.Length)
+	Mtime       int64                `json:"Mtime"`
+	State       string               `json:"State"`
+	ETag        []byte               `json:"MD5"`
 }
 
 func (oi ObjectInfo) String() string {
-	return fmt.Sprintf("Name: %s, BucketID: %d, ObjectID: %d, Etag: %s, CreationTime: %s, ModifyTime: %s, Size: %s, EncMethod: %s, State: %s",
+	return fmt.Sprintf("Name: %s, BucketID: %d, ObjectID: %d, ETag: %s, CreationTime: %s, ModifyTime: %s, Size: %s, EncMethod: %s, State: %s",
 		ansi.Color(oi.Name, "green"),
 		oi.BucketID,
 		oi.ObjectID,
-		hex.EncodeToString(oi.Etag),
+		hex.EncodeToString(oi.ETag),
 		time.Unix(int64(oi.Time), 0).Format(utils.SHOWTIME),
 		time.Unix(int64(oi.Mtime), 0).Format(utils.SHOWTIME),
-		utils.FormatBytes(int64(oi.Length)),
+		utils.FormatBytes(int64(oi.Size)),
 		oi.Encryption,
 		oi.State,
 	)

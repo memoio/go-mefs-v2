@@ -5,18 +5,32 @@ import (
 	"context"
 
 	"github.com/memoio/go-mefs-v2/lib/types"
+
+	"github.com/shirou/gopsutil/v3/mem"
+	"golang.org/x/xerrors"
 )
 
 // read at most one stripe
 func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) {
-	ok := l.sw.TryAcquire(10)
+	ok := l.sw.TryAcquire(2)
 	if !ok {
 		return nil, ErrResourceUnavailable
 	}
-	defer l.sw.Release(10)
+	defer l.sw.Release(2)
 
 	if !l.Ready() {
 		return nil, ErrLfsServiceNotReady
+	}
+
+	// 1GB?
+	if opts.Length > 1024*1024*1024 {
+		v, err := mem.VirtualMemory()
+		if err != nil {
+			return nil, xerrors.Errorf("size is too large, consume too much memory")
+		}
+		if v.Available*10 < uint64(opts.Length)*12 {
+			return nil, xerrors.Errorf("size is too large, memory is not enough")
+		}
 	}
 
 	bucket, err := l.getBucketInfo(bucketName)
@@ -36,16 +50,16 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		return nil, ErrObjectNotExist
 	}
 
-	if object.Length == 0 {
+	if object.Size == 0 {
 		return nil, ErrObjectIsNil
 	}
 
 	readStart := opts.Start
 	readLength := opts.Length
 
-	if readStart > int64(object.Length) ||
-		readStart+readLength > int64(object.Length) {
-		return nil, ErrObjectOptionsInvalid
+	if readStart > int64(object.Size) ||
+		readStart+readLength > int64(object.Size) {
+		return nil, xerrors.Errorf("out of object size %d", object.Size)
 	}
 
 	dp, ok := l.dps[bucket.BucketID]
@@ -58,47 +72,54 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	}
 
 	if readLength <= 0 {
-		readLength = int64(object.Length - uint64(readStart))
+		readLength = int64(object.Size - uint64(readStart))
 	}
 
 	buf := new(bytes.Buffer)
 
 	// read from each part
-	accLen := uint64(0)
-	rLen := uint64(0)
+	accLen := uint64(0) // sum of part length
+	rLen := uint64(0)   // have read ok
 	for _, part := range object.Parts {
-		logger.Debug("part: ", part.Offset, part.Length, part.RawLength)
+		logger.Debug("part: ", part.Offset, part.StoredBytes, part.Length)
 
-		if rLen >= uint64(readLength) {
-			break
-		}
-
-		if accLen >= uint64(readStart+readLength) {
-			break
-		}
-
-		if part.Length+accLen < uint64(readStart) {
+		// forward to part
+		if accLen+part.Length <= uint64(readStart) {
 			accLen += part.Length
 			continue
 		}
 
 		partStart := part.Offset
+		partLength := part.Length
+
 		if uint64(readStart) > accLen {
+			// move forward
 			partStart += (uint64(readStart) - accLen)
+			// sub head
+			partLength -= (uint64(readStart) - accLen)
 		}
 
-		partLength := part.Length
 		if uint64(readStart+readLength) < accLen+part.Length {
-			partLength = (uint64(readStart+readLength) - accLen)
+			// sub end
+			partLength -= (accLen + part.Length - uint64(readStart+readLength))
 		}
 
 		err = l.download(ctx, dp, bucket, object, int(partStart), int(partLength), buf)
 		if err != nil {
-			return nil, err
+			return buf.Bytes(), err
 		}
 		rLen += partLength
-
 		accLen += part.Length
+
+		// read finish
+		if rLen >= uint64(readLength) {
+			break
+		}
+
+		// read to end
+		if accLen >= uint64(readStart+readLength) {
+			break
+		}
 	}
 	return buf.Bytes(), nil
 }

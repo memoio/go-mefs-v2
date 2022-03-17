@@ -45,7 +45,7 @@ func (cm *ContractMgr) RegisterAcc() error {
 		return err
 	}
 
-	if ri.pri.ID > 0 { // has registered already
+	if ri.pri.RoleID > 0 { // has registered already
 		return nil
 	}
 

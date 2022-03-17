@@ -384,22 +384,23 @@ func (ob *object) addPartInfo(opi *pb.ObjectPartInfo) error {
 		if len(ob.ObjectInfo.Parts) == 1 {
 			newTag := make([]byte, len(opi.ETag))
 			copy(newTag, opi.ETag)
-			ob.ObjectInfo.Etag = newTag
+			ob.ObjectInfo.ETag = newTag
 		} else {
-			newEtag, err := xor(ob.ObjectInfo.Etag, opi.ETag)
+			newEtag, err := xor(ob.ObjectInfo.ETag, opi.ETag)
 			if err != nil {
 				return err
 			}
 
-			ob.ObjectInfo.Etag = newEtag
+			ob.ObjectInfo.ETag = newEtag
 		}
 	*/
 
 	newTag := make([]byte, len(opi.ETag))
 	copy(newTag, opi.ETag)
-	ob.ObjectInfo.Etag = newTag
+	ob.ObjectInfo.ETag = newTag
 
-	ob.Length += opi.GetRawLength() // record object raw length acc
+	ob.Size += opi.GetLength() // record object raw length acc
+	ob.StoredBytes += opi.GetStoredBytes()
 	if ob.Mtime < opi.GetTime() {
 		ob.Mtime = opi.GetTime()
 	}

@@ -50,7 +50,7 @@ func generateCheck(fromAddr, toAddr common.Address, nonce uint64) (*Check, error
 		OwnerAddr:    opAddr,
 		ToAddr:       toAddr,
 		Nonce:        nonce,
-		Value:        big.NewInt(types.DefaultReadPrice * build.DefaultSegSize * 1024),
+		Value:        big.NewInt(types.DefaultReadPrice * build.DefaultSegSize * 1024 * 40),
 		FromAddr:     fromAddr,
 	}
 

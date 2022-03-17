@@ -248,24 +248,24 @@ func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
 }
 
 func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo, save bool) {
-	_, ok := rm.infos[ri.ID]
+	_, ok := rm.infos[ri.RoleID]
 	if !ok {
-		logger.Debug("add role info for: ", ri.ID)
-		rm.infos[ri.ID] = ri
+		logger.Debug("add role info for: ", ri.RoleID)
+		rm.infos[ri.RoleID] = ri
 
 		switch ri.Type {
 		case pb.RoleInfo_Keeper:
-			rm.keepers = append(rm.keepers, ri.ID)
+			rm.keepers = append(rm.keepers, ri.RoleID)
 		case pb.RoleInfo_Provider:
-			rm.providers = append(rm.providers, ri.ID)
+			rm.providers = append(rm.providers, ri.RoleID)
 		case pb.RoleInfo_User:
-			rm.users = append(rm.users, ri.ID)
+			rm.users = append(rm.users, ri.RoleID)
 		default:
 			return
 		}
 
 		if save {
-			key := store.NewKey(pb.MetaType_RoleInfoKey, ri.ID)
+			key := store.NewKey(pb.MetaType_RoleInfoKey, ri.RoleID)
 
 			pbyte, err := proto.Marshal(ri)
 			if err != nil {
