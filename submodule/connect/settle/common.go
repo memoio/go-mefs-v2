@@ -217,7 +217,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 		for qCount < 5 {
 			balance := getBalance(endPoint, toAddress)
 			if balance.Cmp(bbal) > 0 {
-				logger.Debug("transfer ok %s has balance %d", toAddress, balance)
+				logger.Debugf("transfer ok %s has balance %d", toAddress, balance)
 				return nil
 			}
 			logger.Debugf("%s balance now: %d, waiting for transfer success", toAddress, balance)

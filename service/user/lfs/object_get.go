@@ -5,6 +5,8 @@ import (
 	"context"
 
 	"github.com/memoio/go-mefs-v2/lib/types"
+
+	"golang.org/x/xerrors"
 )
 
 // read at most one stripe
@@ -45,7 +47,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 	if readStart > int64(object.Size) ||
 		readStart+readLength > int64(object.Size) {
-		return nil, ErrObjectOptionsInvalid
+		return nil, xerrors.Errorf("out of object size %d", object.Size)
 	}
 
 	dp, ok := l.dps[bucket.BucketID]
@@ -64,32 +66,30 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	buf := new(bytes.Buffer)
 
 	// read from each part
-	accLen := uint64(0)
-	rLen := uint64(0)
+	accLen := uint64(0) // sum of part length
+	rLen := uint64(0)   // have read ok
 	for _, part := range object.Parts {
 		logger.Debug("part: ", part.Offset, part.StoredBytes, part.Length)
 
-		if rLen >= uint64(readLength) {
-			break
-		}
-
-		if accLen >= uint64(readStart+readLength) {
-			break
-		}
-
-		if part.Length+accLen < uint64(readStart) {
+		// forward to part
+		if accLen+part.Length <= uint64(readStart) {
 			accLen += part.Length
 			continue
 		}
 
 		partStart := part.Offset
+		partLength := part.Length
+
 		if uint64(readStart) > accLen {
+			// move forward
 			partStart += (uint64(readStart) - accLen)
+			// sub head
+			partLength -= (uint64(readStart) - accLen)
 		}
 
-		partLength := part.Length
 		if uint64(readStart+readLength) < accLen+part.Length {
-			partLength = (uint64(readStart+readLength) - accLen)
+			// sub end
+			partLength -= (accLen + part.Length - uint64(readStart+readLength))
 		}
 
 		err = l.download(ctx, dp, bucket, object, int(partStart), int(partLength), buf)
@@ -97,8 +97,17 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 			return nil, err
 		}
 		rLen += partLength
-
 		accLen += part.Length
+
+		// read finish
+		if rLen >= uint64(readLength) {
+			break
+		}
+
+		// read to end
+		if accLen >= uint64(readStart+readLength) {
+			break
+		}
 	}
 	return buf.Bytes(), nil
 }
