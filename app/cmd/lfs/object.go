@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
-	mh "github.com/multiformats/go-multihash"
 	"github.com/redmask-hb/GoSimplePrint/goPrint"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -267,7 +265,6 @@ var getObjectCmd = &cli.Command{
 		bar.SetNotice("Download: ")
 		bar.HideRatio()
 		bar.SetGraph(">")
-		bar.SetNoticeColor(goPrint.FontColor.Red)
 		bar.SetBackColor(goPrint.FontColor.Green)
 		bar.SetPercentColor(goPrint.FontColor.Green)
 
@@ -307,12 +304,7 @@ var getObjectCmd = &cli.Command{
 		if len(objInfo.ETag) == md5.Size {
 			etagb = h.Sum(nil)
 		} else {
-			mhtag, err := mh.Encode(h.Sum(nil), mh.SHA2_256)
-			if err != nil {
-				return err
-			}
-
-			cidEtag := cid.NewCidV1(cid.Raw, mhtag)
+			cidEtag := etag.NewCid(h.Sum(nil))
 			etagb = cidEtag.Bytes()
 		}
 
@@ -330,7 +322,7 @@ var getObjectCmd = &cli.Command{
 			return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 		}
 
-		fmt.Printf("object %s (etag: %s) stored in file %s\n", objectName, gotEtag, p)
+		fmt.Printf("object: %s (etag: %s) is stored in file %s\n", objectName, gotEtag, p)
 
 		return nil
 	},
