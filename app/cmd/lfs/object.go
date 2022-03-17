@@ -267,6 +267,7 @@ var getObjectCmd = &cli.Command{
 		bar.SetNotice("Download: ")
 		bar.SetGraph(">")
 		bar.SetNoticeColor(goPrint.FontColor.Red)
+		bar.SetGraphColor(goPrint.FontColor.Green)
 
 		stripeCnt := 4 * 64 / buInfo.DataCount
 		stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
@@ -274,7 +275,7 @@ var getObjectCmd = &cli.Command{
 		oSize := int64(objInfo.Size)
 		readSize := int64(0)
 		for start < oSize {
-			bar.PrintBar(int(readSize / oSize))
+			bar.PrintBar(int(readSize * 100 / oSize))
 			readLen := stepLen
 			if oSize-start < stepLen {
 				readLen = oSize - start
@@ -290,12 +291,11 @@ var getObjectCmd = &cli.Command{
 				return err
 			}
 
+			readSize += readLen
 			h.Write(data)
 			f.Write(data)
 
 			start += readLen
-			readSize += readLen
-
 		}
 
 		bar.PrintEnd("Download Completed!")
