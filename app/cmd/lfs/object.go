@@ -265,9 +265,11 @@ var getObjectCmd = &cli.Command{
 
 		bar := goPrint.NewBar(100)
 		bar.SetNotice("Download: ")
+		bar.HideRatio()
 		bar.SetGraph(">")
 		bar.SetNoticeColor(goPrint.FontColor.Red)
-		bar.SetGraphColor(goPrint.FontColor.Green)
+		bar.SetBackColor(goPrint.FontColor.Green)
+		bar.SetPercentColor(goPrint.FontColor.Green)
 
 		stripeCnt := 4 * 64 / buInfo.DataCount
 		stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
@@ -298,6 +300,7 @@ var getObjectCmd = &cli.Command{
 			start += readLen
 		}
 
+		bar.PrintBar(100)
 		bar.PrintEnd("Download Completed!")
 
 		var etagb []byte
