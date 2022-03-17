@@ -12,11 +12,11 @@ import (
 
 // read at most one stripe
 func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) {
-	ok := l.sw.TryAcquire(10)
+	ok := l.sw.TryAcquire(2)
 	if !ok {
 		return nil, ErrResourceUnavailable
 	}
-	defer l.sw.Release(10)
+	defer l.sw.Release(2)
 
 	if !l.Ready() {
 		return nil, ErrLfsServiceNotReady
