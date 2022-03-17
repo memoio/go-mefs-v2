@@ -6,6 +6,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/lib/types"
 
+	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/xerrors"
 )
 
@@ -19,6 +20,17 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 	if !l.Ready() {
 		return nil, ErrLfsServiceNotReady
+	}
+
+	// 1GB?
+	if opts.Length > 1024*1024*1024 {
+		v, err := mem.VirtualMemory()
+		if err != nil {
+			return nil, xerrors.Errorf("size is too large, consume too much memory")
+		}
+		if v.Available*10 < uint64(opts.Length)*12 {
+			return nil, xerrors.Errorf("size is too large, memory is not enough")
+		}
 	}
 
 	bucket, err := l.getBucketInfo(bucketName)
@@ -94,7 +106,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 		err = l.download(ctx, dp, bucket, object, int(partStart), int(partLength), buf)
 		if err != nil {
-			return nil, err
+			return buf.Bytes(), err
 		}
 		rLen += partLength
 		accLen += part.Length

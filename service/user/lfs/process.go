@@ -15,6 +15,7 @@ import (
 	mh "github.com/multiformats/go-multihash"
 	"github.com/zeebo/blake3"
 	"golang.org/x/sync/semaphore"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
@@ -354,7 +355,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 					if err != nil {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
-						logger.Warn("get seg fail: ", segID, err)
+						logger.Warn("download chunk fail: ", segID, err)
 						return
 					}
 
@@ -363,7 +364,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 					if err != nil || !ok {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
-						logger.Warn("seg is wrong: ", chunkID, segID, err)
+						logger.Warn("download chunk is wrong: ", chunkID, segID, err)
 						return
 					}
 
@@ -380,12 +381,12 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 			wg.Wait()
 
 			if sucCnt < int32(dp.dataCount) {
-				logger.Debugf("not get enough chunks, expected %d, got %d", dp.dataCount, sucCnt)
+				return xerrors.Errorf("download not get enough chunks, expected %d, got %d", dp.dataCount, sucCnt)
 			}
 
 			res, err := dp.coder.Decode(nil, stripe)
 			if err != nil {
-				logger.Debug("decode object error: ", object.BucketID, object.ObjectID, stripeID, err)
+				logger.Debug("download decode object error: ", object.BucketID, object.ObjectID, stripeID, err)
 				return err
 			}
 
