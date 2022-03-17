@@ -102,6 +102,9 @@ func (s *SendPay) Pay(to address.Address, val *big.Int) ([]byte, error) {
 
 		// replace old one
 		s.pool[toAddr] = p
+
+		// reset to val
+		paidValue.Set(val)
 	}
 
 	// confirm again
