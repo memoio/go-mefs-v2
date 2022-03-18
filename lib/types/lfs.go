@@ -113,7 +113,9 @@ func DefaultUploadOption() *PutObjectOptions {
 		UserDefined: make(map[string]string),
 	}
 
+	poo.UserDefined["encryption"] = "aes"
 	poo.UserDefined["etag"] = "md5"
+
 	return poo
 }
 
@@ -122,6 +124,7 @@ func CidUploadOption() *PutObjectOptions {
 		UserDefined: make(map[string]string),
 	}
 
+	poo.UserDefined["encryption"] = "aes"
 	poo.UserDefined["etag"] = "cid"
 	return poo
 }

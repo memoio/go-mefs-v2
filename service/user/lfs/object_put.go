@@ -95,7 +95,14 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		BucketID:   bucket.BucketID,
 		Time:       time.Now().Unix(),
 		Name:       objectName,
-		Encryption: "aes", // todo, from options
+		Encryption: "none",
+	}
+
+	if opts.UserDefined != nil {
+		val, ok := opts.UserDefined["encryption"]
+		if ok {
+			poi.Encryption = val
+		}
 	}
 
 	// serialize

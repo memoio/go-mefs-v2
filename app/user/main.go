@@ -21,6 +21,7 @@ func main() {
 	local = append(local, cmd.CommonCmd...)
 	local = append(local, lfscmd.LfsCmd)
 	local = append(local, OrderCmd)
+	local = append(local, GatewayCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-user",

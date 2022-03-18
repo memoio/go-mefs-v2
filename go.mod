@@ -14,7 +14,6 @@ require (
 	github.com/gbrlsnchs/jwt/v3 v3.0.1
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/gogo/protobuf v1.3.2
-	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
@@ -27,7 +26,7 @@ require (
 	github.com/ipfs/go-fs-lock v0.0.7
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
-	github.com/klauspost/reedsolomon v1.9.13
+	github.com/klauspost/reedsolomon v1.9.15
 	github.com/libp2p/go-eventbus v0.2.1
 	github.com/libp2p/go-libp2p v0.14.0
 	github.com/libp2p/go-libp2p-core v0.8.6
@@ -43,31 +42,28 @@ require (
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
-	github.com/minio/minio-go/v6 v6.0.57
+	github.com/minio/cli v1.22.0
+	github.com/minio/madmin-go v1.3.6
+	github.com/minio/minio v0.0.0-20220317232010-43eb5a001c9f
+	github.com/minio/minio-go/v7 v7.0.23
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mr-tron/base58 v1.2.0
 	github.com/multiformats/go-multiaddr v0.3.3
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/multiformats/go-multihash v0.0.15
-	github.com/onsi/ginkgo v1.14.2 // indirect
-	github.com/onsi/gomega v1.10.4 // indirect
-	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/client_golang v1.12.1
 	github.com/sakeven/RbTree v0.0.0-20190505104653-18ee3093df2f
 	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/shirou/gopsutil/v3 v3.22.2
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
-	github.com/urfave/cli/v2 v2.3.0
+	github.com/urfave/cli/v2 v2.4.0
 	github.com/zeebo/blake3 v0.2.1
 	go.opencensus.io v0.23.0
-	go.uber.org/multierr v1.7.0 // indirect
-	go.uber.org/zap v1.19.1
-	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
-	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
+	go.uber.org/zap v1.21.0
+	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
-	google.golang.org/grpc v1.40.0 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	lukechampine.com/frand v1.4.2
 	memoc v0.0.0-00010101000000-000000000000
