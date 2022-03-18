@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/mitchellh/go-homedir"
@@ -213,6 +214,11 @@ var getObjectCmd = &cli.Command{
 			Name:  "path",
 			Usage: "stored path of file",
 		},
+		&cli.BoolFlag{
+			Name:  "local",
+			Usage: "local file path",
+			Value: false,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(cmd.FlagNodeRepo)
@@ -230,6 +236,7 @@ var getObjectCmd = &cli.Command{
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
 		path := cctx.String("path")
+		localFlag := cctx.Bool("local")
 
 		objInfo, err := napi.HeadObject(cctx.Context, bucketName, objectName)
 		if err != nil {
@@ -245,11 +252,26 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
+		p, err = filepath.Abs(p)
+		if err != nil {
+			return err
+		}
+
 		f, err := os.Create(p)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
+
+		if localFlag {
+			doo := &types.DownloadObjectOptions{
+				UserDefined: make(map[string]string),
+				Start:       0,
+				Length:      -1,
+			}
+
+			doo.UserDefined["local"] = p
+		}
 
 		h := md5.New()
 		if len(objInfo.ETag) != md5.Size {

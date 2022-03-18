@@ -80,6 +80,7 @@ func (oi ObjectInfo) String() string {
 }
 
 type DownloadObjectOptions struct {
+	UserDefined   map[string]string
 	Start, Length int64
 }
 
