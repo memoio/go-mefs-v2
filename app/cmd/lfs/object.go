@@ -82,8 +82,13 @@ var putObjectCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "etag",
-			Usage: "etag medthd",
+			Usage: "etag method",
 			Value: "md5",
+		},
+		&cli.StringFlag{
+			Name:  "enc",
+			Usage: "encryption method",
+			Value: "aes",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -107,6 +112,11 @@ var putObjectCmd = &cli.Command{
 		objectName := cctx.String("object")
 		path := cctx.String("path")
 		etagFlag := cctx.String("etag")
+		encFlag := cctx.String("enc")
+
+		if encFlag != "aes" && encFlag != "none" {
+			return xerrors.Errorf("support only 'none' or 'aes' method ")
+		}
 
 		// get full path of home dir
 		p, err := homedir.Expand(path)
@@ -128,6 +138,8 @@ var putObjectCmd = &cli.Command{
 		case "cid":
 			poo = types.CidUploadOption()
 		}
+
+		poo.UserDefined["encryption"] = encFlag
 
 		// execute putObject
 		oi, err := napi.PutObject(cctx.Context, bucketName, objectName, pf, poo)
@@ -247,6 +259,28 @@ var getObjectCmd = &cli.Command{
 			return xerrors.Errorf("empty file")
 		}
 
+		bar := progressbar.NewOptions64(
+			int64(objInfo.Size),
+			progressbar.OptionSetDescription("download:"),
+			progressbar.OptionEnableColorCodes(true),
+			progressbar.OptionSetWidth(10),
+			progressbar.OptionThrottle(65*time.Millisecond),
+			progressbar.OptionShowCount(),
+			progressbar.OptionShowBytes(true),
+			progressbar.OptionOnCompletion(func() {
+				fmt.Printf("\n")
+			}),
+			progressbar.OptionSetTheme(progressbar.Theme{
+				Saucer:        "[green]=[reset]",
+				SaucerHead:    "[green]>[reset]",
+				SaucerPadding: " ",
+				BarStart:      "[",
+				BarEnd:        "]",
+			}),
+			progressbar.OptionSpinnerType(14),
+			progressbar.OptionFullWidth(),
+		)
+
 		p, err := homedir.Expand(path)
 		if err != nil {
 			return err
@@ -284,28 +318,6 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
-		bar := progressbar.NewOptions64(
-			int64(objInfo.Size),
-			progressbar.OptionSetDescription("download:"),
-			progressbar.OptionEnableColorCodes(true),
-			progressbar.OptionSetWidth(10),
-			progressbar.OptionThrottle(65*time.Millisecond),
-			progressbar.OptionShowCount(),
-			progressbar.OptionShowBytes(true),
-			progressbar.OptionOnCompletion(func() {
-				fmt.Printf("\n")
-			}),
-			progressbar.OptionSetTheme(progressbar.Theme{
-				Saucer:        "[green]=[reset]",
-				SaucerHead:    "[green]>[reset]",
-				SaucerPadding: " ",
-				BarStart:      "[",
-				BarEnd:        "]",
-			}),
-			progressbar.OptionSpinnerType(14),
-			progressbar.OptionFullWidth(),
-		)
-
 		stripeCnt := 4 * 64 / buInfo.DataCount
 		stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
 		start := int64(0)
@@ -326,7 +338,7 @@ var getObjectCmd = &cli.Command{
 				return err
 			}
 
-			bar.Add(int(readLen))
+			bar.Add64(readLen)
 
 			h.Write(data)
 			f.Write(data)
@@ -356,7 +368,7 @@ var getObjectCmd = &cli.Command{
 			return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 		}
 
-		fmt.Printf("object: %s (etag: %s) is stored in file %s\n", objectName, gotEtag, p)
+		fmt.Printf("object: %s (etag: %s) is stored in: %s\n", objectName, gotEtag, p)
 
 		return nil
 	},

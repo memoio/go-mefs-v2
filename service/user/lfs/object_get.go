@@ -22,8 +22,8 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		return nil, ErrLfsServiceNotReady
 	}
 
-	// 1GB?
-	if opts.Length > 1024*1024*1024 {
+	// 512MB?
+	if opts.Length > 512*1024*1024 {
 		v, err := mem.VirtualMemory()
 		if err != nil {
 			return nil, xerrors.Errorf("size is too large, consume too much memory")
