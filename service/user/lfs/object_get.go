@@ -77,6 +77,11 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 	buf := new(bytes.Buffer)
 
+	// length is zero
+	if readLength == 0 {
+		return buf.Bytes(), nil
+	}
+
 	// read from each part
 	accLen := uint64(0) // sum of part length
 	rLen := uint64(0)   // have read ok

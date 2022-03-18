@@ -9,6 +9,15 @@ import (
 	"golang.org/x/xerrors"
 )
 
+func NewCid(digest []byte) cid.Cid {
+	mhtag, err := mh.Encode(digest, mh.SHA2_256)
+	if err != nil {
+		return cid.Undef
+	}
+
+	return cid.NewCidV1(cid.Raw, mhtag)
+}
+
 func ToString(etag []byte) (string, error) {
 	if len(etag) == md5.Size {
 		return hex.EncodeToString(etag), nil

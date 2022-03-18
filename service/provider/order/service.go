@@ -128,7 +128,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		or.seq.Segments.Merge()
 
 		// update size and price
-		or.seq.Price.Add(or.seq.Price, or.segPrice)
+		or.seq.Price.Add(or.seq.Price, or.base.SegPrice)
 		or.seq.Size += build.DefaultSegSize
 
 		saveOrderSeq(or, m.ds)
@@ -247,8 +247,6 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			or.orderTime = time.Now().Unix()
 			or.nonce = ob.Nonce + 1
 
-			or.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
-
 			// reset seq
 			or.seqNum = 0
 			or.seqState = OrderSeq_Init
@@ -294,8 +292,6 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 				or.orderState = Order_Ack
 				or.orderTime = time.Now().Unix()
 				or.nonce = ob.Nonce + 1
-
-				or.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 
 				// reset seq
 				or.seqNum = 0
@@ -462,7 +458,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 							data, _ := segmt.Content()
 							tags, _ := segmt.Tags()
 
-							or.seq.Price.Add(or.seq.Price, or.segPrice)
+							or.seq.Price.Add(or.seq.Price, or.base.SegPrice)
 							or.seq.Size += build.DefaultSegSize
 
 							or.dv.Add(id, data, tags[0])

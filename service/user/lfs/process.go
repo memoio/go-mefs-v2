@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/ipfs/go-cid"
-	mh "github.com/multiformats/go-multihash"
 	"github.com/zeebo/blake3"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
@@ -25,6 +23,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 type dataProcess struct {
@@ -232,17 +231,12 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 		// more, change opID
 		if stripeCount >= 64 || breakFlag {
-			etag := h.Sum(nil)
+			etagb := h.Sum(nil)
 			if opts.UserDefined != nil {
 				val, ok := opts.UserDefined["etag"]
 				if ok && val == "cid" {
-					mhtag, err := mh.Encode(etag, mh.SHA2_256)
-					if err != nil {
-						return err
-					}
-
-					cidEtag := cid.NewCidV1(cid.Raw, mhtag)
-					etag = cidEtag.Bytes()
+					cidEtag := etag.NewCid(etagb)
+					etagb = cidEtag.Bytes()
 				}
 			}
 
@@ -253,7 +247,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				Offset:      uint64(dp.stripeSize) * curStripe,
 				Length:      uint64(rawLen), // file size
 				StoredBytes: usedBytes,      // used bytes
-				ETag:        etag,
+				ETag:        etagb,
 			}
 
 			payload, err := proto.Marshal(opi)

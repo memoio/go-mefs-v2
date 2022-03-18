@@ -420,15 +420,16 @@ func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	// verify size and price
-	size := uint64(0)
+	sCnt := uint64(0)
 	for _, seg := range so.Segments {
-		size += (seg.Length * build.DefaultSegSize)
+		sCnt += seg.Length
 	}
+	size := sCnt * build.DefaultSegSize
 	if oinfo.base.Size+size != so.Size {
 		return xerrors.Errorf("add seq size wrong, got %d, expected %d", so.Size, oinfo.base.Size+size)
 	}
 
-	price := new(big.Int).Mul(oinfo.base.SegPrice, big.NewInt(int64(size)))
+	price := new(big.Int).Mul(oinfo.base.SegPrice, big.NewInt(int64(sCnt)))
 	price.Add(price, oinfo.base.Price)
 	if price.Cmp(so.Price) != 0 {
 		return xerrors.Errorf("add seq price wrong, got %d, expected %d", so.Price, price)
@@ -609,15 +610,17 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 	}
 
 	// verify size and price
-	size := uint64(0)
+	sCnt := uint64(0)
 	for _, seg := range so.Segments {
-		size += (seg.Length * build.DefaultSegSize)
+		sCnt += seg.Length
 	}
+	size := sCnt * build.DefaultSegSize
+
 	if oinfo.base.Size+size != so.Size {
 		return xerrors.Errorf("add seq size wrong, got %d, expected %d", so.Size, oinfo.base.Size+size)
 	}
 
-	price := new(big.Int).Mul(oinfo.base.SegPrice, big.NewInt(int64(size)))
+	price := new(big.Int).Mul(oinfo.base.SegPrice, big.NewInt(int64(sCnt)))
 	price.Add(price, oinfo.base.Price)
 	if price.Cmp(so.Price) != 0 {
 		return xerrors.Errorf("add seq price wrong, got %d, expected %d", so.Price, price)
@@ -722,7 +725,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	var HWi, accFr bls.Fr
-	size := uint64(0)
+	sCnt := uint64(0)
 	for _, lseg := range so.Segments {
 		for i := lseg.Start; i < lseg.Start+lseg.Length; i++ {
 			if !sf.Segments.Has(lseg.BucketID, i, lseg.ChunkID) {
@@ -733,11 +736,12 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 			bls.FrFromBytes(&HWi, h[:])
 			bls.FrAddMod(&accFr, &accFr, &HWi)
 		}
-		size += (lseg.Length * build.DefaultSegSize)
+		sCnt += lseg.Length
 		sf.DelSegs.Push(lseg)
 	}
+	size := sCnt * build.DefaultSegSize
 
-	price := big.NewInt(int64(size))
+	price := big.NewInt(int64(sCnt))
 	price.Mul(price, of.SegPrice)
 
 	penalty := new(big.Int).Mul(price, big.NewInt(of.End-stime))

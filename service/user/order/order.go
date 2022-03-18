@@ -6,14 +6,14 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"golang.org/x/xerrors"
 )
 
 type OrderState string
@@ -95,7 +95,6 @@ type OrderFull struct {
 	base       *types.SignedOrder // quotation-> base
 	orderTime  int64
 	orderState OrderState
-	segPrice   *big.Int
 
 	seq      *types.SignedOrderSeq
 	seqTime  int64
@@ -209,7 +208,6 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		return op
 	}
 	op.base = ob
-	op.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 	op.prevEnd = ob.End
 
 	ss := new(SeqState)
@@ -488,8 +486,6 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 			Size:  0,
 			Price: big.NewInt(0),
 		}
-
-		o.segPrice = new(big.Int).Mul(o.base.SegPrice, big.NewInt(build.DefaultSegSize))
 
 		osig, err := m.RoleSign(m.ctx, m.localID, o.base.Hash(), types.SigSecp256k1)
 		if err != nil {

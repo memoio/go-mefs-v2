@@ -6,10 +6,11 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"path/filepath"
+	"time"
 
-	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
-	mh "github.com/multiformats/go-multihash"
+	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -213,6 +214,11 @@ var getObjectCmd = &cli.Command{
 			Name:  "path",
 			Usage: "stored path of file",
 		},
+		&cli.BoolFlag{
+			Name:  "local",
+			Usage: "local file path",
+			Value: false,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(cmd.FlagNodeRepo)
@@ -230,13 +236,23 @@ var getObjectCmd = &cli.Command{
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
 		path := cctx.String("path")
+		localFlag := cctx.Bool("local")
 
 		objInfo, err := napi.HeadObject(cctx.Context, bucketName, objectName)
 		if err != nil {
 			return err
 		}
 
+		if objInfo.Size == 0 {
+			return xerrors.Errorf("empty file")
+		}
+
 		p, err := homedir.Expand(path)
+		if err != nil {
+			return err
+		}
+
+		p, err = filepath.Abs(p)
 		if err != nil {
 			return err
 		}
@@ -246,6 +262,16 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 		defer f.Close()
+
+		if localFlag {
+			doo := &types.DownloadObjectOptions{
+				UserDefined: make(map[string]string),
+				Start:       0,
+				Length:      -1,
+			}
+
+			doo.UserDefined["local"] = p
+		}
 
 		h := md5.New()
 		if len(objInfo.ETag) != md5.Size {
@@ -257,6 +283,29 @@ var getObjectCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+
+		bar := progressbar.NewOptions64(
+			int64(objInfo.Size),
+			progressbar.OptionSetDescription("download:"),
+			progressbar.OptionEnableColorCodes(true),
+			progressbar.OptionSetWidth(10),
+			progressbar.OptionThrottle(65*time.Millisecond),
+			progressbar.OptionShowCount(),
+			progressbar.OptionShowBytes(true),
+			progressbar.OptionOnCompletion(func() {
+				fmt.Printf("\n")
+			}),
+			progressbar.OptionSetTheme(progressbar.Theme{
+				Saucer:        "[green]=[reset]",
+				SaucerHead:    "[green]>[reset]",
+				SaucerPadding: " ",
+				BarStart:      "[",
+				BarEnd:        "]",
+			}),
+			progressbar.OptionSpinnerType(14),
+			progressbar.OptionFullWidth(),
+		)
+
 		stripeCnt := 4 * 64 / buInfo.DataCount
 		stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
 		start := int64(0)
@@ -277,6 +326,8 @@ var getObjectCmd = &cli.Command{
 				return err
 			}
 
+			bar.Add(int(readLen))
+
 			h.Write(data)
 			f.Write(data)
 
@@ -287,12 +338,7 @@ var getObjectCmd = &cli.Command{
 		if len(objInfo.ETag) == md5.Size {
 			etagb = h.Sum(nil)
 		} else {
-			mhtag, err := mh.Encode(h.Sum(nil), mh.SHA2_256)
-			if err != nil {
-				return err
-			}
-
-			cidEtag := cid.NewCidV1(cid.Raw, mhtag)
+			cidEtag := etag.NewCid(h.Sum(nil))
 			etagb = cidEtag.Bytes()
 		}
 
@@ -310,7 +356,7 @@ var getObjectCmd = &cli.Command{
 			return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 		}
 
-		fmt.Printf("object %s (etag: %s) stored in file %s\n", objectName, gotEtag, p)
+		fmt.Printf("object: %s (etag: %s) is stored in file %s\n", objectName, gotEtag, p)
 
 		return nil
 	},
