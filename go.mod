@@ -45,7 +45,6 @@ require (
 	github.com/minio/cli v1.22.0
 	github.com/minio/madmin-go v1.3.6
 	github.com/minio/minio v0.0.0-20220317232010-43eb5a001c9f
-	github.com/minio/minio-go/v6 v6.0.57
 	github.com/minio/minio-go/v7 v7.0.23
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mr-tron/base58 v1.2.0
