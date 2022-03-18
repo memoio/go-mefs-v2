@@ -149,3 +149,26 @@ func (bs *BaseSegment) Deserialize(b []byte) error {
 
 	return nil
 }
+
+func (bs *BaseSegment) IsValid(size int) error {
+	pre, preSize, err := DeserializePrefix(bs.data)
+	if err != nil {
+		return err
+	}
+
+	if size != int(pre.SegSize) {
+		return xerrors.Errorf("segment raw size is wrong, expect %d got %d", size, pre.SegSize)
+	}
+
+	if pre.DataCount < 1 || pre.ParityCount < 1 {
+		return xerrors.Errorf("data/parity count is wrong")
+	}
+
+	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
+	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
+	if preSize+int(pre.SegSize)+tagCount*tagLen != len(bs.data) {
+		return xerrors.Errorf("segment size is wrong")
+	}
+
+	return nil
+}

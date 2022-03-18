@@ -27,6 +27,8 @@ type Segment interface {
 	Tags() ([][]byte, error)
 	Serialize() ([]byte, error)
 	Deserialize([]byte) error
+
+	IsValid(size int) error
 }
 
 type SegmentStore interface {

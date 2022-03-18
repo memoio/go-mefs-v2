@@ -1,12 +1,10 @@
 package order
 
 import (
-	"math/big"
 	"sync"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -77,7 +75,6 @@ type OrderFull struct {
 	base       *types.SignedOrder
 	orderTime  int64
 	orderState OrderState
-	segPrice   *big.Int
 
 	seq      *types.SignedOrderSeq // 当前处理
 	seqTime  int64
@@ -222,7 +219,6 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	op.orderState = ns.State
 	op.orderTime = ns.Time
 	op.nonce = ns.Nonce + 1
-	op.segPrice = new(big.Int).Mul(ob.SegPrice, big.NewInt(build.DefaultSegSize))
 
 	ss := new(SeqState)
 	key = store.NewKey(pb.MetaType_OrderSeqNumKey, m.localID, userID, ns.Nonce)

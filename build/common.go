@@ -38,7 +38,7 @@ const (
 )
 
 var (
-	DefaultSegPrice   = big.NewInt(1000) // per seg
-	DefaultPiecePrice = big.NewInt(1000)
+	DefaultSegPrice   = big.NewInt(250 * 1000) // per seg, 1wei/(byte*second)
+	DefaultPiecePrice = big.NewInt(2 * 1000 * 1000)
 	BaseTime          = time.Date(2021, time.December, 1, 0, 0, 0, 0, time.UTC).Unix()
 )

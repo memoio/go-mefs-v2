@@ -758,7 +758,7 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 			// update price an size
 			o.seq.Segments.Push(as)
 			o.seq.Segments.Merge()
-			o.seq.Price.Add(o.seq.Price, o.segPrice)
+			o.seq.Price.Add(o.seq.Price, o.base.SegPrice)
 			o.seq.Size += build.DefaultSegSize
 
 			nsj := &types.SegJob{
