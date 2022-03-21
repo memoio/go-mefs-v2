@@ -230,8 +230,8 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 	}
 }
 
-func TransferErc20To(endPoint, sk string, tAddr, addr common.Address, val *big.Int) error {
-	logger.Debugf("ERC20 %s %s transfer %d to %s", endPoint, tAddr, val, addr)
+func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.Int) error {
+	logger.Debugf("Memo %s %s transfer %d to %s", endPoint, tAddr, val, addr)
 	txopts := &callconts.TxOpts{
 		Nonce:    nil,
 		GasPrice: big.NewInt(DefaultGasPrice),
@@ -259,17 +259,10 @@ func TransferErc20To(endPoint, sk string, tAddr, addr common.Address, val *big.I
 		return err
 	}
 
-	logger.Debugf("ERC20 admin %s has balance %d", adminAddress, adminVal)
+	logger.Debugf("Memo %s has balance %d", adminAddress, adminVal)
 
 	if adminVal.Cmp(val) < 0 {
-		err = erc20.MintToken(adminAddress, val)
-		if err != nil {
-			logger.Debug("ERC20 mintToken fail: ", tAddr, adminAddress, val)
-		} else {
-			if err = <-status; err != nil {
-				logger.Fatal("ERC20 mintToken fail: ", err)
-			}
-		}
+		return xerrors.Errorf("Memo transfer fail: %d is not enough", adminVal)
 	}
 
 	oldVal, err := erc20.BalanceOf(addr)
@@ -281,13 +274,13 @@ func TransferErc20To(endPoint, sk string, tAddr, addr common.Address, val *big.I
 	for retry < 10 {
 		err = erc20.Transfer(addr, val)
 		if err != nil {
-			logger.Debug("ERC20 transfer fail: ", tAddr, addr, val, err)
+			logger.Debug("Memo transfer fail: ", tAddr, addr, val, err)
 			retry++
 			continue
 		}
 
 		if err = <-status; err != nil {
-			logger.Fatal("ERC20 transfer fail: ", err)
+			logger.Fatal("Memo transfer fail: ", err)
 		}
 
 		newVal, err := erc20.BalanceOf(addr)
@@ -297,7 +290,7 @@ func TransferErc20To(endPoint, sk string, tAddr, addr common.Address, val *big.I
 
 		newVal.Sub(newVal, oldVal)
 		if newVal.Cmp(val) >= 0 {
-			logger.Debugf("ERC20 %s has balance %d now", addr, newVal)
+			logger.Debugf("Memo %s has balance %d now", addr, newVal)
 			return nil
 		}
 
@@ -308,5 +301,5 @@ func TransferErc20To(endPoint, sk string, tAddr, addr common.Address, val *big.I
 		time.Sleep(time.Duration(t) * time.Second)
 	}
 
-	return xerrors.Errorf("ERC20 %s transfer %d to %s fail", tAddr, val, addr)
+	return xerrors.Errorf("Memo %s transfer %d to %s fail", tAddr, val, addr)
 }

@@ -105,7 +105,7 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 	logger.Debug("token contract address: ", tAddr.Hex())
 
 	val = cm.getBalanceInErc(eAddr)
-	logger.Debugf("%s has erc20 val %d", eAddr, val)
+	logger.Debugf("%s has: %d (atto Memo)", eAddr, val)
 
 	//if val.BitLen() == 0 {
 	//	return nil, xerrors.Errorf("not have erc20 token")
