@@ -27,11 +27,6 @@ const (
 	version         = 3
 )
 
-var (
-	//ErrDecrypt before decrypt privatekey, we compare mac, if not equal, use ErrDecrypt
-	ErrDecrypt = xerrors.New("could not decrypt key with given passphrase")
-)
-
 type Key struct {
 	Address     string
 	SecretValue []byte
@@ -180,7 +175,7 @@ func decryptKeyV3(keyProtected *encryptedKeyJSONV3, password string) (keyBytes [
 	d.Write(cipherText)
 	calculatedMAC := d.Sum(nil)
 	if !bytes.Equal(calculatedMAC, mac) {
-		return nil, ErrDecrypt
+		return nil, xerrors.New("could not decrypt key with given passphrase")
 	}
 
 	plainText, err := aesCTRXOR(derivedKey[:16], cipherText, iv)

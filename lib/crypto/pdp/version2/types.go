@@ -6,6 +6,7 @@ import (
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
 )
 
 // 自/data-format/common.go，目前segment的default size为124KB
@@ -94,8 +95,8 @@ func (chal *Challenge) Serialize() []byte {
 }
 
 func (chal *Challenge) Deserialize(buf []byte) error {
-	if len(buf) != 34+FrSize {
-		return pdpcommon.ErrDeserializeFailed
+	if len(buf) < 34+FrSize {
+		return xerrors.Errorf("length is short")
 	}
 
 	ver := binary.BigEndian.Uint16(buf[:2])

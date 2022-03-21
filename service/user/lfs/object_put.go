@@ -82,7 +82,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 	// check if object exists in rbtree
 	objectElement := bucket.objects.Find(MetaName(objectName))
 	if objectElement != nil {
-		return nil, ErrObjectAlreadyExist
+		return nil, xerrors.Errorf("object %s already exist", objectName)
 	}
 
 	// 1. save op

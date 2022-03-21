@@ -4,13 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"golang.org/x/xerrors"
-
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
-)
-
-var (
-	ErrNoHsMsgHandle = xerrors.New("no hotstuff handle")
+	"golang.org/x/xerrors"
 )
 
 type HandlerHsMsgFunc func(context.Context, *hs.HotstuffMessage) error
@@ -47,7 +42,7 @@ func (hmi *HsMsgImpl) Handle(ctx context.Context, mes *hs.HotstuffMessage) error
 	}
 
 	if hmi.handler == nil {
-		return ErrNoHandle
+		return xerrors.New("no hotstuff message handle")
 	}
 	return hmi.handler(ctx, mes)
 }

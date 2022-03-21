@@ -15,11 +15,6 @@ const (
 	BlockSize = 16 // 128bit，16B
 )
 
-var (
-	ErrKeySize   = xerrors.New("keysize must be 32")
-	ErrBlockSize = xerrors.New("blocksize must be an integer which can be divisible by 128")
-)
-
 // ContructAesEnc contructs a new aes encrypt
 func ContructAesEnc(basekey []byte, objectID, stripeID uint64) (cipher.BlockMode, error) {
 	tmpkey := make([]byte, len(basekey)+16)
@@ -29,7 +24,7 @@ func ContructAesEnc(basekey []byte, objectID, stripeID uint64) (cipher.BlockMode
 	key := blake3.Sum256(tmpkey)
 
 	if len(key) != KeySize {
-		return nil, ErrKeySize
+		return nil, xerrors.New("keysize must be 32")
 	}
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
@@ -48,7 +43,7 @@ func ContructAesDec(basekey []byte, objectID, stripeID uint64) (cipher.BlockMode
 	key := blake3.Sum256(tmpkey)
 
 	if len(key) != KeySize {
-		return nil, ErrKeySize
+		return nil, xerrors.New("keysize must be 32")
 	}
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
@@ -68,10 +63,10 @@ func PKCS5Padding(ciphertext []byte) []byte {
 
 func AesEncrypt(origData, key []byte) ([]byte, error) {
 	if len(origData)%BlockSize != 0 {
-		return nil, ErrBlockSize
+		return nil, xerrors.New("blocksize must be an integer which can be divisible by 128")
 	}
 	if len(key) != KeySize {
-		return nil, ErrKeySize
+		return nil, xerrors.New("keysize must be 32")
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -87,10 +82,10 @@ func AesEncrypt(origData, key []byte) ([]byte, error) {
 
 func AesDecrypt(crypted, key []byte) ([]byte, error) {
 	if len(crypted)%BlockSize != 0 {
-		return nil, ErrBlockSize
+		return nil, xerrors.New("blocksize must be an integer which can be divisible by 128")
 	}
 	if len(key) != KeySize {
-		return nil, ErrKeySize
+		return nil, xerrors.New("keysize must be 32")
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {

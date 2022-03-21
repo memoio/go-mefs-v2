@@ -19,10 +19,6 @@ const (
 	// todo add type for content
 )
 
-var (
-	ErrMsgCode = xerrors.New("illegal msg code")
-)
-
 func init() {
 	mh.Register(MsgIDHashCode, func() hash.Hash { return blake3.New() })
 }
@@ -115,7 +111,7 @@ func FromBytes(b []byte) (MsgID, error) {
 	}
 
 	if dh.Code != MsgIDHashCode {
-		return MsgIDUndef, ErrMsgCode
+		return MsgIDUndef, xerrors.Errorf("illegal message code %d", dh.Code)
 	}
 
 	return MsgID{string(b)}, nil

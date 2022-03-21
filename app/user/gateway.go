@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -20,6 +19,7 @@ import (
 	minio "github.com/minio/minio/cmd"
 	"github.com/mitchellh/go-homedir"
 	cli2 "github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 var GatewayCmd = &cli2.Command{
@@ -65,12 +65,12 @@ var gatewayRunCmd = &cli2.Command{
 
 		username := cctx.String("username")
 		if username == "" {
-			return errors.New("username is nil")
+			return xerrors.New("username is nil")
 		}
 
 		pwd := cctx.String("password")
 		if pwd == "" {
-			return errors.New("username is nil")
+			return xerrors.New("username is nil")
 		}
 		endPoint := cctx.String("endpoint")
 		consoleAddress := cctx.String("console")

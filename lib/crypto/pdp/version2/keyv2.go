@@ -8,6 +8,7 @@ import (
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/zeebo/blake3"
+	"golang.org/x/xerrors"
 )
 
 var _ pdpcommon.KeySet = (*KeySet)(nil)
@@ -133,7 +134,7 @@ func (pk *PublicKey) Deserialize(data []byte) error {
 		return pdpcommon.ErrKeyIsNil
 	}
 	if len(data) < 10+2*G2Size+G1Size {
-		return pdpcommon.ErrDeserializeFailed
+		return xerrors.Errorf("length is too short")
 	}
 
 	ver := binary.BigEndian.Uint16(data[:2])
@@ -143,7 +144,7 @@ func (pk *PublicKey) Deserialize(data []byte) error {
 
 	pk.Count = int64(binary.BigEndian.Uint64(data[2:10]))
 	if pk.Count > MaxPkNumCount {
-		return pdpcommon.ErrDeserializeFailed
+		return pdpcommon.ErrInvalidSettings
 	}
 	bls.G2Deserialize(&pk.BlsPk, data[10:10+G2Size])
 	bls.G2Deserialize(&pk.Zeta, data[10+G2Size:10+2*G2Size])

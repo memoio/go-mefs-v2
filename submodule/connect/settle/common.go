@@ -3,7 +3,6 @@ package settle
 import (
 	"context"
 	"crypto/ecdsa"
-	"errors"
 	"math/big"
 	"math/rand"
 	"time"
@@ -187,7 +186,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 	for {
 		retry++
 		if retry > 10 {
-			return errors.New("fail to transfer")
+			return xerrors.New("fail to transfer")
 		}
 
 		nonce, err := client.PendingNonceAt(context.Background(), fromAddress)

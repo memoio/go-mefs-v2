@@ -13,7 +13,6 @@ const (
 var (
 	ErrBadKeyType    = xerrors.New("invalid or unsupported key type")
 	ErrBadSign       = xerrors.New("invalid signature")
-	ErrBadMsg        = xerrors.New("invalid message")
 	ErrBadPrivateKey = xerrors.New("invalid private key")
 	ErrBadPublickKey = xerrors.New("invalid public key")
 )

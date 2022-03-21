@@ -47,11 +47,11 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	defer object.RUnlock()
 
 	if object.deletion {
-		return nil, ErrObjectNotExist
+		return nil, xerrors.Errorf("object %s is deleted", objectName)
 	}
 
 	if object.Size == 0 {
-		return nil, ErrObjectIsNil
+		return nil, xerrors.New("object is empty")
 	}
 
 	readStart := opts.Start

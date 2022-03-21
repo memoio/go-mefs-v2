@@ -6,7 +6,6 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/jbenet/goprocess"
-	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -14,8 +13,6 @@ import (
 )
 
 var logger = logging.Logger("go-datastore")
-
-var ErrClosed = xerrors.New("datastore closed")
 
 type Datastore struct {
 	DB store.KVStore

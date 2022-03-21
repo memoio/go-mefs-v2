@@ -12,10 +12,6 @@ const (
 	DefaultPrefixLen = 24
 )
 
-var (
-	ErrDataLength = xerrors.New("data length is wrong")
-)
-
 type Prefix struct {
 	Version     uint32
 	Policy      uint32
@@ -42,7 +38,7 @@ func (p Prefix) Size() int {
 
 func DeserializePrefix(data []byte) (*Prefix, int, error) {
 	if len(data) < DefaultPrefixLen {
-		return nil, 0, ErrDataLength
+		return nil, 0, xerrors.Errorf("data length %d is shorter than %d", len(data), DefaultPrefixLen)
 	}
 
 	version := binary.BigEndian.Uint32(data[:4])
@@ -107,7 +103,7 @@ func (bs *BaseSegment) Tags() ([][]byte, error) {
 	}
 
 	if pre.DataCount < 1 || pre.ParityCount < 1 {
-		return nil, ErrDataLength
+		return nil, xerrors.Errorf("policy is not supported")
 	}
 
 	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
@@ -131,7 +127,7 @@ func (bs *BaseSegment) Serialize() ([]byte, error) {
 
 func (bs *BaseSegment) Deserialize(b []byte) error {
 	if len(b) < 40 {
-		return ErrDataLength
+		return xerrors.Errorf("data length %d is shorter than 40", len(b))
 	}
 
 	segID, err := FromBytes(b[:40])

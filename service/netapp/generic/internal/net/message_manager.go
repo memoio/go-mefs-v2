@@ -25,8 +25,6 @@ import (
 
 var dhtReadMessageTimeout = 10 * time.Second
 
-var ErrReadTimeout = xerrors.New("timed out reading response")
-
 var logger = logging.Logger("net-message")
 
 type MessageSender interface {
@@ -344,7 +342,7 @@ func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.NetMessage)
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-t.C:
-		return ErrReadTimeout
+		return xerrors.New("timed out reading response")
 	}
 }
 

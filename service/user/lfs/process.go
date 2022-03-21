@@ -129,7 +129,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			return err
 		} else if n != dp.stripeSize {
 			logger.Warn("fail to get enough data")
-			return ErrUpload
+			return xerrors.New("upload fails due to read io")
 		}
 
 		buf = append(buf, rdata[:n]...)
@@ -191,7 +191,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		if sendCount >= 16 || breakFlag {
 			ok, err := dp.dv.Result()
 			if !ok || err != nil {
-				return ErrEncode
+				return xerrors.New("encode data is wrong")
 			}
 
 			// put to local first
