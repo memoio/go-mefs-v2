@@ -74,7 +74,8 @@ func Verify(publicKey, msg, signature []byte) error {
 	}
 
 	pk := new(hbls.PublicKey)
-	if err := pk.Deserialize(publicKey); err != nil {
+	err := pk.Deserialize(publicKey)
+	if err != nil {
 		return err
 	}
 
@@ -114,7 +115,8 @@ func AggregateSignature(signatures ...[]byte) ([]byte, error) {
 	size := len(signatures)
 	signs := make([]hbls.Sign, size)
 	for i := 0; i < size; i++ {
-		if err := signs[i].Deserialize(signatures[i]); err != nil {
+		err := signs[i].Deserialize(signatures[i])
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -129,7 +131,8 @@ func AggregatePublicKey(publicKeys ...[]byte) ([]byte, error) {
 	aggregatedPublicKey := new(hbls.PublicKey)
 	for i := 0; i < size; i++ {
 		pk := new(hbls.PublicKey)
-		if err := pk.Deserialize(publicKeys[i]); err != nil {
+		err := pk.Deserialize(publicKeys[i])
+		if err != nil {
 			return nil, err
 		}
 

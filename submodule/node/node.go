@@ -162,7 +162,8 @@ func (n *BaseNode) RunDaemon() error {
 	}
 
 	cfg.API.Address = apiListener.Multiaddr().String()
-	if err := n.Repo.SetAPIAddr(cfg.API.Address); err != nil {
+	err = n.Repo.SetAPIAddr(cfg.API.Address)
+	if err != nil {
 		return err
 	}
 

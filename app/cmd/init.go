@@ -43,13 +43,13 @@ var InitCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    "keyfile",
 			Aliases: []string{"kf"},
-			Usage:   "path of keyfile",
+			Usage:   "absolute path of keyfile",
 			Value:   "",
 		},
 		&cli.StringFlag{
 			Name:  "kpw",
-			Usage: "password of keyfile",
-			Value: "memoriae",
+			Usage: "password to decrypt keyfile",
+			Value: "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -102,7 +102,8 @@ var InitCmd = &cli.Command{
 				return err
 			}
 
-			if err := minit.Create(cctx.Context, rep, pw, sk); err != nil {
+			err = minit.Create(cctx.Context, rep, pw, sk)
+			if err != nil {
 				logger.Errorf("Error initializing node %s", err)
 				return err
 			}
@@ -112,7 +113,8 @@ var InitCmd = &cli.Command{
 
 		// from secret key
 		sk := cctx.String("sk")
-		if err := minit.Create(cctx.Context, rep, pw, sk); err != nil {
+		err = minit.Create(cctx.Context, rep, pw, sk)
+		if err != nil {
 			logger.Errorf("Error initializing node %s", err)
 			return err
 		}

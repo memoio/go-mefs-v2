@@ -859,7 +859,8 @@ func (m *NetMessage) Unmarshal(dAtA []byte) error {
 			if m.Header == nil {
 				m.Header = &NetMessage_MsgHeader{}
 			}
-			if err := m.Header.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			err := m.Header.Unmarshal(dAtA[iNdEx:postIndex]); 
+			if err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -895,7 +896,8 @@ func (m *NetMessage) Unmarshal(dAtA []byte) error {
 			if m.Data == nil {
 				m.Data = &NetMessage_MsgData{}
 			}
-			if err := m.Data.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			err := m.Data.Unmarshal(dAtA[iNdEx:postIndex])
+			if err != nil {
 				return err
 			}
 			iNdEx = postIndex

@@ -461,9 +461,15 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 
 	if o.orderState == Order_Init {
 		// compare to set price
-		if quo != nil && quo.SegPrice.Cmp(m.segPrice) > 0 {
-			m.stopOrder(o)
-			return xerrors.Errorf("price is not right, expected less than %d got %d", m.segPrice, quo.SegPrice)
+		if quo != nil {
+			if quo.SegPrice.Cmp(m.segPrice) > 0 {
+				m.stopOrder(o)
+				return xerrors.Errorf("price is too high, expected equal or less than %d got %d", m.segPrice, quo.SegPrice)
+			}
+			if quo.TokenIndex != 0 {
+				m.stopOrder(o)
+				return xerrors.Errorf("token index is not right, expected zero got %d", quo.TokenIndex)
+			}
 		}
 
 		start := time.Now().Unix()

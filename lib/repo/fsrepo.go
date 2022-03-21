@@ -81,7 +81,8 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 		repoPath = "./"
 	}
 
-	if err := ensureWritableDirectory(repoPath); err != nil {
+	err = ensureWritableDirectory(repoPath)
+	if err != nil {
 		return nil, xerrors.Errorf("no writable directory %w", err)
 	}
 
@@ -124,7 +125,8 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 		return nil, xerrors.Errorf("failed to take repo lock %w", err)
 	}
 
-	if err := r.loadFromDisk(); err != nil {
+	err = r.loadFromDisk()
+	if err != nil {
 		_ = r.lockfile.Close()
 		return nil, err
 	}
@@ -135,12 +137,14 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 }
 
 func initFSRepo(dir string, cfg *config.Config) error {
-	if err := initConfig(dir, cfg); err != nil {
+	err := initConfig(dir, cfg)
+	if err != nil {
 		return xerrors.Errorf("initializing config file failed %w", err)
 	}
 
 	kstorePath := filepath.Join(dir, keyStorePathPrefix)
-	if err := os.MkdirAll(kstorePath, 0700); err != nil {
+	err = os.MkdirAll(kstorePath, 0700)
+	if err != nil {
 		return xerrors.Errorf("initializing keystore directory failed %w", err)
 	}
 
@@ -148,31 +152,38 @@ func initFSRepo(dir string, cfg *config.Config) error {
 }
 
 func (r *FSRepo) loadFromDisk() error {
-	if err := r.removeAPIFile(); err != nil {
+	err := r.removeAPIFile()
+	if err != nil {
 		logger.Warnf("fail to remove api: %s", err)
 	}
 
-	if err := r.loadConfig(); err != nil {
+	err = r.loadConfig()
+	if err != nil {
 		return xerrors.Errorf("failed to load config file %w", err)
 	}
 
-	if err := r.openKeyStore(); err != nil {
+	err = r.openKeyStore()
+	if err != nil {
 		return xerrors.Errorf("failed to open keystore %w", err)
 	}
 
-	if err := r.openDhtStore(); err != nil {
+	err = r.openDhtStore()
+	if err != nil {
 		return xerrors.Errorf("failed to open dht datastore %w", err)
 	}
 
-	if err := r.openMetaStore(); err != nil {
+	err = r.openMetaStore()
+	if err != nil {
 		return xerrors.Errorf("failed to open meta store %w", err)
 	}
 
-	if err := r.openStateStore(); err != nil {
+	err = r.openStateStore()
+	if err != nil {
 		return xerrors.Errorf("failed to open state store %w", err)
 	}
 
-	if err := r.openFileStore(); err != nil {
+	err = r.openFileStore()
+	if err != nil {
 		return xerrors.Errorf("failed to open metadata datastore %w", err)
 	}
 
@@ -226,27 +237,33 @@ func (r *FSRepo) DhtStore() datastore.Batching {
 
 // Close closes the repo.
 func (r *FSRepo) Close() error {
-	if err := r.metaDs.Close(); err != nil {
-		return xerrors.Errorf("failed to close meta datastore %w", err)
+	err := r.keyDs.Close()
+	if err != nil {
+		return xerrors.Errorf("failed to close key store %w", err)
 	}
 
-	if err := r.stateDs.Close(); err != nil {
-		return xerrors.Errorf("failed to close meta datastore %w", err)
-	}
-
-	if err := r.keyDs.Close(); err != nil {
-		return xerrors.Errorf("failed to close datastore %w", err)
-	}
-
-	if err := r.dhtDs.Close(); err != nil {
+	err = r.dhtDs.Close()
+	if err != nil {
 		return xerrors.Errorf("failed to close dht datastore %w", err)
 	}
 
-	if err := r.fileDs.Close(); err != nil {
+	err = r.fileDs.Close()
+	if err != nil {
 		return xerrors.Errorf("failed to close file store %w", err)
 	}
 
-	if err := r.removeAPIFile(); err != nil {
+	err = r.metaDs.Close()
+	if err != nil {
+		return xerrors.Errorf("failed to close meta store %w", err)
+	}
+
+	err = r.stateDs.Close()
+	if err != nil {
+		return xerrors.Errorf("failed to close state store %w", err)
+	}
+
+	err = r.removeAPIFile()
+	if err != nil {
 		return xerrors.Errorf("failed to remove API file %w", err)
 	}
 
@@ -254,7 +271,8 @@ func (r *FSRepo) Close() error {
 }
 
 func (r *FSRepo) removeFile(path string) error {
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	err := os.Remove(path)
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
@@ -388,7 +406,8 @@ func initConfig(p string, cfg *config.Config) error {
 		return xerrors.Errorf("config file already exists: %s", configFile)
 	}
 
-	if err := cfg.WriteFile(configFile); err != nil {
+	err = cfg.WriteFile(configFile)
+	if err != nil {
 		return err
 	}
 
@@ -468,7 +487,8 @@ func (r *FSRepo) SetAPIAddr(maddr string) error {
 
 	_, err = f.WriteString(maddr)
 	if err != nil {
-		if err := r.removeAPIFile(); err != nil {
+		err := r.removeAPIFile()
+		if err != nil {
 			return xerrors.Errorf("failed to remove API file %w", err)
 		}
 

@@ -158,7 +158,8 @@ func New(ctx context.Context, opts ...BuilderOpt) (*BaseNode, error) {
 
 	// apply builder options
 	for _, o := range opts {
-		if err := o(builder); err != nil {
+		err := o(builder)
+		if err != nil {
 			return nil, err
 		}
 	}

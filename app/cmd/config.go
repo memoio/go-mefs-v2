@@ -101,7 +101,8 @@ var configSetCmd = &cli.Command{
 			return err
 		}
 
-		if err := rep.ReplaceConfig(rep.Config()); err != nil {
+		err = rep.ReplaceConfig(rep.Config())
+		if err != nil {
 			logger.Errorf("Error replacing config %s", err)
 			return err
 		}

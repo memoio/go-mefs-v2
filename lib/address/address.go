@@ -74,7 +74,8 @@ func (a Address) Empty() bool {
 // UnmarshalJSON implements the json unmarshal interface.
 func (a *Address) UnmarshalJSON(b []byte) error {
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
+	err := json.Unmarshal(b, &s)
+	if err != nil {
 		return err
 	}
 

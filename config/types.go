@@ -19,7 +19,8 @@ func (o *Strings) UnmarshalJSON(data []byte) error {
 		return json.Unmarshal(data, (*[]string)(o))
 	}
 	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
+	err := json.Unmarshal(data, &value)
+	if err != nil {
 		return err
 	}
 	if len(value) == 0 {

@@ -141,7 +141,8 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 
 	dec := jsonrpc.WithParamDecoder(new(io.Reader), func(ctx context.Context, b []byte) (reflect.Value, error) {
 		var rs ReaderStream
-		if err := json.Unmarshal(b, &rs); err != nil {
+		err := json.Unmarshal(b, &rs)
+		if err != nil {
 			return reflect.Value{}, xerrors.Errorf("unmarshaling reader id: %w", err)
 		}
 

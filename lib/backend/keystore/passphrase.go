@@ -129,7 +129,8 @@ func aesCTRXOR(key, inText, iv []byte) ([]byte, error) {
 
 func decryptKey(keyjson []byte, auth string) (*Key, error) {
 	k := new(encryptedKeyJSONV3)
-	if err := json.Unmarshal(keyjson, k); err != nil {
+	err := json.Unmarshal(keyjson, k)
+	if err != nil {
 		return nil, err
 	}
 
