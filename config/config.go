@@ -130,8 +130,8 @@ type OrderConfig struct {
 func newDefaultOrderConfig() OrderConfig {
 	return OrderConfig{
 		Price:    build.DefaultSegPrice.Uint64(),
-		Duration: build.OrderMin, // 100 day
-		Wait:     3600 * 12,      // 12 hour
+		Duration: 100,       // 100 day
+		Wait:     3600 * 12, // 12 hour
 	}
 }
 

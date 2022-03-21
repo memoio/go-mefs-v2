@@ -35,11 +35,11 @@ type OrderMgr struct {
 	orders map[uint64]*OrderFull // key: userID
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService, pp api.IChainState, scm api.ISettle) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, price uint64, ds store.KVStore, ir api.IRole, in api.INetService, id api.IDataService, pp api.IChainState, scm api.ISettle) *OrderMgr {
 	quo := &types.Quotation{
 		ProID:      roleID,
 		TokenIndex: 0,
-		SegPrice:   new(big.Int).Set(build.DefaultSegPrice),
+		SegPrice:   new(big.Int).SetUint64(price),
 		PiecePrice: new(big.Int).Set(build.DefaultPiecePrice),
 	}
 

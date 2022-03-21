@@ -78,7 +78,9 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl, bn.RoleMgr, sp)
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PushPool, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ContractMgr)
+	oc := bn.Repo.Config().Order
+
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn.PushPool, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ContractMgr)
 
 	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {

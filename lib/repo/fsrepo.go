@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
 	"github.com/memoio/go-mefs-v2/lib/backend/kv"
@@ -311,6 +312,18 @@ func (r *FSRepo) loadConfig() error {
 
 	if cfg.Contract.RoleContract == "" {
 		cfg.Contract.RoleContract = settle.RoleContract
+	}
+
+	if cfg.Order.Price == 0 {
+		cfg.Order.Price = build.DefaultSegPrice.Uint64()
+	}
+
+	if cfg.Order.Duration == 0 {
+		cfg.Order.Duration = 100
+	}
+
+	if cfg.Order.Wait == 0 {
+		cfg.Order.Duration = 3600 * 12
 	}
 
 	r.cfg = cfg

@@ -304,7 +304,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			}
 		}
 	case Order_Running:
-		if nt-o.orderTime > defaultOrderLast {
+		if nt-o.orderTime > int64(m.orderLast) {
 			err := m.closeOrder(o)
 			if err != nil {
 				logger.Debugf("%d order fail due to close order %d %s", o.pro, o.failCnt, err)
@@ -333,7 +333,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			}
 		case OrderSeq_Send:
 			// time is up for next seq, no new data
-			if nt-o.seqTime > defaultOrderSeqLast {
+			if nt-o.seqTime > m.seqLast {
 				err := m.commitSeq(o)
 				if err != nil {
 					logger.Debugf("%d order fail due to commit seq %d %s", o.pro, o.failCnt, err)
@@ -473,7 +473,7 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		}
 
 		start := time.Now().Unix()
-		end := ((start+orderDuration)/types.Day + 1) * types.Day
+		end := ((start+int64(m.orderDur))/types.Day + 1) * types.Day
 		if end < o.prevEnd {
 			end = o.prevEnd
 		}
@@ -612,7 +612,7 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 		logger.Debug("should not close empty order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 		if o.base.End > time.Now().Unix() {
 			// not close order when data is empty
-			o.orderTime += defaultOrderLast
+			o.orderTime += m.orderLast
 			err := saveOrderState(o, m.ds)
 			if err != nil {
 				return err

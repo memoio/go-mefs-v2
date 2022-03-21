@@ -69,7 +69,9 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, ids, bn.PushPool)
 
-	por := porder.NewOrderMgr(ctx, bn.RoleID(), ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.PushPool, bn.ContractMgr)
+	oc := bn.Repo.Config().Order
+
+	por := porder.NewOrderMgr(ctx, bn.RoleID(), oc.Price, ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.PushPool, bn.ContractMgr)
 
 	rp := readpay.NewReceivePay(localAddr, ds)
 
