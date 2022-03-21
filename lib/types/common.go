@@ -153,6 +153,33 @@ func FormatReadPrice(i *big.Int) (result string) {
 	return
 }
 
+func ParsetEthValue(s string) (*big.Int, error) {
+	if len(s) > 32 {
+		return nil, fmt.Errorf("string length too large: %d", len(s))
+	}
+
+	suffix := strings.TrimLeft(s, "-.1234567890")
+	s = s[:len(s)-len(suffix)]
+	r, ok := new(big.Rat).SetString(s)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse %q as a decimal number", s)
+	}
+
+	norm := strings.ToLower(strings.TrimSpace(suffix))
+	switch norm {
+	case "", "token":
+		r.Mul(r, big.NewRat(1_000_000_000, 1))
+		r.Mul(r, big.NewRat(1_000_000_000, 1))
+	case "gwei":
+		r.Mul(r, big.NewRat(1_000_000_000, 1))
+	case "wei":
+	default:
+		return nil, fmt.Errorf("unrecognized suffix: %q", suffix)
+	}
+
+	return r.Num(), nil
+}
+
 func ParsetValue(s string) (*big.Int, error) {
 	if len(s) > 32 {
 		return nil, fmt.Errorf("string length too large: %d", len(s))
