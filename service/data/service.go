@@ -35,7 +35,8 @@ type dataService struct {
 }
 
 func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.IRole, is readpay.ISender) *dataService {
-	cache, _ := lru.NewARC(1024)
+	// 128MB
+	cache, _ := lru.NewARC(1024 * 4 * 128)
 
 	d := &dataService{
 		INetService: ins,
@@ -119,7 +120,7 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 		return seg, err
 	}
 
-	pri, err := d.RoleGet(context.TODO(), from)
+	pri, err := d.RoleGet(ctx, from)
 	if err != nil {
 		return seg, err
 	}
@@ -153,8 +154,6 @@ func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.Segmen
 
 	return binary.BigEndian.Uint64(val), nil
 }
-
-// todo: add readpay sign here
 
 // GetSegmentFrom get segmemnt over network
 func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error) {

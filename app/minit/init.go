@@ -89,5 +89,6 @@ func Create(ctx context.Context, r repo.Repo, password, sk string) error {
 
 	r.Config().Wallet.DefaultAddress = addr.String()
 
-	return nil
+	// save config
+	return r.ReplaceConfig(r.Config())
 }

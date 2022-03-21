@@ -65,6 +65,7 @@ type BaseNode struct {
 	roleID  uint64
 	groupID uint64
 	pw      string
+	version string
 
 	isOnline bool
 
@@ -77,6 +78,10 @@ func (n *BaseNode) RoleID() uint64 {
 
 func (n *BaseNode) GroupID() uint64 {
 	return n.groupID
+}
+
+func (n *BaseNode) Version(_ context.Context) (string, error) {
+	return n.version, nil
 }
 
 // Start boots up the node.

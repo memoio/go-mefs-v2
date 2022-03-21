@@ -18,6 +18,8 @@ import (
 // common API permissions constraints
 type CommonStruct struct {
 	Internal struct {
+		Version func(context.Context) (string, error) `perm:"admin"`
+
 		AuthVerify func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
 		AuthNew    func(ctx context.Context, erms []auth.Permission) ([]byte, error)  `perm:"admin"`
 
@@ -91,6 +93,10 @@ type CommonStruct struct {
 
 		Shutdown func(context.Context) error `perm:"admin"`
 	}
+}
+
+func (s *CommonStruct) Version(ctx context.Context) (string, error) {
+	return s.Internal.Version(ctx)
 }
 
 func (s *CommonStruct) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
