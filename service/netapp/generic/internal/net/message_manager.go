@@ -23,7 +23,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
-var dhtReadMessageTimeout = 10 * time.Second
+var dhtReadMessageTimeout = 15 * time.Second
 
 var logger = logging.Logger("net-message")
 

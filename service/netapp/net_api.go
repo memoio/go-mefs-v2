@@ -31,11 +31,8 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 	pid, ok := c.idMap[id]
 	c.lk.RUnlock()
 	if ok {
-		// should > 10KB/s
-		ctx, cancle := context.WithTimeout(ctx, 30*time.Second)
-		defer cancle()
-
-		resp, err := c.GenericService.SendNetRequest(ctx, pid, c.roleID, typ, value, sig)
+		// should > 20KB/s
+		resp, err := c.GenericService.SendNetRequest(context.TODO(), pid, c.roleID, typ, value, sig)
 		if err != nil {
 			c.lk.Lock()
 			nt, ok := c.peerMap[pid]
@@ -59,7 +56,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 		return resp, nil
 	}
 
-	ctx, cancle := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancle := context.WithTimeout(ctx, 5*time.Second)
 	defer cancle()
 
 	for {
