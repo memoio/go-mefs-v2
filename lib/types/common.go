@@ -85,16 +85,29 @@ func FormatBytesDec(i int64) string {
 	}
 }
 
-func FormatWei(i *big.Int) string {
+func FormatMemo(i *big.Int) string {
 	f := new(big.Float).SetInt(i)
 	res, _ := f.Float64()
 	switch {
 	case res >= Token:
 		return fmt.Sprintf("%.02f Memo", res/Token)
 	case res >= GWei:
-		return fmt.Sprintf("%.02f Nano Memo", res/GWei)
+		return fmt.Sprintf("%.02f NanoMemo", res/GWei)
 	default:
-		return fmt.Sprintf("%d Atto Memo", i.Int64())
+		return fmt.Sprintf("%d AttoMemo", i.Int64())
+	}
+}
+
+func FormatEth(i *big.Int) string {
+	f := new(big.Float).SetInt(i)
+	res, _ := f.Float64()
+	switch {
+	case res >= Token:
+		return fmt.Sprintf("%.02f Eth", res/Token)
+	case res >= GWei:
+		return fmt.Sprintf("%.02f Gwei", res/GWei)
+	default:
+		return fmt.Sprintf("%d Wei", i.Int64())
 	}
 }
 

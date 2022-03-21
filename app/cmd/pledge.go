@@ -39,7 +39,7 @@ var pledgeGetCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Pledge: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatWei(pi.Value), types.FormatWei(pi.Total), types.FormatWei(pi.ErcTotal))
+		fmt.Printf("Pledge: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
 
 		return nil
 	},
@@ -74,9 +74,9 @@ var pledgeAddCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Before Pledge: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatWei(pi.Value), types.FormatWei(pi.Total), types.FormatWei(pi.ErcTotal))
+		fmt.Printf("Before Pledge: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
 
-		fmt.Println("Pledge: ", types.FormatWei(val))
+		fmt.Println("Pledge: ", types.FormatMemo(val))
 
 		err = api.SettlePledge(cctx.Context, val)
 		if err != nil {
@@ -87,7 +87,7 @@ var pledgeAddCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("After Pledge: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatWei(pi.Value), types.FormatWei(pi.Total), types.FormatWei(pi.ErcTotal))
+		fmt.Printf("After Pledge: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
 
 		return nil
 	},
@@ -114,7 +114,7 @@ var pledgeWithdrawCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Before Withdraw: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatWei(pi.Value), types.FormatWei(pi.Total), types.FormatWei(pi.ErcTotal))
+		fmt.Printf("Before Withdraw: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
 
 		if cctx.Args().Present() {
 			val, err := types.ParsetValue(cctx.Args().First())
@@ -124,7 +124,7 @@ var pledgeWithdrawCmd = &cli.Command{
 			pi.Value.Set(val)
 		}
 
-		fmt.Println("Withdraw: ", types.FormatWei(pi.Value))
+		fmt.Println("Withdraw: ", types.FormatMemo(pi.Value))
 
 		err = api.SettleCanclePledge(cctx.Context, pi.Value)
 		if err != nil {
@@ -135,7 +135,7 @@ var pledgeWithdrawCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("After Withdraw: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatWei(pi.Value), types.FormatWei(pi.Total), types.FormatWei(pi.ErcTotal))
+		fmt.Printf("After Withdraw: %s, %s (total pledge), %s (total pledge + reward) \n", types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
 
 		return nil
 	},

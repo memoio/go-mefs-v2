@@ -110,36 +110,41 @@ challenge local data per epoch
 > ./mefs-user info
 
 ----------- Information -----------
-2022-03-01 09:58:32.683372776 +0800 CST m=+0.028990227
+2022-03-21 11:14:57.282231091 +0800 CST m=+0.062574412
+----------- Network Information -----------
+ID:  12D3KooWGfz9746oyBKWMKcQqkhnofSF9J3DF12JAdi2RBbw6N64
+IP:  [/ip4/192.168.1.46/tcp/32215]
+Type: Private
 ----------- Sync Information -----------
-Status: true, Slot: 259436, Time: 2022-03-01 09:58:00 CST
-Height Synced: 22069, Remote: 22070
-Challenge Epoch: 123
+Status: true, Slot: 317189, Time: 2022-03-21 11:14:30 CST
+Height Synced: 8607, Remote: 8607
+Challenge Epoch: 39 2022-03-21 10:59:30 CST
 ----------- Role Information -----------
-ID:  126
+ID:  114
 Type:  User
-Wallet: 0x6baf0fa94d410cb22a9e1bde8605949110354d1d
-Balance: 100009745.09 Gwei (on chain), 679.78 Token (Erc20), 165600934.22 Gwei (in fs)
-Data Stored: size 548454293504 byte (510.79 GiB), price 548454293504000
+Wallet:  0xa4BdB1F76a48c8e7cf1425c471aBE3e5C216dcA8
+Balance: 993.83 Gwei (tx fee), 0 AttoMemo (Erc20), 1.56 Memo (in fs)
+Data Stored: size 5371084800 byte (5.00 GiB), price 5287500000
 ----------- Group Information -----------
-Contract Address:  0x3A014045154403aFF1C07C19553Bc985C123CB6E
-Fs Address:  0x4DF8Ec687865E274f28C1819C86910643dDBEAa5
+EndPoint:  https://devchain.metamemo.one:8501
+Contract Address:  0x15DB6043DFC4eAE279957D0C682dDbFCd529f3fb
+Fs Address:  0xEd8c550F2511bcDD23437b69c6Be71C3e47A4633
 ID:  1
 Security Level:  7
-Size:  1.20 TiB
-Price:  1316841684992000
-Keepers: 10, Providers: 99, Users: 57
+Size:  5.44 GiB
+Price:  479923788000
+Keepers: 10, Providers: 99, Users: 9
 ----------- Pledge Information ----------
-Pledge: 0 Wei, 109.00 Token (total pledge), 329.40 Token (total in pool)
+Pledge: 0 AttoMemo, 109.00 Memo (total pledge), 109.03 Memo (total in pool)
 ----------- Lfs Information ----------
 Status:  true
-Buckets:  3
-Used: 527.91 GiB
-Raw Size: 527.29 GiB
-Confirmed Size: 527.46 GiB
-OnChain Size: 527.29 GiB
-Need Pay: 500.14 Token
-Paid: 500.14 Token
+Buckets:  1
+Used: 5.00 GiB
+Raw Size: 5.00 GiB
+Confirmed Size: 5.00 GiB
+OnChain Size: 5.00 GiB
+Need Pay: 46062754.20 NanoMemo
+Paid: 46062754.20 NanoMemo
 ```
 
 ### lfs ops

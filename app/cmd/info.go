@@ -112,7 +112,7 @@ var InfoCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("Balance: %s (on chain), %s (Erc20), %s (in fs)\n", types.FormatWei(bi.Value), types.FormatWei(bi.ErcValue), types.FormatWei(bi.FsValue))
+		fmt.Printf("Balance: %s (tx fee), %s (Erc20), %s (in fs)\n", types.FormatEth(bi.Value), types.FormatMemo(bi.ErcValue), types.FormatMemo(bi.FsValue))
 
 		switch pri.Type {
 		case pb.RoleInfo_Provider:
@@ -165,7 +165,7 @@ var InfoCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Pledge: %s, %s (total pledge), %s (total in pool)\n", types.FormatWei(pi.Value), types.FormatWei(pi.Total), types.FormatWei(pi.ErcTotal))
+		fmt.Printf("Pledge: %s, %s (total pledge), %s (total in pool)\n", types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
 
 		if pri.Type == pb.RoleInfo_User {
 			uapi, closer, err := client.NewUserNode(cctx.Context, addr, headers)
@@ -190,8 +190,8 @@ var InfoCmd = &cli.Command{
 			fmt.Println("Raw Size:", types.FormatBytes(pi.Size))
 			fmt.Println("Confirmed Size:", types.FormatBytes(pi.ConfirmSize))
 			fmt.Println("OnChain Size:", types.FormatBytes(pi.OnChainSize))
-			fmt.Println("Need Pay:", types.FormatWei(pi.NeedPay))
-			fmt.Println("Paid:", types.FormatWei(pi.Paid))
+			fmt.Println("Need Pay:", types.FormatMemo(pi.NeedPay))
+			fmt.Println("Paid:", types.FormatMemo(pi.Paid))
 		}
 
 		return nil
