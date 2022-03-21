@@ -13,10 +13,6 @@ import (
 )
 
 func (l *LfsService) getObjectInfo(bu *bucket, objectName string) (*object, error) {
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	err := checkObjectName(objectName)
 	if err != nil {
 		return nil, xerrors.Errorf("object name is invalid: %s", err)
@@ -37,10 +33,6 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
-
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
 
 	bu, err := l.getBucketInfo(bucketName)
 	if err != nil {
@@ -72,10 +64,6 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
-
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
 
 	if !l.Writeable() {
 		return nil, ErrLfsReadOnly
@@ -135,10 +123,6 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(2) //只读不需要Online
-
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
 
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {

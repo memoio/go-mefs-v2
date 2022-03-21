@@ -41,7 +41,6 @@ type LfsService struct {
 
 	bucketChan chan uint64
 	readyChan  chan struct{}
-	ready      bool
 }
 
 func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
@@ -69,6 +68,9 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 	ls.fsID = keyset.VerifyKey().Hash()
 	ls.getPayInfo()
 
+	// load lfs info first
+	ls.load()
+
 	return ls, nil
 }
 
@@ -76,17 +78,11 @@ func (l *LfsService) Start() error {
 	// start order manager
 	l.OrderMgr.Start()
 
-	// load lfs info first
-	err := l.load()
-	if err != nil {
-		return err
-	}
-
 	go l.persistMeta()
 
 	has := false
 
-	_, err = l.OrderMgr.StateGetPDPPublicKey(l.ctx, l.userID)
+	_, err := l.OrderMgr.StateGetPDPPublicKey(l.ctx, l.userID)
 	if err != nil {
 		time.Sleep(15 * time.Second)
 		logger.Debug("push create fs message for: ", l.userID)
@@ -225,32 +221,28 @@ func (l *LfsService) Start() error {
 		}
 	}
 
-	logger.Debug("start lfs for: ", l.userID, l.ready)
+	logger.Debug("start lfs for: ", l.userID, l.sb.write)
 	if has {
-		l.ready = true
+		l.sb.write = true
 	}
 
-	if l.ready {
-		logger.Debug("lfs is ready")
+	if l.sb.write {
+		logger.Debug("lfs is ready for write")
 	}
 
 	return nil
 }
 
 func (l *LfsService) Stop() error {
-	l.ready = false
+	l.sb.write = false
 	l.OrderMgr.Stop()
 	return nil
 }
 
-func (l *LfsService) Ready() bool {
+func (l *LfsService) Writeable() bool {
 	if l.sb == nil || l.sb.bucketNameToID == nil {
 		return false
 	}
-	return l.ready
-}
-
-func (l *LfsService) Writeable() bool {
 	return l.sb.write
 }
 
@@ -262,7 +254,7 @@ func (l *LfsService) LfsGetInfo(ctx context.Context, update bool) (*types.LfsInf
 	defer l.sb.RUnlock()
 
 	li := &types.LfsInfo{
-		Status: l.Ready(),
+		Status: l.Writeable(),
 		Bucket: l.sb.bucketVerify,
 		Used:   0,
 	}
@@ -281,10 +273,6 @@ func (l *LfsService) ShowStorage(ctx context.Context) (uint64, error) {
 		return 0, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
-
-	if !l.Ready() { //只读不需要Online
-		return 0, ErrLfsServiceNotReady
-	}
 
 	var storageSpace uint64
 	for _, bucket := range l.sb.buckets {

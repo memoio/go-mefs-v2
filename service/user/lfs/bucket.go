@@ -11,14 +11,6 @@ import (
 )
 
 func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.BucketInfo, error) {
-	if !l.Ready() {
-		return nil, xerrors.New("lfs is not ready")
-	}
-
-	if !l.Writeable() {
-		return nil, ErrLfsReadOnly
-	}
-
 	l.sb.Lock()
 	defer l.sb.Unlock()
 
@@ -52,10 +44,6 @@ func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.
 
 // get bucket with bucket name
 func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	// get bucket ID
 	bucketID, ok := l.sb.bucketNameToID[bucketName]
 	if !ok {
@@ -86,6 +74,10 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
+
+	if !l.Writeable() {
+		return nil, ErrLfsReadOnly
+	}
 
 	err := checkBucketName(bucketName)
 	if err != nil {
@@ -125,10 +117,6 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) (*type
 		return nil, xerrors.Errorf("bucket name is invalid: %s", err)
 	}
 
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	if !l.Writeable() {
 		return nil, ErrLfsReadOnly
 	}
@@ -162,10 +150,6 @@ func (l *LfsService) HeadBucket(ctx context.Context, bucketName string) (*types.
 	}
 	defer l.sw.Release(1)
 
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	err := checkBucketName(bucketName)
 	if err != nil {
 		return nil, err
@@ -190,10 +174,6 @@ func (l *LfsService) ListBuckets(ctx context.Context, prefix string) ([]*types.B
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
-
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
 
 	l.sb.RLock()
 	defer l.sb.RUnlock()

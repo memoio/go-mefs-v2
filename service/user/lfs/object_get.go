@@ -18,10 +18,6 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	}
 	defer l.sw.Release(2)
 
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	// 512MB?
 	if opts.Length > 512*1024*1024 {
 		v, err := mem.VirtualMemory()

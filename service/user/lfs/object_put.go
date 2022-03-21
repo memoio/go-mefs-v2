@@ -20,10 +20,6 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	}
 	defer l.sw.Release(10)
 
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	if !l.Writeable() {
 		return nil, ErrLfsReadOnly
 	}

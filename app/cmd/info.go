@@ -190,7 +190,12 @@ var InfoCmd = &cli.Command{
 				return err
 			}
 
-			fmt.Println("Status: ", li.Status)
+			if li.Status {
+				fmt.Println("Status: writable")
+			} else {
+				fmt.Println("Status: read only")
+			}
+
 			fmt.Println("Buckets: ", li.Bucket)
 			fmt.Println("Used:", types.FormatBytes(li.Used))
 			fmt.Println("Raw Size:", types.FormatBytes(pi.Size))
