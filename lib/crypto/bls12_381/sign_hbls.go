@@ -110,7 +110,6 @@ func Verify(publicKey, msg, signature []byte) error {
 	return errInvalidSignature
 }
 
-// todo: add aggregate and verify
 func AggregateSignature(signatures ...[]byte) ([]byte, error) {
 	size := len(signatures)
 	signs := make([]hbls.Sign, size)

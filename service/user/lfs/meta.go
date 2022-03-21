@@ -53,7 +53,7 @@ func newSuperBlock() *superBlock {
 			NextBucketID: 0,
 		},
 		dirty:          true,
-		bucketVerify:   0, // todo
+		bucketVerify:   0,
 		bucketNameToID: make(map[string]uint64),
 	}
 }

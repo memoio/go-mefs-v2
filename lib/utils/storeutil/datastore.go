@@ -63,7 +63,7 @@ func (d *Datastore) Delete(key ds.Key) error {
 	return d.DB.Delete(key.Bytes())
 }
 
-// todo
+// todo: fix
 func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
 	logger.Debug("query: ", q.Prefix)
 	qrb := dsq.NewResultBuilder(q)

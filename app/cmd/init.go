@@ -96,7 +96,7 @@ var InitCmd = &cli.Command{
 		// from key file
 		kf := cctx.String("kf")
 		if kf != "" {
-			kpw := cctx.String("kpws")
+			kpw := cctx.String("kpw")
 			sk, err := keystore.LoadKeyFile(kpw, kf)
 			if err != nil {
 				return err
@@ -112,15 +112,10 @@ var InitCmd = &cli.Command{
 
 		// from secret key
 		sk := cctx.String("sk")
-		if sk != "" {
-			if err := minit.Create(cctx.Context, rep, pw, sk); err != nil {
-				logger.Errorf("Error initializing node %s", err)
-				return err
-			}
-
-			return nil
+		if err := minit.Create(cctx.Context, rep, pw, sk); err != nil {
+			logger.Errorf("Error initializing node %s", err)
+			return err
 		}
-
 		return nil
 	},
 }

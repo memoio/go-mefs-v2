@@ -65,7 +65,7 @@ type StateMgr struct {
 	handleCommitOrder HandleCommitOrderFunc
 }
 
-// todo: add role contract address here
+// base is role contract address
 func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api.IRole) *StateMgr {
 	buf := make([]byte, 8+len(base))
 	copy(buf[:len(base)], base)

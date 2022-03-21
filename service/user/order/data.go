@@ -22,7 +22,7 @@ type lastProsPerBucket struct {
 	bucketID uint64
 	dc, pc   int
 	pros     []uint64 // update and save to local
-	deleted  []uint64 // todo: add del pro here
+	deleted  []uint64 // add del pro here
 }
 
 // todo: change pro when quotation price is too high

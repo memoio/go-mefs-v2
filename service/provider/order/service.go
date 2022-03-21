@@ -190,6 +190,10 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	if ob.TokenIndex != m.quo.TokenIndex {
+		return nil, xerrors.Errorf("seg token index is wrong, expected %d, got %d", m.quo.TokenIndex, ob.TokenIndex)
+	}
+
 	if ob.SegPrice.Cmp(m.quo.SegPrice) < 0 {
 		return nil, xerrors.Errorf("seg price is lower than expected %d, got %d", m.quo.SegPrice, ob.SegPrice)
 	}
