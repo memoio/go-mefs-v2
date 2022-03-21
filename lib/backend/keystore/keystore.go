@@ -1,6 +1,7 @@
 package keystore
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -161,4 +162,27 @@ func writeKeyFile(file string, content []byte) error {
 		return err
 	}
 	return os.Rename(name, file)
+}
+
+func LoadKeyFile(password, path string) (string, error) {
+	// Load the key from the keystore and decrypt its contents
+	keyjson, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	key, err := decryptKey(keyjson, password)
+	if err != nil {
+		return "", err
+	}
+
+	sk := key.SecretValue
+	var res types.KeyInfo
+	err = json.Unmarshal(key.SecretValue, &res)
+	if err == nil {
+		sk = res.SecretKey
+	}
+
+	enc := make([]byte, len(sk)*2)
+	hex.Encode(enc, sk)
+	return string(enc), nil
 }

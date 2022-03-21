@@ -19,6 +19,8 @@ import (
 )
 
 type FullNode interface {
+	Version(context.Context) (string, error)
+
 	IAuth
 	IConfig
 	IWallet

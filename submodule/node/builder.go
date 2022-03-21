@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/httpio"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -202,6 +203,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		roleID:       b.roleID,
 		groupID:      b.groupID,
 		pw:           b.walletPassword,
+		version:      build.UserVersion(),
 		ContractMgr:  cm,
 		LocalWallet:  lw,
 		shutdownChan: make(chan struct{}),

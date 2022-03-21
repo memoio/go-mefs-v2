@@ -6,6 +6,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
+	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 )
@@ -38,6 +39,17 @@ var InitCmd = &cli.Command{
 			Aliases: []string{"sk"},
 			Usage:   "secret key",
 			Value:   "",
+		},
+		&cli.StringFlag{
+			Name:    "keyfile",
+			Aliases: []string{"kf"},
+			Usage:   "path of keyfile",
+			Value:   "",
+		},
+		&cli.StringFlag{
+			Name:  "kpw",
+			Usage: "password of keyfile",
+			Value: "memoriae",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -81,17 +93,32 @@ var InitCmd = &cli.Command{
 		rType := cctx.String(FlagRoleType)
 		rep.Config().Identity.Role = rType
 
-		// create wallet into repo path
-		sk := cctx.String("sk")
-		if err := minit.Create(cctx.Context, rep, pw, sk); err != nil {
-			logger.Errorf("Error initializing node %s", err)
-			return err
+		// from key file
+		kf := cctx.String("kf")
+		if kf != "" {
+			kpw := cctx.String("kpws")
+			sk, err := keystore.LoadKeyFile(kpw, kf)
+			if err != nil {
+				return err
+			}
+
+			if err := minit.Create(cctx.Context, rep, pw, sk); err != nil {
+				logger.Errorf("Error initializing node %s", err)
+				return err
+			}
+
+			return nil
 		}
 
-		// save config
-		if err := rep.ReplaceConfig(rep.Config()); err != nil {
-			logger.Errorf("Error replacing config %s", err)
-			return err
+		// from secret key
+		sk := cctx.String("sk")
+		if sk != "" {
+			if err := minit.Create(cctx.Context, rep, pw, sk); err != nil {
+				logger.Errorf("Error initializing node %s", err)
+				return err
+			}
+
+			return nil
 		}
 
 		return nil
