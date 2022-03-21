@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	badger "github.com/dgraph-io/badger/v2"
+	"github.com/dgraph-io/badger/v2"
 	"go.uber.org/zap"
 	"golang.org/x/xerrors"
 
@@ -252,13 +252,13 @@ func (d *BadgerStore) Get(key []byte) (value []byte, err error) {
 	var val []byte
 	err = d.db.View(func(txn *badger.Txn) error {
 		switch item, err := txn.Get(key); err {
-		//case badger.ErrKeyNotFound:
-		//	return nil
+		case badger.ErrKeyNotFound:
+			return xerrors.Errorf("%s not found", string(key))
 		case nil:
 			val, err = item.ValueCopy(nil)
 			return err
 		default:
-			return err
+			return xerrors.Errorf("get %s fail: %w", string(key), err)
 		}
 	})
 	return val, err
@@ -276,7 +276,7 @@ func (d *BadgerStore) Has(key []byte) (bool, error) {
 		_, err := txn.Get(key)
 		if err != nil {
 			if err != badger.ErrKeyNotFound {
-				return err
+				return xerrors.Errorf("%s not found", string(key))
 			}
 			return nil
 		} else {

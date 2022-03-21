@@ -35,7 +35,7 @@ func (s *StateMgr) addPay(msg *tx.Message, tds store.TxnStore) error {
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, pip.Income.ProID, pip.Epoch)
 	data, err := tds.Get(key)
 	if err != nil {
-		return xerrors.Errorf("fail get: %s %s", string(key), err)
+		return err
 	}
 
 	err = spi.Deserialize(data)
@@ -127,7 +127,7 @@ func (s *StateMgr) canAddPay(msg *tx.Message) error {
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, 0, pip.Income.ProID, pip.Epoch)
 	data, err := s.ds.Get(key)
 	if err != nil {
-		return xerrors.Errorf("fail get: %s %s", string(key), err)
+		return err
 	}
 
 	err = spi.Deserialize(data)

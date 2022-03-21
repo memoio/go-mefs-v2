@@ -27,7 +27,39 @@ type netServiceAPI struct {
 }
 
 func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.NetMessage_MsgType, value, sig []byte) (*pb.NetMessage, error) {
-	ctx, cancle := context.WithTimeout(ctx, 3*time.Second)
+	c.lk.RLock()
+	pid, ok := c.idMap[id]
+	c.lk.RUnlock()
+	if ok {
+		// should > 10KB/s
+		ctx, cancle := context.WithTimeout(ctx, 30*time.Second)
+		defer cancle()
+
+		resp, err := c.GenericService.SendNetRequest(ctx, pid, c.roleID, typ, value, sig)
+		if err != nil {
+			c.lk.Lock()
+			nt, ok := c.peerMap[pid]
+			if ok {
+				// remove
+				if nt.Add(10 * time.Minute).Before(time.Now()) {
+					delete(c.idMap, id)
+					delete(c.peerMap, pid)
+					c.wants[id] = time.Now()
+					go c.FindPeerID(c.ctx, id)
+				}
+			}
+			c.lk.Unlock()
+			return nil, err
+		}
+
+		c.lk.Lock()
+		c.peerMap[pid] = time.Now()
+		c.lk.Unlock()
+
+		return resp, nil
+	}
+
+	ctx, cancle := context.WithTimeout(ctx, 10*time.Second)
 	defer cancle()
 
 	for {
