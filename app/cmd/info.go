@@ -41,7 +41,13 @@ var InfoCmd = &cli.Command{
 
 		fmt.Println(ansi.Color("----------- Information -----------", "green"))
 
-		fmt.Println(time.Now())
+		ver, err := api.Version(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(time.Now().Format(utils.SHOWTIME))
+		fmt.Println(ver)
 
 		fmt.Println(ansi.Color("----------- Network Information -----------", "green"))
 		npi, err := api.NetAddrInfo(cctx.Context)
