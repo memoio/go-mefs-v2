@@ -194,12 +194,12 @@ func ParsetValue(s string) (*big.Int, error) {
 
 	norm := strings.ToLower(strings.TrimSpace(suffix))
 	switch norm {
-	case "", "Memo":
+	case "", "memo":
 		r.Mul(r, big.NewRat(1_000_000_000, 1))
 		r.Mul(r, big.NewRat(1_000_000_000, 1))
-	case "NanoMemo":
+	case "nanomemo":
 		r.Mul(r, big.NewRat(1_000_000_000, 1))
-	case "AttoMemo":
+	case "attomemo":
 	default:
 		return nil, fmt.Errorf("unrecognized suffix: %q", suffix)
 	}
