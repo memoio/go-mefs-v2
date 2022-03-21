@@ -12,7 +12,7 @@ func (k *KeeperNode) updateOrder() {
 	t := rand.Intn(60)
 	time.Sleep(time.Duration(t) * time.Second)
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(3 * time.Minute)
 	defer ticker.Stop()
 
 	for {

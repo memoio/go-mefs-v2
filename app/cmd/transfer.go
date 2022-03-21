@@ -183,9 +183,9 @@ var transferEthCmd = &cli.Command{
 }
 
 var transferErcCmd = &cli.Command{
-	Name:      "erc",
-	Usage:     "transfer erc",
-	ArgsUsage: "[wallet address] [value]",
+	Name:      "memo",
+	Usage:     "transfer memo",
+	ArgsUsage: "[wallet address (0x...)] [value (Memo / NanoMemo / AttoMemo)]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "endPoint",
@@ -204,7 +204,7 @@ var transferErcCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 2 {
-			return xerrors.Errorf("need two parameters")
+			return xerrors.Errorf("need two parameters: address and value")
 		}
 
 		repoDir := cctx.String(FlagNodeRepo)
@@ -251,6 +251,6 @@ var transferErcCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		return settle.TransferErc20To(ep, sk, tAddr, toAdderss, val)
+		return settle.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
 	},
 }

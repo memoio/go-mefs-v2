@@ -48,7 +48,7 @@ var pledgeGetCmd = &cli.Command{
 var pledgeAddCmd = &cli.Command{
 	Name:      "add",
 	Usage:     "add pledge value",
-	ArgsUsage: "[amount (Token / Gwei / Wei) required]",
+	ArgsUsage: "[amount (Memo / NanoMemo / AttoMemo) required]",
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Args().Present() {
 			return xerrors.Errorf("need amount")
@@ -96,7 +96,7 @@ var pledgeAddCmd = &cli.Command{
 var pledgeWithdrawCmd = &cli.Command{
 	Name:      "withdraw",
 	Usage:     "withdraw pledge value",
-	ArgsUsage: "[amount (Token / Gwei / Wei) optional, otherwise withdraw max available]",
+	ArgsUsage: "[amount (Memo / NanoMemo / AttoMemo) optional, otherwise withdraw max available]",
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)

@@ -90,11 +90,11 @@ func FormatWei(i *big.Int) string {
 	res, _ := f.Float64()
 	switch {
 	case res >= Token:
-		return fmt.Sprintf("%.02f Token", res/Token)
+		return fmt.Sprintf("%.02f Memo", res/Token)
 	case res >= GWei:
-		return fmt.Sprintf("%.02f Gwei", res/GWei)
+		return fmt.Sprintf("%.02f Nano Memo", res/GWei)
 	default:
-		return fmt.Sprintf("%d Wei", i.Int64())
+		return fmt.Sprintf("%d Atto Memo", i.Int64())
 	}
 }
 
@@ -154,12 +154,12 @@ func ParsetValue(s string) (*big.Int, error) {
 
 	norm := strings.ToLower(strings.TrimSpace(suffix))
 	switch norm {
-	case "", "token":
+	case "", "Memo":
 		r.Mul(r, big.NewRat(1_000_000_000, 1))
 		r.Mul(r, big.NewRat(1_000_000_000, 1))
-	case "gwei":
+	case "NanoMemo":
 		r.Mul(r, big.NewRat(1_000_000_000, 1))
-	case "wei":
+	case "AttoMemo":
 	default:
 		return nil, fmt.Errorf("unrecognized suffix: %q", suffix)
 	}
