@@ -9,17 +9,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var (
-	// ErrUnknownAddrType is returned when encountering an unknown protocol in an address.
-	ErrUnknownAddrType = xerrors.New("unknown address type")
-	// ErrInvalidPayload is returned when encountering an invalid address payload.
-	ErrInvalidPayload = xerrors.New("invalid address payload")
-	// ErrInvalidLength is returned when encountering an address of invalid length.
-	ErrInvalidLength = xerrors.New("invalid address length")
-	// ErrInvalidChecksum is returned when encountering an invalid address checksum.
-	ErrInvalidChecksum = xerrors.New("invalid address checksum")
-)
-
 // UndefAddressString is the string used to represent an empty address when encoded to a string.
 var UndefAddressString = "<empty>"
 
@@ -74,7 +63,8 @@ func (a Address) Empty() bool {
 // UnmarshalJSON implements the json unmarshal interface.
 func (a *Address) UnmarshalJSON(b []byte) error {
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
+	err := json.Unmarshal(b, &s)
+	if err != nil {
 		return err
 	}
 
@@ -132,17 +122,17 @@ func encode(addr Address) (string, error) {
 
 func decode(a string) (Address, error) {
 	if len(a) == 0 {
-		return Undef, ErrInvalidLength
+		return Undef, xerrors.New("invalid address length")
 	}
 	if a == UndefAddressString {
-		return Undef, ErrInvalidLength
+		return Undef, xerrors.New("invalid address length")
 	}
 	if len(a) > MaxAddressStringLength || len(a) < 3 {
-		return Undef, ErrInvalidLength
+		return Undef, xerrors.New("invalid address length")
 	}
 
 	if string(a[0:AddrPrefixLen]) != AddrPrefix {
-		return Undef, ErrUnknownAddrType
+		return Undef, xerrors.New("unknown address type")
 	}
 
 	raw := a[AddrPrefixLen:]
@@ -153,14 +143,14 @@ func decode(a string) (Address, error) {
 	}
 
 	if len(payloadcksm)-ChecksumHashLength < 0 {
-		return Undef, ErrInvalidChecksum
+		return Undef, xerrors.New("invalid address checksum")
 	}
 
 	payload := payloadcksm[:len(payloadcksm)-ChecksumHashLength]
 	cksm := payloadcksm[len(payloadcksm)-ChecksumHashLength:]
 
 	if !ValidateChecksum(payload, cksm) {
-		return Undef, ErrInvalidChecksum
+		return Undef, xerrors.New("invalid address checksum")
 	}
 
 	return newAddress(payload)

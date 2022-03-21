@@ -9,16 +9,13 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"golang.org/x/xerrors"
 )
 
 func (l *LfsService) getObjectInfo(bu *bucket, objectName string) (*object, error) {
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	err := checkObjectName(objectName)
 	if err != nil {
-		return nil, ErrObjectNameInvalid
+		return nil, xerrors.Errorf("object name is invalid: %s", err)
 	}
 
 	objectElement := bu.objects.Find(MetaName(objectName))
@@ -27,7 +24,7 @@ func (l *LfsService) getObjectInfo(bu *bucket, objectName string) (*object, erro
 		return obj, nil
 	}
 
-	return nil, ErrObjectNotExist
+	return nil, xerrors.Errorf("object %s not exist", objectName)
 }
 
 func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error) {
@@ -36,10 +33,6 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
-
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
 
 	bu, err := l.getBucketInfo(bucketName)
 	if err != nil {
@@ -71,10 +64,6 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
-
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
 
 	if !l.Writeable() {
 		return nil, ErrLfsReadOnly
@@ -135,10 +124,6 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	}
 	defer l.sw.Release(2) //只读不需要Online
 
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
@@ -163,17 +148,4 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	}
 
 	return objects, nil
-}
-
-func xor(a []byte, b []byte) ([]byte, error) {
-	if len(a) != len(b) {
-		return nil, ErrWrongParameters
-	}
-
-	res := make([]byte, len(a))
-
-	for i := 0; i < len(a); i++ {
-		res[i] = a[i] ^ b[i]
-	}
-	return res, nil
 }

@@ -53,7 +53,8 @@ func newSuperBlock() *superBlock {
 			NextBucketID: 0,
 		},
 		dirty:          true,
-		bucketVerify:   0, // todo
+		write:          false,
+		bucketVerify:   0,
 		bucketNameToID: make(map[string]uint64),
 	}
 }
@@ -489,23 +490,10 @@ func (l *LfsService) load() error {
 		}
 		bu.Unlock()
 	}
-
-	l.sb.write = true
 	return nil
 }
 
 func (l *LfsService) save() error {
-	ok := l.sw.TryAcquire(1)
-	if ok {
-		defer l.sw.Release(1)
-	} else {
-		return nil
-	}
-
-	if !l.Ready() {
-		return nil
-	}
-
 	err := l.sb.Save(l.userID, l.ds)
 	if err != nil {
 		return err
@@ -530,8 +518,8 @@ func (l *LfsService) persistMeta() {
 	for {
 		select {
 		case <-l.readyChan:
-			l.ready = true
-			logger.Debug("lfs is ready")
+			l.sb.write = true
+			logger.Debug("lfs is ready for write")
 		case bid := <-l.bucketChan:
 			logger.Debug("lfs bucket is verified: ", bid)
 			l.sb.Lock()
@@ -547,18 +535,18 @@ func (l *LfsService) persistMeta() {
 			}
 			l.sb.Unlock()
 		case <-tick.C:
-			if l.Ready() {
+			if l.Writeable() {
 				err := l.save()
 				if err != nil {
 					logger.Warn("Cannot Persist Meta: ", err)
 				}
 			}
 		case <-ltick.C:
-			if l.Ready() {
+			if l.Writeable() {
 				l.getPayInfo()
 			}
 		case <-l.ctx.Done():
-			if l.Ready() {
+			if l.Writeable() {
 				err := l.save()
 				if err != nil {
 					logger.Warn("Cannot Persist Meta: ", err)

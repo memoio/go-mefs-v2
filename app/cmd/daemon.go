@@ -63,6 +63,11 @@ var daemonStartCmd = &cli.Command{
 			Usage: "set the group number",
 			Value: 0,
 		},
+		&cli.Uint64Flag{
+			Name:  "price",
+			Usage: "segment price",
+			Value: 0,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		return daemonStartFunc(cctx)
@@ -118,8 +123,14 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 		cfg.Net.Addresses = changed
 	}
 
-	if apiAddr := cctx.String(apiAddrKwd); apiAddr != "" {
+	apiAddr := cctx.String(apiAddrKwd)
+	if apiAddr != "" {
 		cfg.API.Address = apiAddr
+	}
+
+	pr := cctx.Uint64("price")
+	if pr > 0 {
+		cfg.Order.Price = pr
 	}
 
 	rep.ReplaceConfig(cfg)
@@ -219,7 +230,8 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	}
 
 	// Start the node
-	if err := node.Start(); err != nil {
+	err = node.Start()
+	if err != nil {
 		return err
 	}
 

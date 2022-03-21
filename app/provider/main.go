@@ -49,7 +49,8 @@ func main() {
 
 	app.Setup()
 
-	if err := app.Run(os.Args); err != nil {
+	err := app.Run(os.Args)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n\n", err) // nolint:errcheck
 		os.Exit(1)
 	}

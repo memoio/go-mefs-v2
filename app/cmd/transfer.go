@@ -24,7 +24,7 @@ import (
 
 var TransferCmd = &cli.Command{
 	Name:  "transfer",
-	Usage: "transfer eth or erc20",
+	Usage: "transfer eth or memo",
 	Subcommands: []*cli.Command{
 		transferEthCmd,
 		transferErcCmd,
@@ -154,7 +154,7 @@ var transferEthCmd = &cli.Command{
 		addr := cctx.Args().Get(0)
 		toAdderss := common.HexToAddress(addr)
 
-		val, err := types.ParsetValue(cctx.Args().Get(1))
+		val, err := types.ParsetEthValue(cctx.Args().Get(1))
 		if err != nil {
 			return xerrors.Errorf("parsing 'amount' argument: %w", err)
 		}

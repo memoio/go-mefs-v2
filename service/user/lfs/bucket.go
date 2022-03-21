@@ -7,22 +7,15 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"golang.org/x/xerrors"
 )
 
 func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.BucketInfo, error) {
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
-	if !l.Writeable() {
-		return nil, ErrLfsReadOnly
-	}
-
 	l.sb.Lock()
 	defer l.sb.Unlock()
 
 	if _, ok := l.sb.bucketNameToID[bucketName]; ok {
-		return nil, ErrBucketAlreadyExist
+		return nil, xerrors.Errorf("bucket %s already exists", bucketName)
 	}
 
 	bucketID := l.sb.NextBucketID
@@ -51,29 +44,25 @@ func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.
 
 // get bucket with bucket name
 func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	// get bucket ID
 	bucketID, ok := l.sb.bucketNameToID[bucketName]
 	if !ok {
-		return nil, ErrBucketNotExist
+		return nil, xerrors.Errorf("bucket %s not exist", bucketName)
 	}
 
 	// check bucket ID
 	if bucketID >= l.sb.bucketVerify {
-		return nil, ErrBucketIsConfirm
+		return nil, xerrors.Errorf("bucket %d is confirming", bucketID)
 	}
 
 	if len(l.sb.buckets) < int(bucketID) {
-		return nil, ErrBucketNotExist
+		return nil, xerrors.Errorf("bucket id %d not exist", bucketID)
 	}
 
 	// get bucket with ID
 	bucket := l.sb.buckets[bucketID]
 	if bucket.BucketInfo.Deletion {
-		return nil, ErrBucketNotExist
+		return nil, xerrors.Errorf("bucket %s is deleted", bucketName)
 	}
 
 	return bucket, nil
@@ -86,13 +75,17 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 	}
 	defer l.sw.Release(1)
 
+	if !l.Writeable() {
+		return nil, ErrLfsReadOnly
+	}
+
 	err := checkBucketName(bucketName)
 	if err != nil {
-		return nil, ErrBucketNameInvalid
+		return nil, xerrors.Errorf("bucket name is invalid: %s", err)
 	}
 
 	if len(l.sb.buckets) >= int(maxBucket) {
-		return nil, ErrBucketTooMany
+		return nil, xerrors.Errorf("buckets are exceed %d", maxBucket)
 	}
 
 	switch opt.Policy {
@@ -102,11 +95,11 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 		opt.ParityCount = chunkCount - 1
 	case code.RsPolicy:
 	default:
-		return nil, ErrPolicy
+		return nil, xerrors.Errorf("policy %d is not supported", opt.Policy)
 	}
 
 	if opt.DataCount < 1 || opt.ParityCount < 1 {
-		return nil, ErrWrongParameters
+		return nil, xerrors.Errorf("wrong parameters")
 	}
 
 	return l.addBucket(bucketName, opt)
@@ -121,11 +114,7 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) (*type
 
 	err := checkBucketName(bucketName)
 	if err != nil {
-		return nil, ErrBucketNameInvalid
-	}
-
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
+		return nil, xerrors.Errorf("bucket name is invalid: %s", err)
 	}
 
 	if !l.Writeable() {
@@ -161,10 +150,6 @@ func (l *LfsService) HeadBucket(ctx context.Context, bucketName string) (*types.
 	}
 	defer l.sw.Release(1)
 
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	err := checkBucketName(bucketName)
 	if err != nil {
 		return nil, err
@@ -189,10 +174,6 @@ func (l *LfsService) ListBuckets(ctx context.Context, prefix string) ([]*types.B
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
-
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
 
 	l.sb.RLock()
 	defer l.sb.RUnlock()

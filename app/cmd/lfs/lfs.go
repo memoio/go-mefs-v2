@@ -1,7 +1,6 @@
 package lfscmd
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -150,7 +150,7 @@ var createBucketCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		if bucketName == "" {
-			return errors.New("bucketname is nil")
+			return xerrors.New("bucketname is nil")
 		}
 
 		opts := code.DefaultBucketOptions()

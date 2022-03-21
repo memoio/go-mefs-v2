@@ -3,11 +3,11 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 var ConfigCmd = &cli.Command{
@@ -40,7 +40,7 @@ var configGetCmd = &cli.Command{
 
 		key := cctx.String("key")
 		if key == "" {
-			return errors.New("key is nil")
+			return xerrors.New("key is nil")
 		}
 
 		res, err := rep.Config().Get(key)
@@ -91,7 +91,7 @@ var configSetCmd = &cli.Command{
 
 		key := cctx.String("key")
 		if key == "" {
-			return errors.New("key is nil")
+			return xerrors.New("key is nil")
 		}
 
 		value := cctx.String("value")
@@ -101,7 +101,8 @@ var configSetCmd = &cli.Command{
 			return err
 		}
 
-		if err := rep.ReplaceConfig(rep.Config()); err != nil {
+		err = rep.ReplaceConfig(rep.Config())
+		if err != nil {
 			logger.Errorf("Error replacing config %s", err)
 			return err
 		}

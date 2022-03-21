@@ -23,7 +23,8 @@ func FrVersion() int64 {
 }
 
 func FrSetStr(dst *Fr, v string) {
-	if err := (*hbls.Fr)(dst).SetString(v, 10); err != nil {
+	err := (*hbls.Fr)(dst).SetString(v, 10)
+	if err != nil {
 		panic(err)
 	}
 }
@@ -132,11 +133,12 @@ func SqrModFr(dst *Fr, v *Fr) {
 }
 
 func EvalPolyAt(dst *Fr, p []Fr, x *Fr) {
-	if err := hbls.FrEvaluatePolynomial(
+	err := hbls.FrEvaluatePolynomial(
 		(*hbls.Fr)(dst),
 		*(*[]hbls.Fr)(unsafe.Pointer(&p)),
 		(*hbls.Fr)(x),
-	); err != nil {
+	)
+	if err != nil {
 		panic(err) // TODO: why does the herumi API return an error? When coefficients are empty?
 	}
 }

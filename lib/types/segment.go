@@ -7,10 +7,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var (
-	ErrNotFound = xerrors.New("not found")
-)
-
 // sorted by bucketID and jobID
 type SegJob struct {
 	JobID    uint64
@@ -324,7 +320,7 @@ func (sq StripeQueue) GetChunkID(stripeID uint64) (uint32, error) {
 		}
 	}
 
-	return 0, ErrNotFound
+	return 0, xerrors.Errorf("%d not found", stripeID)
 }
 
 func (sq StripeQueue) Equal(old StripeQueue) bool {

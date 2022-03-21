@@ -24,7 +24,8 @@ func (dh *discoveryHandler) HandlePeerFound(p peer.AddrInfo) {
 	ctx, cancel := context.WithTimeout(dh.ctx, 5*time.Second)
 	defer cancel()
 
-	if err := dh.host.Connect(ctx, p); err != nil {
+	err := dh.host.Connect(ctx, p)
+	if err != nil {
 		//logger.Debugf("failed to connect to peer %s found by discovery: %s", p.ID, err)
 	}
 }

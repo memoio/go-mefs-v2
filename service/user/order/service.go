@@ -12,7 +12,6 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -39,8 +38,11 @@ type OrderMgr struct {
 	localID uint64
 	fsID    []byte
 
-	segPrice *big.Int
-	needPay  *big.Int
+	orderDur  int64
+	orderLast int64
+	seqLast   int64
+	segPrice  *big.Int
+	needPay   *big.Int
 
 	sizelk sync.RWMutex
 	opi    *types.OrderPayInfo
@@ -77,7 +79,17 @@ type OrderMgr struct {
 	inCheck bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is *settle.ContractMgr) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDuration, orderLast uint64, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is *settle.ContractMgr) *OrderMgr {
+	if orderLast < 600 {
+		logger.Debug("order last is set to 12 hours")
+		orderLast = 12 * 3600
+	}
+
+	seqLast := orderLast / 10
+	if seqLast < 180 {
+		seqLast = 180
+	}
+
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
@@ -92,7 +104,11 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, ds store.KVSto
 		localID: roleID,
 		fsID:    fsID,
 
-		segPrice: new(big.Int).Set(build.DefaultSegPrice),
+		orderDur:  int64(orderDuration),
+		orderLast: int64(orderLast),
+		seqLast:   int64(seqLast),
+
+		segPrice: new(big.Int).SetUint64(price),
 		needPay:  big.NewInt(0),
 
 		opi: &types.OrderPayInfo{

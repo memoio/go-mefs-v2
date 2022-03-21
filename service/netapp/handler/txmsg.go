@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	"golang.org/x/xerrors"
 )
 
 type HandlerFunc func(context.Context, *tx.SignedMessage) error
@@ -41,7 +42,7 @@ func (i *Impl) Handle(ctx context.Context, mes *tx.SignedMessage) error {
 	}
 
 	if i.handler == nil {
-		return ErrNoHandle
+		return xerrors.New("no tx msg handler")
 	}
 
 	return i.handler(ctx, mes)

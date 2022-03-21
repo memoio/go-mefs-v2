@@ -11,7 +11,7 @@ import (
 
 type ChalEpoch struct {
 	Epoch uint64
-	Slot  uint64 // todo: need change to epoch
+	Slot  uint64
 	Seed  MsgID
 }
 

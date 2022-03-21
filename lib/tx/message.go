@@ -14,11 +14,6 @@ type MsgType = uint32
 // 512KB ok ?
 const MsgMaxLen = 1 << 19
 
-var (
-	ErrMsgLen      = xerrors.New("message length too longth")
-	ErrMsgLenShort = xerrors.New("message length too short")
-)
-
 const (
 	DataTxErr MsgType = 0
 
@@ -72,7 +67,7 @@ func (m *Message) Serialize() ([]byte, error) {
 	}
 
 	if len(res) > int(MsgMaxLen) {
-		return nil, ErrMsgLen
+		return nil, xerrors.Errorf("message length %d is longer than %d", len(res), MsgMaxLen)
 	}
 	return res, nil
 }
@@ -113,7 +108,7 @@ func (sm *SignedMessage) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	if len(res) > int(MsgMaxLen) {
-		return nil, ErrMsgLen
+		return nil, xerrors.Errorf("message length %d is longer than %d", len(res), MsgMaxLen)
 	}
 	return res, nil
 }

@@ -311,7 +311,8 @@ func (d *BadgerStore) Iter(prefix []byte, fn func(k, v []byte) error) int64 {
 			if err != nil {
 				continue
 			}
-			if err := fn(key, val); err == nil {
+			err = fn(key, val)
+			if err == nil {
 				atomic.AddInt64(&total, 1)
 			}
 		}
@@ -332,7 +333,8 @@ func (d *BadgerStore) IterKeys(prefix []byte, fn func(k []byte) error) int64 {
 		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()
 			k := item.Key()
-			if err := fn(k); err == nil {
+			err := fn(k)
+			if err == nil {
 				atomic.AddInt64(&total, 1)
 			}
 		}

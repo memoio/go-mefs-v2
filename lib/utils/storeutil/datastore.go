@@ -6,7 +6,6 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dsq "github.com/ipfs/go-datastore/query"
 	"github.com/jbenet/goprocess"
-	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -14,8 +13,6 @@ import (
 )
 
 var logger = logging.Logger("go-datastore")
-
-var ErrClosed = xerrors.New("datastore closed")
 
 type Datastore struct {
 	DB store.KVStore
@@ -63,7 +60,7 @@ func (d *Datastore) Delete(key ds.Key) error {
 	return d.DB.Delete(key.Bytes())
 }
 
-// todo
+// todo: fix
 func (d *Datastore) Query(q dsq.Query) (dsq.Results, error) {
 	logger.Debug("query: ", q.Prefix)
 	qrb := dsq.NewResultBuilder(q)

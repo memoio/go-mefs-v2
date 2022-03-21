@@ -25,8 +25,6 @@ import (
 
 var dhtReadMessageTimeout = 10 * time.Second
 
-var ErrReadTimeout = xerrors.New("timed out reading response")
-
 var logger = logging.Logger("net-message")
 
 type MessageSender interface {
@@ -64,7 +62,8 @@ func (m *messageSenderImpl) OnDisconnect(ctx context.Context, p peer.ID) {
 
 	// Do this asynchronously as ms.lk can block for a while.
 	go func() {
-		if err := ms.lk.Lock(ctx); err != nil {
+		err := ms.lk.Lock(ctx)
+		if err != nil {
 			return
 		}
 		defer ms.lk.Unlock()
@@ -115,7 +114,8 @@ func (m *messageSenderImpl) SendMessage(ctx context.Context, p peer.ID, pmes *pb
 		return err
 	}
 
-	if err := ms.SendMessage(ctx, pmes); err != nil {
+	err = ms.SendMessage(ctx, pmes)
+	if err != nil {
 		logger.Debugw("message failed", "error", err, "to", p)
 		return err
 	}
@@ -134,7 +134,8 @@ func (m *messageSenderImpl) messageSenderForPeer(ctx context.Context, p peer.ID)
 	m.strmap[p] = ms
 	m.smlk.Unlock()
 
-	if err := ms.prepOrInvalidate(ctx); err != nil {
+	err := ms.prepOrInvalidate(ctx)
+	if err != nil {
 		m.smlk.Lock()
 		defer m.smlk.Unlock()
 
@@ -179,12 +180,14 @@ func (ms *peerMessageSender) invalidate() {
 }
 
 func (ms *peerMessageSender) prepOrInvalidate(ctx context.Context) error {
-	if err := ms.lk.Lock(ctx); err != nil {
+	err := ms.lk.Lock(ctx)
+	if err != nil {
 		return err
 	}
 	defer ms.lk.Unlock()
 
-	if err := ms.prep(ctx); err != nil {
+	err = ms.prep(ctx)
+	if err != nil {
 		ms.invalidate()
 		return err
 	}
@@ -219,18 +222,21 @@ func (ms *peerMessageSender) prep(ctx context.Context) error {
 const streamReuseTries = 3
 
 func (ms *peerMessageSender) SendMessage(ctx context.Context, pmes *pb.NetMessage) error {
-	if err := ms.lk.Lock(ctx); err != nil {
+	err := ms.lk.Lock(ctx)
+	if err != nil {
 		return err
 	}
 	defer ms.lk.Unlock()
 
 	retry := false
 	for {
-		if err := ms.prep(ctx); err != nil {
+		err = ms.prep(ctx)
+		if err != nil {
 			return err
 		}
 
-		if err := ms.writeMsg(pmes); err != nil {
+		err = ms.writeMsg(pmes)
+		if err != nil {
 			_ = ms.s.Reset()
 			ms.s = nil
 
@@ -256,18 +262,21 @@ func (ms *peerMessageSender) SendMessage(ctx context.Context, pmes *pb.NetMessag
 }
 
 func (ms *peerMessageSender) SendRequest(ctx context.Context, pmes *pb.NetMessage) (*pb.NetMessage, error) {
-	if err := ms.lk.Lock(ctx); err != nil {
+	err := ms.lk.Lock(ctx)
+	if err != nil {
 		return nil, err
 	}
 	defer ms.lk.Unlock()
 
 	retry := false
 	for {
-		if err := ms.prep(ctx); err != nil {
+		err = ms.prep(ctx)
+		if err != nil {
 			return nil, err
 		}
 
-		if err := ms.writeMsg(pmes); err != nil {
+		err = ms.writeMsg(pmes)
+		if err != nil {
 			_ = ms.s.Reset()
 			ms.s = nil
 
@@ -281,7 +290,8 @@ func (ms *peerMessageSender) SendRequest(ctx context.Context, pmes *pb.NetMessag
 		}
 
 		mes := new(pb.NetMessage)
-		if err := ms.ctxReadMsg(ctx, mes); err != nil {
+		err = ms.ctxReadMsg(ctx, mes)
+		if err != nil {
 			_ = ms.s.Reset()
 			ms.s = nil
 
@@ -332,7 +342,7 @@ func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.NetMessage)
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-t.C:
-		return ErrReadTimeout
+		return xerrors.New("timed out reading response")
 	}
 }
 

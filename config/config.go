@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"golang.org/x/xerrors"
 )
@@ -25,6 +26,7 @@ type Config struct {
 	Bootstrap BootstrapConfig `json:"bootstrap"`
 	Data      StorePathConfig `json:"data"`
 	Contract  ContractConfig  `json:"contract"`
+	Order     OrderConfig     `json:"order"`
 }
 
 type ContractConfig struct {
@@ -119,14 +121,28 @@ func newDefaultStorePathConfig() StorePathConfig {
 	return StorePathConfig{}
 }
 
-func NewDefaultConfig() *Config {
+type OrderConfig struct {
+	Price    uint64 `json:"price"`
+	Duration uint64 `json:"duration"` // day
+	Wait     uint64 `json:"wait"`     // seconds
+}
 
+func newDefaultOrderConfig() OrderConfig {
+	return OrderConfig{
+		Price:    build.DefaultSegPrice.Uint64(),
+		Duration: 100,       // 100 day
+		Wait:     3600 * 12, // 12 hour
+	}
+}
+
+func NewDefaultConfig() *Config {
 	return &Config{
 		Identity:  newDefaultIdentityConfig(),
 		API:       newDefaultAPIConfig(),
 		Bootstrap: DefaultBootstrapConfig,
 		Data:      newDefaultStorePathConfig(),
 		Net:       newDefaultSwarmConfig(),
+		Order:     newDefaultOrderConfig(),
 	}
 }
 
@@ -175,7 +191,8 @@ func (cfg *Config) Set(dottedKey string, jsonString string) error {
 		jsonString = string(jsonBytes)
 	}
 
-	if err := validate(dottedKey, jsonString); err != nil {
+	err := validate(dottedKey, jsonString)
+	if err != nil {
 		return err
 	}
 
@@ -222,17 +239,20 @@ OUTER:
 // to use for each key.
 func validate(dottedKey string, jsonString string) error {
 	var obj interface{}
-	if err := json.Unmarshal([]byte(jsonString), &obj); err != nil {
+	err := json.Unmarshal([]byte(jsonString), &obj)
+	if err != nil {
 		return err
 	}
 	// recursively validate sub-keys by partially unmarshalling
 	if reflect.ValueOf(obj).Kind() == reflect.Map {
 		var obj map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(jsonString), &obj); err != nil {
+		err := json.Unmarshal([]byte(jsonString), &obj)
+		if err != nil {
 			return err
 		}
 		for key := range obj {
-			if err := validate(dottedKey+"."+key, string(obj[key])); err != nil {
+			err := validate(dottedKey+"."+key, string(obj[key]))
+			if err != nil {
 				return err
 			}
 		}

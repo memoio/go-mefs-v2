@@ -244,7 +244,8 @@ func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 		return
 	}
 
-	if err := pmgr.dht.Bootstrap(ctx); err != nil {
+	err := pmgr.dht.Bootstrap(ctx)
+	if err != nil {
 		logger.Warnf("dht bootstrapping failed: %s", err)
 	}
 }

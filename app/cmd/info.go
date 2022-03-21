@@ -41,7 +41,13 @@ var InfoCmd = &cli.Command{
 
 		fmt.Println(ansi.Color("----------- Information -----------", "green"))
 
-		fmt.Println(time.Now())
+		ver, err := api.Version(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(time.Now().Format(utils.SHOWTIME))
+		fmt.Println(ver)
 
 		fmt.Println(ansi.Color("----------- Network Information -----------", "green"))
 		npi, err := api.NetAddrInfo(cctx.Context)
@@ -184,7 +190,12 @@ var InfoCmd = &cli.Command{
 				return err
 			}
 
-			fmt.Println("Status: ", li.Status)
+			if li.Status {
+				fmt.Println("Status: writable")
+			} else {
+				fmt.Println("Status: read only")
+			}
+
 			fmt.Println("Buckets: ", li.Bucket)
 			fmt.Println("Used:", types.FormatBytes(li.Used))
 			fmt.Println("Raw Size:", types.FormatBytes(pi.Size))

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/md5"
 	"crypto/sha256"
-	"errors"
 	"io"
 	"net/http"
 
@@ -44,7 +43,7 @@ func (m *MemoFs) MakeBucketWithLocation(ctx context.Context, bucket string) erro
 	}
 	defer closer()
 	if bucket == "" {
-		return errors.New("bucketname is nil")
+		return xerrors.New("bucketname is nil")
 	}
 	opts := mcode.DefaultBucketOptions()
 

@@ -58,7 +58,7 @@ func (k keyRepo) Put(name, auth string, info types.KeyInfo) error {
 		return nil
 	}
 
-	return writeKeyFile(path, keyjson) //写入文件
+	return writeKeyFile(path, keyjson)
 }
 
 func (k *keyRepo) Get(name, auth string) (types.KeyInfo, error) {
@@ -138,7 +138,8 @@ func writeTemporaryKeyFile(file string, content []byte) (string, error) {
 	// Create the keystore directory with appropriate permissions
 	// in case it is not present yet.
 	const dirPerm = 0700
-	if err := os.MkdirAll(filepath.Dir(file), dirPerm); err != nil {
+	err := os.MkdirAll(filepath.Dir(file), dirPerm)
+	if err != nil {
 		return "", err
 	}
 	// Atomic write: create a temporary hidden file first

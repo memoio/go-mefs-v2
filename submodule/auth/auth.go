@@ -39,7 +39,8 @@ func NewJwtAuth(rp repo.Repo) (*JwtAuth, error) {
 			SecretKey: sk,
 		}
 
-		if err := rp.KeyStore().Put(jwtSecetName, jwtSecetName, key); err != nil {
+		err = rp.KeyStore().Put(jwtSecetName, jwtSecetName, key)
+		if err != nil {
 			return nil, xerrors.Errorf("writing API secret: %w", err)
 		}
 

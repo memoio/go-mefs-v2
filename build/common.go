@@ -20,25 +20,20 @@ const (
 
 // version 1
 const (
-	UpdateHeight1 = 2880
-	ChalDuration1 = 360 // slot, 3h
+	UpdateHeight1 = 2880 // 1 day
+	ChalDuration1 = 960  // slot, 8h
 	OrderMin1     = 1 * 86400
 )
 
+// version 2
 const (
-	UpdateHeight2 = 2880 * 5
-	ChalDuration2 = 960 // slot, 8h
-	OrderMin2     = 1 * 86400
-)
-
-const (
-	UpdateHeight3 = 2880 * 14
-	ChalDuration3 = 2880 // slot, 24h
-	OrderMin3     = OrderMin
+	UpdateHeight2 = 2880 * 7 // one week for test
+	ChalDuration2 = 2880     // slot, 24h
+	OrderMin2     = OrderMin
 )
 
 var (
-	DefaultSegPrice   = big.NewInt(250 * 1000) // per seg, 1wei/(byte*second)
+	DefaultSegPrice   = big.NewInt(250 * 1000) // per seg, 1AttoMemo/(byte*second)
 	DefaultPiecePrice = big.NewInt(2 * 1000 * 1000)
 	BaseTime          = time.Date(2021, time.December, 1, 0, 0, 0, 0, time.UTC).Unix()
 )

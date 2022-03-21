@@ -53,7 +53,8 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 		Type:      types.Ed25519,
 	}
 
-	if err := store.Put(SelfNetKey, SelfNetKey, nki); err != nil {
+	err = store.Put(SelfNetKey, SelfNetKey, nki)
+	if err != nil {
 		return peer.ID(""), nil, xerrors.Errorf("failed to store private key %w", err)
 	}
 

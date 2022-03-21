@@ -18,10 +18,6 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	}
 	defer l.sw.Release(2)
 
-	if !l.Ready() {
-		return nil, ErrLfsServiceNotReady
-	}
-
 	// 512MB?
 	if opts.Length > 512*1024*1024 {
 		v, err := mem.VirtualMemory()
@@ -47,11 +43,11 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	defer object.RUnlock()
 
 	if object.deletion {
-		return nil, ErrObjectNotExist
+		return nil, xerrors.Errorf("object %s is deleted", objectName)
 	}
 
 	if object.Size == 0 {
-		return nil, ErrObjectIsNil
+		return nil, xerrors.New("object is empty")
 	}
 
 	readStart := opts.Start

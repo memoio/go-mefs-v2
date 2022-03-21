@@ -5,16 +5,8 @@ import (
 	"sync"
 
 	peer "github.com/libp2p/go-libp2p-core/peer"
-	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
-)
-
-var (
-	// ErrMetaHandlerNotAssign 节点没有挂载接口时调用，报这个错
-	ErrHandlerNotAssign = xerrors.New("MetaMessageHandler not assign")
-	//ErrMetaHandlerFailed 进行回调函数出错，没有特定错误的时候，报这个错
-	ErrHandlerFailed = xerrors.New("meta Handler err")
 )
 
 const (

@@ -9,10 +9,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
 
-var (
-	ErrNoHandle = xerrors.New("no handle")
-)
-
 type HandlerBlockFunc func(context.Context, *tx.SignedBlock) error
 
 // BlockHandle is used for handle received tx block from pubsub
@@ -47,7 +43,7 @@ func (i *BlockImpl) Handle(ctx context.Context, mes *tx.SignedBlock) error {
 	}
 
 	if i.handler == nil {
-		return ErrNoHandle
+		return xerrors.New("no block handle")
 	}
 	return i.handler(ctx, mes)
 }

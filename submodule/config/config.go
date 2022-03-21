@@ -24,7 +24,8 @@ func (s *ConfigModule) ConfigSet(ctx context.Context, dottedKey string, jsonStri
 	defer s.lock.Unlock()
 
 	cfg := s.repo.Config()
-	if err := cfg.Set(dottedKey, jsonString); err != nil {
+	err := cfg.Set(dottedKey, jsonString)
+	if err != nil {
 		return err
 	}
 

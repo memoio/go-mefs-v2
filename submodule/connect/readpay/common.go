@@ -2,7 +2,6 @@ package readpay
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"math/big"
 	callconts "memoc/callcontracts"
 
@@ -36,7 +35,7 @@ func skToAddr(sk string) (common.Address, error) {
 	pubKey := skECDSA.Public()
 	pubKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
 	if !ok {
-		return common.Address{}, errors.New("error casting public key to ECDSA")
+		return common.Address{}, xerrors.New("error casting public key to ECDSA")
 	}
 
 	addr := crypto.PubkeyToAddress(*pubKeyECDSA)

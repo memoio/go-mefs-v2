@@ -195,13 +195,16 @@ func (ns *NetworkSubmodule) API() *networkAPI {
 }
 
 func (ns *NetworkSubmodule) Stop(ctx context.Context) {
-	if err := ns.Host.Close(); err != nil {
+	err := ns.Host.Close()
+	if err != nil {
 		logger.Errorf("error closing host: %s\n", err)
 	}
-	if err := ns.Discovery.Close(); err != nil {
+	err = ns.Discovery.Close()
+	if err != nil {
 		logger.Errorf("error closing Discovery: %s\n", err)
 	}
-	if err := ns.PeerMgr.Stop(ctx); err != nil {
+	err = ns.PeerMgr.Stop(ctx)
+	if err != nil {
 		logger.Errorf("error closing PeerMgr: %s\n", err)
 	}
 }
