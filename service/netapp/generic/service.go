@@ -13,7 +13,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal/net"
+	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
@@ -29,7 +29,7 @@ type GenericService struct {
 	ctx  context.Context
 	proc goprocess.Process
 
-	msgSender net.MessageSender
+	msgSender internal.MessageSender
 
 	// DHT protocols we query with. We'll only add peers to our routing
 	// table if they speak these protocols.
@@ -67,7 +67,7 @@ func New(ctx context.Context, ns *network.NetworkSubmodule) (*GenericService, er
 	// the DHT context should be done when the process is closed
 	service.ctx = goprocessctx.WithProcessClosing(ctx, service.proc)
 
-	service.msgSender = net.NewMessageSenderImpl(ns.Host, service.protocols)
+	service.msgSender = internal.NewMessageSenderImpl(ns.Host, service.protocols)
 
 	for _, p := range service.serverProtocols {
 		ns.Host.SetStreamHandler(p, service.handleNewStream)

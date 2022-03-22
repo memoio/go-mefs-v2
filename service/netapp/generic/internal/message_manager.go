@@ -1,9 +1,7 @@
-package net
+package internal
 
 import (
-	"bufio"
 	"context"
-	"io"
 	"sync"
 	"time"
 
@@ -12,14 +10,12 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-msgio"
-	"github.com/libp2p/go-msgio/protoio"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
@@ -130,7 +126,7 @@ func (m *messageSenderImpl) messageSenderForPeer(ctx context.Context, p peer.ID)
 		m.smlk.Unlock()
 		return ms, nil
 	}
-	ms = &peerMessageSender{p: p, m: m, lk: internal.NewCtxMutex()}
+	ms = &peerMessageSender{p: p, m: m, lk: NewCtxMutex()}
 	m.strmap[p] = ms
 	m.smlk.Unlock()
 
@@ -160,7 +156,7 @@ func (m *messageSenderImpl) messageSenderForPeer(ctx context.Context, p peer.ID)
 type peerMessageSender struct {
 	s  network.Stream
 	r  msgio.ReadCloser
-	lk internal.CtxMutex
+	lk CtxMutex
 	p  peer.ID
 	m  *messageSenderImpl
 
@@ -344,38 +340,4 @@ func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.NetMessage)
 	case <-t.C:
 		return xerrors.New("timed out reading response")
 	}
-}
-
-// The Protobuf writer performs multiple small writes when writing a message.
-// We need to buffer those writes, to make sure that we're not sending a new
-// packet for every single write.
-type bufferedDelimitedWriter struct {
-	*bufio.Writer
-	protoio.WriteCloser
-}
-
-var writerPool = sync.Pool{
-	New: func() interface{} {
-		w := bufio.NewWriter(nil)
-		return &bufferedDelimitedWriter{
-			Writer:      w,
-			WriteCloser: protoio.NewDelimitedWriter(w),
-		}
-	},
-}
-
-func WriteMsg(w io.Writer, mes *pb.NetMessage) error {
-	bw := writerPool.Get().(*bufferedDelimitedWriter)
-	bw.Reset(w)
-	err := bw.WriteMsg(mes)
-	if err == nil {
-		err = bw.Flush()
-	}
-	bw.Reset(nil)
-	writerPool.Put(bw)
-	return err
-}
-
-func (w *bufferedDelimitedWriter) Flush() error {
-	return w.Writer.Flush()
 }
