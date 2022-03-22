@@ -18,5 +18,6 @@ func init() {
 		PledgeCmd,
 		registerCmd,
 		versionCmd,
+		backupCmd,
 	}
 }
