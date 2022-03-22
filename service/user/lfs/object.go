@@ -74,13 +74,17 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, err
 	}
 
-	object, err := l.getObjectInfo(bucket, objectName)
-	if err != nil {
-		return nil, err
+	if bucket.BucketID >= l.sb.bucketVerify {
+		return nil, xerrors.Errorf("bucket %d is confirming", bucket.BucketID)
 	}
 
 	bucket.Lock()
 	defer bucket.Unlock()
+
+	object, err := l.getObjectInfo(bucket, objectName)
+	if err != nil {
+		return nil, err
+	}
 
 	object.Lock()
 	defer object.Unlock()

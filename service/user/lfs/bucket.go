@@ -50,13 +50,8 @@ func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
 		return nil, xerrors.Errorf("bucket %s not exist", bucketName)
 	}
 
-	// check bucket ID
-	if bucketID >= l.sb.bucketVerify {
-		return nil, xerrors.Errorf("bucket %d is confirming", bucketID)
-	}
-
 	if len(l.sb.buckets) < int(bucketID) {
-		return nil, xerrors.Errorf("bucket id %d not exist", bucketID)
+		return nil, xerrors.Errorf("bucket %d not exist", bucketID)
 	}
 
 	// get bucket with ID
@@ -127,6 +122,10 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) (*type
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
+	}
+
+	if bucket.BucketID >= l.sb.bucketVerify {
+		return nil, xerrors.Errorf("bucket %d is confirming", bucket.BucketID)
 	}
 
 	bucket.Lock()
