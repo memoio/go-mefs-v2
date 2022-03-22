@@ -35,8 +35,8 @@ type dataService struct {
 }
 
 func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.IRole, is readpay.ISender) *dataService {
-	// 128MB
-	cache, _ := lru.NewARC(1024 * 4 * 128)
+	// 250MB
+	cache, _ := lru.NewARC(1024)
 
 	d := &dataService{
 		INetService: ins,
