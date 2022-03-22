@@ -69,7 +69,7 @@ var backupExportCmd = &cli.Command{
 		}
 		defer pf.Close()
 
-		bar := progressbar.DefaultBytes(-1, "export")
+		bar := progressbar.DefaultBytes(-1, "export:")
 
 		stateDir := filepath.Join(repoDir, "state")
 		opt := badger.DefaultOptions(stateDir)
@@ -86,7 +86,7 @@ var backupExportCmd = &cli.Command{
 
 		bar.Finish()
 
-		fmt.Printf("export to %s\n", p)
+		fmt.Printf("finish export to %s\n", p)
 		return nil
 	},
 }
@@ -129,7 +129,12 @@ var backupImportCmd = &cli.Command{
 		}
 		defer pf.Close()
 
-		bar := progressbar.DefaultBytes(-1, "import")
+		fi, err := pf.Stat()
+		if err != nil {
+			return err
+		}
+
+		bar := progressbar.DefaultBytes(fi.Size(), "import:")
 
 		stateDir := filepath.Join(repoDir, "state")
 		opt := badger.DefaultOptions(stateDir)
@@ -148,7 +153,7 @@ var backupImportCmd = &cli.Command{
 
 		bar.Finish()
 
-		fmt.Printf("import from %s\n", p)
+		fmt.Printf("finish import from %s\n", p)
 
 		return nil
 	},
