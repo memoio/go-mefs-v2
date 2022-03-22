@@ -79,6 +79,10 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 		return nil, xerrors.Errorf("bucket name is invalid: %s", err)
 	}
 
+	if opt.DataCount == 0 || opt.ParityCount == 0 {
+		return nil, xerrors.Errorf("data or parity count should not be zero")
+	}
+
 	if len(l.sb.buckets) >= int(maxBucket) {
 		return nil, xerrors.Errorf("buckets are exceed %d", maxBucket)
 	}
@@ -89,12 +93,11 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opt *p
 		opt.DataCount = 1
 		opt.ParityCount = chunkCount - 1
 	case code.RsPolicy:
+		if opt.DataCount == 1 {
+			opt.Policy = code.MulPolicy
+		}
 	default:
 		return nil, xerrors.Errorf("policy %d is not supported", opt.Policy)
-	}
-
-	if opt.DataCount < 1 || opt.ParityCount < 1 {
-		return nil, xerrors.Errorf("wrong parameters")
 	}
 
 	return l.addBucket(bucketName, opt)

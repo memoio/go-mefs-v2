@@ -9,3 +9,13 @@ func TestUtils(t *testing.T) {
 	t.Log(pros)
 	t.Fatal("end")
 }
+
+func TestReliability(t *testing.T) {
+	res := CalReliabilty(4, 3, 0.9)
+	t.Fatal(res)
+}
+
+func TestBino(t *testing.T) {
+	res := Binomial(50, 50)
+	t.Fatal(res)
+}

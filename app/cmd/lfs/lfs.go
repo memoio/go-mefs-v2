@@ -247,19 +247,14 @@ var headBucketCmd = &cli.Command{
 
 // get security level from dataCount and parityCount
 func ReliabilityLevel(dataCount uint32, parityCount uint32) string {
-	reLevel := ""
+	reLevel := "Risky"
 
-	// low security
-	if dataCount > parityCount {
-		reLevel = "LOW"
-	}
-	// medium security
-	if dataCount == parityCount {
-		reLevel = "MEDIUM"
-	}
-	// high security
-	if dataCount < parityCount {
-		reLevel = "HIGH"
+	// assume each node reliabilty is 0.9
+	res := utils.CalReliabilty(int(dataCount+parityCount), int(dataCount), 0.9)
+	if res > 0.9999 {
+		reLevel = "High"
+	} else if res > 0.99 {
+		reLevel = "Medium"
 	}
 
 	return reLevel
