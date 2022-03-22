@@ -187,8 +187,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		}
 		stripeCount++
 		sendCount++
-		// send some to order
-		if sendCount >= 16 || breakFlag {
+		// send some to order; 64MB
+		if sendCount*int(bucket.DataCount+bucket.ParityCount) >= 256 || breakFlag {
 			ok, err := dp.dv.Result()
 			if !ok || err != nil {
 				return xerrors.New("encode data is wrong")
@@ -229,8 +229,8 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			dp.dv.Reset()
 		}
 
-		// more, change opID
-		if stripeCount >= 64 || breakFlag {
+		// more, change opID; 1GB
+		if stripeCount*int(bucket.DataCount+bucket.ParityCount) >= 4096 || breakFlag {
 			etagb := h.Sum(nil)
 			if opts.UserDefined != nil {
 				val, ok := opts.UserDefined["etag"]
@@ -375,7 +375,75 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 			wg.Wait()
 
 			if sucCnt < int32(dp.dataCount) {
-				return xerrors.Errorf("download not get enough chunks, expected %d, got %d", dp.dataCount, sucCnt)
+				// retry?
+				failCnt = int32(0)
+				sm := semaphore.NewWeighted(int64(dp.dataCount))
+				for i := 0; i < dp.dataCount+dp.parityCount; i++ {
+					err := sm.Acquire(ctx, 1)
+					if err != nil {
+						return err
+					}
+
+					// has data
+					if len(stripe[i]) > 0 {
+						continue
+					}
+
+					// fails too many, no need to download
+					if atomic.LoadInt32(&failCnt) > int32(dp.parityCount) {
+						logger.Errorf("download chunk failed too much")
+						break
+					}
+
+					// enough, no need to download
+					if atomic.LoadInt32(&sucCnt) >= int32(dp.dataCount) {
+						break
+					}
+
+					wg.Add(1)
+					go func(chunkID int) {
+						defer wg.Done()
+
+						segID, err := segment.NewSegmentID(l.fsID, bucket.BucketID, uint64(stripeID), uint32(chunkID))
+						if err != nil {
+							atomic.AddInt32(&failCnt, 1)
+							sm.Release(1)
+							return
+						}
+
+						seg, err := l.OrderMgr.GetSegment(ctx, segID)
+						if err != nil {
+							atomic.AddInt32(&failCnt, 1)
+							sm.Release(1)
+							logger.Warn("download chunk fail: ", segID, err)
+							return
+						}
+
+						// verify seg
+						ok, err := dp.coder.VerifyChunk(segID, seg.Data())
+						if err != nil || !ok {
+							atomic.AddInt32(&failCnt, 1)
+							sm.Release(1)
+							logger.Warn("download chunk is wrong: ", chunkID, segID, err)
+							return
+						}
+
+						logger.Debug("download success: ", chunkID, segID)
+						stripe[chunkID] = seg.Data()
+						atomic.AddInt32(&sucCnt, 1)
+
+						// download dataCount; release resource to break
+						if atomic.LoadInt32(&sucCnt) >= int32(dp.dataCount) {
+							sm.Release(1)
+						}
+					}(i)
+				}
+				wg.Wait()
+
+				// check again
+				if sucCnt < int32(dp.dataCount) {
+					return xerrors.Errorf("download not get enough chunks, expected %d, got %d", dp.dataCount, sucCnt)
+				}
 			}
 
 			res, err := dp.coder.Decode(nil, stripe)

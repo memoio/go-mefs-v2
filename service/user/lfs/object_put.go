@@ -37,6 +37,10 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		return nil, err
 	}
 
+	if bucket.BucketID >= l.sb.bucketVerify {
+		return nil, xerrors.Errorf("bucket %d is confirming", bucket.BucketID)
+	}
+
 	bucket.Lock()
 	defer bucket.Unlock()
 

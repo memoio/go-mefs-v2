@@ -123,7 +123,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
 		data, err = tds.Get(key)
 		if err != nil {
-			return xerrors.Errorf("fail get: %s %s", string(key), err)
+			return err
 		}
 		of := new(types.OrderFull)
 		err = of.Deserialize(data)
@@ -146,7 +146,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
 				data, err = tds.Get(key)
 				if err != nil {
-					return xerrors.Errorf("fail get: %s %s", string(key), err)
+					return err
 				}
 				sf := new(types.SeqFull)
 				err = sf.Deserialize(data)
@@ -177,7 +177,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = tds.Get(key)
 			if err != nil {
-				return xerrors.Errorf("fail get: %s %s", string(key), err)
+				return err
 			}
 			of := new(types.OrderFull)
 			err = of.Deserialize(data)
@@ -436,7 +436,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
 		data, err = s.ds.Get(key)
 		if err != nil {
-			return xerrors.Errorf("fail get: %s %s", string(key), err)
+			return err
 		}
 		of := new(types.OrderFull)
 		err = of.Deserialize(data)
@@ -459,7 +459,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
 				data, err = s.ds.Get(key)
 				if err != nil {
-					return xerrors.Errorf("fail get: %s %s", string(key), err)
+					return err
 				}
 				sf := new(types.SeqFull)
 				err = sf.Deserialize(data)
@@ -490,7 +490,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.ds.Get(key)
 			if err != nil {
-				return xerrors.Errorf("fail get: %s %s", string(key), err)
+				return err
 			}
 			of := new(types.OrderFull)
 			err = of.Deserialize(data)

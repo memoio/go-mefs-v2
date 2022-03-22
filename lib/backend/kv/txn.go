@@ -1,7 +1,9 @@
 package kv
 
 import (
-	badger "github.com/dgraph-io/badger/v2"
+	"github.com/dgraph-io/badger/v2"
+	"golang.org/x/xerrors"
+
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
@@ -36,7 +38,7 @@ func (t *txn) Get(key []byte) (value []byte, err error) {
 
 	item, err := t.txn.Get(key)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get %s fail: %w", string(key), err)
 	}
 
 	return item.ValueCopy(nil)
@@ -51,7 +53,7 @@ func (t *txn) Has(key []byte) (bool, error) {
 
 	_, err := t.txn.Get(key)
 	if err != nil {
-		return false, err
+		return false, xerrors.Errorf("get %s fail: %w", string(key), err)
 	}
 	return true, nil
 }

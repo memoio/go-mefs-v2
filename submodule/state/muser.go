@@ -23,7 +23,7 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 		key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
 		data, err := s.ds.Get(key)
 		if err != nil {
-			return nil, xerrors.Errorf("fail get: %s %s", string(key), err)
+			return nil, err
 		}
 		pk, err := pdp.DeserializePublicKey(data)
 		if err != nil {
