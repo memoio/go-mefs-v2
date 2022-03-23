@@ -3,7 +3,6 @@ package lfscmd
 import (
 	"bytes"
 	"crypto/md5"
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -297,9 +296,7 @@ var getObjectCmd = &cli.Command{
 		}
 
 		h := md5.New()
-		if len(objInfo.ETag) != md5.Size {
-			h = sha256.New()
-		}
+		tr := etag.NewTree()
 
 		// around 64MB
 		buInfo, err := napi.HeadBucket(cctx.Context, bucketName)
@@ -329,7 +326,22 @@ var getObjectCmd = &cli.Command{
 
 			bar.Add64(readLen)
 
-			h.Write(data)
+			if len(objInfo.ETag) == md5.Size {
+				h.Write(data)
+			} else {
+				for start := int64(0); start < readLen; {
+					stepLen := int64(build.DefaultSegSize)
+					if start+stepLen > readLen {
+						stepLen = readLen - start
+					}
+					cid := etag.NewCidFromData(data[start : start+stepLen])
+
+					tr.AddCid(cid, uint64(stepLen))
+
+					start += stepLen
+				}
+			}
+
 			f.Write(data)
 
 			start += readLen
@@ -341,7 +353,7 @@ var getObjectCmd = &cli.Command{
 		if len(objInfo.ETag) == md5.Size {
 			etagb = h.Sum(nil)
 		} else {
-			cidEtag := etag.NewCid(h.Sum(nil))
+			cidEtag := tr.Root()
 			etagb = cidEtag.Bytes()
 		}
 

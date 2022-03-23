@@ -4,12 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
-	"crypto/sha256"
 	"io"
 	"net/http"
 
-	"github.com/ipfs/go-cid"
-	mh "github.com/multiformats/go-multihash"
 	"golang.org/x/xerrors"
 
 	mclient "github.com/memoio/go-mefs-v2/api/client"
@@ -114,9 +111,7 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, w
 	}
 
 	h := md5.New()
-	if len(objInfo.ETag) != md5.Size {
-		h = sha256.New()
-	}
+	tr := etag.NewTree()
 
 	stripeCnt := 4 * 64 / buInfo.DataCount
 	stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
@@ -139,7 +134,21 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, w
 			return err
 		}
 
-		h.Write(data)
+		if len(objInfo.ETag) == md5.Size {
+			h.Write(data)
+		} else {
+			for start := int64(0); start < readLen; {
+				stepLen := int64(build.DefaultSegSize)
+				if start+stepLen > readLen {
+					stepLen = readLen - start
+				}
+				cid := etag.NewCidFromData(data[start : start+stepLen])
+
+				tr.AddCid(cid, uint64(stepLen))
+
+				start += stepLen
+			}
+		}
 		writer.Write(data)
 
 		start += readLen
@@ -149,12 +158,7 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, w
 	if len(objInfo.ETag) == md5.Size {
 		etagb = h.Sum(nil)
 	} else {
-		mhtag, err := mh.Encode(h.Sum(nil), mh.SHA2_256)
-		if err != nil {
-			return err
-		}
-
-		cidEtag := cid.NewCidV1(cid.Raw, mhtag)
+		cidEtag := tr.Root()
 		etagb = cidEtag.Bytes()
 	}
 
