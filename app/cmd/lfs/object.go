@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/schollz/progressbar/v3"
@@ -131,6 +130,14 @@ var putObjectCmd = &cli.Command{
 		}
 		defer pf.Close()
 
+		fi, err := pf.Stat()
+		if err != nil {
+			return err
+		}
+
+		bar := progressbar.DefaultBytes(fi.Size(), "upload:")
+		pr := progressbar.NewReader(pf, bar)
+
 		// create put object options
 		poo := types.DefaultUploadOption()
 
@@ -142,12 +149,14 @@ var putObjectCmd = &cli.Command{
 		poo.UserDefined["encryption"] = encFlag
 
 		// execute putObject
-		oi, err := napi.PutObject(cctx.Context, bucketName, objectName, pf, poo)
+		oi, err := napi.PutObject(cctx.Context, bucketName, objectName, &pr, poo)
 		if err != nil {
 			return err
 		}
 
-		fmt.Println("Put object: ")
+		bar.Finish()
+
+		fmt.Println("object: ")
 		fmt.Println(FormatObjectInfo(oi))
 
 		return nil
@@ -259,27 +268,7 @@ var getObjectCmd = &cli.Command{
 			return xerrors.Errorf("empty file")
 		}
 
-		bar := progressbar.NewOptions64(
-			int64(objInfo.Size),
-			progressbar.OptionSetDescription("download:"),
-			progressbar.OptionEnableColorCodes(true),
-			progressbar.OptionSetWidth(10),
-			progressbar.OptionThrottle(65*time.Millisecond),
-			progressbar.OptionShowCount(),
-			progressbar.OptionShowBytes(true),
-			progressbar.OptionOnCompletion(func() {
-				fmt.Printf("\n")
-			}),
-			progressbar.OptionSetTheme(progressbar.Theme{
-				Saucer:        "[green]=[reset]",
-				SaucerHead:    "[green]>[reset]",
-				SaucerPadding: " ",
-				BarStart:      "[",
-				BarEnd:        "]",
-			}),
-			progressbar.OptionSpinnerType(14),
-			progressbar.OptionFullWidth(),
-		)
+		bar := progressbar.DefaultBytes(int64(objInfo.Size), "download:")
 
 		p, err := homedir.Expand(path)
 		if err != nil {
@@ -345,6 +334,8 @@ var getObjectCmd = &cli.Command{
 
 			start += readLen
 		}
+
+		bar.Finish()
 
 		var etagb []byte
 		if len(objInfo.ETag) == md5.Size {

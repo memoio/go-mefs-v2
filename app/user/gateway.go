@@ -13,10 +13,10 @@ import (
 	"time"
 
 	metag "github.com/memoio/go-mefs-v2/lib/utils/etag"
+	minio "github.com/memoio/minio/cmd"
 	"github.com/minio/cli"
 	"github.com/minio/madmin-go"
 	miniogo "github.com/minio/minio-go/v7"
-	minio "github.com/minio/minio/cmd"
 	"github.com/mitchellh/go-homedir"
 	cli2 "github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"

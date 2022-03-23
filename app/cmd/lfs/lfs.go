@@ -40,24 +40,24 @@ func FormatBucketInfo(bucket *types.BucketInfo) string {
 	return fmt.Sprintf(
 		`Name: %s
 Bucket ID: %d
-Creation Time: %s
-Modify Time: %s
-Object Count: %d
 Policy: %s
 Data Count: %d
 Parity Count: %d
 Reliability: %s
-Used Bytes: %s`,
+Object Count: %d
+Used Bytes: %s
+Creation Time: %s
+Modify Time: %s`,
 		ansi.Color(bucket.Name, "green"),
 		bucket.BucketID,
-		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),
-		time.Unix(int64(bucket.MTime), 0).Format(utils.SHOWTIME),
-		bucket.NextObjectID,
 		FormatPolicy(bucket.Policy),
 		bucket.DataCount,
 		bucket.ParityCount,
 		reliability,
+		bucket.NextObjectID,
 		utils.FormatBytes(int64(bucket.UsedBytes)),
+		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(bucket.MTime), 0).Format(utils.SHOWTIME),
 	)
 }
 
@@ -247,19 +247,14 @@ var headBucketCmd = &cli.Command{
 
 // get security level from dataCount and parityCount
 func ReliabilityLevel(dataCount uint32, parityCount uint32) string {
-	reLevel := ""
+	reLevel := "Risky"
 
-	// low security
-	if dataCount > parityCount {
-		reLevel = "LOW"
-	}
-	// medium security
-	if dataCount == parityCount {
-		reLevel = "MEDIUM"
-	}
-	// high security
-	if dataCount < parityCount {
-		reLevel = "HIGH"
+	// assume each node reliabilty is 0.9
+	res := utils.CalReliabilty(int(dataCount+parityCount), int(dataCount), 0.9)
+	if res > 0.9999 {
+		reLevel = "High"
+	} else if res > 0.99 {
+		reLevel = "Medium"
 	}
 
 	return reLevel

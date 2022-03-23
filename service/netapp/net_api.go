@@ -14,6 +14,7 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	mnet "github.com/multiformats/go-multiaddr/net"
 )
 
 var logger = logging.Logger("netApp")
@@ -178,9 +179,26 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 		resp, err := c.GenericService.SendNetRequest(ctx, c.lastFetch, c.roleID, pb.NetMessage_Get, key, nil)
 		if err == nil && resp.GetHeader().GetType() != pb.NetMessage_Err {
 			logger.Debug("receive data from last good: ", c.lastFetch.Pretty(), string(key))
+			cons := c.ns.Host.Network().ConnsToPeer(c.lastFetch)
+			for _, con := range cons {
+				maddr := con.RemoteMultiaddr()
+				// is ip4/tcp or ip4/udp
+				ok := mnet.IsThinWaist(maddr)
+				if ok {
+					// is public addr
+					ok = mnet.IsPublicAddr(maddr)
+					if ok {
+						c.lastFetch = peer.ID("")
+						break
+					}
+				}
+			}
+
 			return resp.GetData().GetMsgInfo(), nil
 		}
 	}
+
+	c.lastFetch = peer.ID("")
 
 	// iter over connected peers
 	pinfos, err := c.ns.NetPeers(ctx)

@@ -35,8 +35,8 @@ type dataService struct {
 }
 
 func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.IRole, is readpay.ISender) *dataService {
-	// 128MB
-	cache, _ := lru.NewARC(1024 * 4 * 128)
+	// 250MB
+	cache, _ := lru.NewARC(1024)
 
 	d := &dataService{
 		INetService: ins,
@@ -62,16 +62,17 @@ func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment
 
 func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
 	logger.Debug("get segment from local: ", sid)
-	val, has := d.cache.Get(sid)
+	val, has := d.cache.Get(sid.String())
 	if has {
-		return val.(segment.Segment), nil
+		logger.Debug("cache has segment: %s", sid.String())
+		return val.(*segment.BaseSegment), nil
 	}
 	return d.segStore.Get(sid)
 }
 
 func (d *dataService) HasSegment(ctx context.Context, sid segment.SegmentID) (bool, error) {
 	logger.Debug("has segment from local: ", sid)
-	has := d.cache.Contains(sid)
+	has := d.cache.Contains(sid.String())
 	if has {
 		return true, nil
 	}
@@ -177,7 +178,7 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 		return nil, xerrors.Errorf("segment is not required, expected %s, got %s", sid, bs.SegmentID())
 	}
 
-	d.cache.Add(bs.SegmentID(), bs)
+	d.cache.Add(bs.SegmentID().String(), bs)
 
 	// save to local? or after valid it?
 
@@ -186,6 +187,6 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 
 func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) error {
 	logger.Debug("delete segment in local: ", sid)
-	d.cache.Remove(sid)
+	d.cache.Remove(sid.String())
 	return d.segStore.Delete(sid)
 }

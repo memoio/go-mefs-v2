@@ -1,56 +1,20 @@
 package generic
 
 import (
-	"bufio"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-msgio"
-	"github.com/libp2p/go-msgio/protoio"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 var dhtStreamIdleTimeout = 1 * time.Minute
-
-// The Protobuf writer performs multiple small writes when writing a message.
-// We need to buffer those writes, to make sure that we're not sending a new
-// packet for every single write.
-type bufferedDelimitedWriter struct {
-	*bufio.Writer
-	protoio.WriteCloser
-}
-
-var writerPool = sync.Pool{
-	New: func() interface{} {
-		w := bufio.NewWriter(nil)
-		return &bufferedDelimitedWriter{
-			Writer:      w,
-			WriteCloser: protoio.NewDelimitedWriter(w),
-		}
-	},
-}
-
-func writeMsg(w io.Writer, mes *pb.NetMessage) error {
-	bw := writerPool.Get().(*bufferedDelimitedWriter)
-	bw.Reset(w)
-	err := bw.WriteMsg(mes)
-	if err == nil {
-		err = bw.Flush()
-	}
-	bw.Reset(nil)
-	writerPool.Put(bw)
-	return err
-}
-
-func (w *bufferedDelimitedWriter) Flush() error {
-	return w.Writer.Flush()
-}
 
 // handleNewStream implements the network.StreamHandler
 func (service *GenericService) handleNewStream(s network.Stream) {
@@ -130,7 +94,7 @@ func (service *GenericService) handleNewMessage(s network.Stream) bool {
 		}
 
 		// send out response msg
-		err = writeMsg(s, resp)
+		err = internal.WriteMsg(s, resp)
 		if err != nil {
 			stats.Record(ctx, metrics.NetReceivedMessageErrors.M(1))
 			return false

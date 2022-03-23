@@ -126,7 +126,7 @@ func (rm *RoleMgr) syncFromChain() {
 
 			kcnt, err := rm.is.GetGKNum()
 			if err != nil {
-				logger.Debugf("get group %d keeper count fail %w", rm.groupID, err)
+				logger.Debugf("get group %d keeper count fail %s", rm.groupID, err)
 				continue
 			}
 			if kcnt > kCnt {
@@ -135,7 +135,7 @@ func (rm *RoleMgr) syncFromChain() {
 				for i := kCnt; i < kcnt; i++ {
 					kindex, err := rm.is.GetGroupK(rm.groupID, i)
 					if err != nil {
-						logger.Debugf("get group %d keeper %d fail %w", rm.groupID, i, err)
+						logger.Debugf("get group %d keeper %d fail %s", rm.groupID, i, err)
 						continue
 					}
 
@@ -156,7 +156,7 @@ func (rm *RoleMgr) syncFromChain() {
 
 			ucnt, pcnt, err := rm.is.GetGUPNum()
 			if err != nil {
-				logger.Debugf("get group %d user-pro count fail %w", rm.groupID, err)
+				logger.Debugf("get group %d user-pro count fail %s", rm.groupID, err)
 				continue
 			}
 			if pcnt > pCnt {
@@ -166,7 +166,7 @@ func (rm *RoleMgr) syncFromChain() {
 				for i := pCnt; i < pcnt; i++ {
 					pindex, err := rm.is.GetGroupP(rm.groupID, i)
 					if err != nil {
-						logger.Debugf("get group %d pro %d fail %w", rm.groupID, i, err)
+						logger.Debugf("get group %d pro %d fail %s", rm.groupID, i, err)
 						continue
 					}
 
@@ -191,7 +191,7 @@ func (rm *RoleMgr) syncFromChain() {
 				for i := uCnt; i < ucnt; i++ {
 					uindex, err := rm.is.GetGroupU(rm.groupID, i)
 					if err != nil {
-						logger.Debugf("get group %d user %d fail %w", rm.groupID, i, err)
+						logger.Debugf("get group %d user %d fail %s", rm.groupID, i, err)
 						continue
 					}
 

@@ -2,6 +2,7 @@ package txPool
 
 import (
 	"context"
+	"math/big"
 	"sync"
 	"time"
 
@@ -14,13 +15,14 @@ import (
 
 type msgTo struct {
 	mtime time.Time
+	msgID types.MsgID
 	msg   *tx.SignedMessage
 }
 
 type pendingMsg struct {
-	chainNonce uint64                 // nonce on chain
-	nonce      uint64                 // pending nonce
-	msg        map[types.MsgID]*msgTo // to push
+	chainNonce uint64            // nonce on chain
+	nonce      uint64            // pending nonce
+	msgto      map[uint64]*msgTo // to push
 }
 
 var _ api.IChainPush = &PushPool{}
@@ -103,7 +105,7 @@ func (pp *PushPool) syncPush() {
 				lpending, ok := pp.pending[md.From]
 				if ok {
 					logger.Debug("tx msg done: ", md.From, md.Nonce, md.ID)
-					delete(lpending.msg, md.ID)
+					delete(lpending.msgto, md.Nonce)
 					if lpending.chainNonce <= md.Nonce {
 						lpending.chainNonce = md.Nonce + 1
 					}
@@ -116,16 +118,41 @@ func (pp *PushPool) syncPush() {
 			for _, lid := range pp.locals {
 				lpending, ok := pp.pending[lid]
 				if ok {
-					for _, pmsg := range lpending.msg {
-						if pmsg.msg.Nonce < lpending.chainNonce {
-							// remove it
-							delete(lpending.msg, pmsg.msg.Hash())
+					res := make([]uint64, len(lpending.msgto))
+					for nc := range lpending.msgto {
+						res = append(res, nc)
+					}
+
+					for _, nc := range res {
+						pmsg, ok := lpending.msgto[nc]
+						if !ok {
 							continue
 						}
-						if time.Since(pmsg.mtime) > 5*time.Minute {
+
+						if pmsg.msg.Nonce < lpending.chainNonce {
+							// remove it
+							delete(lpending.msgto, nc)
+							continue
+						}
+						if time.Since(pmsg.mtime) > 10*time.Minute {
+							gp := big.NewInt(10)
+							if pmsg.msg.GasPrice != nil {
+								gp = gp.Add(gp, pmsg.msg.GasPrice)
+							}
+							pmsg.msg.GasPrice = gp
+
+							pmsg.msgID = pmsg.msg.Hash()
+							sig, err := pp.RoleSign(pp.ctx, pmsg.msg.From, pmsg.msgID.Bytes(), types.SigSecp256k1)
+							if err != nil {
+								continue
+							}
+							pmsg.msg.Signature = sig
+
 							// publish again
 							pp.INetService.PublishTxMsg(pp.ctx, pmsg.msg)
 							pmsg.mtime = time.Now()
+
+							// need store?
 						}
 					}
 				}
@@ -150,7 +177,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 		lp = &pendingMsg{
 			chainNonce: cNonce,
 			nonce:      cNonce,
-			msg:        make(map[types.MsgID]*msgTo),
+			msgto:      make(map[uint64]*msgTo),
 		}
 		pp.locals = append(pp.locals, mes.From)
 		pp.pending[mes.From] = lp
@@ -200,7 +227,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 		lp = &pendingMsg{
 			chainNonce: cNonce,
 			nonce:      cNonce,
-			msg:        make(map[types.MsgID]*msgTo),
+			msgto:      make(map[uint64]*msgTo),
 		}
 		pp.pending[sm.From] = lp
 	}
@@ -210,12 +237,12 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 		return mid, xerrors.Errorf("%d nonce should be no less than %d, got %d", sm.From, lp.chainNonce, sm.Nonce)
 	}
 
-	_, ok = lp.msg[mid]
-	if !ok {
-		lp.msg[mid] = &msgTo{
-			mtime: time.Now(),
-			msg:   sm,
-		}
+	// replace it; if exist
+	// todo: compare GasPrice?
+	lp.msgto[sm.Nonce] = &msgTo{
+		mtime: time.Now(),
+		msg:   sm,
+		msgID: mid,
 	}
 	pp.lk.Unlock()
 
@@ -262,9 +289,9 @@ func (pp *PushPool) GetPendingMsg(ctx context.Context, id uint64) []types.MsgID 
 	defer pp.lk.RUnlock()
 	lp, ok := pp.pending[id]
 	if ok {
-		res := make([]types.MsgID, len(lp.msg))
-		for mid := range lp.msg {
-			res = append(res, mid)
+		res := make([]types.MsgID, len(lp.msgto))
+		for _, msg := range lp.msgto {
+			res = append(res, msg.msgID)
 		}
 		return res
 	}
