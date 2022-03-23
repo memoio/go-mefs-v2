@@ -40,7 +40,7 @@ require (
 	github.com/libp2p/go-libp2p-tls v0.1.3
 	github.com/libp2p/go-libp2p-yamux v0.5.3
 	github.com/libp2p/go-msgio v0.0.6
-	github.com/memoio/minio v0.1.0
+	github.com/memoio/minio v0.2.0
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/minio/cli v1.22.0
