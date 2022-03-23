@@ -3,7 +3,6 @@ package lfs
 import (
 	"context"
 	"crypto/md5"
-	"crypto/sha256"
 	"encoding/binary"
 	"io"
 	"sync"
@@ -15,6 +14,7 @@ import (
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
@@ -107,13 +107,17 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	rdata := make([]byte, dp.stripeSize)
 	curStripe := bucket.Length / uint64(dp.stripeSize)
 
+	tr := etag.NewTree()
+
 	h := md5.New()
-	if opts.UserDefined != nil {
-		val, ok := opts.UserDefined["etag"]
-		if ok && val == "cid" {
-			h = sha256.New()
+	/*
+		if opts.UserDefined != nil {
+			val, ok := opts.UserDefined["etag"]
+			if ok && val == "cid" {
+				h = sha256.New()
+			}
 		}
-	}
+	*/
 
 	breakFlag := false
 	for !breakFlag {
@@ -133,12 +137,30 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		}
 
 		buf = append(buf, rdata[:n]...)
-		if len(buf) == 0 {
+		bufLen := len(buf)
+		if bufLen == 0 {
 			break
 		}
 
 		// hash of raw data
 		h.Write(buf)
+		if opts.UserDefined != nil {
+			val, ok := opts.UserDefined["etag"]
+			if ok && val == "cid" {
+				for start := 0; start < bufLen; {
+					stepLen := build.DefaultSegSize
+					if start+stepLen > bufLen {
+						stepLen = bufLen - start
+					}
+					cid := etag.NewCidFromData(buf[start : start+stepLen])
+
+					tr.AddCid(cid, uint64(stepLen))
+
+					start += stepLen
+				}
+			}
+		}
+
 		rawLen += len(buf)
 		totalSize += len(buf)
 
@@ -235,8 +257,13 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			if opts.UserDefined != nil {
 				val, ok := opts.UserDefined["etag"]
 				if ok && val == "cid" {
-					cidEtag := etag.NewCid(etagb)
-					etagb = cidEtag.Bytes()
+					if breakFlag {
+						cidEtag := tr.Root()
+						etagb = cidEtag.Bytes()
+					} else {
+						cidEtag := tr.TmpRoot()
+						etagb = cidEtag.Bytes()
+					}
 				}
 			}
 
