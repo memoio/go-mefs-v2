@@ -233,7 +233,7 @@ func (cm *ContractMgr) canclePledge(roleAddr, rTokenAddr common.Address, rindex 
 
 	// check if tindex is valid
 
-	logger.Debug("%d begin Withdraw %d in PledgePool contract", rindex, value)
+	logger.Debugf("%d begin Withdraw %d in PledgePool contract", rindex, value)
 
 	ppIns, err := pledgepool.NewPledgePool(cm.ppAddr, client)
 	if err != nil {
