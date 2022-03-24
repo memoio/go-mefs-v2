@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -38,11 +39,13 @@ var gatewayRunCmd = &cli2.Command{
 			Name:    "username",
 			Aliases: []string{"n"},
 			Usage:   "input your user name",
+			Value:   "memo",
 		},
 		&cli2.StringFlag{
 			Name:    "password",
 			Aliases: []string{"p"},
 			Usage:   "input your password",
+			Value:   "memoriae",
 		},
 		&cli2.StringFlag{
 			Name:    "endpoint",
@@ -54,7 +57,7 @@ var gatewayRunCmd = &cli2.Command{
 			Name:    "console",
 			Aliases: []string{"c"},
 			Usage:   "input your endpoint",
-			Value:   ":8080",
+			Value:   "8080",
 		},
 	},
 	Action: func(cctx *cli2.Context) error {
@@ -74,6 +77,9 @@ var gatewayRunCmd = &cli2.Command{
 		}
 		endPoint := cctx.String("endpoint")
 		consoleAddress := cctx.String("console")
+		if !strings.Contains(consoleAddress, ":") {
+			consoleAddress = ":" + consoleAddress
+		}
 		err := Start(username, pwd, endPoint, consoleAddress)
 		if err != nil {
 			return err

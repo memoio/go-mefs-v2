@@ -142,7 +142,7 @@ var walletExportCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    pwKwd,
-			Aliases: []string{"pw"},
+			Aliases: []string{"pwd"},
 			Value:   "memoriae",
 		},
 	},
