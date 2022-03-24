@@ -68,7 +68,6 @@ func (m *OrderMgr) Start() {
 	// load some
 	users := m.ics.StateGetUsersAt(m.ctx, m.localID)
 	for _, uid := range users {
-		m.users = append(m.users, uid)
 		m.getOrder(uid)
 	}
 
