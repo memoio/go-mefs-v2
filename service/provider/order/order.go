@@ -133,7 +133,7 @@ func (m *OrderMgr) check() error {
 			of.lw.Lock()
 			of.pause = false
 			of.lw.Unlock()
-			logger.Debug("%d order is submitted to data or settle chain: %d %d %d ", uid, of.nonce, ns.Nonce, oi.Nonce)
+			logger.Debugf("%d order is submitted to data or settle chain: %d %d %d ", uid, of.nonce, ns.Nonce, oi.Nonce)
 		}
 	}
 

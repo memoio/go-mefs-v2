@@ -64,7 +64,7 @@ func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.Segme
 	logger.Debug("get segment from local: ", sid)
 	val, has := d.cache.Get(sid.String())
 	if has {
-		logger.Debug("cache has segment: %s", sid.String())
+		logger.Debugf("cache has segment: %s", sid.String())
 		return val.(*segment.BaseSegment), nil
 	}
 	return d.segStore.Get(sid)
