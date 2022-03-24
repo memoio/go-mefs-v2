@@ -30,7 +30,7 @@ var InitCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:    pwKwd,
-			Aliases: []string{"pw"},
+			Aliases: []string{"pwd"},
 			Usage:   "set password for access secret key",
 			Value:   "memoriae",
 		},

@@ -455,7 +455,7 @@ func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 		}
 
 		if !seg.doneBits.Test(id) {
-			logger.Warn("confirm seg is not done in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
+			logger.Warn("confirm seg is not sent in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
 			// reset again
 			seg.doneBits.Set(id)
 		}

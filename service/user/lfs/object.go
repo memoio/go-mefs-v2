@@ -53,7 +53,7 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 		ct += c
 	}
 
-	object.State = fmt.Sprintf("total %d, dispatch %d, done %d, confirm %d", tt, dist, donet, ct)
+	object.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
 
 	return &object.ObjectInfo, nil
 }
