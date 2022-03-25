@@ -9,7 +9,7 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 )
 
-var AuthCmd = &cli.Command{
+var authCmd = &cli.Command{
 	Name:  "auth",
 	Usage: "Interact with auth",
 	Subcommands: []*cli.Command{

@@ -17,7 +17,7 @@ import (
 	netutils "github.com/memoio/go-mefs-v2/lib/utils/net"
 )
 
-var NetCmd = &cli.Command{
+var netCmd = &cli.Command{
 	Name:  "net",
 	Usage: "Interact with net",
 	Subcommands: []*cli.Command{

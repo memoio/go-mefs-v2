@@ -18,7 +18,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
-var InfoCmd = &cli.Command{
+var infoCmd = &cli.Command{
 	Name:  "info",
 	Usage: "print information of this node",
 	Action: func(cctx *cli.Context) error {

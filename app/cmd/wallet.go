@@ -19,7 +19,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
-var WalletCmd = &cli.Command{
+var walletCmd = &cli.Command{
 	Name:  "wallet",
 	Usage: "Interact with wallet",
 	Subcommands: []*cli.Command{

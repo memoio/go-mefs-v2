@@ -28,7 +28,7 @@ const (
 	MEMO_PASSWORD = "MEMO_PASSWORD"
 )
 
-var DaemonCmd = &cli.Command{
+var daemonCmd = &cli.Command{
 	Name:  "daemon",
 	Usage: "Run a network-connected Memoriae node.",
 

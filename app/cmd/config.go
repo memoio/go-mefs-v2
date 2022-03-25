@@ -11,7 +11,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var ConfigCmd = &cli.Command{
+var configCmd = &cli.Command{
 	Name:  "config",
 	Usage: "Interact with config",
 	Subcommands: []*cli.Command{
@@ -49,7 +49,19 @@ var configGetCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
-			fmt.Printf("get key: %s, value: %v\n", key, res.(string))
+
+			bs, err := json.MarshalIndent(res, "", "\t")
+			if err != nil {
+				return err
+			}
+
+			var out bytes.Buffer
+			err = json.Indent(&out, bs, "", "\t")
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("get key: %s, value: %v\n", key, out.String())
 		} else {
 			rep, err := repo.NewFSRepo(repoDir, nil)
 			if err != nil {

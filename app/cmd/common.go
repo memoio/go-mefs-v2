@@ -6,18 +6,19 @@ var CommonCmd []*cli.Command
 
 func init() {
 	CommonCmd = []*cli.Command{
-		InitCmd,
-		DaemonCmd,
-		AuthCmd,
-		WalletCmd,
-		NetCmd,
-		ConfigCmd,
-		StateCmd,
-		RoleCmd,
-		InfoCmd,
-		PledgeCmd,
+		initCmd,
+		daemonCmd,
+		authCmd,
+		walletCmd,
+		netCmd,
+		configCmd,
+		stateCmd,
+		roleCmd,
+		infoCmd,
+		pledgeCmd,
 		registerCmd,
 		versionCmd,
 		backupCmd,
+		bootstrapCmd,
 	}
 }
