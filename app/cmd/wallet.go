@@ -14,6 +14,7 @@ import (
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
@@ -138,7 +139,7 @@ var walletnewCmd = &cli.Command{
 var walletExportCmd = &cli.Command{
 	Name:      "export",
 	Usage:     "export wallet address",
-	ArgsUsage: "[wallet address]",
+	ArgsUsage: "[wallet address (0x...)]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    pwKwd,
@@ -151,25 +152,14 @@ var walletExportCmd = &cli.Command{
 			return xerrors.Errorf("need one parameter")
 		}
 
-		repoDir := cctx.String(FlagNodeRepo)
-		addr, headers, err := client.GetMemoClientInfo(repoDir)
-		if err != nil {
-			return err
-		}
-
-		api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
-		ethAddr := cctx.Args().Get(0)
-		toAdderss := common.HexToAddress(ethAddr)
+		// trans address format
+		toAdderss := common.HexToAddress(cctx.Args().Get(0))
 		maddr, err := address.NewAddress(toAdderss.Bytes())
 		if err != nil {
 			return err
 		}
 
+		// get password
 		pw := cctx.String(pwKwd)
 		if pw == "" {
 			pw, err = minit.GetPassWord()
@@ -177,11 +167,29 @@ var walletExportCmd = &cli.Command{
 				return err
 			}
 		}
-		ki, err := api.WalletExport(cctx.Context, maddr, pw)
-		if err != nil {
-			return err
+
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err == nil {
+			api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+			if err != nil {
+				return err
+			}
+			defer closer()
+
+			ki, err := api.WalletExport(cctx.Context, maddr, pw)
+			if err != nil {
+				return err
+			}
+			fmt.Println("secret key: ", hex.EncodeToString(ki.SecretKey))
+		} else {
+			kfile := filepath.Join(repoDir, "keystore", maddr.String())
+			sk, err := keystore.LoadKeyFile(pw, kfile)
+			if err != nil {
+				return err
+			}
+			fmt.Println("secret key: ", sk)
 		}
-		fmt.Println("secret key: ", hex.EncodeToString(ki.SecretKey))
 
 		return nil
 	},

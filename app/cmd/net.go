@@ -125,7 +125,7 @@ var netPeersCmd = &cli.Command{
 var netConnectCmd = &cli.Command{
 	Name:      "connect",
 	Usage:     "connet a peer",
-	ArgsUsage: "[peerMultiaddr]",
+	ArgsUsage: "[peer multiaddr (/ip4/1.2.3.4/tcp/5678/p2p/12D...)]",
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -159,7 +159,7 @@ var netConnectCmd = &cli.Command{
 var findpeerCmd = &cli.Command{
 	Name:      "findpeer",
 	Usage:     "find peers",
-	ArgsUsage: "[peerID]",
+	ArgsUsage: "[peerID (12D...)]",
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -197,7 +197,7 @@ var findpeerCmd = &cli.Command{
 var declareCmd = &cli.Command{
 	Name:      "declare",
 	Usage:     "declare public network address",
-	ArgsUsage: "[net address(/ip4/1.2.3.4/tcp/5678)]",
+	ArgsUsage: "[net address (/ip4/1.2.3.4/tcp/5678)]",
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 1 {
 			return xerrors.Errorf("require one parameter")
