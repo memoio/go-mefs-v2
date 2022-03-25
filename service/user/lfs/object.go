@@ -18,7 +18,7 @@ func (l *LfsService) getObjectInfo(bu *bucket, objectName string) (*object, erro
 		return nil, xerrors.Errorf("object name is invalid: %s", err)
 	}
 
-	objectElement := bu.objects.Find(MetaName(objectName))
+	objectElement := bu.objectTree.Find(MetaName(objectName))
 	if objectElement != nil {
 		obj := objectElement.(*object)
 		return obj, nil
@@ -116,7 +116,8 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, err
 	}
 
-	bucket.objects.Delete(MetaName(objectName))
+	bucket.objectTree.Delete(MetaName(objectName))
+	delete(bucket.objects, object.ObjectID)
 
 	return nil, nil
 }
@@ -138,10 +139,10 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 
 	var objects []*types.ObjectInfo
 	cnt := 0
-	if !bucket.objects.Empty() {
-		objectIter := bucket.objects.Iterator()
+	if !bucket.objectTree.Empty() {
+		objectIter := bucket.objectTree.Iterator()
 		if opts.Marker != "" {
-			objectIter = bucket.objects.FindIt(MetaName(opts.Marker))
+			objectIter = bucket.objectTree.FindIt(MetaName(opts.Marker))
 		}
 		for objectIter != nil {
 			object, ok := objectIter.Value.(*object)

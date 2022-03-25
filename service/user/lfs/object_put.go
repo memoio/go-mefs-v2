@@ -2,6 +2,7 @@ package lfs
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 	"io"
 	"time"
@@ -83,6 +84,14 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		l.renameObject(ctx, bucket, object, newName)
 	}
 
+	if len(object.ETag) != md5.Size {
+		ename, _ := etag.ToString(object.ETag)
+		l.sb.cids[ename] = &objectDigest{
+			bucketID: object.BucketID,
+			objectID: object.ObjectID,
+		}
+	}
+
 	tt, dist, donet, ct := 0, 0, 0, 0
 	for _, opID := range object.ops[1 : 1+len(object.Parts)] {
 		total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
@@ -102,7 +111,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 // create object with bucket, object name, opts
 func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectName string, opts *types.PutObjectOptions) (*object, error) {
 	// check if object exists in rbtree
-	objectElement := bucket.objects.Find(MetaName(objectName))
+	objectElement := bucket.objectTree.Find(MetaName(objectName))
 	if objectElement != nil {
 		return nil, xerrors.Errorf("object %s already exist", objectName)
 	}
@@ -165,7 +174,8 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 	}
 
 	// insert new object into rbtree of bucket
-	bucket.objects.Insert(MetaName(objectName), object)
+	bucket.objectTree.Insert(MetaName(objectName), object)
+	bucket.objects[object.ObjectID] = object
 
 	logger.Debugf("Upload create object: %s in bucket: %s %d", object.GetName(), bucket.GetName(), op.OpID)
 
@@ -213,11 +223,11 @@ func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *o
 	}
 
 	// remove old
-	bucket.objects.Delete(MetaName(object.Name))
+	bucket.objectTree.Delete(MetaName(object.Name))
 
 	// insert new object into rbtree of bucket
 	object.Name = newName
-	bucket.objects.Insert(MetaName(newName), object)
+	bucket.objectTree.Insert(MetaName(newName), object)
 
 	logger.Debugf("object %d rename to: %s in bucket: %s %d", object.ObjectID, object.GetName(), bucket.GetName(), op.OpID)
 
