@@ -129,6 +129,14 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	}
 	defer l.sw.Release(2) //只读不需要Online
 
+	if opts.Delimiter == SlashSeparator && opts.Prefix == SlashSeparator {
+		return nil, nil
+	}
+
+	if opts.MaxKeys < 0 || opts.MaxKeys > types.MaxListKeys {
+		opts.MaxKeys = types.MaxListKeys
+	}
+
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
@@ -137,7 +145,11 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	bucket.RLock()
 	defer bucket.RUnlock()
 
-	var objects []*types.ObjectInfo
+	if opts.MaxKeys > bucket.objectTree.Size() {
+		opts.MaxKeys = bucket.objectTree.Size()
+	}
+
+	objects := make([]*types.ObjectInfo, 0, opts.MaxKeys)
 	cnt := 0
 	if !bucket.objectTree.Empty() {
 		objectIter := bucket.objectTree.Iterator()

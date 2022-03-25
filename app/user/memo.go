@@ -92,10 +92,6 @@ func (m *MemoFs) ListObjects(ctx context.Context, bucket string, prefix, marker,
 		MaxKeys:   maxKeys,
 	}
 
-	if loo.Delimiter == "" {
-		loo.Recursive = true
-	}
-
 	mloi, err = napi.ListObjects(ctx, bucket, loo)
 	if err != nil {
 		return mloi, err

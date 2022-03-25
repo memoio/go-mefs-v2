@@ -94,13 +94,11 @@ func DefaultDownloadOption() *DownloadObjectOptions {
 type ListObjectsOptions struct {
 	Prefix, Marker, Delimiter string
 	MaxKeys                   int
-	Recursive                 bool
 }
 
 func DefaultListOption() *ListObjectsOptions {
 	return &ListObjectsOptions{
-		MaxKeys:   MaxListKeys,
-		Recursive: true,
+		MaxKeys: MaxListKeys,
 	}
 }
 

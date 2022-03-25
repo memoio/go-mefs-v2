@@ -43,11 +43,6 @@ var listObjectsCmd = &cli.Command{
 			Usage: "number of objects in return",
 			Value: types.MaxListKeys,
 		},
-		&cli.BoolFlag{
-			Name:  "recursive",
-			Usage: "recursive query",
-			Value: true,
-		},
 	},
 
 	Action: func(cctx *cli.Context) error {
@@ -70,10 +65,6 @@ var listObjectsCmd = &cli.Command{
 			Marker:    cctx.String("marker"),
 			Delimiter: cctx.String("delimiter"),
 			MaxKeys:   cctx.Int("maxKeys"),
-			Recursive: cctx.Bool("recursive"),
-		}
-		if loo.Recursive {
-			loo.Delimiter = ""
 		}
 
 		loi, err := napi.ListObjects(cctx.Context, bucketName, loo)
