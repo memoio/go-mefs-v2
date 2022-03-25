@@ -19,7 +19,7 @@ const (
 )
 
 // new repo and create wallet for you
-var InitCmd = &cli.Command{
+var initCmd = &cli.Command{
 	Name:  "init",
 	Usage: "Initialize a memoriae repo",
 	Flags: []cli.Flag{
@@ -30,7 +30,7 @@ var InitCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:    pwKwd,
-			Aliases: []string{"pw"},
+			Aliases: []string{"pwd"},
 			Usage:   "set password for access secret key",
 			Value:   "memoriae",
 		},

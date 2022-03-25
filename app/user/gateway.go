@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,17 +33,19 @@ var GatewayCmd = &cli2.Command{
 
 var gatewayRunCmd = &cli2.Command{
 	Name:  "run",
-	Usage: "Run a memo gateway",
+	Usage: "run a memo gateway",
 	Flags: []cli2.Flag{
 		&cli2.StringFlag{
 			Name:    "username",
 			Aliases: []string{"n"},
 			Usage:   "input your user name",
+			Value:   "memo",
 		},
 		&cli2.StringFlag{
 			Name:    "password",
 			Aliases: []string{"p"},
 			Usage:   "input your password",
+			Value:   "memoriae",
 		},
 		&cli2.StringFlag{
 			Name:    "endpoint",
@@ -54,7 +57,7 @@ var gatewayRunCmd = &cli2.Command{
 			Name:    "console",
 			Aliases: []string{"c"},
 			Usage:   "input your endpoint",
-			Value:   ":8080",
+			Value:   "8080",
 		},
 	},
 	Action: func(cctx *cli2.Context) error {
@@ -74,6 +77,9 @@ var gatewayRunCmd = &cli2.Command{
 		}
 		endPoint := cctx.String("endpoint")
 		consoleAddress := cctx.String("console")
+		if !strings.Contains(consoleAddress, ":") {
+			consoleAddress = ":" + consoleAddress
+		}
 		err := Start(username, pwd, endPoint, consoleAddress)
 		if err != nil {
 			return err
@@ -246,7 +252,7 @@ func (l *lfsGateway) DeleteBucket(ctx context.Context, bucket string, opts minio
 
 // ListObjects lists all blobs in LFS bucket filtered by prefix.
 func (l *lfsGateway) ListObjects(ctx context.Context, bucket, prefix, marker, delimiter string, maxKeys int) (loi minio.ListObjectsInfo, err error) {
-	mloi, err := l.memofs.ListObjects(ctx, bucket)
+	mloi, err := l.memofs.ListObjects(ctx, bucket, prefix, marker, delimiter, maxKeys)
 	if err != nil {
 		return loi, err
 	}

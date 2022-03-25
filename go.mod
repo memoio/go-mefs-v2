@@ -12,7 +12,6 @@ require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gbrlsnchs/jwt/v3 v3.0.1
-	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
@@ -24,6 +23,10 @@ require (
 	github.com/ipfs/go-datastore v0.4.6
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-fs-lock v0.0.7
+	github.com/ipfs/go-ipld-format v0.2.0
+	github.com/ipfs/go-unixfs v0.2.6
+	github.com/ipld/go-codec-dagpb v1.3.0
+	github.com/ipld/go-ipld-prime v0.11.0
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
 	github.com/klauspost/reedsolomon v1.9.15
@@ -38,7 +41,7 @@ require (
 	github.com/libp2p/go-libp2p-pubsub v0.4.2
 	github.com/libp2p/go-libp2p-swarm v0.5.0
 	github.com/libp2p/go-libp2p-tls v0.1.3
-	github.com/libp2p/go-libp2p-yamux v0.5.3
+	github.com/libp2p/go-libp2p-yamux v0.5.4
 	github.com/libp2p/go-msgio v0.0.6
 	github.com/memoio/minio v0.2.0
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b

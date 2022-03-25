@@ -45,7 +45,7 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	}
 
 	tt, dist, donet, ct := 0, 0, 0, 0
-	for _, opID := range object.ops[1:] {
+	for _, opID := range object.ops[1 : 1+len(object.Parts)] {
 		total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
 		dist += dis
 		donet += done
@@ -53,7 +53,7 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 		ct += c
 	}
 
-	object.State = fmt.Sprintf("total %d, dispatch %d, done %d, confirm %d", tt, dist, donet, ct)
+	object.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
 
 	return &object.ObjectInfo, nil
 }
@@ -137,15 +137,22 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	defer bucket.RUnlock()
 
 	var objects []*types.ObjectInfo
-
+	cnt := 0
 	if !bucket.objects.Empty() {
 		objectIter := bucket.objects.Iterator()
+		if opts.Marker != "" {
+			objectIter = bucket.objects.FindIt(MetaName(opts.Marker))
+		}
 		for objectIter != nil {
 			object, ok := objectIter.Value.(*object)
 			if ok && !object.deletion {
 				if strings.HasPrefix(object.GetName(), opts.Prefix) {
 					objects = append(objects, &object.ObjectInfo)
+					cnt++
 				}
+			}
+			if cnt >= opts.MaxKeys {
+				break
 			}
 			objectIter = objectIter.Next()
 		}

@@ -88,12 +88,12 @@ type APIConfig struct {
 
 func newDefaultAPIConfig() APIConfig {
 	return APIConfig{
-		Address: "/ip4/127.0.0.1/tcp/8000",
+		Address: "/ip4/127.0.0.1/tcp/5001",
 		AccessControlAllowOrigin: []string{
-			"http://localhost:8000",
-			"https://localhost:8000",
-			"http://127.0.0.1:8000",
-			"https://127.0.0.1:8000",
+			"http://localhost:5001",
+			"https://localhost:5001",
+			"http://127.0.0.1:5001",
+			"https://127.0.0.1:5001",
 		},
 		AccessControlAllowMethods: []string{"GET", "POST", "PUT"},
 	}

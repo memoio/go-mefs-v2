@@ -9,7 +9,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var PledgeCmd = &cli.Command{
+var pledgeCmd = &cli.Command{
 	Name:  "pledge",
 	Usage: "Interact with pledge",
 	Subcommands: []*cli.Command{

@@ -3,6 +3,7 @@ package lfs
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 type superBlock struct {
@@ -370,6 +372,14 @@ func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 			}
 
 			ob.deletion = true
+		case pb.OpRecord_Rename:
+			cni := new(pb.ObjectRenameInfo)
+			err = proto.Unmarshal(or.GetPayload(), cni)
+			if err != nil {
+				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
+				continue
+			}
+			ob.Name = cni.GetName()
 		}
 	}
 
@@ -483,6 +493,24 @@ func (l *LfsService) load() error {
 				}
 
 				if !obj.deletion {
+					tt, dist, donet, ct := 0, 0, 0, 0
+					for _, opID := range obj.ops[1 : 1+len(obj.Parts)] {
+						total, dis, done, c := l.OrderMgr.GetSegJogState(obj.BucketID, opID)
+						dist += dis
+						donet += done
+						tt += total
+						ct += c
+					}
+
+					obj.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+					if obj.Name == "" {
+						newName, err := etag.ToString(obj.ETag)
+						if err != nil {
+							continue
+						}
+						obj.Name = newName
+					}
+
 					bu.objects.Insert(MetaName(obj.Name), obj)
 				}
 			}

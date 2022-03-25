@@ -3,7 +3,6 @@ package lfscmd
 import (
 	"bytes"
 	"crypto/md5"
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,9 +26,30 @@ var listObjectsCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    "bucket",
 			Aliases: []string{"bn"},
-			Usage:   "bucketName",
+			Usage:   "bucket name, priority",
+		},
+		&cli.StringFlag{
+			Name:  "marker",
+			Usage: "key start from, marker should exist",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "prefix",
+			Usage: "prefix of objects",
+			Value: "",
+		},
+		&cli.IntFlag{
+			Name:  "maxKeys",
+			Usage: "number of objects in return",
+			Value: types.MaxListKeys,
+		},
+		&cli.BoolFlag{
+			Name:  "recursive",
+			Usage: "recursive query",
+			Value: true,
 		},
 	},
+
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(cmd.FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -45,8 +65,18 @@ var listObjectsCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 
-		ops := types.DefaultListOption()
-		loi, err := napi.ListObjects(cctx.Context, bucketName, ops)
+		loo := &types.ListObjectsOptions{
+			Prefix:    cctx.String("prefix"),
+			Marker:    cctx.String("marker"),
+			Delimiter: cctx.String("delimiter"),
+			MaxKeys:   cctx.Int("maxKeys"),
+			Recursive: cctx.Bool("recursive"),
+		}
+		if loo.Recursive {
+			loo.Delimiter = ""
+		}
+
+		loi, err := napi.ListObjects(cctx.Context, bucketName, loo)
 		if err != nil {
 			return err
 		}
@@ -297,9 +327,7 @@ var getObjectCmd = &cli.Command{
 		}
 
 		h := md5.New()
-		if len(objInfo.ETag) != md5.Size {
-			h = sha256.New()
-		}
+		tr := etag.NewTree()
 
 		// around 64MB
 		buInfo, err := napi.HeadBucket(cctx.Context, bucketName)
@@ -329,7 +357,22 @@ var getObjectCmd = &cli.Command{
 
 			bar.Add64(readLen)
 
-			h.Write(data)
+			if len(objInfo.ETag) == md5.Size {
+				h.Write(data)
+			} else {
+				for start := int64(0); start < readLen; {
+					stepLen := int64(build.DefaultSegSize)
+					if start+stepLen > readLen {
+						stepLen = readLen - start
+					}
+					cid := etag.NewCidFromData(data[start : start+stepLen])
+
+					tr.AddCid(cid, uint64(stepLen))
+
+					start += stepLen
+				}
+			}
+
 			f.Write(data)
 
 			start += readLen
@@ -341,7 +384,7 @@ var getObjectCmd = &cli.Command{
 		if len(objInfo.ETag) == md5.Size {
 			etagb = h.Sum(nil)
 		} else {
-			cidEtag := etag.NewCid(h.Sum(nil))
+			cidEtag := tr.Root()
 			etagb = cidEtag.Bytes()
 		}
 

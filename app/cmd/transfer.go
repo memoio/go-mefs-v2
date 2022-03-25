@@ -39,7 +39,7 @@ var addKeeperToGroupCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    pwKwd,
-			Aliases: []string{"pw"},
+			Aliases: []string{"pwd"},
 			Value:   "memoriae",
 		},
 		&cli.StringFlag{
@@ -128,7 +128,7 @@ var addKeeperToGroupCmd = &cli.Command{
 var transferEthCmd = &cli.Command{
 	Name:      "eth",
 	Usage:     "transfer eth",
-	ArgsUsage: "[wallet address] [value]",
+	ArgsUsage: "[wallet address (0x...)] [amount (Token / Gwei / Wei)]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "endPoint",
@@ -185,7 +185,7 @@ var transferEthCmd = &cli.Command{
 var transferErcCmd = &cli.Command{
 	Name:      "memo",
 	Usage:     "transfer memo",
-	ArgsUsage: "[wallet address (0x...)] [value (Memo / NanoMemo / AttoMemo)]",
+	ArgsUsage: "[wallet address (0x...)] [amount (Memo / NanoMemo / AttoMemo)]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "endPoint",

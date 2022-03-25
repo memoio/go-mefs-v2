@@ -28,7 +28,7 @@ const (
 	MEMO_PASSWORD = "MEMO_PASSWORD"
 )
 
-var DaemonCmd = &cli.Command{
+var daemonCmd = &cli.Command{
 	Name:  "daemon",
 	Usage: "Run a network-connected Memoriae node.",
 
@@ -44,19 +44,19 @@ var daemonStartCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    pwKwd,
-			Aliases: []string{"pw"},
+			Aliases: []string{"pwd"},
 			Usage:   "password for asset private key",
 			Value:   "memoriae",
 		},
 		&cli.StringFlag{
 			Name:  apiAddrKwd,
 			Usage: "set the api addr to use",
-			Value: "/ip4/127.0.0.1/tcp/8001",
+			Value: "/ip4/127.0.0.1/tcp/5001",
 		},
 		&cli.StringFlag{
 			Name:  swarmPortKwd,
 			Usage: "set the swarm port to use",
-			Value: "7001",
+			Value: "4001",
 		},
 		&cli.Uint64Flag{
 			Name:  groupKwd,

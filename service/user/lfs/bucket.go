@@ -44,6 +44,11 @@ func (l *LfsService) addBucket(bucketName string, opt *pb.BucketOption) (*types.
 
 // get bucket with bucket name
 func (l *LfsService) getBucketInfo(bucketName string) (*bucket, error) {
+	err := checkBucketName(bucketName)
+	if err != nil {
+		return nil, xerrors.Errorf("bucket name is invalid: %s", err)
+	}
+
 	// get bucket ID
 	bucketID, ok := l.sb.bucketNameToID[bucketName]
 	if !ok {
@@ -110,11 +115,6 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) (*type
 	}
 	defer l.sw.Release(1)
 
-	err := checkBucketName(bucketName)
-	if err != nil {
-		return nil, xerrors.Errorf("bucket name is invalid: %s", err)
-	}
-
 	if !l.Writeable() {
 		return nil, ErrLfsReadOnly
 	}
@@ -151,11 +151,6 @@ func (l *LfsService) HeadBucket(ctx context.Context, bucketName string) (*types.
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
-
-	err := checkBucketName(bucketName)
-	if err != nil {
-		return nil, err
-	}
 
 	// get bucket from bucket name
 	bucket, err := l.getBucketInfo(bucketName)
