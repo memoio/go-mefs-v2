@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts *types.PutObjectOptions) (*types.ObjectInfo, error) {
@@ -27,6 +29,17 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	// verify balance
 	if l.needPay.Cmp(l.bal) > 0 {
 		return nil, xerrors.Errorf("not have enough balance, please rcharge at least %d", l.needPay.Sub(l.needPay, l.bal))
+	}
+
+	replaceName := false
+	if objectName == "" {
+		replaceName = true
+		objectName = uuid.NewString()
+	}
+
+	err := checkObjectName(objectName)
+	if err != nil {
+		return nil, xerrors.Errorf("object name is invalid: %s", err)
 	}
 
 	logger.Debugf("Upload object: %s to bucket: %s begin", objectName, bucketName)
@@ -61,8 +74,17 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		return &object.ObjectInfo, err
 	}
 
+	if replaceName {
+		// replace name
+		newName, err := etag.ToString(object.ETag)
+		if err != nil {
+			return &object.ObjectInfo, err
+		}
+		l.renameObject(ctx, bucket, object, newName)
+	}
+
 	tt, dist, donet, ct := 0, 0, 0, 0
-	for _, opID := range object.ops[1:] {
+	for _, opID := range object.ops[1 : 1+len(object.Parts)] {
 		total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
 		dist += dis
 		donet += done
@@ -136,7 +158,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 	// save op
 	object.ops = append(object.ops, op.OpID)
 	object.dirty = true
-	// clean object
+	// save object ops
 	err = object.Save(l.userID, l.ds)
 	if err != nil {
 		return nil, err
@@ -148,4 +170,56 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 	logger.Debugf("Upload create object: %s in bucket: %s %d", object.GetName(), bucket.GetName(), op.OpID)
 
 	return object, nil
+}
+
+func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *object, newName string) error {
+	err := checkObjectName(newName)
+	if err != nil {
+		return xerrors.Errorf("object re name is invalid: %s", err)
+	}
+
+	poi := pb.ObjectRenameInfo{
+		ObjectID: object.ObjectID,
+		Name:     newName,
+	}
+
+	// serialize
+	payload, err := proto.Marshal(&poi)
+	if err != nil {
+		return err
+	}
+
+	op := &pb.OpRecord{
+		Type:    pb.OpRecord_Rename,
+		Payload: payload,
+	}
+
+	// update objectID in bucket
+	bucket.NextObjectID++
+	err = bucket.addOpRecord(l.userID, op, l.ds)
+	if err != nil {
+		return err
+	}
+
+	object.Name = newName
+
+	// save op
+	object.ops = append(object.ops, op.OpID)
+	object.dirty = true
+	// save object
+	err = object.Save(l.userID, l.ds)
+	if err != nil {
+		return err
+	}
+
+	// remove old
+	bucket.objects.Delete(MetaName(object.Name))
+
+	// insert new object into rbtree of bucket
+	object.Name = newName
+	bucket.objects.Insert(MetaName(newName), object)
+
+	logger.Debugf("object %d rename to: %s in bucket: %s %d", object.ObjectID, object.GetName(), bucket.GetName(), op.OpID)
+
+	return nil
 }

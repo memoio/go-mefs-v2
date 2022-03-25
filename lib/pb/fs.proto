@@ -136,6 +136,11 @@ message ObjectDeleteInfo {
     int64  Time     = 2;
 }
 
+message ObjectRenameInfo {
+    uint64  ObjectID = 1;
+    string  Name     = 2;
+}
+
 // opart informations, insert into object when add data to an existing object
 message ObjectPartInfo {
 	uint64 ObjectID = 1;          // 此分块所属的ObjectID
@@ -155,6 +160,7 @@ message OpRecord {
 	    CreateObject = 1;     // create an object; payload is ObjectInfo
 	    AddData = 2;          // add data to objec; payload is PartInfo
 	    DeleteObject = 3;     // delete an object; payload is DeleteObject
+		Rename = 4;
     }
 
 	OpType Type = 1;

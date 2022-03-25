@@ -45,7 +45,7 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	}
 
 	tt, dist, donet, ct := 0, 0, 0, 0
-	for _, opID := range object.ops[1:] {
+	for _, opID := range object.ops[1 : 1+len(object.Parts)] {
 		total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
 		dist += dis
 		donet += done
