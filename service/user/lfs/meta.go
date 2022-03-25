@@ -2,7 +2,9 @@ package lfs
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -15,24 +17,28 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 type superBlock struct {
 	sync.RWMutex
 	pb.SuperBlockInfo
 	dirty          bool
-	write          bool              // set true when finish unfinished jobs
-	bucketVerify   uint64            // Get from chain; in case create too mant buckets
-	bucketNameToID map[string]uint64 // bucketName -> bucketID
-	buckets        []*bucket         // 所有的bucket信息
+	write          bool                     // set true when finish unfinished jobs
+	bucketVerify   uint64                   // Get from chain; in case create too mant buckets
+	bucketNameToID map[string]uint64        // bucketName -> bucketID
+	buckets        []*bucket                // 所有的bucket信息
+	cids           map[string]*objectDigest // from cid -> object
 }
 
 type bucket struct {
 	sync.RWMutex
 	types.BucketInfo
 
-	dirty   bool
-	objects *rbtree.Tree // store objects; key is object name
+	objectTree *rbtree.Tree       // store objects; key is object name
+	objects    map[uint64]*object // key is objectID
+
+	dirty bool
 }
 
 type object struct {
@@ -43,6 +49,11 @@ type object struct {
 	ops      []uint64
 	deletion bool
 	dirty    bool
+}
+
+type objectDigest struct {
+	bucketID uint64
+	objectID uint64
 }
 
 func newSuperBlock() *superBlock {
@@ -56,6 +67,7 @@ func newSuperBlock() *superBlock {
 		write:          false,
 		bucketVerify:   0,
 		bucketNameToID: make(map[string]uint64),
+		cids:           make(map[string]*objectDigest),
 	}
 }
 
@@ -124,7 +136,8 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 	bu := &bucket{
 		BucketInfo: bi,
 		dirty:      true,
-		objects:    rbtree.NewTree(),
+		objectTree: rbtree.NewTree(),
+		objects:    make(map[uint64]*object),
 	}
 
 	logger.Debug("push create bucket message")
@@ -231,7 +244,8 @@ func (bu *bucket) Load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	}
 
 	bu.BucketInfo = bi
-	bu.objects = rbtree.NewTree()
+	bu.objectTree = rbtree.NewTree()
+	bu.objects = make(map[uint64]*object)
 
 	return nil
 }
@@ -370,6 +384,14 @@ func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 			}
 
 			ob.deletion = true
+		case pb.OpRecord_Rename:
+			cni := new(pb.ObjectRenameInfo)
+			err = proto.Unmarshal(or.GetPayload(), cni)
+			if err != nil {
+				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
+				continue
+			}
+			ob.Name = cni.GetName()
 		}
 	}
 
@@ -483,7 +505,34 @@ func (l *LfsService) load() error {
 				}
 
 				if !obj.deletion {
-					bu.objects.Insert(MetaName(obj.Name), obj)
+					tt, dist, donet, ct := 0, 0, 0, 0
+					for _, opID := range obj.ops[1 : 1+len(obj.Parts)] {
+						total, dis, done, c := l.OrderMgr.GetSegJogState(obj.BucketID, opID)
+						dist += dis
+						donet += done
+						tt += total
+						ct += c
+					}
+
+					obj.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+					if obj.Name == "" {
+						newName, err := etag.ToString(obj.ETag)
+						if err != nil {
+							continue
+						}
+						obj.Name = newName
+					}
+
+					if len(obj.ETag) != md5.Size {
+						ename, _ := etag.ToString(obj.ETag)
+						l.sb.cids[ename] = &objectDigest{
+							bucketID: obj.BucketID,
+							objectID: obj.ObjectID,
+						}
+					}
+
+					bu.objects[obj.ObjectID] = obj
+					bu.objectTree.Insert(MetaName(obj.Name), obj)
 				}
 			}
 

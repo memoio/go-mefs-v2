@@ -296,7 +296,7 @@ func (l *LfsService) ShowBucketStorage(ctx context.Context, bucketName string) (
 	bucket.RLock()
 	defer bucket.RUnlock()
 	var storageSpace uint64
-	objectIter := bucket.objects.Iterator()
+	objectIter := bucket.objectTree.Iterator()
 	for ; objectIter != nil; objectIter = objectIter.Next() {
 		object := objectIter.Value.(*object)
 		if object.deletion {

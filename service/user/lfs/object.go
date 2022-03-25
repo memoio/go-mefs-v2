@@ -18,7 +18,7 @@ func (l *LfsService) getObjectInfo(bu *bucket, objectName string) (*object, erro
 		return nil, xerrors.Errorf("object name is invalid: %s", err)
 	}
 
-	objectElement := bu.objects.Find(MetaName(objectName))
+	objectElement := bu.objectTree.Find(MetaName(objectName))
 	if objectElement != nil {
 		obj := objectElement.(*object)
 		return obj, nil
@@ -45,7 +45,7 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	}
 
 	tt, dist, donet, ct := 0, 0, 0, 0
-	for _, opID := range object.ops[1:] {
+	for _, opID := range object.ops[1 : 1+len(object.Parts)] {
 		total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
 		dist += dis
 		donet += done
@@ -116,7 +116,8 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return nil, err
 	}
 
-	bucket.objects.Delete(MetaName(objectName))
+	bucket.objectTree.Delete(MetaName(objectName))
+	delete(bucket.objects, object.ObjectID)
 
 	return nil, nil
 }
@@ -128,6 +129,14 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	}
 	defer l.sw.Release(2) //只读不需要Online
 
+	if opts.Delimiter == SlashSeparator && opts.Prefix == SlashSeparator {
+		return nil, nil
+	}
+
+	if opts.MaxKeys < 0 || opts.MaxKeys > types.MaxListKeys {
+		opts.MaxKeys = types.MaxListKeys
+	}
+
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
@@ -136,16 +145,27 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	bucket.RLock()
 	defer bucket.RUnlock()
 
-	var objects []*types.ObjectInfo
+	if opts.MaxKeys > bucket.objectTree.Size() {
+		opts.MaxKeys = bucket.objectTree.Size()
+	}
 
-	if !bucket.objects.Empty() {
-		objectIter := bucket.objects.Iterator()
+	objects := make([]*types.ObjectInfo, 0, opts.MaxKeys)
+	cnt := 0
+	if !bucket.objectTree.Empty() {
+		objectIter := bucket.objectTree.Iterator()
+		if opts.Marker != "" {
+			objectIter = bucket.objectTree.FindIt(MetaName(opts.Marker))
+		}
 		for objectIter != nil {
 			object, ok := objectIter.Value.(*object)
 			if ok && !object.deletion {
 				if strings.HasPrefix(object.GetName(), opts.Prefix) {
 					objects = append(objects, &object.ObjectInfo)
+					cnt++
 				}
+			}
+			if cnt >= opts.MaxKeys {
+				break
 			}
 			objectIter = objectIter.Next()
 		}

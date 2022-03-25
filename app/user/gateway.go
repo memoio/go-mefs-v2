@@ -33,7 +33,7 @@ var GatewayCmd = &cli2.Command{
 
 var gatewayRunCmd = &cli2.Command{
 	Name:  "run",
-	Usage: "Run a memo gateway",
+	Usage: "run a memo gateway",
 	Flags: []cli2.Flag{
 		&cli2.StringFlag{
 			Name:    "username",
@@ -252,7 +252,7 @@ func (l *lfsGateway) DeleteBucket(ctx context.Context, bucket string, opts minio
 
 // ListObjects lists all blobs in LFS bucket filtered by prefix.
 func (l *lfsGateway) ListObjects(ctx context.Context, bucket, prefix, marker, delimiter string, maxKeys int) (loi minio.ListObjectsInfo, err error) {
-	mloi, err := l.memofs.ListObjects(ctx, bucket)
+	mloi, err := l.memofs.ListObjects(ctx, bucket, prefix, marker, delimiter, maxKeys)
 	if err != nil {
 		return loi, err
 	}

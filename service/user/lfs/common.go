@@ -12,6 +12,7 @@ var logger = logging.Logger("lfs")
 const (
 	defaultWeighted = 100
 	maxBucket       = 256
+	SlashSeparator  = "/"
 )
 
 var (

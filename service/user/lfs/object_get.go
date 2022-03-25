@@ -29,9 +29,17 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		}
 	}
 
+	if bucketName == "" && objectName == "" {
+		return l.getObjectByCID(ctx, opts)
+	}
+
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return nil, err
+	}
+
+	if bucket.BucketInfo.Deletion {
+		return nil, xerrors.Errorf("bucket %d is deleted", bucket.BucketID)
 	}
 
 	object, err := l.getObjectInfo(bucket, objectName)
@@ -39,11 +47,15 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		return nil, err
 	}
 
+	return l.downloadObject(ctx, bucket, object, opts)
+}
+
+func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object *object, opts *types.DownloadObjectOptions) ([]byte, error) {
 	object.RLock()
 	defer object.RUnlock()
 
 	if object.deletion {
-		return nil, xerrors.Errorf("object %s is deleted", objectName)
+		return nil, xerrors.Errorf("object %s is deleted", object.Name)
 	}
 
 	if object.Size == 0 {
@@ -105,7 +117,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 			partLength -= (accLen + part.Length - uint64(readStart+readLength))
 		}
 
-		err = l.download(ctx, dp, bucket, object, int(partStart), int(partLength), buf)
+		err := l.download(ctx, dp, bucket, object, int(partStart), int(partLength), buf)
 		if err != nil {
 			return buf.Bytes(), err
 		}
@@ -123,4 +135,35 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		}
 	}
 	return buf.Bytes(), nil
+}
+
+func (l *LfsService) getObjectByCID(ctx context.Context, opts *types.DownloadObjectOptions) ([]byte, error) {
+	if opts.UserDefined == nil {
+		return nil, xerrors.Errorf("empty cid name")
+	}
+	cidName, ok := opts.UserDefined["cid"]
+	if !ok {
+		return nil, xerrors.Errorf("cid name is not set")
+	}
+
+	od, ok := l.sb.cids[cidName]
+	if !ok {
+		return nil, xerrors.Errorf("file not exist")
+	}
+
+	if len(l.sb.buckets) < int(od.bucketID) {
+		return nil, xerrors.Errorf("bucket %d not exist", od.bucketID)
+	}
+
+	bucket := l.sb.buckets[od.bucketID]
+	if bucket.BucketInfo.Deletion {
+		return nil, xerrors.Errorf("bucket %d is deleted", od.bucketID)
+	}
+
+	object, ok := bucket.objects[od.objectID]
+	if !ok {
+		return nil, xerrors.Errorf("object %d not exist", od.objectID)
+	}
+
+	return l.downloadObject(ctx, bucket, object, opts)
 }

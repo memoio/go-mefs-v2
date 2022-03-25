@@ -19,7 +19,7 @@ const (
 )
 
 // new repo and create wallet for you
-var InitCmd = &cli.Command{
+var initCmd = &cli.Command{
 	Name:  "init",
 	Usage: "Initialize a memoriae repo",
 	Flags: []cli.Flag{

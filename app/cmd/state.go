@@ -12,7 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var StateCmd = &cli.Command{
+var stateCmd = &cli.Command{
 	Name:  "state",
 	Usage: "Interact with state manager",
 	Subcommands: []*cli.Command{
