@@ -26,9 +26,30 @@ var listObjectsCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    "bucket",
 			Aliases: []string{"bn"},
-			Usage:   "bucketName",
+			Usage:   "bucket name, priority",
+		},
+		&cli.StringFlag{
+			Name:  "marker",
+			Usage: "key start from, marker should exist",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "prefix",
+			Usage: "prefix of objects",
+			Value: "",
+		},
+		&cli.IntFlag{
+			Name:  "maxKeys",
+			Usage: "number of objects in return",
+			Value: types.MaxListKeys,
+		},
+		&cli.BoolFlag{
+			Name:  "recursive",
+			Usage: "recursive query",
+			Value: true,
 		},
 	},
+
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(cmd.FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -44,8 +65,18 @@ var listObjectsCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 
-		ops := types.DefaultListOption()
-		loi, err := napi.ListObjects(cctx.Context, bucketName, ops)
+		loo := &types.ListObjectsOptions{
+			Prefix:    cctx.String("prefix"),
+			Marker:    cctx.String("marker"),
+			Delimiter: cctx.String("delimiter"),
+			MaxKeys:   cctx.Int("maxKeys"),
+			Recursive: cctx.Bool("recursive"),
+		}
+		if loo.Recursive {
+			loo.Delimiter = ""
+		}
+
+		loi, err := napi.ListObjects(cctx.Context, bucketName, loo)
 		if err != nil {
 			return err
 		}

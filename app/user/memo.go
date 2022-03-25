@@ -79,14 +79,24 @@ func (m *MemoFs) ListBuckets(ctx context.Context) ([]*mtypes.BucketInfo, error) 
 	return buckets, nil
 }
 
-func (m *MemoFs) ListObjects(ctx context.Context, bucket string) (mloi []*mtypes.ObjectInfo, err error) {
+func (m *MemoFs) ListObjects(ctx context.Context, bucket string, prefix, marker, delimiter string, maxKeys int) (mloi []*mtypes.ObjectInfo, err error) {
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return mloi, err
 	}
 	defer closer()
-	ops := mtypes.DefaultListOption()
-	mloi, err = napi.ListObjects(ctx, bucket, ops)
+	loo := &mtypes.ListObjectsOptions{
+		Prefix:    prefix,
+		Marker:    marker,
+		Delimiter: delimiter,
+		MaxKeys:   maxKeys,
+	}
+
+	if loo.Delimiter == "" {
+		loo.Recursive = true
+	}
+
+	mloi, err = napi.ListObjects(ctx, bucket, loo)
 	if err != nil {
 		return mloi, err
 	}

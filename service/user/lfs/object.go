@@ -137,15 +137,22 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 	defer bucket.RUnlock()
 
 	var objects []*types.ObjectInfo
-
+	cnt := 0
 	if !bucket.objects.Empty() {
 		objectIter := bucket.objects.Iterator()
+		if opts.Marker != "" {
+			objectIter = bucket.objects.FindIt(MetaName(opts.Marker))
+		}
 		for objectIter != nil {
 			object, ok := objectIter.Value.(*object)
 			if ok && !object.deletion {
 				if strings.HasPrefix(object.GetName(), opts.Prefix) {
 					objects = append(objects, &object.ObjectInfo)
+					cnt++
 				}
+			}
+			if cnt >= opts.MaxKeys {
+				break
 			}
 			objectIter = objectIter.Next()
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 type superBlock struct {
@@ -502,6 +503,13 @@ func (l *LfsService) load() error {
 					}
 
 					obj.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+					if obj.Name == "" {
+						newName, err := etag.ToString(obj.ETag)
+						if err != nil {
+							continue
+						}
+						obj.Name = newName
+					}
 
 					bu.objects.Insert(MetaName(obj.Name), obj)
 				}
