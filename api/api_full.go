@@ -137,19 +137,19 @@ type IDataService interface {
 }
 
 type ILfsService interface {
-	ListBuckets(ctx context.Context, prefix string) ([]*types.BucketInfo, error)
-	CreateBucket(ctx context.Context, bucketName string, options *pb.BucketOption) (*types.BucketInfo, error)
-	HeadBucket(ctx context.Context, bucketName string) (*types.BucketInfo, error)
-	DeleteBucket(ctx context.Context, bucketName string) (*types.BucketInfo, error)
+	ListBuckets(ctx context.Context, prefix string) ([]types.BucketInfo, error)
+	CreateBucket(ctx context.Context, bucketName string, options pb.BucketOption) (types.BucketInfo, error)
+	HeadBucket(ctx context.Context, bucketName string) (types.BucketInfo, error)
+	DeleteBucket(ctx context.Context, bucketName string) error
 
-	ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) (types.ListObjectsInfo, error)
+	ListObjects(ctx context.Context, bucketName string, opts types.ListObjectsOptions) (types.ListObjectsInfo, error)
 
-	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts *types.PutObjectOptions) (*types.ObjectInfo, error)
-	GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error)
-	HeadObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)
-	DeleteObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)
+	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts types.PutObjectOptions) (types.ObjectInfo, error)
+	GetObject(ctx context.Context, bucketName, objectName string, opts types.DownloadObjectOptions) ([]byte, error)
+	HeadObject(ctx context.Context, bucketName, objectName string) (types.ObjectInfo, error)
+	DeleteObject(ctx context.Context, bucketName, objectName string) error
 
-	LfsGetInfo(ctx context.Context, update bool) (*types.LfsInfo, error)
+	LfsGetInfo(ctx context.Context, update bool) (types.LfsInfo, error)
 
 	ShowStorage(ctx context.Context) (uint64, error)
 	ShowBucketStorage(ctx context.Context, bucketName string) (uint64, error)

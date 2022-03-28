@@ -257,14 +257,14 @@ func (l *LfsService) Writeable() bool {
 	return l.sb.write
 }
 
-func (l *LfsService) LfsGetInfo(ctx context.Context, update bool) (*types.LfsInfo, error) {
+func (l *LfsService) LfsGetInfo(ctx context.Context, update bool) (types.LfsInfo, error) {
 	if update {
 		l.getPayInfo()
 	}
 	l.sb.RLock()
 	defer l.sb.RUnlock()
 
-	li := &types.LfsInfo{
+	li := types.LfsInfo{
 		Status: l.Writeable(),
 		Bucket: l.sb.bucketVerify,
 		Used:   0,

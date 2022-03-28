@@ -27,21 +27,56 @@ func (l *LfsService) getObjectInfo(bu *bucket, objectName string) (*object, erro
 	return nil, xerrors.Errorf("object %s not exist", objectName)
 }
 
-func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error) {
+func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName string) (types.ObjectInfo, error) {
+	oi := types.ObjectInfo{}
 	ok := l.sw.TryAcquire(1)
 	if !ok {
-		return nil, ErrResourceUnavailable
+		return oi, ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
 
+	if bucketName == "" {
+		od, ok := l.sb.cids[objectName]
+		if !ok {
+			return oi, xerrors.Errorf("file not exist")
+		}
+
+		if len(l.sb.buckets) < int(od.bucketID) {
+			return oi, xerrors.Errorf("bucket %d not exist", od.bucketID)
+		}
+
+		bucket := l.sb.buckets[od.bucketID]
+		if bucket.BucketInfo.Deletion {
+			return oi, xerrors.Errorf("bucket %d is deleted", od.bucketID)
+		}
+
+		object, ok := bucket.objects[od.objectID]
+		if !ok {
+			return oi, xerrors.Errorf("object %d not exist", od.objectID)
+		}
+
+		tt, dist, donet, ct := 0, 0, 0, 0
+		for _, opID := range object.ops[1 : 1+len(object.Parts)] {
+			total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
+			dist += dis
+			donet += done
+			tt += total
+			ct += c
+		}
+
+		object.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+
+		return object.ObjectInfo, nil
+	}
+
 	bu, err := l.getBucketInfo(bucketName)
 	if err != nil {
-		return nil, err
+		return oi, err
 	}
 
 	object, err := l.getObjectInfo(bu, objectName)
 	if err != nil {
-		return nil, err
+		return oi, err
 	}
 
 	tt, dist, donet, ct := 0, 0, 0, 0
@@ -55,27 +90,27 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 
 	object.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
 
-	return &object.ObjectInfo, nil
+	return object.ObjectInfo, nil
 }
 
-func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error) {
+func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName string) error {
 	ok := l.sw.TryAcquire(1)
 	if !ok {
-		return nil, ErrResourceUnavailable
+		return ErrResourceUnavailable
 	}
 	defer l.sw.Release(1)
 
 	if !l.Writeable() {
-		return nil, ErrLfsReadOnly
+		return ErrLfsReadOnly
 	}
 
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if bucket.BucketID >= l.sb.bucketVerify {
-		return nil, xerrors.Errorf("bucket %d is confirming", bucket.BucketID)
+		return xerrors.Errorf("bucket %d is confirming", bucket.BucketID)
 	}
 
 	bucket.Lock()
@@ -83,7 +118,7 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 
 	object, err := l.getObjectInfo(bucket, objectName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	object.Lock()
@@ -96,7 +131,7 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 
 	payload, err := proto.Marshal(&deleteObject)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	op := &pb.OpRecord{
@@ -106,23 +141,23 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 
 	err = bucket.addOpRecord(l.userID, op, l.ds)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	object.deletion = true
 	object.dirty = true
 	err = object.Save(l.userID, l.ds)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	bucket.objectTree.Delete(MetaName(objectName))
 	delete(bucket.objects, object.ObjectID)
 
-	return nil, nil
+	return nil
 }
 
-func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) (types.ListObjectsInfo, error) {
+func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts types.ListObjectsOptions) (types.ListObjectsInfo, error) {
 	res := types.ListObjectsInfo{}
 	ok := l.sw.TryAcquire(2)
 	if !ok {

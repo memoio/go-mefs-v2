@@ -3,7 +3,7 @@ package build
 var CurrentCommit string
 
 // BuildVersion is the local build version, set by build system
-const BuildVersion = "2.1.0328-alpha"
+const BuildVersion = "2.2.0328-alpha"
 
 func UserVersion() string {
 	return BuildVersion + CurrentCommit

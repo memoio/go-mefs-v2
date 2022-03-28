@@ -51,7 +51,7 @@ func (m *MemoFs) MakeBucketWithLocation(ctx context.Context, bucket string) erro
 	return nil
 }
 
-func (m *MemoFs) GetBucketInfo(ctx context.Context, bucket string) (bi *mtypes.BucketInfo, err error) {
+func (m *MemoFs) GetBucketInfo(ctx context.Context, bucket string) (bi mtypes.BucketInfo, err error) {
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return bi, err
@@ -65,7 +65,7 @@ func (m *MemoFs) GetBucketInfo(ctx context.Context, bucket string) (bi *mtypes.B
 	return bi, nil
 }
 
-func (m *MemoFs) ListBuckets(ctx context.Context) ([]*mtypes.BucketInfo, error) {
+func (m *MemoFs) ListBuckets(ctx context.Context) ([]mtypes.BucketInfo, error) {
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (m *MemoFs) ListObjects(ctx context.Context, bucket string, prefix, marker,
 		return mloi, err
 	}
 	defer closer()
-	loo := &mtypes.ListObjectsOptions{
+	loo := mtypes.ListObjectsOptions{
 		Prefix:    prefix,
 		Marker:    marker,
 		Delimiter: delimiter,
@@ -130,7 +130,7 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, w
 			readLen = oSize - start
 		}
 
-		doo := &types.DownloadObjectOptions{
+		doo := types.DownloadObjectOptions{
 			Start:  start,
 			Length: readLen,
 		}
@@ -185,7 +185,7 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, w
 	return nil
 }
 
-func (m *MemoFs) GetObjectInfo(ctx context.Context, bucket, object string) (objInfo *mtypes.ObjectInfo, err error) {
+func (m *MemoFs) GetObjectInfo(ctx context.Context, bucket, object string) (objInfo mtypes.ObjectInfo, err error) {
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return objInfo, err
@@ -199,7 +199,7 @@ func (m *MemoFs) GetObjectInfo(ctx context.Context, bucket, object string) (objI
 	return oi, nil
 }
 
-func (m *MemoFs) PutObject(ctx context.Context, bucket, object string, r io.Reader, UserDefined map[string]string) (objInfo *mtypes.ObjectInfo, err error) {
+func (m *MemoFs) PutObject(ctx context.Context, bucket, object string, r io.Reader, UserDefined map[string]string) (objInfo mtypes.ObjectInfo, err error) {
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return objInfo, err

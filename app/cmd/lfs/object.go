@@ -60,7 +60,7 @@ var listObjectsCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 
-		loo := &types.ListObjectsOptions{
+		loo := types.ListObjectsOptions{
 			Prefix:    cctx.String("prefix"),
 			Marker:    cctx.String("marker"),
 			Delimiter: "/",
@@ -83,7 +83,7 @@ var listObjectsCmd = &cli.Command{
 		fmt.Printf("==== files ====\n")
 		for _, oi := range loi.Objects {
 			fmt.Printf("--------\n")
-			fmt.Println(FormatObjectInfo(&oi))
+			fmt.Println(FormatObjectInfo(oi))
 		}
 
 		return nil
@@ -261,13 +261,12 @@ var getObjectCmd = &cli.Command{
 			Usage:   "objectName",
 		},
 		&cli.StringFlag{
+			Name:  "cid",
+			Usage: "cid name",
+		},
+		&cli.StringFlag{
 			Name:  "path",
 			Usage: "stored path of file",
-		},
-		&cli.BoolFlag{
-			Name:  "local",
-			Usage: "local file path",
-			Value: false,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -285,8 +284,13 @@ var getObjectCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
+		cidName := cctx.String("cid")
 		path := cctx.String("path")
-		localFlag := cctx.Bool("local")
+
+		if cidName != "" {
+			bucketName = ""
+			objectName = cidName
+		}
 
 		objInfo, err := napi.HeadObject(cctx.Context, bucketName, objectName)
 		if err != nil {
@@ -297,7 +301,8 @@ var getObjectCmd = &cli.Command{
 			return xerrors.Errorf("empty file")
 		}
 
-		bar := progressbar.DefaultBytes(int64(objInfo.Size), "download:")
+		tSize := int64(objInfo.Size)
+		bar := progressbar.DefaultBytes(tSize, "download:")
 
 		p, err := homedir.Expand(path)
 		if err != nil {
@@ -315,36 +320,29 @@ var getObjectCmd = &cli.Command{
 		}
 		defer f.Close()
 
-		if localFlag {
-			doo := &types.DownloadObjectOptions{
-				UserDefined: make(map[string]string),
-				Start:       0,
-				Length:      -1,
-			}
-
-			doo.UserDefined["local"] = p
-		}
-
 		h := md5.New()
 		tr := etag.NewTree()
 
 		// around 64MB
-		buInfo, err := napi.HeadBucket(cctx.Context, bucketName)
-		if err != nil {
-			return err
-		}
-
-		stripeCnt := 4 * 64 / buInfo.DataCount
-		stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
-		start := int64(0)
-		oSize := int64(objInfo.Size)
-		for start < oSize {
-			readLen := stepLen
-			if oSize-start < stepLen {
-				readLen = oSize - start
+		stepLen := int64(build.DefaultSegSize * 256)
+		if bucketName != "" {
+			buInfo, err := napi.HeadBucket(cctx.Context, bucketName)
+			if err != nil {
+				return err
 			}
 
-			doo := &types.DownloadObjectOptions{
+			stripeCnt := 4 * 64 / buInfo.DataCount
+			stepLen = int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
+		}
+
+		start := int64(0)
+		for start < tSize {
+			readLen := stepLen
+			if tSize-start < stepLen {
+				readLen = tSize - start
+			}
+
+			doo := types.DownloadObjectOptions{
 				Start:  start,
 				Length: readLen,
 			}
@@ -438,7 +436,7 @@ var delObjectCmd = &cli.Command{
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
 
-		_, err = napi.DeleteObject(cctx.Context, bucketName, objectName)
+		err = napi.DeleteObject(cctx.Context, bucketName, objectName)
 		if err != nil {
 			return err
 		}
