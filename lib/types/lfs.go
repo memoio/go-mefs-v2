@@ -102,12 +102,23 @@ func DefaultListOption() *ListObjectsOptions {
 	}
 }
 
+// similar to minio/s3
+type ListObjectsInfo struct {
+	IsTruncated bool
+
+	NextMarker string
+
+	Objects []ObjectInfo
+
+	Prefixes []string
+}
+
 type PutObjectOptions struct {
 	UserDefined map[string]string
 }
 
-func DefaultUploadOption() *PutObjectOptions {
-	poo := &PutObjectOptions{
+func DefaultUploadOption() PutObjectOptions {
+	poo := PutObjectOptions{
 		UserDefined: make(map[string]string),
 	}
 
@@ -117,8 +128,8 @@ func DefaultUploadOption() *PutObjectOptions {
 	return poo
 }
 
-func CidUploadOption() *PutObjectOptions {
-	poo := &PutObjectOptions{
+func CidUploadOption() PutObjectOptions {
+	poo := PutObjectOptions{
 		UserDefined: make(map[string]string),
 	}
 

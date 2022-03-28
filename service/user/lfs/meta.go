@@ -112,13 +112,13 @@ func (sbl *superBlock) Save(userID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.BucketOption) (*bucket, error) {
+func (l *LfsService) createBucket(bucketID uint64, bucketName string, opts pb.BucketOption) (*bucket, error) {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, bucketID)
 
 	beignHash := blake3.Sum256(buf)
 	bi := types.BucketInfo{
-		BucketOption: *opt,
+		BucketOption: opts,
 		BucketInfo: pb.BucketInfo{
 			BucketID:     bucketID,
 			CTime:        time.Now().Unix(),
@@ -142,7 +142,7 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 
 	logger.Debug("push create bucket message")
 	tbp := tx.BucketParams{
-		BucketOption: *opt,
+		BucketOption: opts,
 		BucketID:     bucketID,
 	}
 

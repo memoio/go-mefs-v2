@@ -11,7 +11,7 @@ import (
 )
 
 // read at most one stripe
-func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) {
+func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName string, opts types.DownloadObjectOptions) ([]byte, error) {
 	ok := l.sw.TryAcquire(2)
 	if !ok {
 		return nil, ErrResourceUnavailable
@@ -29,8 +29,8 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		}
 	}
 
-	if bucketName == "" && objectName == "" {
-		return l.getObjectByCID(ctx, opts)
+	if bucketName == "" && objectName != "" {
+		return l.getObjectByCID(ctx, objectName, opts)
 	}
 
 	bucket, err := l.getBucketInfo(bucketName)
@@ -50,7 +50,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	return l.downloadObject(ctx, bucket, object, opts)
 }
 
-func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object *object, opts *types.DownloadObjectOptions) ([]byte, error) {
+func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object *object, opts types.DownloadObjectOptions) ([]byte, error) {
 	object.RLock()
 	defer object.RUnlock()
 
@@ -137,15 +137,7 @@ func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object 
 	return buf.Bytes(), nil
 }
 
-func (l *LfsService) getObjectByCID(ctx context.Context, opts *types.DownloadObjectOptions) ([]byte, error) {
-	if opts.UserDefined == nil {
-		return nil, xerrors.Errorf("empty cid name")
-	}
-	cidName, ok := opts.UserDefined["cid"]
-	if !ok {
-		return nil, xerrors.Errorf("cid name is not set")
-	}
-
+func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, opts types.DownloadObjectOptions) ([]byte, error) {
 	od, ok := l.sb.cids[cidName]
 	if !ok {
 		return nil, xerrors.Errorf("file not exist")

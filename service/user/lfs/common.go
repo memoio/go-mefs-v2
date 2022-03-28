@@ -10,7 +10,7 @@ import (
 var logger = logging.Logger("lfs")
 
 const (
-	defaultWeighted = 100
+	defaultWeighted = 1000
 	maxBucket       = 256
 	SlashSeparator  = "/"
 )

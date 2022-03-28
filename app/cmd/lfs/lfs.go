@@ -33,7 +33,7 @@ func FormatPolicy(policy uint32) string {
 	return "unknown"
 }
 
-func FormatBucketInfo(bucket *types.BucketInfo) string {
+func FormatBucketInfo(bucket types.BucketInfo) string {
 	// get reliability with dc and pc
 	reliability := ReliabilityLevel(bucket.DataCount, bucket.ParityCount)
 
@@ -44,6 +44,7 @@ Policy: %s
 Data Count: %d
 Parity Count: %d
 Reliability: %s
+Confirmed: %t
 Object Count: %d
 Used Bytes: %s
 Creation Time: %s
@@ -54,6 +55,7 @@ Modify Time: %s`,
 		bucket.DataCount,
 		bucket.ParityCount,
 		reliability,
+		bucket.Confirmed,
 		bucket.NextObjectID,
 		utils.FormatBytes(int64(bucket.UsedBytes)),
 		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),
@@ -61,7 +63,7 @@ Modify Time: %s`,
 	)
 }
 
-func FormatObjectInfo(object *types.ObjectInfo) string {
+func FormatObjectInfo(object types.ObjectInfo) string {
 	setag, _ := etag.ToString(object.ETag)
 	return fmt.Sprintf(
 		`Name: %s
@@ -200,7 +202,7 @@ var listBucketsCmd = &cli.Command{
 
 		fmt.Println("List buckets: ")
 		for _, bi := range bs {
-			fmt.Printf("\n")
+			fmt.Printf("-------\n")
 			fmt.Println(FormatBucketInfo(bi))
 		}
 

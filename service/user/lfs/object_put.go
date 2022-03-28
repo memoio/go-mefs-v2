@@ -16,20 +16,21 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
-func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts *types.PutObjectOptions) (*types.ObjectInfo, error) {
+func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts types.PutObjectOptions) (types.ObjectInfo, error) {
+	oi := types.ObjectInfo{}
 	ok := l.sw.TryAcquire(10)
 	if !ok {
-		return nil, ErrResourceUnavailable
+		return oi, ErrResourceUnavailable
 	}
 	defer l.sw.Release(10)
 
 	if !l.Writeable() {
-		return nil, ErrLfsReadOnly
+		return oi, ErrLfsReadOnly
 	}
 
 	// verify balance
 	if l.needPay.Cmp(l.bal) > 0 {
-		return nil, xerrors.Errorf("not have enough balance, please rcharge at least %d", l.needPay.Sub(l.needPay, l.bal))
+		return oi, xerrors.Errorf("not have enough balance, please rcharge at least %d", l.needPay.Sub(l.needPay, l.bal))
 	}
 
 	replaceName := false
@@ -40,7 +41,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 
 	err := checkObjectName(objectName)
 	if err != nil {
-		return nil, xerrors.Errorf("object name is invalid: %s", err)
+		return oi, xerrors.Errorf("object name is invalid: %s", err)
 	}
 
 	logger.Debugf("Upload object: %s to bucket: %s begin", objectName, bucketName)
@@ -48,11 +49,11 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	// get bucket with bucket name
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
-		return nil, err
+		return oi, err
 	}
 
 	if bucket.BucketID >= l.sb.bucketVerify {
-		return nil, xerrors.Errorf("bucket %d is confirming", bucket.BucketID)
+		return oi, xerrors.Errorf("bucket %d is confirming", bucket.BucketID)
 	}
 
 	bucket.Lock()
@@ -61,7 +62,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	// create new object and insert into rbtree
 	object, err := l.createObject(ctx, bucket, objectName, opts)
 	if err != nil {
-		return nil, err
+		return oi, err
 	}
 
 	object.Lock()
@@ -72,14 +73,14 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	// upload object into bucket
 	err = l.upload(ctx, bucket, object, reader, opts)
 	if err != nil {
-		return &object.ObjectInfo, err
+		return object.ObjectInfo, err
 	}
 
 	if replaceName {
 		// replace name
 		newName, err := etag.ToString(object.ETag)
 		if err != nil {
-			return &object.ObjectInfo, err
+			return object.ObjectInfo, err
 		}
 		l.renameObject(ctx, bucket, object, newName)
 	}
@@ -105,11 +106,11 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 
 	logger.Debugf("Upload object: %s to bucket: %s end, cost: %s", objectName, bucketName, time.Since(nt))
 
-	return &object.ObjectInfo, nil
+	return object.ObjectInfo, nil
 }
 
 // create object with bucket, object name, opts
-func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectName string, opts *types.PutObjectOptions) (*object, error) {
+func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectName string, opts types.PutObjectOptions) (*object, error) {
 	// check if object exists in rbtree
 	objectElement := bucket.objectTree.Find(MetaName(objectName))
 	if objectElement != nil {
