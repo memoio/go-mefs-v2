@@ -221,7 +221,6 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 			object, ok := objectIter.Value.(*object)
 			if ok && !object.deletion {
 				on := object.GetName()
-				res.NextMarker = on
 				if strings.HasPrefix(on, opts.Prefix) {
 					ind := strings.Index(on[prefixLen:], opts.Delimiter)
 					if ind >= 0 {
@@ -245,8 +244,16 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 			objectIter = objectIter.Next()
 		}
 
+		// netx object is marker
 		if objectIter != nil {
-			res.IsTruncated = true
+			objectIter = objectIter.Next()
+			if objectIter != nil {
+				res.IsTruncated = true
+				object, ok := objectIter.Value.(*object)
+				if ok {
+					res.NextMarker = object.GetName()
+				}
+			}
 		}
 	}
 
