@@ -166,9 +166,10 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 	defer l.sw.Release(2) //只读不需要Online
 
 	if opts.Delimiter != "" && opts.Delimiter != SlashSeparator {
-		return res, xerrors.Errorf("unsupported delimeter %s", opts.Delimiter)
+		return res, xerrors.Errorf("unsupported delimiter: %s, only '/' or ''", opts.Delimiter)
 	}
 
+	// as key format is xx/yyy
 	if opts.Delimiter == SlashSeparator && opts.Prefix == SlashSeparator {
 		return res, nil
 	}
@@ -200,8 +201,13 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 		opts.MaxKeys = bucket.objectTree.Size()
 	}
 
+	recursive := true
+	if opts.Delimiter == SlashSeparator {
+		recursive = false
+	}
+
 	entryPrefixMatch := opts.Prefix
-	if opts.Delimiter != "" {
+	if !recursive {
 		lastIndex := strings.LastIndex(opts.Prefix, opts.Delimiter)
 		if lastIndex > 0 && lastIndex < len(opts.Prefix) {
 			entryPrefixMatch = opts.Prefix[:lastIndex+1]
@@ -211,7 +217,7 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 
 	preMap := make(map[string]struct{})
 	res.Objects = make([]types.ObjectInfo, 0, opts.MaxKeys)
-	cnt := 0
+	cnt := opts.MaxKeys
 	if !bucket.objectTree.Empty() {
 		objectIter := bucket.objectTree.Iterator()
 		if opts.Marker != "" {
@@ -222,23 +228,28 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 			if ok && !object.deletion {
 				on := object.GetName()
 				if strings.HasPrefix(on, opts.Prefix) {
-					ind := strings.Index(on[prefixLen:], opts.Delimiter)
-					if ind >= 0 {
-						npr := on[:prefixLen+ind+1]
-						_, has := preMap[npr]
-						if !has {
-							// add to common prefix
-							res.Prefixes = append(res.Prefixes, on[:prefixLen+ind+1])
-							preMap[npr] = struct{}{}
-							cnt++
-						}
-					} else {
+					if recursive {
 						res.Objects = append(res.Objects, object.ObjectInfo)
-						cnt++
+						cnt--
+					} else {
+						ind := strings.Index(on[prefixLen:], opts.Delimiter)
+						if ind >= 0 {
+							npr := on[:prefixLen+ind+1]
+							_, has := preMap[npr]
+							if !has {
+								// add to common prefix
+								res.Prefixes = append(res.Prefixes, on[:prefixLen+ind+1])
+								preMap[npr] = struct{}{}
+								cnt--
+							}
+						} else {
+							res.Objects = append(res.Objects, object.ObjectInfo)
+							cnt--
+						}
 					}
 				}
 			}
-			if cnt >= opts.MaxKeys {
+			if cnt <= 0 {
 				break
 			}
 			objectIter = objectIter.Next()

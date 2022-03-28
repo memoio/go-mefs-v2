@@ -38,6 +38,11 @@ var listObjectsCmd = &cli.Command{
 			Usage: "prefix of objects",
 			Value: "",
 		},
+		&cli.StringFlag{
+			Name:  "delimiter",
+			Usage: "delimiter to group keys: '/' or ''",
+			Value: "",
+		},
 		&cli.IntFlag{
 			Name:  "maxKeys",
 			Usage: "number of objects in return",
@@ -63,7 +68,7 @@ var listObjectsCmd = &cli.Command{
 		loo := types.ListObjectsOptions{
 			Prefix:    cctx.String("prefix"),
 			Marker:    cctx.String("marker"),
-			Delimiter: "/",
+			Delimiter: cctx.String("delimiter"),
 			MaxKeys:   cctx.Int("maxKeys"),
 		}
 
@@ -74,16 +79,24 @@ var listObjectsCmd = &cli.Command{
 
 		fmt.Printf("List objects: maxKeys %d, prefix: %s, start from: %s\n", loo.MaxKeys, loo.Prefix, loo.Marker)
 
-		fmt.Printf("== directories ==\n")
-		for _, pres := range loi.Prefixes {
-			fmt.Printf("--------\n")
-			fmt.Println(pres)
+		if len(loi.Prefixes) > 0 {
+			fmt.Printf("== directories ==\n")
+			for _, pres := range loi.Prefixes {
+				fmt.Printf("--------\n")
+				fmt.Println(pres)
+			}
+			fmt.Printf("\n")
+			fmt.Printf("==== files ====\n")
 		}
-		fmt.Printf("\n")
-		fmt.Printf("==== files ====\n")
+
 		for _, oi := range loi.Objects {
 			fmt.Printf("--------\n")
 			fmt.Println(FormatObjectInfo(oi))
+		}
+
+		if loi.IsTruncated {
+			fmt.Printf("--------\n")
+			fmt.Println("marker is: ", loi.NextMarker)
 		}
 
 		return nil
