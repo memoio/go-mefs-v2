@@ -122,15 +122,31 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 	return nil, nil
 }
 
-func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error) {
+func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) (types.ListObjectsInfo, error) {
+	res := types.ListObjectsInfo{}
 	ok := l.sw.TryAcquire(2)
 	if !ok {
-		return nil, ErrResourceUnavailable
+		return res, ErrResourceUnavailable
 	}
 	defer l.sw.Release(2) //只读不需要Online
 
+	if opts.Delimiter != "" && opts.Delimiter != SlashSeparator {
+		return res, xerrors.Errorf("unsupported delimeter %s", opts.Delimiter)
+	}
+
 	if opts.Delimiter == SlashSeparator && opts.Prefix == SlashSeparator {
-		return nil, nil
+		return res, nil
+	}
+
+	if opts.Marker != "" {
+		// not have preifx
+		if !strings.HasPrefix(opts.Marker, opts.Prefix) {
+			return res, nil
+		}
+	}
+
+	if opts.MaxKeys == 0 {
+		return res, nil
 	}
 
 	if opts.MaxKeys < 0 || opts.MaxKeys > types.MaxListKeys {
@@ -139,7 +155,7 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
-		return nil, err
+		return res, err
 	}
 
 	bucket.RLock()
@@ -149,7 +165,17 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 		opts.MaxKeys = bucket.objectTree.Size()
 	}
 
-	objects := make([]*types.ObjectInfo, 0, opts.MaxKeys)
+	entryPrefixMatch := opts.Prefix
+	if opts.Delimiter != "" {
+		lastIndex := strings.LastIndex(opts.Prefix, opts.Delimiter)
+		if lastIndex > 0 && lastIndex < len(opts.Prefix) {
+			entryPrefixMatch = opts.Prefix[:lastIndex+1]
+		}
+	}
+	prefixLen := len(entryPrefixMatch)
+
+	preMap := make(map[string]struct{})
+	res.Objects = make([]types.ObjectInfo, 0, opts.MaxKeys)
 	cnt := 0
 	if !bucket.objectTree.Empty() {
 		objectIter := bucket.objectTree.Iterator()
@@ -159,9 +185,23 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 		for objectIter != nil {
 			object, ok := objectIter.Value.(*object)
 			if ok && !object.deletion {
-				if strings.HasPrefix(object.GetName(), opts.Prefix) {
-					objects = append(objects, &object.ObjectInfo)
-					cnt++
+				on := object.GetName()
+				res.NextMarker = on
+				if strings.HasPrefix(on, opts.Prefix) {
+					ind := strings.Index(on[prefixLen:], opts.Delimiter)
+					if ind >= 0 {
+						npr := on[:prefixLen+ind+1]
+						_, has := preMap[npr]
+						if !has {
+							// add to common prefix
+							res.Prefixes = append(res.Prefixes, on[:prefixLen+ind+1])
+							preMap[npr] = struct{}{}
+							cnt++
+						}
+					} else {
+						res.Objects = append(res.Objects, object.ObjectInfo)
+						cnt++
+					}
 				}
 			}
 			if cnt >= opts.MaxKeys {
@@ -169,7 +209,11 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts *t
 			}
 			objectIter = objectIter.Next()
 		}
+
+		if objectIter != nil {
+			res.IsTruncated = true
+		}
 	}
 
-	return objects, nil
+	return res, nil
 }

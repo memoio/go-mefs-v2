@@ -102,6 +102,17 @@ func DefaultListOption() *ListObjectsOptions {
 	}
 }
 
+// similar to minio/s3
+type ListObjectsInfo struct {
+	IsTruncated bool
+
+	NextMarker string
+
+	Objects []ObjectInfo
+
+	Prefixes []string
+}
+
 type PutObjectOptions struct {
 	UserDefined map[string]string
 }

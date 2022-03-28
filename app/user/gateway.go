@@ -258,7 +258,7 @@ func (l *lfsGateway) ListObjects(ctx context.Context, bucket, prefix, marker, de
 	}
 	ud := make(map[string]string)
 	ud["x-amz-meta-mode"] = "33204"
-	for _, oi := range mloi {
+	for _, oi := range mloi.Objects {
 		etag, _ := metag.ToString(oi.ETag)
 		ud["x-amz-meta-mtime"] = strconv.FormatInt(oi.GetTime(), 10)
 		loi.Objects = append(loi.Objects, minio.ObjectInfo{
@@ -271,6 +271,10 @@ func (l *lfsGateway) ListObjects(ctx context.Context, bucket, prefix, marker, de
 			UserDefined: ud,
 		})
 	}
+
+	loi.IsTruncated = mloi.IsTruncated
+	loi.NextMarker = mloi.NextMarker
+	loi.Prefixes = mloi.Prefixes
 
 	return loi, nil
 }

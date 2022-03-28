@@ -48,7 +48,7 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 	client := getClient(endPoint)
 	chainID, err := client.NetworkID(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("eth get networkID from %s fail: %s", endPoint, err)
 	}
 
 	// convert key

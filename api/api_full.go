@@ -142,7 +142,7 @@ type ILfsService interface {
 	HeadBucket(ctx context.Context, bucketName string) (*types.BucketInfo, error)
 	DeleteBucket(ctx context.Context, bucketName string) (*types.BucketInfo, error)
 
-	ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error)
+	ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) (types.ListObjectsInfo, error)
 
 	PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts *types.PutObjectOptions) (*types.ObjectInfo, error)
 	GetObject(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error)

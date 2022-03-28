@@ -79,7 +79,7 @@ func (m *MemoFs) ListBuckets(ctx context.Context) ([]*mtypes.BucketInfo, error) 
 	return buckets, nil
 }
 
-func (m *MemoFs) ListObjects(ctx context.Context, bucket string, prefix, marker, delimiter string, maxKeys int) (mloi []*mtypes.ObjectInfo, err error) {
+func (m *MemoFs) ListObjects(ctx context.Context, bucket string, prefix, marker, delimiter string, maxKeys int) (mloi mtypes.ListObjectsInfo, err error) {
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return mloi, err

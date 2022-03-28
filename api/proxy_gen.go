@@ -391,7 +391,7 @@ type UserNodeStruct struct {
 
 		GetObject   func(ctx context.Context, bucketName, objectName string, opts *types.DownloadObjectOptions) ([]byte, error) `perm:"read"`
 		HeadObject  func(ctx context.Context, bucketName, objectName string) (*types.ObjectInfo, error)                         `perm:"read"`
-		ListObjects func(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error)   `perm:"read"`
+		ListObjects func(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) (types.ListObjectsInfo, error) `perm:"read"`
 
 		LfsGetInfo func(context.Context, bool) (*types.LfsInfo, error) `perm:"read"`
 
@@ -440,7 +440,7 @@ func (s *UserNodeStruct) HeadObject(ctx context.Context, bucketName, objectName 
 	return s.Internal.HeadObject(ctx, bucketName, objectName)
 }
 
-func (s *UserNodeStruct) ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) ([]*types.ObjectInfo, error) {
+func (s *UserNodeStruct) ListObjects(ctx context.Context, bucketName string, opts *types.ListObjectsOptions) (types.ListObjectsInfo, error) {
 	return s.Internal.ListObjects(ctx, bucketName, opts)
 }
 
