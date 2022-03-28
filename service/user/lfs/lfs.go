@@ -47,7 +47,7 @@ type LfsService struct {
 
 func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
 	wt := defaultWeighted
-	wts := os.Getenv("MEFS_LFS_WEIGHT")
+	wts := os.Getenv("MEFS_LFS_PARALLEL")
 	if wts != "" {
 		wtv, err := strconv.Atoi(wts)
 		if err == nil && wtv > 100 {
