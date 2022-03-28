@@ -94,22 +94,31 @@ func DefaultDownloadOption() *DownloadObjectOptions {
 type ListObjectsOptions struct {
 	Prefix, Marker, Delimiter string
 	MaxKeys                   int
-	Recursive                 bool
 }
 
 func DefaultListOption() *ListObjectsOptions {
 	return &ListObjectsOptions{
-		MaxKeys:   MaxListKeys,
-		Recursive: true,
+		MaxKeys: MaxListKeys,
 	}
+}
+
+// similar to minio/s3
+type ListObjectsInfo struct {
+	IsTruncated bool
+
+	NextMarker string
+
+	Objects []ObjectInfo
+
+	Prefixes []string
 }
 
 type PutObjectOptions struct {
 	UserDefined map[string]string
 }
 
-func DefaultUploadOption() *PutObjectOptions {
-	poo := &PutObjectOptions{
+func DefaultUploadOption() PutObjectOptions {
+	poo := PutObjectOptions{
 		UserDefined: make(map[string]string),
 	}
 
@@ -119,8 +128,8 @@ func DefaultUploadOption() *PutObjectOptions {
 	return poo
 }
 
-func CidUploadOption() *PutObjectOptions {
-	poo := &PutObjectOptions{
+func CidUploadOption() PutObjectOptions {
+	poo := PutObjectOptions{
 		UserDefined: make(map[string]string),
 	}
 

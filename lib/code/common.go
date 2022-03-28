@@ -33,8 +33,8 @@ type Codec interface {
 }
 
 // DefaultBucketOptions is default bucket option
-func DefaultBucketOptions() *pb.BucketOption {
-	return &pb.BucketOption{
+func DefaultBucketOptions() pb.BucketOption {
+	return pb.BucketOption{
 		Version:     1,
 		Policy:      RsPolicy,
 		DataCount:   10,

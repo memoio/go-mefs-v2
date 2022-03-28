@@ -2,6 +2,7 @@ package lfs
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -23,18 +24,21 @@ type superBlock struct {
 	sync.RWMutex
 	pb.SuperBlockInfo
 	dirty          bool
-	write          bool              // set true when finish unfinished jobs
-	bucketVerify   uint64            // Get from chain; in case create too mant buckets
-	bucketNameToID map[string]uint64 // bucketName -> bucketID
-	buckets        []*bucket         // 所有的bucket信息
+	write          bool                     // set true when finish unfinished jobs
+	bucketVerify   uint64                   // Get from chain; in case create too mant buckets
+	bucketNameToID map[string]uint64        // bucketName -> bucketID
+	buckets        []*bucket                // 所有的bucket信息
+	cids           map[string]*objectDigest // from cid -> object
 }
 
 type bucket struct {
 	sync.RWMutex
 	types.BucketInfo
 
-	dirty   bool
-	objects *rbtree.Tree // store objects; key is object name
+	objectTree *rbtree.Tree       // store objects; key is object name
+	objects    map[uint64]*object // key is objectID
+
+	dirty bool
 }
 
 type object struct {
@@ -45,6 +49,11 @@ type object struct {
 	ops      []uint64
 	deletion bool
 	dirty    bool
+}
+
+type objectDigest struct {
+	bucketID uint64
+	objectID uint64
 }
 
 func newSuperBlock() *superBlock {
@@ -58,6 +67,7 @@ func newSuperBlock() *superBlock {
 		write:          false,
 		bucketVerify:   0,
 		bucketNameToID: make(map[string]uint64),
+		cids:           make(map[string]*objectDigest),
 	}
 }
 
@@ -102,13 +112,13 @@ func (sbl *superBlock) Save(userID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.BucketOption) (*bucket, error) {
+func (l *LfsService) createBucket(bucketID uint64, bucketName string, opts pb.BucketOption) (*bucket, error) {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, bucketID)
 
 	beignHash := blake3.Sum256(buf)
 	bi := types.BucketInfo{
-		BucketOption: *opt,
+		BucketOption: opts,
 		BucketInfo: pb.BucketInfo{
 			BucketID:     bucketID,
 			CTime:        time.Now().Unix(),
@@ -126,12 +136,13 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opt *pb.Bu
 	bu := &bucket{
 		BucketInfo: bi,
 		dirty:      true,
-		objects:    rbtree.NewTree(),
+		objectTree: rbtree.NewTree(),
+		objects:    make(map[uint64]*object),
 	}
 
 	logger.Debug("push create bucket message")
 	tbp := tx.BucketParams{
-		BucketOption: *opt,
+		BucketOption: opts,
 		BucketID:     bucketID,
 	}
 
@@ -233,7 +244,8 @@ func (bu *bucket) Load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	}
 
 	bu.BucketInfo = bi
-	bu.objects = rbtree.NewTree()
+	bu.objectTree = rbtree.NewTree()
+	bu.objects = make(map[uint64]*object)
 
 	return nil
 }
@@ -511,7 +523,16 @@ func (l *LfsService) load() error {
 						obj.Name = newName
 					}
 
-					bu.objects.Insert(MetaName(obj.Name), obj)
+					if len(obj.ETag) != md5.Size {
+						ename, _ := etag.ToString(obj.ETag)
+						l.sb.cids[ename] = &objectDigest{
+							bucketID: obj.BucketID,
+							objectID: obj.ObjectID,
+						}
+					}
+
+					bu.objects[obj.ObjectID] = obj
+					bu.objectTree.Insert(MetaName(obj.Name), obj)
 				}
 			}
 

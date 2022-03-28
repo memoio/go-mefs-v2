@@ -51,7 +51,7 @@ type roleInfo struct {
 func getClient(endPoint string) *ethclient.Client {
 	client, err := rpc.Dial(endPoint)
 	if err != nil {
-		logger.Debug(err)
+		logger.Debug("eth dail fail:", err)
 	}
 	return ethclient.NewClient(client)
 }

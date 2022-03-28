@@ -3,6 +3,8 @@ package lfs
 import (
 	"context"
 	"math/big"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -44,6 +46,15 @@ type LfsService struct {
 }
 
 func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
+	wt := defaultWeighted
+	wts := os.Getenv("MEFS_LFS_PARALLEL")
+	if wts != "" {
+		wtv, err := strconv.Atoi(wts)
+		if err == nil && wtv > 100 {
+			wt = wtv
+		}
+	}
+
 	ls := &LfsService{
 		ctx: ctx,
 
@@ -59,7 +70,7 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 
 		sb:  newSuperBlock(),
 		dps: make(map[uint64]*dataProcess),
-		sw:  semaphore.NewWeighted(defaultWeighted),
+		sw:  semaphore.NewWeighted(int64(wt)),
 
 		readyChan:  make(chan struct{}, 1),
 		bucketChan: make(chan uint64),
@@ -246,14 +257,14 @@ func (l *LfsService) Writeable() bool {
 	return l.sb.write
 }
 
-func (l *LfsService) LfsGetInfo(ctx context.Context, update bool) (*types.LfsInfo, error) {
+func (l *LfsService) LfsGetInfo(ctx context.Context, update bool) (types.LfsInfo, error) {
 	if update {
 		l.getPayInfo()
 	}
 	l.sb.RLock()
 	defer l.sb.RUnlock()
 
-	li := &types.LfsInfo{
+	li := types.LfsInfo{
 		Status: l.Writeable(),
 		Bucket: l.sb.bucketVerify,
 		Used:   0,
@@ -296,7 +307,7 @@ func (l *LfsService) ShowBucketStorage(ctx context.Context, bucketName string) (
 	bucket.RLock()
 	defer bucket.RUnlock()
 	var storageSpace uint64
-	objectIter := bucket.objects.Iterator()
+	objectIter := bucket.objectTree.Iterator()
 	for ; objectIter != nil; objectIter = objectIter.Next() {
 		object := objectIter.Value.(*object)
 		if object.deletion {
