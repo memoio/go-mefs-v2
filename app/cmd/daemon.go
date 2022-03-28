@@ -68,6 +68,11 @@ var daemonStartCmd = &cli.Command{
 			Usage: "segment price",
 			Value: 0,
 		},
+		&cli.BoolFlag{
+			Name:  "secureAPI",
+			Usage: "API is secure or insecure",
+			Value: true,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		return daemonStartFunc(cctx)
@@ -230,7 +235,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	}
 
 	// Start the node
-	err = node.Start()
+	err = node.Start(cctx.Bool("secureAPI"))
 	if err != nil {
 		return err
 	}

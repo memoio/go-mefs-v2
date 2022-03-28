@@ -2,9 +2,13 @@ package user
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/gorilla/mux"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
@@ -101,7 +105,8 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 }
 
 // start service related
-func (u *UserNode) Start() error {
+func (u *UserNode) Start(perm bool) error {
+	u.Perm = perm
 	if u.Repo.Config().Net.Name == "test" {
 		go u.OpenTest()
 	} else {
@@ -115,7 +120,15 @@ func (u *UserNode) Start() error {
 	u.TxMsgHandle.Register(u.BaseNode.TxMsgHandler)
 	u.BlockHandle.Register(u.BaseNode.TxBlockHandler)
 
-	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))
+	u.HttpHandle.PathPrefix("/gateway").HandlerFunc(u.ServeRemote(u.Perm))
+	u.HttpHandle.Handle("/debug/metrics", metrics.NewExporter())
+	u.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
+
+	if u.Perm {
+		u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))
+	} else {
+		u.RPCServer.Register("Memoriae", metrics.MetricedUserAPI(u))
+	}
 
 	go func() {
 		// wait for sync
@@ -146,4 +159,27 @@ func (u *UserNode) Start() error {
 func (u *UserNode) Shutdown(ctx context.Context) error {
 	u.LfsService.Stop()
 	return u.BaseNode.Shutdown(ctx)
+}
+
+func (u *UserNode) ServeRemote(perm bool) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if perm {
+			if !auth.HasPerm(r.Context(), nil, api.PermAdmin) {
+				w.WriteHeader(401)
+				_ = json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})
+				return
+			}
+		}
+		u.ServeRemoteHTTP(w, r)
+	}
+}
+
+func (u *UserNode) ServeRemoteHTTP(w http.ResponseWriter, r *http.Request) {
+	mux := mux.NewRouter()
+
+	mux.HandleFunc("/gateway/state", u.LfsService.GetState).Methods("GET")
+	mux.HandleFunc("/gateway/cid/{cid}", u.LfsService.GetFileByCID).Methods("GET")
+	mux.HandleFunc("/gateway/{bn}/{on}", u.LfsService.GetFile).Methods("GET")
+
+	mux.ServeHTTP(w, r)
 }

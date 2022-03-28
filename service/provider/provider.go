@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"time"
 
@@ -88,7 +89,8 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 }
 
 // start service related
-func (p *ProviderNode) Start() error {
+func (p *ProviderNode) Start(perm bool) error {
+	p.Perm = perm
 	if p.Repo.Config().Net.Name == "test" {
 		go p.OpenTest()
 	} else {
@@ -112,6 +114,9 @@ func (p *ProviderNode) Start() error {
 
 	p.PushPool.RegisterAddUPFunc(p.chalSeg.AddUP)
 	p.PushPool.RegisterDelSegFunc(p.chalSeg.RemoveSeg)
+
+	p.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
+	p.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(metrics.MetricedProviderAPI(p)))
 

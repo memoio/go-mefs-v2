@@ -60,7 +60,7 @@ type BaseNode struct {
 
 	ctx context.Context
 
-	httpHandle *mux.Router
+	HttpHandle *mux.Router
 
 	roleID  uint64
 	groupID uint64
@@ -68,6 +68,7 @@ type BaseNode struct {
 	version string
 
 	isOnline bool
+	Perm     bool
 
 	shutdownChan chan struct{}
 }
@@ -85,7 +86,8 @@ func (n *BaseNode) Version(_ context.Context) (string, error) {
 }
 
 // Start boots up the node.
-func (n *BaseNode) Start() error {
+func (n *BaseNode) Start(perm bool) error {
+	n.Perm = perm
 	if n.Repo.Config().Net.Name == "test" {
 		go n.OpenTest()
 	} else {
@@ -98,7 +100,14 @@ func (n *BaseNode) Start() error {
 	n.GenericService.Register(pb.NetMessage_SayHello, n.DefaultHandler)
 	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
 
-	n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedFullAPI(n)))
+	n.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
+	n.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
+
+	if n.Perm {
+		n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedFullAPI(n)))
+	} else {
+		n.RPCServer.Register("Memoriae", metrics.MetricedFullAPI(n))
+	}
 
 	go func() {
 		// wait for sync
@@ -151,14 +160,19 @@ func (n *BaseNode) RunDaemon() error {
 
 	netListener := manet.NetListener(apiListener) //nolint
 
-	// add auth
-	ah := &auth.Handler{
-		Verify: n.AuthVerify,
-		Next:   n.httpHandle.ServeHTTP,
-	}
-
 	apiserv := &http.Server{
-		Handler: ah,
+		Handler: n.HttpHandle,
+	}
+	if n.Perm {
+		// add auth
+		ah := &auth.Handler{
+			Verify: n.AuthVerify,
+			Next:   n.HttpHandle.ServeHTTP,
+		}
+
+		apiserv = &http.Server{
+			Handler: ah,
+		}
 	}
 
 	cfg.API.Address = apiListener.Multiaddr().String()
