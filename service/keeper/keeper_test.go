@@ -162,7 +162,7 @@ func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode
 		t.Fatal(err)
 	}
 
-	err = bn.Start()
+	err = bn.Start(true)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"crypto/md5"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/schollz/progressbar/v3"
@@ -455,6 +459,125 @@ var delObjectCmd = &cli.Command{
 		}
 
 		fmt.Println("object ", objectName, " deleted")
+
+		return nil
+	},
+}
+
+var downlaodObjectCmd = &cli.Command{
+	Name:  "downloadObject",
+	Usage: "download object using rpc",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
+		},
+		&cli.StringFlag{
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
+		},
+		&cli.StringFlag{
+			Name:  "cid",
+			Usage: "cid name",
+		},
+		&cli.StringFlag{
+			Name:  "path",
+			Usage: "stored path of file",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, header, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		cidName := cctx.String("cid")
+		path := cctx.String("path")
+
+		bar := progressbar.DefaultBytes(-1, "download:")
+
+		p, err := homedir.Expand(path)
+		if err != nil {
+			return err
+		}
+
+		p, err = filepath.Abs(p)
+		if err != nil {
+			return err
+		}
+
+		f, err := os.Create(p)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		bucketName := cctx.String("bucket")
+		objectName := cctx.String("object")
+		haddr := "http://" + addr + "/gateway/" + bucketName + "/" + objectName
+		if cidName != "" {
+			haddr = "http://" + addr + "/gateway/cid/" + cidName
+		} else {
+			cidName = bucketName + "/" + objectName
+		}
+
+		hreq, err := http.NewRequest("GET", haddr, nil)
+		if err != nil {
+			return err
+		}
+
+		hreq.Header = header.Clone()
+
+		defaultHTTPClient := &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+					DualStack: true,
+				}).DialContext,
+				ForceAttemptHTTP2:     true,
+				MaxIdleConns:          100,
+				MaxIdleConnsPerHost:   100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		}
+
+		resp, err := defaultHTTPClient.Do(hreq)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return xerrors.Errorf("response: %s", resp.Status)
+		}
+
+		// read 1MB once
+		readSize := build.DefaultSegSize * 4
+		buf := make([]byte, readSize)
+
+		breakFlag := false
+		for !breakFlag {
+			n, err := io.ReadAtLeast(resp.Body, buf[:readSize], readSize)
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				breakFlag = true
+			} else if err != nil {
+				return err
+			}
+
+			bar.Add(n)
+			f.Write(buf[:n])
+		}
+
+		bar.Finish()
+
+		fmt.Printf("object: %s is stored in: %s\n", cidName, p)
 
 		return nil
 	},

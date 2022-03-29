@@ -135,6 +135,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		if ok {
 			poi.Encryption = val
 		}
+		poi.UserDefined = opts.UserDefined
 	}
 
 	// serialize

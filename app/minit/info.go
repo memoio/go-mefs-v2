@@ -16,7 +16,7 @@ import (
 )
 
 type Node interface {
-	Start() error
+	Start(perm bool) error
 	Shutdown(context.Context) error
 	RunDaemon() error
 	Online() bool

@@ -128,6 +128,7 @@ message ObjectInfo {
 	uint64 Expire = 4;
 	string Name = 5;
 	string Encryption = 6; // enc method
+	map<string, string> UserDefined = 7; 
 }
 
 // object delete information; when delete object 

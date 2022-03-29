@@ -3,11 +3,22 @@ package lfs
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"time"
 
-	"github.com/memoio/go-mefs-v2/lib/types"
-
+	"github.com/gorilla/mux"
+	minio "github.com/memoio/minio/cmd"
 	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/xerrors"
+
+	"github.com/memoio/go-mefs-v2/lib/types"
+)
+
+var (
+	minioMetaBucket      = ".minio.sys"
+	dataUsageObjNamePath = "buckets/.usage.json"
 )
 
 // read at most one stripe
@@ -17,6 +28,35 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(2)
+
+	// for minio console, simulate
+	if bucketName == minioMetaBucket && objectName == dataUsageObjNamePath {
+		mtime := int64(0)
+		dui := minio.DataUsageInfo{
+			BucketsUsage: make(map[string]minio.BucketUsageInfo),
+		}
+		for _, bu := range l.sb.buckets {
+			if bu.Deletion {
+				continue
+			}
+			if mtime > bu.MTime {
+				mtime = bu.MTime
+			}
+			bui := minio.BucketUsageInfo{
+				Size:         bu.Length,
+				ObjectsCount: bu.NextObjectID,
+				ReplicaSize:  bu.UsedBytes,
+			}
+			dui.ObjectsTotalSize += bui.Size
+			dui.ObjectsTotalCount += bui.ObjectsCount
+			dui.BucketsCount++
+		}
+
+		dui.LastUpdate = time.Unix(mtime, 0)
+
+		res, err := json.Marshal(dui)
+		return res, err
+	}
 
 	// 512MB?
 	if opts.Length > 512*1024*1024 {
@@ -29,37 +69,32 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		}
 	}
 
+	buf := new(bytes.Buffer)
 	if bucketName == "" && objectName != "" {
-		return l.getObjectByCID(ctx, objectName, opts)
+		err := l.getObjectByCID(ctx, objectName, buf, opts)
+		if err != nil {
+			return nil, xerrors.Errorf("object %s download fail", objectName)
+		}
+	} else {
+		err := l.getObject(ctx, bucketName, objectName, buf, opts)
+		if err != nil {
+			return nil, xerrors.Errorf("object %s download fail", objectName)
+		}
 	}
 
-	bucket, err := l.getBucketInfo(bucketName)
-	if err != nil {
-		return nil, err
-	}
-
-	if bucket.BucketInfo.Deletion {
-		return nil, xerrors.Errorf("bucket %d is deleted", bucket.BucketID)
-	}
-
-	object, err := l.getObjectInfo(bucket, objectName)
-	if err != nil {
-		return nil, err
-	}
-
-	return l.downloadObject(ctx, bucket, object, opts)
+	return buf.Bytes(), nil
 }
 
-func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object *object, opts types.DownloadObjectOptions) ([]byte, error) {
+func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object *object, writer io.Writer, opts types.DownloadObjectOptions) error {
 	object.RLock()
 	defer object.RUnlock()
 
 	if object.deletion {
-		return nil, xerrors.Errorf("object %s is deleted", object.Name)
+		return xerrors.Errorf("object %s is deleted", object.Name)
 	}
 
 	if object.Size == 0 {
-		return nil, xerrors.New("object is empty")
+		return xerrors.New("object is empty")
 	}
 
 	readStart := opts.Start
@@ -67,14 +102,14 @@ func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object 
 
 	if readStart > int64(object.Size) ||
 		readStart+readLength > int64(object.Size) {
-		return nil, xerrors.Errorf("out of object size %d", object.Size)
+		return xerrors.Errorf("out of object size %d", object.Size)
 	}
 
 	dp, ok := l.dps[bucket.BucketID]
 	if !ok {
 		ndp, err := l.newDataProcess(bucket.BucketID, &bucket.BucketOption)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		dp = ndp
 	}
@@ -83,11 +118,9 @@ func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object 
 		readLength = int64(object.Size - uint64(readStart))
 	}
 
-	buf := new(bytes.Buffer)
-
 	// length is zero
 	if readLength == 0 {
-		return buf.Bytes(), nil
+		return nil
 	}
 
 	// read from each part
@@ -117,9 +150,9 @@ func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object 
 			partLength -= (accLen + part.Length - uint64(readStart+readLength))
 		}
 
-		err := l.download(ctx, dp, bucket, object, int(partStart), int(partLength), buf)
+		err := l.download(ctx, dp, bucket, object, int(partStart), int(partLength), writer)
 		if err != nil {
-			return buf.Bytes(), err
+			return err
 		}
 		rLen += partLength
 		accLen += part.Length
@@ -134,28 +167,90 @@ func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object 
 			break
 		}
 	}
-	return buf.Bytes(), nil
+	return nil
 }
 
-func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, opts types.DownloadObjectOptions) ([]byte, error) {
+func (l *LfsService) getObject(ctx context.Context, bucketName, objectName string, writer io.Writer, opts types.DownloadObjectOptions) error {
+	bucket, err := l.getBucketInfo(bucketName)
+	if err != nil {
+		return err
+	}
+
+	if bucket.BucketInfo.Deletion {
+		return xerrors.Errorf("bucket %d is deleted", bucket.BucketID)
+	}
+
+	object, err := l.getObjectInfo(bucket, objectName)
+	if err != nil {
+		return err
+	}
+
+	err = l.downloadObject(ctx, bucket, object, writer, opts)
+	if err != nil {
+		return xerrors.Errorf("object %s download fail", object.Name)
+	}
+
+	return nil
+}
+
+func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, writer io.Writer, opts types.DownloadObjectOptions) error {
 	od, ok := l.sb.cids[cidName]
 	if !ok {
-		return nil, xerrors.Errorf("file not exist")
+		return xerrors.Errorf("file not exist")
 	}
 
 	if len(l.sb.buckets) < int(od.bucketID) {
-		return nil, xerrors.Errorf("bucket %d not exist", od.bucketID)
+		return xerrors.Errorf("bucket %d not exist", od.bucketID)
 	}
 
 	bucket := l.sb.buckets[od.bucketID]
 	if bucket.BucketInfo.Deletion {
-		return nil, xerrors.Errorf("bucket %d is deleted", od.bucketID)
+		return xerrors.Errorf("bucket %d is deleted", od.bucketID)
 	}
 
 	object, ok := bucket.objects[od.objectID]
 	if !ok {
-		return nil, xerrors.Errorf("object %d not exist", od.objectID)
+		return xerrors.Errorf("object %d not exist", od.objectID)
 	}
 
-	return l.downloadObject(ctx, bucket, object, opts)
+	return l.downloadObject(ctx, bucket, object, writer, opts)
+}
+
+func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	bucketName := vars["bn"]
+	objectName := vars["on"]
+
+	logger.Debug("getfile : ", bucketName, objectName)
+	w.Header().Set("Content-Type", "application/octet-stream")
+	err := l.getObject(r.Context(), bucketName, objectName, w, types.DefaultDownloadOption())
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+
+}
+
+func (l *LfsService) GetFileByCID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	cid := vars["cid"]
+
+	logger.Debug("getfile : ", cid)
+	w.Header().Set("Content-Type", "application/octet-stream")
+	err := l.getObjectByCID(r.Context(), cid, w, types.DefaultDownloadOption())
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+
+}
+
+func (l *LfsService) GetState(w http.ResponseWriter, r *http.Request) {
+
+	gi, err := l.LfsGetInfo(r.Context(), false)
+	if err != nil {
+		w.WriteHeader(500)
+	}
+
+	json.NewEncoder(w).Encode(&gi)
 }

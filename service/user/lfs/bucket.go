@@ -121,9 +121,6 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) error 
 		return ErrLfsReadOnly
 	}
 
-	l.sb.RLock()
-	defer l.sb.RUnlock()
-
 	bucket, err := l.getBucketInfo(bucketName)
 	if err != nil {
 		return err
@@ -132,6 +129,11 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) error 
 	if bucket.BucketID >= l.sb.bucketVerify {
 		return xerrors.Errorf("bucket %d is confirming", bucket.BucketID)
 	}
+
+	// remove data process
+	l.Lock()
+	delete(l.dps, bucket.BucketID)
+	l.Unlock()
 
 	bucket.Lock()
 	defer bucket.Unlock()

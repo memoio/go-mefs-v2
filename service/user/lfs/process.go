@@ -86,7 +86,9 @@ func (l *LfsService) newDataProcess(bucketID uint64, bopt *pb.BucketOption) (*da
 func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object, r io.Reader, opts types.PutObjectOptions) error {
 	nt := time.Now()
 	logger.Debug("upload begin at: ", nt)
+	l.RLock()
 	dp, ok := l.dps[bucket.BucketID]
+	l.RUnlock()
 	if !ok {
 		ndp, err := l.newDataProcess(bucket.BucketID, &bucket.BucketOption)
 		if err != nil {
