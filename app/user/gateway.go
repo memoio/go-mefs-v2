@@ -346,7 +346,7 @@ func (e InvalidRange) Error() string {
 // startOffset indicates the starting read location of the object.
 // length indicates the total length of the object.
 func (l *lfsGateway) GetObject(ctx context.Context, bucketName, objectName string, startOffset, length int64, writer io.Writer, etag string, o minio.ObjectOptions) error {
-	err := l.memofs.GetObject(ctx, bucketName, objectName, writer)
+	err := l.memofs.GetObject(ctx, bucketName, objectName, startOffset, length, writer)
 	if err != nil {
 		return err
 	}
