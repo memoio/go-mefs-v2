@@ -2,25 +2,24 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	metag "github.com/memoio/go-mefs-v2/lib/utils/etag"
 	minio "github.com/memoio/minio/cmd"
 	"github.com/minio/cli"
 	"github.com/minio/madmin-go"
-	miniogo "github.com/minio/minio-go/v7"
 	"github.com/mitchellh/go-homedir"
 	cli2 "github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
+
+	"github.com/memoio/go-mefs-v2/lib/utils"
+	metag "github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 var GatewayCmd = &cli2.Command{
@@ -195,6 +194,7 @@ func (l *lfsGateway) Shutdown(ctx context.Context) error {
 
 // StorageInfo is not relevant to LFS backend.
 func (l *lfsGateway) StorageInfo(ctx context.Context) (si minio.StorageInfo, errs []error) {
+	//log.Println("get StorageInfo")
 	si.Backend.Type = madmin.Gateway
 	si.Disks = make([]madmin.Disk, 1)
 	si.Disks[0].DiskIndex = 0
@@ -215,6 +215,7 @@ func (l *lfsGateway) MakeBucketWithLocation(ctx context.Context, bucket string, 
 
 // GetBucketInfo gets bucket metadata.
 func (l *lfsGateway) GetBucketInfo(ctx context.Context, bucket string) (bi minio.BucketInfo, err error) {
+	//log.Println("get buckte info: ", bucket)
 	bucketInfo, err := l.memofs.GetBucketInfo(ctx, bucket)
 	if err != nil {
 		return bi, err
@@ -226,14 +227,14 @@ func (l *lfsGateway) GetBucketInfo(ctx context.Context, bucket string) (bi minio
 
 // ListBuckets lists all LFS buckets.
 func (l *lfsGateway) ListBuckets(ctx context.Context) (bs []minio.BucketInfo, err error) {
-	// log.Println("ListObjects ")
-	bs = make([]minio.BucketInfo, 0, 1)
+	//log.Println("list bucktes")
 
 	buckets, err := l.memofs.ListBuckets(ctx)
 	if err != nil {
-		return bs, err
+		return nil, err
 	}
 
+	bs = make([]minio.BucketInfo, 0, len(buckets))
 	for _, v := range buckets {
 		bs = append(bs, minio.BucketInfo{
 			Name:    v.Name,
@@ -252,15 +253,21 @@ func (l *lfsGateway) DeleteBucket(ctx context.Context, bucket string, opts minio
 
 // ListObjects lists all blobs in LFS bucket filtered by prefix.
 func (l *lfsGateway) ListObjects(ctx context.Context, bucket, prefix, marker, delimiter string, maxKeys int) (loi minio.ListObjectsInfo, err error) {
+	//log.Println("list object: ", bucket, prefix, marker, delimiter, maxKeys)
 	mloi, err := l.memofs.ListObjects(ctx, bucket, prefix, marker, delimiter, maxKeys)
 	if err != nil {
 		return loi, err
 	}
-	ud := make(map[string]string)
-	ud["x-amz-meta-mode"] = "33204"
+
 	for _, oi := range mloi.Objects {
+		ud := make(map[string]string)
+		if oi.UserDefined != nil {
+			ud = oi.UserDefined
+		}
+		//  for s3fs
+		ud["x-amz-meta-mode"] = "33204"
+		ud["x-amz-meta-mtime"] = time.Unix(oi.GetTime(), 0).Format(utils.SHOWTIME)
 		etag, _ := metag.ToString(oi.ETag)
-		ud["x-amz-meta-mtime"] = strconv.FormatInt(oi.GetTime(), 10)
 		loi.Objects = append(loi.Objects, minio.ObjectInfo{
 			Bucket:      bucket,
 			Name:        oi.GetName(),
@@ -282,6 +289,7 @@ func (l *lfsGateway) ListObjects(ctx context.Context, bucket, prefix, marker, de
 // ListObjectsV2 lists all blobs in LFS bucket filtered by prefix
 func (l *lfsGateway) ListObjectsV2(ctx context.Context, bucket, prefix, continuationToken, delimiter string, maxKeys int,
 	fetchOwner bool, startAfter string) (loiv2 minio.ListObjectsV2Info, err error) {
+	//log.Println("list objects v2: ", bucket, prefix, continuationToken, delimiter, maxKeys, startAfter)
 	marker := continuationToken
 	if marker == "" {
 		marker = startAfter
@@ -305,8 +313,8 @@ func (l *lfsGateway) ListObjectsV2(ctx context.Context, bucket, prefix, continua
 
 // GetObjectNInfo - returns object info and locked object ReadCloser
 func (l *lfsGateway) GetObjectNInfo(ctx context.Context, bucket, object string, rs *minio.HTTPRangeSpec, h http.Header, lockType minio.LockType, opts minio.ObjectOptions) (gr *minio.GetObjectReader, err error) {
-	var objInfo minio.ObjectInfo
-	objInfo, err = l.GetObjectInfo(ctx, bucket, object, opts)
+	//log.Println("get objectn: ", bucket, object)
+	objInfo, err := l.GetObjectInfo(ctx, bucket, object, opts)
 	if err != nil {
 		return nil, minio.ErrorRespToObjectError(err, bucket, object)
 	}
@@ -328,17 +336,6 @@ func (l *lfsGateway) GetObjectNInfo(ctx context.Context, bucket, object string, 
 	return fn(pr, h, pipeCloser)
 }
 
-// InvalidRange - invalid range typed error.
-type InvalidRange struct {
-	OffsetBegin  int64
-	OffsetEnd    int64
-	ResourceSize int64
-}
-
-func (e InvalidRange) Error() string {
-	return fmt.Sprintf("The requested range \"bytes %d -> %d of %d\" is not satisfiable.", e.OffsetBegin, e.OffsetEnd, e.ResourceSize)
-}
-
 // GetObject reads an object on LFS. Supports additional
 // parameters like offset and length which are synonymous with
 // HTTP Range requests.
@@ -346,6 +343,7 @@ func (e InvalidRange) Error() string {
 // startOffset indicates the starting read location of the object.
 // length indicates the total length of the object.
 func (l *lfsGateway) GetObject(ctx context.Context, bucketName, objectName string, startOffset, length int64, writer io.Writer, etag string, o minio.ObjectOptions) error {
+	//log.Println("get object: ", bucketName, objectName, startOffset, length)
 	err := l.memofs.GetObject(ctx, bucketName, objectName, startOffset, length, writer)
 	if err != nil {
 		return err
@@ -355,41 +353,58 @@ func (l *lfsGateway) GetObject(ctx context.Context, bucketName, objectName strin
 
 // GetObjectInfo reads object info and replies back ObjectInfo.
 func (l *lfsGateway) GetObjectInfo(ctx context.Context, bucket, object string, opts minio.ObjectOptions) (objInfo minio.ObjectInfo, err error) {
+	//log.Println("get object info: ", bucket, object)
 	moi, err := l.memofs.GetObjectInfo(ctx, bucket, object)
 	if err != nil {
 		return objInfo, err
 	}
+
 	ud := make(map[string]string)
+	if moi.UserDefined != nil {
+		ud = moi.UserDefined
+	}
+	// for s3fs
 	ud["x-amz-meta-mode"] = "33204"
-	ud["x-amz-meta-mtime"] = strconv.FormatInt(moi.GetTime(), 10)
+	ud["x-amz-meta-mtime"] = time.Unix(moi.GetTime(), 0).Format(utils.SHOWTIME)
+
 	// need handle ETag
 	etag, _ := metag.ToString(moi.ETag)
-	oi := miniogo.ObjectInfo{
-		Key:  moi.Name,
-		ETag: etag,
-		Size: int64(moi.Size),
+	oi := minio.ObjectInfo{
+		Bucket:      bucket,
+		Name:        moi.Name,
+		ModTime:     time.Unix(moi.GetTime(), 0),
+		Size:        int64(moi.Size),
+		ETag:        etag,
+		IsDir:       false,
+		UserDefined: ud,
 	}
 
-	return minio.FromMinioClientObjectInfo(bucket, oi), nil
+	return oi, nil
 }
 
 // PutObject creates a new object with the incoming data.
 func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *minio.PutObjReader, opts minio.ObjectOptions) (objInfo minio.ObjectInfo, err error) {
-
-	var oi miniogo.ObjectInfo
+	//log.Println("put object: ", bucket, object)
 
 	moi, err := l.memofs.PutObject(ctx, bucket, object, r, opts.UserDefined)
 	if err != nil {
 		return objInfo, err
 	}
 	etag, _ := metag.ToString(moi.ETag)
-	oi = miniogo.ObjectInfo{
-		ETag:     etag,
-		Size:     int64(moi.Size),
-		Key:      object,
-		Metadata: minio.ToMinioClientObjectInfoMetadata(opts.UserDefined),
+	oi := minio.ObjectInfo{
+		Bucket:  bucket,
+		Name:    moi.Name,
+		ModTime: time.Unix(moi.GetTime(), 0),
+		Size:    int64(moi.Size),
+		ETag:    etag,
+		IsDir:   false,
 	}
-	return minio.FromMinioClientObjectInfo(bucket, oi), nil
+
+	if moi.UserDefined != nil {
+		oi.UserDefined = moi.UserDefined
+	}
+
+	return oi, nil
 }
 
 // CopyObject copies an object from source bucket to a destination bucket.
@@ -419,5 +434,6 @@ func (l *lfsGateway) IsCompressionSupported() bool {
 }
 
 func (l *lfsGateway) StatObject(ctx context.Context, bucket, object string, opts minio.ObjectOptions) (minio.ObjectInfo, error) {
+	//log.Println("state object info: ", bucket, object)
 	return minio.ObjectInfo{}, minio.NotImplemented{}
 }

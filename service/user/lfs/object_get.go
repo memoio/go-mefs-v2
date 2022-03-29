@@ -6,12 +6,19 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/memoio/go-mefs-v2/lib/types"
-
+	minio "github.com/memoio/minio/cmd"
 	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/xerrors"
+
+	"github.com/memoio/go-mefs-v2/lib/types"
+)
+
+var (
+	minioMetaBucket      = ".minio.sys"
+	dataUsageObjNamePath = "buckets/.usage.json"
 )
 
 // read at most one stripe
@@ -21,6 +28,35 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 		return nil, ErrResourceUnavailable
 	}
 	defer l.sw.Release(2)
+
+	// for minio console, simulate
+	if bucketName == minioMetaBucket && objectName == dataUsageObjNamePath {
+		mtime := int64(0)
+		dui := minio.DataUsageInfo{
+			BucketsUsage: make(map[string]minio.BucketUsageInfo),
+		}
+		for _, bu := range l.sb.buckets {
+			if bu.Deletion {
+				continue
+			}
+			if mtime > bu.MTime {
+				mtime = bu.MTime
+			}
+			bui := minio.BucketUsageInfo{
+				Size:         bu.Length,
+				ObjectsCount: bu.NextObjectID,
+				ReplicaSize:  bu.UsedBytes,
+			}
+			dui.ObjectsTotalSize += bui.Size
+			dui.ObjectsTotalCount += bui.ObjectsCount
+			dui.BucketsCount++
+		}
+
+		dui.LastUpdate = time.Unix(mtime, 0)
+
+		res, err := json.Marshal(dui)
+		return res, err
+	}
 
 	// 512MB?
 	if opts.Length > 512*1024*1024 {

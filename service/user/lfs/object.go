@@ -194,8 +194,9 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 		return res, err
 	}
 
-	bucket.RLock()
-	defer bucket.RUnlock()
+	// remove read lock
+	//bucket.RLock()
+	//defer bucket.RUnlock()
 
 	if opts.MaxKeys > bucket.objectTree.Size() {
 		opts.MaxKeys = bucket.objectTree.Size()
