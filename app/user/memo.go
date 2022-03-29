@@ -106,12 +106,6 @@ func (m *MemoFs) ListObjects(ctx context.Context, bucket string, prefix, marker,
 }
 
 func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, startOffset, length int64, writer io.Writer) error {
-	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
-	if err != nil {
-		return err
-	}
-	defer closer()
-
 	// for minio console, simulate
 	if bucketName == minioMetaBucket && objectName == dataUsageObjNamePath {
 		mtime := int64(0)
@@ -132,6 +126,7 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, s
 				ObjectsCount: bu.NextObjectID,
 				ReplicaSize:  bu.UsedBytes,
 			}
+			dui.BucketsUsage[bu.Name] = bui
 			dui.ObjectsTotalSize += bui.Size
 			dui.ObjectsTotalCount += bui.ObjectsCount
 			dui.BucketsCount++
@@ -146,6 +141,12 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, s
 		writer.Write(res)
 		return nil
 	}
+
+	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
+	if err != nil {
+		return err
+	}
+	defer closer()
 
 	objInfo, err := napi.HeadObject(ctx, bucketName, objectName)
 	if err != nil {
