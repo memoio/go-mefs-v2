@@ -27,3 +27,16 @@ func Exporter() http.Handler {
 
 	return exporter
 }
+
+func NewExporter() http.Handler {
+	registry := promclient.NewRegistry()
+	exporter, err := prometheus.NewExporter(prometheus.Options{
+		Registry:  registry,
+		Namespace: "mefs",
+	})
+	if err != nil {
+		logger.Warnf("could not create the prometheus stats exporter: %v", err)
+	}
+
+	return exporter
+}

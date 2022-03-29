@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto/md5"
 	"io"
 	"net/http"
 
@@ -14,7 +12,6 @@ import (
 	mcode "github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	mtypes "github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 type MemoFs struct {
@@ -99,7 +96,7 @@ func (m *MemoFs) ListObjects(ctx context.Context, bucket string, prefix, marker,
 	return mloi, nil
 }
 
-func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, writer io.Writer) error {
+func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, startOffset, length int64, writer io.Writer) error {
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return err
@@ -111,18 +108,19 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, w
 		return err
 	}
 
+	if length == -1 {
+		length = int64(objInfo.Size)
+	}
+
 	buInfo, err := napi.HeadBucket(ctx, bucketName)
 	if err != nil {
 		return err
 	}
 
-	h := md5.New()
-	tr := etag.NewTree()
-
 	stripeCnt := 4 * 64 / buInfo.DataCount
 	stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
-	start := int64(0)
-	oSize := int64(objInfo.Size)
+	start := int64(startOffset)
+	oSize := startOffset + length
 
 	for start < oSize {
 		readLen := stepLen
@@ -140,46 +138,9 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, w
 			return err
 		}
 
-		if len(objInfo.ETag) == md5.Size {
-			h.Write(data)
-		} else {
-			for start := int64(0); start < readLen; {
-				stepLen := int64(build.DefaultSegSize)
-				if start+stepLen > readLen {
-					stepLen = readLen - start
-				}
-				cid := etag.NewCidFromData(data[start : start+stepLen])
-
-				tr.AddCid(cid, uint64(stepLen))
-
-				start += stepLen
-			}
-		}
 		writer.Write(data)
 
 		start += readLen
-	}
-
-	var etagb []byte
-	if len(objInfo.ETag) == md5.Size {
-		etagb = h.Sum(nil)
-	} else {
-		cidEtag := tr.Root()
-		etagb = cidEtag.Bytes()
-	}
-
-	gotEtag, err := etag.ToString(etagb)
-	if err != nil {
-		return err
-	}
-
-	origEtag, err := etag.ToString(objInfo.ETag)
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(etagb, objInfo.ETag) {
-		return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 	}
 
 	return nil

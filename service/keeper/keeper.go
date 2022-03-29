@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"time"
 
@@ -61,7 +62,9 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 }
 
 // start service related
-func (k *KeeperNode) Start() error {
+func (k *KeeperNode) Start(perm bool) error {
+	k.Perm = perm
+
 	if k.Repo.Config().Net.Name == "test" {
 		go k.OpenTest()
 	} else {
@@ -77,6 +80,9 @@ func (k *KeeperNode) Start() error {
 
 	k.StateMgr.RegisterAddUserFunc(k.AddUsers)
 	k.StateMgr.RegisterAddUPFunc(k.AddUP)
+
+	k.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
+	k.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
 

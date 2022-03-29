@@ -175,10 +175,11 @@ func disorder(array []peer.AddrInfo) {
 
 // fetch
 func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) {
-	if c.lastFetch.Validate() == nil {
-		resp, err := c.GenericService.SendNetRequest(ctx, c.lastFetch, c.roleID, pb.NetMessage_Get, key, nil)
+	lf := c.lastFetch
+	if lf.Validate() == nil {
+		resp, err := c.GenericService.SendNetRequest(ctx, lf, c.roleID, pb.NetMessage_Get, key, nil)
 		if err == nil && resp.GetHeader().GetType() != pb.NetMessage_Err {
-			logger.Debug("receive data from last good: ", c.lastFetch.Pretty(), string(key))
+			logger.Debug("receive data from last good: ", lf, string(key))
 			cons := c.ns.Host.Network().ConnsToPeer(c.lastFetch)
 			for _, con := range cons {
 				maddr := con.RemoteMultiaddr()

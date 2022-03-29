@@ -84,8 +84,8 @@ type DownloadObjectOptions struct {
 	Start, Length int64
 }
 
-func DefaultDownloadOption() *DownloadObjectOptions {
-	return &DownloadObjectOptions{
+func DefaultDownloadOption() DownloadObjectOptions {
+	return DownloadObjectOptions{
 		Start:  0,
 		Length: -1,
 	}
