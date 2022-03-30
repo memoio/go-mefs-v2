@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/shirou/gopsutil/v3/mem"
@@ -185,23 +186,59 @@ func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 	bucketName := vars["bn"]
 	objectName := vars["on"]
 
-	logger.Debug("getfile : ", bucketName, objectName)
-	w.Header().Set("Content-Type", "application/octet-stream")
-	err := l.getObject(r.Context(), bucketName, objectName, w, types.DefaultDownloadOption())
+	start, err := strconv.ParseInt(vars["st"], 10, 64)
+	if err != nil {
+		start = 0
+	}
+
+	length, err := strconv.ParseInt(vars["le"], 10, 64)
+	if err != nil {
+		length = -1
+	}
+
+	if length == 0 {
+		length = -1
+	}
+
+	logger.Debug("getfile : ", bucketName, objectName, start, length)
+
+	doo := types.DownloadObjectOptions{
+		Start:  start,
+		Length: length,
+	}
+
+	//w.Header().Set("Content-Type", "application/octet-stream")
+	err = l.getObject(r.Context(), bucketName, objectName, w, doo)
 	if err != nil {
 		w.WriteHeader(500)
 		return
 	}
-
 }
 
 func (l *LfsService) GetFileByCID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	cid := vars["cid"]
+	start, err := strconv.ParseInt(vars["st"], 10, 64)
+	if err != nil {
+		start = 0
+	}
 
-	logger.Debug("getfile : ", cid)
-	w.Header().Set("Content-Type", "application/octet-stream")
-	err := l.getObjectByCID(r.Context(), cid, w, types.DefaultDownloadOption())
+	length, err := strconv.ParseInt(vars["le"], 10, 64)
+	if err != nil {
+		length = -1
+	}
+
+	if length == 0 {
+		length = -1
+	}
+
+	logger.Debug("getfile : ", cid, start, length)
+	doo := types.DownloadObjectOptions{
+		Start:  start,
+		Length: length,
+	}
+	//w.Header().Set("Content-Type", "application/octet-stream")
+	err = l.getObjectByCID(r.Context(), cid, w, doo)
 	if err != nil {
 		w.WriteHeader(500)
 		return
