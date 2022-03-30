@@ -318,6 +318,7 @@ func (l *lfsGateway) ListObjects(ctx context.Context, bucket, prefix, marker, de
 		//  for s3fs
 		ud["x-amz-meta-mode"] = "33204"
 		ud["x-amz-meta-mtime"] = time.Unix(oi.GetTime(), 0).Format(utils.SHOWTIME)
+		ud["x-amz-meta-state"] = oi.State
 		etag, _ := metag.ToString(oi.ETag)
 		loi.Objects = append(loi.Objects, minio.ObjectInfo{
 			Bucket:      bucket,
@@ -417,6 +418,7 @@ func (l *lfsGateway) GetObjectInfo(ctx context.Context, bucket, object string, o
 	// for s3fs
 	ud["x-amz-meta-mode"] = "33204"
 	ud["x-amz-meta-mtime"] = time.Unix(moi.GetTime(), 0).Format(utils.SHOWTIME)
+	ud["x-amz-meta-state"] = moi.State
 
 	// need handle ETag
 	etag, _ := metag.ToString(moi.ETag)
@@ -453,6 +455,7 @@ func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *mi
 
 	if moi.UserDefined != nil {
 		oi.UserDefined = moi.UserDefined
+		oi.UserDefined["x-amz-meta-state"] = moi.State
 	}
 
 	return oi, nil

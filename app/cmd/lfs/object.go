@@ -540,11 +540,14 @@ var downlaodObjectCmd = &cli.Command{
 					DualStack: true,
 				}).DialContext,
 				ForceAttemptHTTP2:     true,
+				WriteBufferSize:       16 << 10, // 16KiB moving up from 4KiB default
+				ReadBufferSize:        16 << 10, // 16KiB moving up from 4KiB default
 				MaxIdleConns:          100,
 				MaxIdleConnsPerHost:   100,
 				IdleConnTimeout:       90 * time.Second,
 				TLSHandshakeTimeout:   10 * time.Second,
 				ExpectContinueTimeout: 1 * time.Second,
+				DisableCompression:    true,
 			},
 		}
 
