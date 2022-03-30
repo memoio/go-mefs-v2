@@ -46,6 +46,7 @@ Parity Count: %d
 Reliability: %s
 Confirmed: %t
 Object Count: %d
+Size: %s
 Used Bytes: %s
 Creation Time: %s
 Modify Time: %s`,
@@ -57,6 +58,7 @@ Modify Time: %s`,
 		reliability,
 		bucket.Confirmed,
 		bucket.NextObjectID,
+		utils.FormatBytes(int64(bucket.Length)),
 		utils.FormatBytes(int64(bucket.UsedBytes)),
 		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),
 		time.Unix(int64(bucket.MTime), 0).Format(utils.SHOWTIME),
