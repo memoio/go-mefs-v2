@@ -532,7 +532,7 @@ func (l *LfsService) load() error {
 					}
 
 					bu.objects[obj.ObjectID] = obj
-					if bu.objectTree.Find(MetaName(obj.Name)) != nil {
+					if bu.objectTree.Find(MetaName(obj.Name)) == nil {
 						bu.objectTree.Insert(MetaName(obj.Name), obj)
 					}
 				}
