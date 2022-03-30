@@ -14,6 +14,8 @@ import (
 	minio "github.com/memoio/minio/cmd"
 	"github.com/minio/cli"
 	"github.com/minio/madmin-go"
+	"github.com/minio/pkg/bucket/policy"
+	"github.com/minio/pkg/bucket/policy/condition"
 	"github.com/mitchellh/go-homedir"
 	cli2 "github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -159,17 +161,21 @@ type Mefs struct {
 
 // Name implements Gateway interface.
 func (g *Mefs) Name() string {
-	return "lfs"
+	return "mefs"
 }
 
 // NewGatewayLayer implements Gateway interface and returns LFS ObjectLayer.
 func (g *Mefs) NewGatewayLayer(creds madmin.Credentials) (minio.ObjectLayer, error) {
 	var err error
-	gw := &lfsGateway{}
+
 	repoDir := os.Getenv("MEFS_PATH")
-	gw.memofs, err = NewMemofs(repoDir)
+	memofs, err := NewMemofs(repoDir)
 	if err != nil {
 		return nil, err
+	}
+
+	gw := &lfsGateway{
+		memofs: memofs,
 	}
 
 	return gw, nil
@@ -192,14 +198,42 @@ func (l *lfsGateway) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// GetBucketPolicy will get policy on bucket.
+func (l *lfsGateway) GetBucketPolicy(ctx context.Context, bucket string) (*policy.Policy, error) {
+	_, err := l.GetBucketInfo(ctx, bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	pp := &policy.Policy{
+		Version: policy.DefaultVersion,
+		Statements: []policy.Statement{
+			policy.NewStatement(
+				"",
+				policy.Allow,
+
+				policy.NewPrincipal("*"),
+				policy.NewActionSet(
+					policy.GetObjectAction,
+					//policy.ListBucketAction,
+				),
+				policy.NewResourceSet(
+					policy.NewResource(bucket, ""),
+					policy.NewResource(bucket, "*"),
+				),
+				condition.NewFunctions(),
+			),
+		},
+	}
+
+	return pp, nil
+}
+
 // StorageInfo is not relevant to LFS backend.
 func (l *lfsGateway) StorageInfo(ctx context.Context) (si minio.StorageInfo, errs []error) {
 	//log.Println("get StorageInfo")
 	si.Backend.Type = madmin.Gateway
-	si.Disks = make([]madmin.Disk, 1)
-	si.Disks[0].DiskIndex = 0
-	si.Disks[0].UsedSpace = 100
-	si.Disks[0].TotalSpace = 0
+	si.Backend.GatewayOnline = true
 
 	return si, nil
 }

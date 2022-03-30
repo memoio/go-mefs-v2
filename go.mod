@@ -49,6 +49,7 @@ require (
 	github.com/minio/cli v1.22.0
 	github.com/minio/madmin-go v1.3.6
 	github.com/minio/minio-go/v7 v7.0.23
+	github.com/minio/pkg v1.1.20
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mr-tron/base58 v1.2.0
 	github.com/multiformats/go-multiaddr v0.3.3
