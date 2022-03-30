@@ -20,6 +20,7 @@ import (
 	cli2 "github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
+	mclient "github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	metag "github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
@@ -250,7 +251,12 @@ func (l *lfsGateway) GetBucketPolicy(ctx context.Context, bucket string) (*polic
 func (l *lfsGateway) StorageInfo(ctx context.Context) (si minio.StorageInfo, errs []error) {
 	//log.Println("get StorageInfo")
 	si.Backend.Type = madmin.Gateway
-	si.Backend.GatewayOnline = true
+
+	_, closer, err := mclient.NewUserNode(ctx, l.memofs.addr, l.memofs.headers)
+	if err == nil {
+		closer()
+		si.Backend.GatewayOnline = true
+	}
 
 	return si, nil
 }
@@ -395,7 +401,7 @@ func (l *lfsGateway) GetObjectNInfo(ctx context.Context, bucket, object string, 
 // startOffset indicates the starting read location of the object.
 // length indicates the total length of the object.
 func (l *lfsGateway) GetObject(ctx context.Context, bucketName, objectName string, startOffset, length int64, writer io.Writer, etag string, o minio.ObjectOptions) error {
-	//log.Println("get object: ", bucketName, objectName, startOffset, length)
+	//log.Println("get object: ", bucketName, objectName, startOffset, length/1024)
 	err := l.memofs.GetObject(ctx, bucketName, objectName, startOffset, length, writer)
 	if err != nil {
 		return err

@@ -331,7 +331,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 	for !breakFlag {
 		select {
 		case <-ctx.Done():
-			return nil
+			return xerrors.Errorf("context is cancle or done")
 		default:
 			stripeID := start / dp.stripeSize
 

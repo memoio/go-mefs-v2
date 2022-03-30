@@ -162,15 +162,15 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, s
 		return err
 	}
 
-	stripeCnt := 4 * 64 / buInfo.DataCount
-	stepLen := int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
-	start := int64(startOffset)
-	oSize := startOffset + length
+	stepLen := int64(build.DefaultSegSize * buInfo.DataCount)
 
-	for start < oSize {
-		readLen := stepLen
-		if oSize-start < stepLen {
-			readLen = oSize - start
+	start := int64(startOffset)
+	end := startOffset + length
+
+	for start < end {
+		readLen := stepLen - (start % stepLen)
+		if end-start < readLen {
+			readLen = end - start
 		}
 
 		doo := types.DownloadObjectOptions{
@@ -180,12 +180,13 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, s
 
 		data, err := napi.GetObject(ctx, bucketName, objectName, doo)
 		if err != nil {
-			return err
+			//log.Println("received length err is:", start, readLen, stepLen, err)
+			break
 		}
 
 		writer.Write(data)
+		start += int64(readLen)
 
-		start += readLen
 	}
 
 	return nil

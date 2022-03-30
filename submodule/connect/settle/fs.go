@@ -219,7 +219,7 @@ func (cm *ContractMgr) addOrder(roleAddr, rTokenAddr common.Address, uIndex, pIn
 	if end <= start {
 		return nil, xerrors.Errorf("start should after end")
 	}
-	if (end/86400)*86400 != end {
+	if end%types.Day != 0 {
 		return nil, xerrors.Errorf("end %d should be aligned to 86400(one day)", end)
 	}
 	// todo: check uIndex,pIndex,gIndex,tIndex

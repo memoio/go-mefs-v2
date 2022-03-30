@@ -5,10 +5,12 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/mitchellh/go-homedir"
@@ -482,6 +484,16 @@ var downlaodObjectCmd = &cli.Command{
 			Name:  "cid",
 			Usage: "cid name",
 		},
+		&cli.Int64Flag{
+			Name:  "start",
+			Usage: "start position",
+			Value: 0,
+		},
+		&cli.Int64Flag{
+			Name:  "length",
+			Usage: "read length",
+			Value: -1,
+		},
 		&cli.StringFlag{
 			Name:  "path",
 			Usage: "stored path of file",
@@ -517,9 +529,14 @@ var downlaodObjectCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
-		haddr := "http://" + addr + "/gateway/" + bucketName + "/" + objectName
+
+		start := cctx.Int64("start")
+		length := cctx.Int64("length")
+
+		haddr := "http://" + addr + "/gateway/" + bucketName + "/" + objectName + "/" + strconv.FormatInt(start, 10) + "/" + strconv.FormatInt(length, 10)
+
 		if cidName != "" {
-			haddr = "http://" + addr + "/gateway/cid/" + cidName
+			haddr = "http://" + addr + "/gateway/cid/" + cidName + "/" + strconv.FormatInt(start, 10) + "/" + strconv.FormatInt(length, 10)
 		} else {
 			cidName = bucketName + "/" + objectName
 		}
@@ -572,6 +589,10 @@ var downlaodObjectCmd = &cli.Command{
 				breakFlag = true
 			} else if err != nil {
 				return err
+			}
+
+			if n == 0 {
+				log.Println("received zero length")
 			}
 
 			bar.Add(n)

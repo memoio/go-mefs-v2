@@ -38,12 +38,12 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	if bucketName == "" && objectName != "" {
 		err := l.getObjectByCID(ctx, objectName, buf, opts)
 		if err != nil {
-			return nil, xerrors.Errorf("object %s download fail", objectName)
+			return nil, xerrors.Errorf("object %s download fail %s", objectName, err)
 		}
 	} else {
 		err := l.getObject(ctx, bucketName, objectName, buf, opts)
 		if err != nil {
-			return nil, xerrors.Errorf("object %s download fail", objectName)
+			return nil, xerrors.Errorf("object %s download fail %s", objectName, err)
 		}
 	}
 
@@ -79,20 +79,20 @@ func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object 
 		dp = ndp
 	}
 
-	if readLength <= 0 {
+	if readLength < 0 {
 		readLength = int64(object.Size - uint64(readStart))
 	}
 
 	// length is zero
 	if readLength == 0 {
-		return nil
+		return xerrors.Errorf("read length is zero")
 	}
 
 	// read from each part
 	accLen := uint64(0) // sum of part length
 	rLen := uint64(0)   // have read ok
 	for _, part := range object.Parts {
-		logger.Debug("part: ", part.Offset, part.StoredBytes, part.Length)
+		logger.Debug("part: ", readStart, readLength, part.Offset, part.StoredBytes, part.Length)
 
 		// forward to part
 		if accLen+part.Length <= uint64(readStart) {
@@ -152,7 +152,7 @@ func (l *LfsService) getObject(ctx context.Context, bucketName, objectName strin
 
 	err = l.downloadObject(ctx, bucket, object, writer, opts)
 	if err != nil {
-		return xerrors.Errorf("object %s download fail", object.Name)
+		return xerrors.Errorf("object %s download fail %s", object.Name, err)
 	}
 
 	return nil

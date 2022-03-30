@@ -22,11 +22,15 @@ func CheckOrder(or types.OrderBase) error {
 		}
 	*/
 
+	if or.Start <= build.BaseTime || or.End <= build.BaseTime {
+		return xerrors.Errorf("order start/end should greater than %d", build.BaseTime)
+	}
+
 	if or.End-or.Start > build.OrderMax {
 		return xerrors.Errorf("order duration %d is greater than %d", or.End-or.Start, build.OrderMax)
 	}
 
-	if (or.End/types.Day)*types.Day != or.End {
+	if or.End%types.Day != 0 {
 		return xerrors.Errorf("order end %d is not aligned", or.End)
 	}
 
