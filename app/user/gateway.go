@@ -175,7 +175,8 @@ func (g *Mefs) NewGatewayLayer(creds madmin.Credentials) (minio.ObjectLayer, err
 	}
 
 	gw := &lfsGateway{
-		memofs: memofs,
+		memofs:  memofs,
+		polices: make(map[string]*policy.Policy),
 	}
 
 	return gw, nil
@@ -189,7 +190,8 @@ func (g *Mefs) Production() bool {
 // lfsGateway implements gateway.
 type lfsGateway struct {
 	minio.GatewayUnsupported
-	memofs *MemoFs
+	memofs  *MemoFs
+	polices map[string]*policy.Policy
 }
 
 // Shutdown saves any gateway metadata to disk
@@ -198,11 +200,26 @@ func (l *lfsGateway) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// SetBucketPolicy will set policy on bucket.
+func (l *lfsGateway) SetBucketPolicy(ctx context.Context, bucket string, bucketPolicy *policy.Policy) error {
+	_, err := l.GetBucketInfo(ctx, bucket)
+	if err != nil {
+		return err
+	}
+	l.polices[bucket] = bucketPolicy
+	return nil
+}
+
 // GetBucketPolicy will get policy on bucket.
 func (l *lfsGateway) GetBucketPolicy(ctx context.Context, bucket string) (*policy.Policy, error) {
 	_, err := l.GetBucketInfo(ctx, bucket)
 	if err != nil {
 		return nil, err
+	}
+
+	pb, ok := l.polices[bucket]
+	if ok {
+		return pb, nil
 	}
 
 	pp := &policy.Policy{
