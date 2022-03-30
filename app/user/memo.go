@@ -2,16 +2,25 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
+	minio "github.com/memoio/minio/cmd"
 	"golang.org/x/xerrors"
 
 	mclient "github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/build"
 	mcode "github.com/memoio/go-mefs-v2/lib/code"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	mtypes "github.com/memoio/go-mefs-v2/lib/types"
+)
+
+var (
+	minioMetaBucket      = ".minio.sys"
+	dataUsageObjNamePath = "buckets/.usage.json"
 )
 
 type MemoFs struct {
@@ -97,6 +106,42 @@ func (m *MemoFs) ListObjects(ctx context.Context, bucket string, prefix, marker,
 }
 
 func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, startOffset, length int64, writer io.Writer) error {
+	// for minio console, simulate
+	if bucketName == minioMetaBucket && objectName == dataUsageObjNamePath {
+		mtime := int64(0)
+		dui := minio.DataUsageInfo{
+			BucketsUsage: make(map[string]minio.BucketUsageInfo),
+		}
+
+		bus, err := m.ListBuckets(ctx)
+		if err != nil {
+			return err
+		}
+		for _, bu := range bus {
+			if mtime > bu.MTime {
+				mtime = bu.MTime
+			}
+			bui := minio.BucketUsageInfo{
+				Size:         bu.Length,
+				ObjectsCount: bu.NextObjectID,
+				ReplicaSize:  bu.UsedBytes,
+			}
+			dui.BucketsUsage[bu.Name] = bui
+			dui.ObjectsTotalSize += bui.Size
+			dui.ObjectsTotalCount += bui.ObjectsCount
+			dui.BucketsCount++
+		}
+
+		dui.LastUpdate = time.Unix(mtime, 0)
+
+		res, err := json.Marshal(dui)
+		if err != nil {
+			return err
+		}
+		writer.Write(res)
+		return nil
+	}
+
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return err
@@ -147,6 +192,16 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, s
 }
 
 func (m *MemoFs) GetObjectInfo(ctx context.Context, bucket, object string) (objInfo mtypes.ObjectInfo, err error) {
+	if bucket == minioMetaBucket && object == dataUsageObjNamePath {
+		return mtypes.ObjectInfo{
+			ObjectInfo: pb.ObjectInfo{
+				Time: time.Now().Unix(),
+				Name: dataUsageObjNamePath,
+			},
+			Size: 4 * 1024,
+		}, nil
+	}
+
 	napi, closer, err := mclient.NewUserNode(ctx, m.addr, m.headers)
 	if err != nil {
 		return objInfo, err
@@ -175,5 +230,3 @@ func (m *MemoFs) PutObject(ctx context.Context, bucket, object string, r io.Read
 	}
 	return moi, nil
 }
-
-// func (m *MemoFs) DeleteObject()

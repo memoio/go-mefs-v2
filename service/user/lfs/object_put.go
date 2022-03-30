@@ -135,6 +135,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		if ok {
 			poi.Encryption = val
 		}
+		poi.UserDefined = opts.UserDefined
 	}
 
 	// serialize
@@ -205,8 +206,6 @@ func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *o
 		Payload: payload,
 	}
 
-	// update objectID in bucket
-	bucket.NextObjectID++
 	err = bucket.addOpRecord(l.userID, op, l.ds)
 	if err != nil {
 		return err
