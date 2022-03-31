@@ -11,9 +11,10 @@ import (
 func (m *OrderMgr) connect(proID uint64) error {
 	pi, err := m.StateGetNetInfo(m.ctx, proID)
 	if err == nil {
-		m.ns.AddNode(proID, pi.ID)
+		m.ns.AddNode(proID, pi)
 		// todo: fix this
-		m.ns.Host().Connect(m.ctx, pi)
+		err := m.ns.Host().Connect(m.ctx, pi)
+		logger.Debugf("connect pro declared: %s %s", pi, err)
 	}
 
 	// test remote service is ready or not

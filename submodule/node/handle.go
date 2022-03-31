@@ -263,7 +263,7 @@ func (n *BaseNode) TestHanderPutPeer(ctx context.Context, p peer.ID, mes *pb.Net
 	}
 
 	go n.RoleMgr.AddRoleInfo(ri)
-	go n.NetServiceImpl.AddNode(ri.RoleID, p)
+	go n.NetServiceImpl.AddNode(ri.RoleID, peer.AddrInfo{ID: p})
 
 	resp := new(pb.NetMessage)
 

@@ -8,6 +8,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/xerrors"
 
+	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/api"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
@@ -32,6 +33,22 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 	pid, ok := c.idMap[id]
 	c.lk.RUnlock()
 	if ok {
+		if c.ns.Host.Network().Connectedness(pid) != network.Connected {
+			paddr := peer.AddrInfo{
+				ID: pid,
+			}
+			c.lk.RLock()
+			pai, ok := c.peerMap[pid]
+			if ok {
+				paddr.Addrs = append(paddr.Addrs, pai.addr.Addrs...)
+			}
+
+			err := c.ns.NetConnect(ctx, pai.addr)
+			if err != nil {
+				return nil, err
+			}
+
+		}
 		// should > 20KB/s
 		resp, err := c.GenericService.SendNetRequest(context.TODO(), pid, c.roleID, typ, value, sig)
 		if err != nil {
@@ -39,7 +56,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 			nt, ok := c.peerMap[pid]
 			if ok {
 				// remove
-				if nt.Add(10 * time.Minute).Before(time.Now()) {
+				if nt.avail.Add(60 * time.Minute).Before(time.Now()) {
 					delete(c.idMap, id)
 					delete(c.peerMap, pid)
 					c.wants[id] = time.Now()
@@ -51,7 +68,10 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 		}
 
 		c.lk.Lock()
-		c.peerMap[pid] = time.Now()
+		pi, ok := c.peerMap[pid]
+		if ok {
+			pi.avail = time.Now()
+		}
 		c.lk.Unlock()
 
 		return resp, nil
@@ -88,7 +108,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 					nt, ok := c.peerMap[pid]
 					if ok {
 						// remove
-						if nt.Add(10 * time.Minute).Before(time.Now()) {
+						if nt.avail.Add(10 * time.Minute).Before(time.Now()) {
 							delete(c.idMap, id)
 							delete(c.peerMap, pid)
 							c.wants[id] = time.Now()
@@ -100,7 +120,10 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 				}
 
 				c.lk.Lock()
-				c.peerMap[pid] = time.Now()
+				pi, ok := c.peerMap[pid]
+				if ok {
+					pi.avail = time.Now()
+				}
 				c.lk.Unlock()
 
 				return resp, nil

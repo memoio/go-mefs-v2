@@ -22,6 +22,11 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
 
+type peerInfo struct {
+	addr  peer.AddrInfo
+	avail time.Time
+}
+
 // wrap net interface
 type NetServiceImpl struct {
 	lk sync.RWMutex
@@ -40,7 +45,7 @@ type NetServiceImpl struct {
 	lastFetch peer.ID
 
 	idMap   map[uint64]peer.ID    // record id to netID
-	peerMap map[peer.ID]time.Time // record netID avaliale time
+	peerMap map[peer.ID]*peerInfo // record netID avaliale time
 	wants   map[uint64]time.Time  // find netID for id
 
 	ns *network.NetworkSubmodule
@@ -95,7 +100,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		ds:             ds,
 		ns:             ns,
 		idMap:          make(map[uint64]peer.ID),
-		peerMap:        make(map[peer.ID]time.Time),
+		peerMap:        make(map[peer.ID]*peerInfo),
 		wants:          make(map[uint64]time.Time),
 		related:        make([]uint64, 0, 128),
 		eventTopic:     eTopic,
@@ -141,7 +146,7 @@ func (c *NetServiceImpl) Stop() error {
 }
 
 // add a new node
-func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
+func (c *NetServiceImpl) AddNode(id uint64, par peer.AddrInfo) {
 	c.lk.Lock()
 	defer c.lk.Unlock()
 
@@ -156,9 +161,12 @@ func (c *NetServiceImpl) AddNode(id uint64, pid peer.ID) {
 		c.related = append(c.related, id)
 	}
 
-	if pid.Validate() == nil {
-		c.idMap[id] = pid
-		c.peerMap[pid] = time.Now()
+	if par.ID.Validate() == nil {
+		c.idMap[id] = par.ID
+		c.peerMap[par.ID] = &peerInfo{
+			avail: time.Now(),
+			addr:  par,
+		}
 		return
 	}
 
@@ -211,14 +219,13 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 
 			for _, pi := range pinfos {
 				c.lk.RLock()
-				_, ok := c.peerMap[pi.ID]
-				c.lk.RUnlock()
+				pai, ok := c.peerMap[pi.ID]
 				if ok {
-					c.lk.Lock()
-					c.peerMap[pi.ID] = time.Now()
-					c.lk.Unlock()
+					pai.avail = time.Now()
+					c.lk.RUnlock()
 					continue
 				}
+				c.lk.RUnlock()
 
 				resp, err := c.GenericService.SendNetRequest(ctx, pi.ID, c.roleID, pb.NetMessage_SayHello, nil, nil)
 				if err != nil {
@@ -236,7 +243,10 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 				rid := binary.BigEndian.Uint64(resp.GetData().GetMsgInfo())
 				c.lk.Lock()
 				c.idMap[rid] = pi.ID
-				c.peerMap[pi.ID] = time.Now()
+				c.peerMap[pi.ID] = &peerInfo{
+					avail: time.Now(),
+					addr:  pi,
+				}
 				c.lk.Unlock()
 			}
 
@@ -312,7 +322,16 @@ func (c *NetServiceImpl) handlePutPeer(ctx context.Context, mes *pb.EventMessage
 	_, ok := c.wants[ppi.GetRoleID()]
 	if ok {
 		c.idMap[ppi.RoleID] = netID
-		c.peerMap[netID] = time.Now()
+		_, ok := c.peerMap[netID]
+		if !ok {
+			c.peerMap[netID] = &peerInfo{
+				avail: time.Now(),
+				addr: peer.AddrInfo{
+					//add public ip
+					ID: netID,
+				},
+			}
+		}
 		delete(c.wants, ppi.RoleID)
 	}
 	c.lk.Unlock()
