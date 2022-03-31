@@ -49,6 +49,7 @@ type object struct {
 	ops      []uint64
 	deletion bool
 	dirty    bool
+	pin      bool // state is pin: total=disptach=sent=done
 }
 
 type objectDigest struct {
@@ -514,7 +515,11 @@ func (l *LfsService) load() error {
 						ct += c
 					}
 
-					obj.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+					obj.State = fmt.Sprintf("total: %d, dispatch: %d, sent: %d, confirm: %d", tt, dist, donet, ct)
+					if tt > 0 && tt == dist && tt == donet && tt == ct {
+						obj.pin = true
+					}
+
 					if obj.Name == "" {
 						newName, err := etag.ToString(obj.ETag)
 						if err != nil {
@@ -532,7 +537,9 @@ func (l *LfsService) load() error {
 					}
 
 					bu.objects[obj.ObjectID] = obj
-					bu.objectTree.Insert(MetaName(obj.Name), obj)
+					if bu.objectTree.Find(MetaName(obj.Name)) == nil {
+						bu.objectTree.Insert(MetaName(obj.Name), obj)
+					}
 				}
 			}
 

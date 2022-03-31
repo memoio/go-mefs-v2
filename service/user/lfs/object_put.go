@@ -102,7 +102,10 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		ct += c
 	}
 
-	object.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+	if tt > 0 && tt == dist && tt == donet && tt == ct {
+		object.pin = true
+	}
+	object.State = fmt.Sprintf("total: %d, dispatch: %d, sent: %d, confirm: %d", tt, dist, donet, ct)
 
 	logger.Debugf("Upload object: %s to bucket: %s end, cost: %s", objectName, bucketName, time.Since(nt))
 
@@ -135,6 +138,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 		if ok {
 			poi.Encryption = val
 		}
+		poi.UserDefined = opts.UserDefined
 	}
 
 	// serialize
@@ -205,8 +209,6 @@ func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *o
 		Payload: payload,
 	}
 
-	// update objectID in bucket
-	bucket.NextObjectID++
 	err = bucket.addOpRecord(l.userID, op, l.ds)
 	if err != nil {
 		return err

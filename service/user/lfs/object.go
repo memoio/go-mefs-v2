@@ -55,16 +55,21 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 			return oi, xerrors.Errorf("object %d not exist", od.objectID)
 		}
 
-		tt, dist, donet, ct := 0, 0, 0, 0
-		for _, opID := range object.ops[1 : 1+len(object.Parts)] {
-			total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
-			dist += dis
-			donet += done
-			tt += total
-			ct += c
-		}
+		if !object.pin {
+			tt, dist, donet, ct := 0, 0, 0, 0
+			for _, opID := range object.ops[1 : 1+len(object.Parts)] {
+				total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
+				dist += dis
+				donet += done
+				tt += total
+				ct += c
+			}
 
-		object.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+			if tt > 0 && tt == dist && tt == donet && tt == ct {
+				object.pin = true
+			}
+			object.State = fmt.Sprintf("total: %d, dispatch: %d, sent: %d, confirm: %d", tt, dist, donet, ct)
+		}
 
 		return object.ObjectInfo, nil
 	}
@@ -79,16 +84,21 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 		return oi, err
 	}
 
-	tt, dist, donet, ct := 0, 0, 0, 0
-	for _, opID := range object.ops[1 : 1+len(object.Parts)] {
-		total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
-		dist += dis
-		donet += done
-		tt += total
-		ct += c
-	}
+	if !object.pin {
+		tt, dist, donet, ct := 0, 0, 0, 0
+		for _, opID := range object.ops[1 : 1+len(object.Parts)] {
+			total, dis, done, c := l.OrderMgr.GetSegJogState(object.BucketID, opID)
+			dist += dis
+			donet += done
+			tt += total
+			ct += c
+		}
 
-	object.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+		if tt > 0 && tt == dist && tt == donet && tt == ct {
+			object.pin = true
+		}
+		object.State = fmt.Sprintf("total: %d, dispatch: %d, sent: %d, confirm: %d", tt, dist, donet, ct)
+	}
 
 	return object.ObjectInfo, nil
 }
@@ -194,8 +204,9 @@ func (l *LfsService) ListObjects(ctx context.Context, bucketName string, opts ty
 		return res, err
 	}
 
-	bucket.RLock()
-	defer bucket.RUnlock()
+	// remove read lock
+	//bucket.RLock()
+	//defer bucket.RUnlock()
 
 	if opts.MaxKeys > bucket.objectTree.Size() {
 		opts.MaxKeys = bucket.objectTree.Size()
