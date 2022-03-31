@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -213,7 +214,7 @@ func (l *lfsGateway) SetBucketPolicy(ctx context.Context, bucket string, bucketP
 
 // GetBucketPolicy will get policy on bucket.
 func (l *lfsGateway) GetBucketPolicy(ctx context.Context, bucket string) (*policy.Policy, error) {
-	_, err := l.GetBucketInfo(ctx, bucket)
+	bi, err := l.memofs.GetBucketInfo(ctx, bucket)
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +225,7 @@ func (l *lfsGateway) GetBucketPolicy(ctx context.Context, bucket string) (*polic
 	}
 
 	pp := &policy.Policy{
+		ID:      policy.ID(fmt.Sprintf("data: %d, parity: %d", bi.DataCount, bi.ParityCount)),
 		Version: policy.DefaultVersion,
 		Statements: []policy.Statement{
 			policy.NewStatement(
