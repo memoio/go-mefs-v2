@@ -146,7 +146,7 @@ var orderListJobCmd = &cli.Command{
 		var tmp outPutOrderJobInfo
 
 		for _, oi := range ois {
-			if !verbose && oi.InStop {
+			if !verbose && oi.InStop || oi.OrderTime == 0 {
 				continue
 			}
 			tmp = outPutOrderJobInfo{oi.ID, oi.Jobs, oi.Nonce, oi.OrderState, time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME)}
