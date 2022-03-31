@@ -45,7 +45,7 @@ var addKeeperToGroupCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "sk",
 			Usage: "secret key of admin",
-			Value: callconts.AdminSk,
+			Value: "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -137,7 +137,7 @@ var transferEthCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "sk",
 			Usage: "secret key of admin",
-			Value: callconts.AdminSk,
+			Value: "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -199,7 +199,7 @@ var transferErcCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "sk",
 			Usage: "secret key of admin",
-			Value: callconts.AdminSk,
+			Value: "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
