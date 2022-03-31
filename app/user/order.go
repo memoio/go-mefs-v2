@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -10,8 +10,8 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/utils"
+	"github.com/modood/table"
 
-	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
@@ -49,6 +49,15 @@ var orderListProvidersCmd = &cli.Command{
 			return err
 		}
 
+		type outPutInfo struct {
+			ID     uint64
+			Ready  bool
+			InStop bool
+			PeerID string
+			Addrs  []string
+		}
+		outPut := make([]outPutInfo, 0)
+		var tmp outPutInfo
 		for _, oi := range ois {
 			if oi.PeerID != "" {
 				pid, err := peer.Decode(oi.PeerID)
@@ -70,14 +79,18 @@ var orderListProvidersCmd = &cli.Command{
 						addrs = append(addrs, maddr)
 					}
 
-					fmt.Printf("proID: %d, ready: %t, stop %t, net: %s %s\n", oi.ID, oi.Ready, oi.InStop, oi.PeerID, addrs)
+					tmp = outPutInfo{oi.ID, oi.Ready, oi.InStop, oi.PeerID, addrs}
+					outPut = append(outPut, tmp)
 					continue
 				}
 			}
 
-			fmt.Printf("proID: %d, ready: %t, stop %t, net: %s\n", oi.ID, oi.Ready, oi.InStop, oi.PeerID)
+			tmp = outPutInfo{oi.ID, oi.Ready, oi.InStop, oi.PeerID, nil}
+			outPut = append(outPut, tmp)
 		}
 
+		sort.Slice(outPut, func(i, j int) bool { return outPut[i].ID < outPut[j].ID })
+		table.Output(outPut)
 		return nil
 	},
 }
@@ -112,12 +125,49 @@ var orderListJobCmd = &cli.Command{
 
 		verbose := cctx.Bool("verbose")
 
+		type outPutOrderJobInfo struct {
+			ID         uint64
+			Jobs       int
+			Nonce      uint64
+			OrderState string
+			Time       string
+			SeqNum     uint32
+			SeqState   string
+			Ready      bool
+			InStop     bool
+			AvailTime  string
+		}
+
+		tmpOutputWait := make([]outPutOrderJobInfo, 0)
+		tmpOutputRunning := make([]outPutOrderJobInfo, 0)
+		tmpOutputClosing := make([]outPutOrderJobInfo, 0)
+		tmpOutputDone := make([]outPutOrderJobInfo, 0)
+		tmpOutputInit := make([]outPutOrderJobInfo, 0)
+		var tmp outPutOrderJobInfo
+
 		for _, oi := range ois {
 			if !verbose && oi.InStop {
 				continue
 			}
-			fmt.Printf("proID: %d, jobs: %d, order: %d %s %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Jobs, oi.Nonce, ansi.Color(oi.OrderState, "green"), time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, ansi.Color(oi.SeqState, "green"), oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
+			tmp = outPutOrderJobInfo{oi.ID, oi.Jobs, oi.Nonce, oi.OrderState, time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME)}
+			switch oi.OrderState {
+			case "wait":
+				tmpOutputWait = append(tmpOutputWait, tmp)
+			case "running":
+				tmpOutputRunning = append(tmpOutputRunning, tmp)
+			case "closing":
+				tmpOutputClosing = append(tmpOutputClosing, tmp)
+			case "done":
+				tmpOutputDone = append(tmpOutputDone, tmp)
+			case "init":
+				tmpOutputInit = append(tmpOutputInit, tmp)
+			}
 		}
+		tmpOutputWait = append(tmpOutputWait, tmpOutputRunning...)
+		tmpOutputWait = append(tmpOutputWait, tmpOutputClosing...)
+		tmpOutputWait = append(tmpOutputWait, tmpOutputDone...)
+		tmpOutputWait = append(tmpOutputWait, tmpOutputInit...)
+		table.Output(tmpOutputWait)
 
 		return nil
 	},
@@ -144,9 +194,23 @@ var orderListPayCmd = &cli.Command{
 			return err
 		}
 
-		for _, oi := range ois {
-			fmt.Printf("proID: %d, size: %d, confirmed: %d, onChain: %d, need pay : %d, paid %d\n", oi.ID, oi.Size, oi.ConfirmSize, oi.OnChainSize, oi.NeedPay, oi.Paid)
+		type outPutInfo struct {
+			ID          uint64
+			Size        uint64
+			ConfirmSize uint64
+			OnChainSize uint64
+			NeedPay     string
+			Paid        string
 		}
+		outPut := make([]outPutInfo, 0)
+		var tmp outPutInfo
+
+		for _, oi := range ois {
+			tmp = outPutInfo{oi.ID, oi.Size, oi.ConfirmSize, oi.OnChainSize, oi.NeedPay.String(), oi.Paid.String()}
+			outPut = append(outPut, tmp)
+		}
+		sort.Slice(outPut, func(i, j int) bool { return outPut[i].ID < outPut[j].ID })
+		table.Output(outPut)
 
 		return nil
 	},
@@ -189,7 +253,24 @@ var orderGetCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("proID: %d, jobs: %d, order: %d %d %d %s %s, seq: %d %s, ready: %t, stop: %t, avail: %s\n", oi.ID, oi.Jobs, si.Nonce, ns.Nonce, oi.Nonce, ansi.Color(oi.OrderState, "green"), time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, ansi.Color(oi.SeqState, "green"), oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME))
+		type outPutInfo struct {
+			ID            uint64
+			Jobs          int
+			StoreNonce    uint64
+			SeqNonce      uint64
+			OrderJobNonce uint64
+			OrderState    string
+			OrderTime     string
+			SeqNum        uint32
+			SeqState      string
+			Ready         bool
+			InStop        bool
+			AvailTime     string
+		}
+
+		tmp := []outPutInfo{{oi.ID, oi.Jobs, si.Nonce, ns.Nonce, oi.Nonce, oi.OrderState, time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME)}}
+
+		table.Output(tmp)
 
 		return nil
 	},
@@ -236,11 +317,17 @@ var orderDetailCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("proID: %d, nonce: %d, seqNum: %d, size: %d, segment: %d\n", oi.ProID, oi.Nonce, oi.SeqNum, oi.Size, oi.Segments.Len())
-
-		for _, seg := range oi.Segments {
-			fmt.Println("seg: ", seg)
+		type outPutInfo struct {
+			ProID      uint64
+			Nonce      uint64
+			SeqNum     uint32
+			Size       uint64
+			SegmentNum int
 		}
+
+		tmp := []outPutInfo{{oi.ProID, oi.Nonce, oi.SeqNum, oi.Size, oi.Segments.Len()}}
+		table.Output(tmp)
+		table.Output(oi.Segments)
 
 		return nil
 	},
