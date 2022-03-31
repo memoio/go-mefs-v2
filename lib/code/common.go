@@ -37,8 +37,8 @@ func DefaultBucketOptions() pb.BucketOption {
 	return pb.BucketOption{
 		Version:     1,
 		Policy:      RsPolicy,
-		DataCount:   10,
-		ParityCount: 10,
+		DataCount:   5,
+		ParityCount: 5,
 		SegSize:     DefaultSegSize,
 		TagFlag:     DefaultTagFlag,
 	}
