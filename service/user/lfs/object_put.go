@@ -102,7 +102,10 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		ct += c
 	}
 
-	object.State = fmt.Sprintf("total %d, dispatch %d, sent %d, confirm %d", tt, dist, donet, ct)
+	if tt > 0 && tt == dist && tt == donet && tt == ct {
+		object.pin = true
+	}
+	object.State = fmt.Sprintf("total: %d, dispatch: %d, sent: %d, confirm: %d", tt, dist, donet, ct)
 
 	logger.Debugf("Upload object: %s to bucket: %s end, cost: %s", objectName, bucketName, time.Since(nt))
 
