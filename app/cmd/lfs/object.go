@@ -283,6 +283,16 @@ var getObjectCmd = &cli.Command{
 			Name:  "cid",
 			Usage: "cid name",
 		},
+		&cli.Int64Flag{
+			Name:  "start",
+			Usage: "start position",
+			Value: 0,
+		},
+		&cli.Int64Flag{
+			Name:  "length",
+			Usage: "read length",
+			Value: -1,
+		},
 		&cli.StringFlag{
 			Name:  "path",
 			Usage: "stored path of file",
@@ -306,6 +316,9 @@ var getObjectCmd = &cli.Command{
 		cidName := cctx.String("cid")
 		path := cctx.String("path")
 
+		start := cctx.Int64("start")
+		length := cctx.Int64("length")
+
 		if cidName != "" {
 			bucketName = ""
 			objectName = cidName
@@ -320,8 +333,10 @@ var getObjectCmd = &cli.Command{
 			return xerrors.Errorf("empty file")
 		}
 
-		tSize := int64(objInfo.Size)
-		bar := progressbar.DefaultBytes(tSize, "download:")
+		if length == -1 {
+			length = int64(objInfo.Size)
+		}
+		bar := progressbar.DefaultBytes(length, "download:")
 
 		p, err := homedir.Expand(path)
 		if err != nil {
@@ -342,27 +357,33 @@ var getObjectCmd = &cli.Command{
 		h := md5.New()
 		tr := etag.NewTree()
 
-		// around 64MB
-		stepLen := int64(build.DefaultSegSize * 256)
+		stepLen := int64(build.DefaultSegSize * 16)
+		stepAccMax := 16
 		if bucketName != "" {
 			buInfo, err := napi.HeadBucket(cctx.Context, bucketName)
 			if err != nil {
 				return err
 			}
 
-			stripeCnt := 4 * 64 / buInfo.DataCount
-			stepLen = int64(build.DefaultSegSize * stripeCnt * buInfo.DataCount)
+			// around 128MB
+			stepAccMax = 512 / int(buInfo.DataCount)
+			stepLen = int64(build.DefaultSegSize * buInfo.DataCount)
 		}
 
-		start := int64(0)
-		for start < tSize {
-			readLen := stepLen
-			if tSize-start < stepLen {
-				readLen = tSize - start
+		startOffset := start
+		end := start + length
+		stepacc := 1
+		for startOffset < end {
+			if stepacc > stepAccMax {
+				stepacc = stepAccMax
+			}
+			readLen := stepLen*int64(stepacc) - (startOffset % stepLen)
+			if end-startOffset < readLen {
+				readLen = end - startOffset
 			}
 
 			doo := types.DownloadObjectOptions{
-				Start:  start,
+				Start:  startOffset,
 				Length: readLen,
 			}
 
@@ -391,7 +412,8 @@ var getObjectCmd = &cli.Command{
 
 			f.Write(data)
 
-			start += readLen
+			startOffset += readLen
+			stepacc *= 2
 		}
 
 		bar.Finish()
@@ -414,8 +436,10 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
-		if !bytes.Equal(etagb, objInfo.ETag) {
-			return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
+		if start == 0 && length == int64(objInfo.Size) {
+			if !bytes.Equal(etagb, objInfo.ETag) {
+				return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
+			}
 		}
 
 		fmt.Printf("object: %s (etag: %s) is stored in: %s\n", objectName, gotEtag, p)

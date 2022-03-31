@@ -54,6 +54,12 @@ var daemonStartCmd = &cli.Command{
 			Value: "/ip4/127.0.0.1/tcp/5001",
 		},
 		&cli.StringFlag{
+			Name:    "secretKey",
+			Aliases: []string{"sk"},
+			Usage:   "secret key to use if not init",
+			Value:   "",
+		},
+		&cli.StringFlag{
 			Name:  swarmPortKwd,
 			Usage: "set the swarm port to use",
 			Value: "4001",
@@ -111,6 +117,20 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 
 	defer rep.Close()
 
+	pwd := cctx.String(pwKwd)
+	if os.Getenv(MEMO_PASSWORD) != "" {
+		pwd = os.Getenv(MEMO_PASSWORD)
+	}
+
+	sk := cctx.String("sk")
+	if sk != "" {
+		err = minit.Create(cctx.Context, rep, pwd, sk)
+		if err != nil {
+			logger.Errorf("Error initializing node %s", err)
+			return err
+		}
+	}
+
 	// handle cfg
 	cfg := rep.Config()
 
@@ -139,14 +159,10 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	}
 
 	rep.ReplaceConfig(cfg)
+
 	opts, err := basenode.OptionsFromRepo(rep)
 	if err != nil {
 		return err
-	}
-
-	pwd := cctx.String(pwKwd)
-	if os.Getenv(MEMO_PASSWORD) != "" {
-		pwd = os.Getenv(MEMO_PASSWORD)
 	}
 	opts = append(opts, basenode.SetPassword(pwd))
 
