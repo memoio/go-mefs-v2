@@ -425,7 +425,6 @@ func (l *lfsGateway) GetObjectInfo(ctx context.Context, bucket, object string, o
 	ud["x-amz-meta-mode"] = "33204"
 	ud["x-amz-meta-mtime"] = time.Unix(moi.GetTime(), 0).Format(utils.SHOWTIME)
 	ud["x-amz-meta-state"] = moi.State
-
 	// need handle ETag
 	etag, _ := metag.ToString(moi.ETag)
 	oi := minio.ObjectInfo{
@@ -444,7 +443,11 @@ func (l *lfsGateway) GetObjectInfo(ctx context.Context, bucket, object string, o
 // PutObject creates a new object with the incoming data.
 func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *minio.PutObjReader, opts minio.ObjectOptions) (objInfo minio.ObjectInfo, err error) {
 	//log.Println("put object: ", bucket, object)
-
+	_, err = l.memofs.GetObjectInfo(ctx, bucket, object)
+	if err == nil {
+		time := time.Now().Format("20060102T150405")
+		object = object + "-" + time
+	}
 	moi, err := l.memofs.PutObject(ctx, bucket, object, r, opts.UserDefined)
 	if err != nil {
 		return objInfo, err
