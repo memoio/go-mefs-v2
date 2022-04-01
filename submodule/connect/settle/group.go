@@ -85,17 +85,17 @@ func (cm *ContractMgr) getKNumAtGroup(gIndex uint64) (uint64, error) {
 
 // GetGUPNum get the number of user、providers in the group.
 func (cm *ContractMgr) getUPNumAtGroup(gIndex uint64) (uint64, uint64, error) {
-	var gpNum, guNum uint64
+	var guNum, gpNum uint64
 
 	if gIndex == 0 {
-		return gpNum, guNum, xerrors.Errorf("group index is zero")
+		return guNum, gpNum, xerrors.Errorf("group index is zero")
 	}
 
 	client := getClient(cm.endPoint)
 	defer client.Close()
 	roleIns, err := role.NewRole(cm.rAddr, client)
 	if err != nil {
-		return gpNum, guNum, err
+		return guNum, gpNum, err
 	}
 
 	retryCount := 0
@@ -175,12 +175,12 @@ func (cm *ContractMgr) GetGroupP(gIndex uint64, index uint64) (uint64, error) {
 		return pIndex, xerrors.Errorf("group index is zero")
 	}
 
-	pkNum, _, err := cm.getUPNumAtGroup(gIndex)
+	_, pCount, err := cm.getUPNumAtGroup(gIndex)
 	if err != nil {
 		return pIndex, err
 	}
-	if index >= pkNum {
-		return pIndex, xerrors.Errorf("index %d is larger than group provider count %d", index, pkNum)
+	if index >= pCount {
+		return pIndex, xerrors.Errorf("index %d is larger than group provider count %d", index, pCount)
 	}
 
 	client := getClient(cm.endPoint)
@@ -217,12 +217,12 @@ func (cm *ContractMgr) GetGroupU(gIndex uint64, index uint64) (uint64, error) {
 		return uIndex, xerrors.Errorf("group index is zero")
 	}
 
-	_, ukNum, err := cm.getUPNumAtGroup(gIndex)
+	uCount, _, err := cm.getUPNumAtGroup(gIndex)
 	if err != nil {
 		return uIndex, err
 	}
-	if index >= ukNum {
-		return uIndex, xerrors.Errorf("index %d is larger than group user count %d", index, ukNum)
+	if index >= uCount {
+		return uIndex, xerrors.Errorf("index %d is larger than group user count %d", index, uCount)
 	}
 
 	client := getClient(cm.endPoint)

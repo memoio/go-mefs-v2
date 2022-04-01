@@ -106,7 +106,9 @@ func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64) ([]uint64, []uint64) {
 
 	res := make([]uint64, len(val)/8)
 	for i := 0; i < len(val)/8; i++ {
-		res[i] = binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+		go m.newProOrder(pid)
+		res[i] = pid
 	}
 
 	key = store.NewKey(pb.MetaType_OrderProsDeleteKey, m.localID, bucketID)
@@ -176,6 +178,8 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	}
 
 	logger.Debugf("order bucket %d expected %d, got %d", lp.bucketID, lp.dc+lp.pc, cnt)
+
+	// expand providers
 
 	otherPros := make([]uint64, 0, len(m.pros))
 	for _, pid := range m.pros {

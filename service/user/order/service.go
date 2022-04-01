@@ -208,6 +208,7 @@ func (m *OrderMgr) save() error {
 
 func (m *OrderMgr) addPros() {
 	pros, _ := m.IRole.RoleGetRelated(m.ctx, pb.RoleInfo_Provider)
+	logger.Debug("expand pros: ", len(pros), pros)
 	for _, pro := range pros {
 		has := false
 		for _, pid := range m.pros {
@@ -217,10 +218,9 @@ func (m *OrderMgr) addPros() {
 		}
 
 		if !has {
-			go m.update(pro)
+			go m.newProOrder(pro)
 		}
 	}
-
 }
 
 func (m *OrderMgr) runSched(proc goprocess.Process) {
