@@ -107,7 +107,10 @@ func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64) ([]uint64, []uint64) {
 	res := make([]uint64, len(val)/8)
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		go m.newProOrder(pid)
+		if pid != math.MaxUint64 {
+			go m.newProOrder(pid)
+		}
+
 		res[i] = pid
 	}
 
