@@ -79,6 +79,23 @@ var orderListProvidersCmd = &cli.Command{
 						addrs = append(addrs, maddr)
 					}
 
+					if len(addrs) == 0 {
+						pi, err := api.StateGetNetInfo(cctx.Context, oi.ID)
+						if err == nil {
+							for _, maddr := range pi.Addrs {
+								if strings.Contains(maddr.String(), "/127.0.0.1/") {
+									continue
+								}
+
+								if strings.Contains(maddr.String(), "/::1/") {
+									continue
+								}
+
+								addrs = append(addrs, maddr.String())
+							}
+						}
+					}
+
 					tmp = outPutInfo{oi.ID, oi.Ready, oi.InStop, oi.PeerID, addrs}
 					outPut = append(outPut, tmp)
 					continue
