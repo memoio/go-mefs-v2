@@ -14,6 +14,9 @@ func Sign(sk, msg []byte) ([]byte, error) {
 
 // Verify checks the given signature and returns true if it is valid.
 func Verify(pk, msg, signature []byte) bool {
+	if len(signature) == SignatureSize {
+		signature = signature[:64]
+	}
 	return secp256k1.VerifySignature(pk[:], msg, signature)
 }
 
