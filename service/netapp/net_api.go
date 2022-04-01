@@ -37,7 +37,6 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 			paddr := peer.AddrInfo{
 				ID: pid,
 			}
-			c.lk.RLock()
 			pai, ok := c.peerMap[pid]
 			if ok {
 				paddr.Addrs = append(paddr.Addrs, pai.addr.Addrs...)
