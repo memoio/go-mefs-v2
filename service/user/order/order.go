@@ -270,8 +270,11 @@ func (m *OrderMgr) check(o *OrderFull) {
 		o.ready = true
 	} else {
 		if nt-o.availTime > 300 {
-			o.ready = false
 			go m.update(o.pro)
+		}
+
+		if nt-o.availTime > 600 {
+			o.ready = false
 		}
 
 		// for test
