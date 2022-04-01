@@ -397,14 +397,14 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 
 	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false, true)
 	if err != nil {
-		logger.Warn("fail to add seg:", seg.Start, seg.Length, sj.Start, err)
+		logger.Warn("fail to add seg:", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
 	if seg.Start+seg.Length == sj.Start {
 		seg.Length += sj.Length
 	} else {
-		logger.Warn("fail to add seg:", seg.Start, seg.Length, sj.Start)
+		logger.Warn("fail to add seg:", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start)
 		return
 	}
 
