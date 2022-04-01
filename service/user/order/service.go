@@ -300,7 +300,6 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				m.buckets = append(m.buckets, lp.bucketID)
 				m.proMap[lp.bucketID] = lp
 			}
-
 		case pid := <-m.updateChan:
 			of, ok := m.orders[pid]
 			if ok {

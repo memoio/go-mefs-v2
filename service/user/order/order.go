@@ -269,7 +269,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		}
 
 		// for test
-		if nt-o.availTime > 600 {
+		if nt-o.availTime > m.orderLast {
 			m.stopOrder(o)
 		}
 	}

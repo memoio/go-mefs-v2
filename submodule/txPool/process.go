@@ -266,7 +266,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 			}
 		}
 		if cnt < mp.GetQuorumSize() {
-			return mSet, xerrors.Errorf("not have enough keepers")
+			return mSet, xerrors.Errorf("not have enough keepers, got %d expect %d", cnt, mp.GetQuorumSize())
 		}
 		return mSet, nil
 	}
