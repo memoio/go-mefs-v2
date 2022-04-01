@@ -114,6 +114,12 @@ type OrderFull struct {
 
 func (m *OrderMgr) newProOrder(id uint64) {
 	m.lk.Lock()
+	_, has := m.orders[id]
+	if has {
+		m.lk.Unlock()
+		return
+	}
+
 	_, ok := m.inCreation[id]
 	if ok {
 		m.lk.Unlock()

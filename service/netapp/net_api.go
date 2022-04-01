@@ -66,12 +66,12 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 			return nil, err
 		}
 
-		c.lk.Lock()
+		c.lk.RLock()
 		pi, ok := c.peerMap[pid]
 		if ok {
 			pi.avail = time.Now()
 		}
-		c.lk.Unlock()
+		c.lk.RUnlock()
 
 		return resp, nil
 	}
@@ -118,12 +118,12 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 					return nil, err
 				}
 
-				c.lk.Lock()
+				c.lk.RLock()
 				pi, ok := c.peerMap[pid]
 				if ok {
 					pi.avail = time.Now()
 				}
-				c.lk.Unlock()
+				c.lk.RUnlock()
 
 				return resp, nil
 			}

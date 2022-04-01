@@ -151,7 +151,28 @@ func (rm *RoleMgr) syncFromChain() {
 					rm.AddRoleInfo(pri)
 				}
 				kCnt = kcnt
+
 				rm.ds.Put(nkey, data)
+			} else {
+				if len(rm.keepers) != int(kcnt) {
+					// reload
+					logger.Debug("reload keepers: ", kcnt)
+					data := make([]byte, int(kcnt)*8)
+					for i := uint64(0); i < kcnt; i++ {
+						kindex, err := rm.is.GetGroupK(rm.groupID, i)
+						if err != nil {
+							logger.Debugf("get group %d keeper %d fail %s", rm.groupID, i, err)
+							continue
+						}
+						binary.BigEndian.PutUint64(data[i*8:(i+1)*8], kindex)
+
+						rm.Lock()
+						rm.get(kindex)
+						rm.Unlock()
+					}
+					nkey := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Keeper.String())
+					rm.ds.Put(nkey, data)
+				}
 			}
 
 			ucnt, pcnt, err := rm.is.GetGUPNum()
@@ -162,7 +183,6 @@ func (rm *RoleMgr) syncFromChain() {
 			if pcnt > pCnt {
 				nkey := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
 				data, _ := rm.ds.Get(nkey)
-
 				for i := pCnt; i < pcnt; i++ {
 					pindex, err := rm.is.GetGroupP(rm.groupID, i)
 					if err != nil {
@@ -183,8 +203,29 @@ func (rm *RoleMgr) syncFromChain() {
 				}
 				pCnt = pcnt
 
-				kCnt = kcnt
 				rm.ds.Put(nkey, data)
+			} else {
+				if len(rm.providers) != int(pcnt) {
+					// reload
+					logger.Debug("reload providers: ", len(rm.providers), pcnt)
+					data := make([]byte, int(pcnt)*8)
+					for i := uint64(0); i < pcnt; i++ {
+						pindex, err := rm.is.GetGroupP(rm.groupID, i)
+						if err != nil {
+							logger.Debugf("get group %d pro %d fail %s", rm.groupID, i, err)
+							continue
+						}
+
+						logger.Debugf("load provider: %d %d %d", rm.groupID, i, pindex)
+
+						binary.BigEndian.PutUint64(data[i*8:(i+1)*8], pindex)
+						rm.Lock()
+						rm.get(pindex)
+						rm.Unlock()
+						nkey := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
+						rm.ds.Put(nkey, data)
+					}
+				}
 			}
 
 			if ucnt > uCnt {
@@ -205,7 +246,7 @@ func (rm *RoleMgr) syncFromChain() {
 				uCnt = ucnt
 			}
 
-			logger.Debug("sync from chain: ", kCnt, pCnt, uCnt)
+			logger.Debug("sync from chain: ", rm.groupID, kCnt, pCnt, uCnt)
 
 			buf := make([]byte, 24)
 			binary.BigEndian.PutUint64(buf[:8], kCnt)
@@ -239,6 +280,7 @@ func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
 	}
 
 	if ri.GroupID != rm.groupID {
+		logger.Debugf("%d group wrong %d, need %d", roleID, ri.GroupID, rm.groupID)
 		return nil, xerrors.Errorf("not my group")
 	}
 
@@ -250,7 +292,7 @@ func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
 func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo, save bool) {
 	_, ok := rm.infos[ri.RoleID]
 	if !ok {
-		logger.Debug("add role info for: ", ri.RoleID)
+		logger.Debug("add role info for: ", ri.RoleID, save)
 		rm.infos[ri.RoleID] = ri
 
 		switch ri.Type {
