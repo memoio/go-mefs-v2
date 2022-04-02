@@ -202,6 +202,10 @@ func (l *lfsGateway) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+func (l *lfsGateway) IsEncryptionSupported() bool {
+	return true
+}
+
 // SetBucketPolicy will set policy on bucket.
 func (l *lfsGateway) SetBucketPolicy(ctx context.Context, bucket string, bucketPolicy *policy.Policy) error {
 	_, err := l.GetBucketInfo(ctx, bucket)
