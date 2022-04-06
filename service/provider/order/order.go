@@ -142,6 +142,10 @@ func (m *OrderMgr) check() error {
 			of.di.ConfirmedNonce++
 		}
 
+		if of.di.Size < of.di.ConfirmSize {
+			of.di.Size = of.di.ConfirmSize
+		}
+
 		oi, err := m.is.SettleGetStoreInfo(m.ctx, uid, m.localID)
 		if err != nil {
 			key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, uid)
@@ -189,6 +193,7 @@ func (m *OrderMgr) check() error {
 	}
 
 	m.di.Size = size
+	m.di.Received = size
 	m.di.OnChainSize = onChainSize
 	m.di.ConfirmSize = confirmSize
 	m.di.ExpireSize = expireSize
@@ -262,11 +267,11 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.di.Deserialize(val)
 	}
 
-	if op.di.Size == 0 {
+	if op.di.Size < op.di.ConfirmSize {
 		op.di.Size = op.di.ConfirmSize
 	}
 
-	if op.di.Received == 0 {
+	if op.di.Received == op.di.ConfirmSize {
 		op.di.Received = op.di.ConfirmSize
 	}
 
