@@ -163,12 +163,17 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, s
 	}
 
 	stepLen := int64(build.DefaultSegSize * buInfo.DataCount)
+	stepAccMax := 512 / int(buInfo.DataCount) // 128MB
 
 	start := int64(startOffset)
 	end := startOffset + length
-
+	stepacc := 1
 	for start < end {
-		readLen := stepLen - (start % stepLen)
+		if stepacc > stepAccMax {
+			stepacc = stepAccMax
+		}
+
+		readLen := stepLen*int64(stepacc) - (start % stepLen)
 		if end-start < readLen {
 			readLen = end - start
 		}
@@ -186,7 +191,7 @@ func (m *MemoFs) GetObject(ctx context.Context, bucketName, objectName string, s
 
 		writer.Write(data)
 		start += int64(readLen)
-
+		stepacc *= 2
 	}
 
 	return nil
@@ -223,8 +228,10 @@ func (m *MemoFs) PutObject(ctx context.Context, bucket, object string, r io.Read
 	}
 	defer closer()
 
-	poo := mtypes.CidUploadOption()
-	poo.UserDefined = UserDefined
+	poo := mtypes.DefaultUploadOption()
+	for k, v := range UserDefined {
+		poo.UserDefined[k] = v
+	}
 	moi, err := napi.PutObject(ctx, bucket, object, r, poo)
 	if err != nil {
 		return objInfo, err
