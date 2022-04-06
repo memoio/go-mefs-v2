@@ -16,6 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 type FullNode interface {
@@ -23,6 +24,7 @@ type FullNode interface {
 
 	IAuth
 	IConfig
+	ILocalStore
 	IWallet
 	IRole
 	IChainPush
@@ -59,6 +61,11 @@ type IAuth interface {
 type IConfig interface {
 	ConfigSet(context.Context, string, string) error
 	ConfigGet(context.Context, string) (interface{}, error)
+}
+
+type ILocalStore interface {
+	LocalStoreGetMeta(context.Context) (store.DiskStats, error)
+	LocalStoreGetData(context.Context) (store.DiskStats, error)
 }
 
 // wallet ops

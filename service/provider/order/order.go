@@ -85,6 +85,8 @@ type OrderFull struct {
 
 	dv pdpcommon.DataVerifier
 
+	di *DataInfo
+
 	active time.Time // remove it when it inactive for long time
 	ready  bool
 	pause  bool // if nonce is far from now, not create order
@@ -174,6 +176,7 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		active:     time.Now(),
 		orderState: Order_Init,
 		seqState:   OrderSeq_Init,
+		di:         new(DataInfo),
 	}
 	m.users = append(m.users, userID)
 	m.orders[userID] = op
@@ -189,11 +192,17 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.ready = true
 	}
 
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, userID)
+	val, err := m.ds.Get(key)
+	if err == nil {
+		op.di.Deserialize(val)
+	}
+
 	dns := m.ics.StateGetOrderState(m.ctx, userID, m.localID)
 
 	ns := new(NonceState)
-	key := store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
-	val, err := m.ds.Get(key)
+	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)
+	val, err = m.ds.Get(key)
 	if err == nil {
 		err = ns.Deserialize(val)
 		if err != nil {

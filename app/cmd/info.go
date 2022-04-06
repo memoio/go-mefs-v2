@@ -173,7 +173,8 @@ var infoCmd = &cli.Command{
 		}
 		fmt.Printf("Pledge: %s, %s (total pledge), %s (total in pool)\n", types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
 
-		if pri.Type == pb.RoleInfo_User {
+		switch pri.Type {
+		case pb.RoleInfo_User:
 			uapi, closer, err := client.NewUserNode(cctx.Context, addr, headers)
 			if err != nil {
 				return err
@@ -203,7 +204,26 @@ var infoCmd = &cli.Command{
 			fmt.Println("OnChain Size:", types.FormatBytes(pi.OnChainSize))
 			fmt.Println("Need Pay:", types.FormatMemo(pi.NeedPay))
 			fmt.Println("Paid:", types.FormatMemo(pi.Paid))
+		case pb.RoleInfo_Provider:
+			fmt.Println("Received Size: price")
+			fmt.Println("OnChain Size: price")
+			fmt.Println("Income: ")
 		}
+
+		fmt.Println(ansi.Color("----------- Local Information -----------", "green"))
+		lm, err := api.LocalStoreGetMeta(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Meta Usage: path %s, used %s, free %s\n", lm.Path, types.FormatBytes(lm.Used), types.FormatBytes(lm.Free))
+
+		dm, err := api.LocalStoreGetData(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Data Usage: path %s, used %s, free %s\n", dm.Path, types.FormatBytes(dm.Used), types.FormatBytes(dm.Free))
 
 		return nil
 	},

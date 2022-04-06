@@ -13,6 +13,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 // common API permissions constraints
@@ -24,7 +25,10 @@ type CommonStruct struct {
 		AuthNew    func(ctx context.Context, erms []auth.Permission) ([]byte, error)  `perm:"admin"`
 
 		ConfigSet func(context.Context, string, string) error        `perm:"write"`
-		ConfigGet func(context.Context, string) (interface{}, error) `perm:"write"`
+		ConfigGet func(context.Context, string) (interface{}, error) `perm:"read"`
+
+		LocalStoreGetMeta func(context.Context) (store.DiskStats, error) `perm:"read"`
+		LocalStoreGetData func(context.Context) (store.DiskStats, error) `perm:"read"`
 
 		WalletNew    func(context.Context, types.KeyType) (address.Address, error)          `perm:"write"`
 		WalletSign   func(context.Context, address.Address, []byte) ([]byte, error)         `perm:"sign"`
@@ -113,6 +117,14 @@ func (s *CommonStruct) ConfigSet(ctx context.Context, key, val string) error {
 
 func (s *CommonStruct) ConfigGet(ctx context.Context, key string) (interface{}, error) {
 	return s.Internal.ConfigGet(ctx, key)
+}
+
+func (s *CommonStruct) LocalStoreGetMeta(ctx context.Context) (store.DiskStats, error) {
+	return s.Internal.LocalStoreGetMeta(ctx)
+}
+
+func (s *CommonStruct) LocalStoreGetData(ctx context.Context) (store.DiskStats, error) {
+	return s.Internal.LocalStoreGetData(ctx)
 }
 
 func (s *CommonStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {

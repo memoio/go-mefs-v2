@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
@@ -533,6 +534,14 @@ func (r *FSRepo) APIAddr() (string, error) {
 
 func (r *FSRepo) SetAPIToken(token []byte) error {
 	return ioutil.WriteFile(filepath.Join(r.path, "token"), token, 0600)
+}
+
+func (r *FSRepo) LocalStoreGetMeta(ctx context.Context) (store.DiskStats, error) {
+	return r.metaDs.Size(), nil
+}
+
+func (r *FSRepo) LocalStoreGetData(ctx context.Context) (store.DiskStats, error) {
+	return r.fileDs.Size(), nil
 }
 
 func (r *FSRepo) Repo() Repo {

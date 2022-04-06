@@ -53,6 +53,12 @@ const (
 	KeeperDeposit = Token
 )
 
+type DiskStats struct {
+	Total uint64 `json:"all"`
+	Used  uint64 `json:"used"`
+	Free  uint64 `json:"free"`
+}
+
 // FormatBytes convert bytes to human readable string. Like 2 MiB, 64.2 KiB, 52 B
 func FormatBytes(i uint64) string {
 	switch {

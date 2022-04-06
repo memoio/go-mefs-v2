@@ -12,6 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -30,6 +31,8 @@ type OrderMgr struct {
 
 	localID uint64
 	quo     *types.Quotation
+
+	di *DataInfo
 
 	users  []uint64
 	orders map[uint64]*OrderFull // key: userID
@@ -57,6 +60,8 @@ func NewOrderMgr(ctx context.Context, roleID uint64, price uint64, ds store.KVSt
 		localID: roleID,
 		quo:     quo,
 
+		di: &DataInfo{},
+
 		users:  make([]uint64, 0, 128),
 		orders: make(map[uint64]*OrderFull),
 	}
@@ -65,6 +70,15 @@ func NewOrderMgr(ctx context.Context, roleID uint64, price uint64, ds store.KVSt
 }
 
 func (m *OrderMgr) Start() {
+	// load data info
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+	val, err := m.ds.Get(key)
+	if err == nil {
+		m.di.Deserialize(val)
+	} else {
+		// reload all?
+	}
+
 	// load some
 	users := m.ics.StateGetUsersAt(m.ctx, m.localID)
 	for _, uid := range users {
