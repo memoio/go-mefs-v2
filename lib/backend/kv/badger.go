@@ -11,6 +11,7 @@ import (
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var logger = logging.Logger("badger")
@@ -29,8 +30,9 @@ func (logger *compatLogger) Warningf(format string, args ...interface{}) {
 var _ store.KVStore = (*BadgerStore)(nil)
 
 type BadgerStore struct {
-	db     *badger.DB
-	seqMap sync.Map
+	basedir string
+	db      *badger.DB
+	seqMap  sync.Map
 
 	closeLk   sync.RWMutex
 	closed    bool
@@ -117,6 +119,7 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 	}
 
 	ds := &BadgerStore{
+		basedir:        path,
 		db:             kv,
 		closing:        make(chan struct{}),
 		gcDiscardRatio: gcDiscardRatio,
@@ -130,7 +133,7 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 		go ds.periodicGC()
 	}
 
-	logger.Info("start badger ds")
+	logger.Infof("start badger ds at %s", ds.basedir)
 	return ds, nil
 }
 
@@ -343,9 +346,11 @@ func (d *BadgerStore) IterKeys(prefix []byte, fn func(k []byte) error) int64 {
 	return atomic.LoadInt64(&total)
 }
 
-func (d *BadgerStore) Size() int64 {
+func (d *BadgerStore) Size() store.DiskStats {
 	lsmSize, vlogSize := d.db.Size()
-	return lsmSize + vlogSize
+	ds, _ := utils.GetDiskStatus(d.basedir)
+	ds.Used = uint64(lsmSize + vlogSize)
+	return ds
 }
 
 func (d *BadgerStore) Sync() error {

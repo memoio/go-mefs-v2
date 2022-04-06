@@ -219,7 +219,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	for ns.Nonce < of.nonce {
 		// add order base
 		if ns.SeqNum == 0 {
-			_, err := m.StateMgr.GetOrder(of.localID, of.pro, ns.Nonce)
+			_, err := m.StateMgr.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce)
 			if err != nil {
 				key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
 				data, err := m.ds.Get(key)
@@ -436,7 +436,7 @@ func (m *OrderMgr) submitOrders() error {
 			logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, si.Nonce)
 
 			// add order here
-			of, err := m.GetOrder(m.localID, proID, si.Nonce)
+			of, err := m.StateGetOrder(m.ctx, m.localID, proID, si.Nonce)
 			if err != nil {
 				pMap[proID] = struct{}{}
 				fin++

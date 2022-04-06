@@ -16,6 +16,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 type FullNode interface {
@@ -23,6 +24,7 @@ type FullNode interface {
 
 	IAuth
 	IConfig
+	ILocalStore
 	IWallet
 	IRole
 	IChainPush
@@ -59,6 +61,11 @@ type IAuth interface {
 type IConfig interface {
 	ConfigSet(context.Context, string, string) error
 	ConfigGet(context.Context, string) (interface{}, error)
+}
+
+type ILocalStore interface {
+	LocalStoreGetMeta(context.Context) (store.DiskStats, error)
+	LocalStoreGetData(context.Context) (store.DiskStats, error)
 }
 
 // wallet ops
@@ -190,6 +197,8 @@ type IChainState interface {
 	StateGetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
 
 	StateGetOrderState(context.Context, uint64, uint64) *types.NonceSeq
+	StateGetOrder(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)
+	StateGetOrderSeq(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error)
 	StateGetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)
 	StateGetPostIncomeAt(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)
 	StateGetAccPostIncome(context.Context, uint64) (*types.SignedAccPostIncome, error)

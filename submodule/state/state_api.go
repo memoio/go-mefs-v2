@@ -409,7 +409,7 @@ func (s *StateMgr) GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq 
 	return ns
 }
 
-func (s *StateMgr) GetOrder(userID, proID, nonce uint64) (*types.OrderFull, error) {
+func (s *StateMgr) StateGetOrder(ctx context.Context, userID, proID, nonce uint64) (*types.OrderFull, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -426,7 +426,7 @@ func (s *StateMgr) GetOrder(userID, proID, nonce uint64) (*types.OrderFull, erro
 	return nil, xerrors.Errorf("not found order: %d, %d, %d", userID, proID, nonce)
 }
 
-func (s *StateMgr) GetOrderSeq(userID, proID, nonce uint64, seqNum uint32) (*types.SeqFull, error) {
+func (s *StateMgr) StateGetOrderSeq(ctx context.Context, userID, proID, nonce uint64, seqNum uint32) (*types.SeqFull, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 

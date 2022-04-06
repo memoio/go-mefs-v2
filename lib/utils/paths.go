@@ -2,7 +2,9 @@ package utils
 
 import (
 	"os"
+	"syscall"
 
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/mitchellh/go-homedir"
 )
 
@@ -28,4 +30,22 @@ func GetRepoPath(override string) (string, error) {
 
 func GetMefsPath() (string, error) {
 	return GetRepoPath("")
+}
+
+// GetDiskStatus returns disk usage of path/disk
+func GetDiskStatus(path string) (store.DiskStats, error) {
+	m := store.DiskStats{
+		Path: path,
+	}
+	fs := syscall.Statfs_t{}
+	err := syscall.Statfs(path, &fs)
+	if err != nil {
+		return m, err
+	}
+
+	m.Total = fs.Blocks * uint64(fs.Bsize)
+	m.Free = fs.Bfree * uint64(fs.Bsize)
+
+	m.Used = m.Total - m.Free
+	return m, nil
 }

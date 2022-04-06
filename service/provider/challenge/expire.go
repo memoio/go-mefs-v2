@@ -23,7 +23,7 @@ func (s *SegMgr) subDataOrder(userID uint64) error {
 
 	ns := s.StateGetOrderState(s.ctx, userID, s.localID)
 	for i := ns.SubNonce; i <= ns.Nonce; i++ {
-		of, err := s.GetOrder(userID, s.localID, i)
+		of, err := s.StateGetOrder(s.ctx, userID, s.localID, i)
 		if err != nil {
 			return err
 		}
@@ -61,14 +61,14 @@ func (s *SegMgr) subDataOrder(userID uint64) error {
 func (s *SegMgr) removeSegInExpiredOrder(userID, nonce uint64) error {
 	logger.Debug("remove data in expired order: ", userID, nonce)
 
-	of, err := s.GetOrder(userID, s.localID, nonce)
+	of, err := s.StateGetOrder(s.ctx, userID, s.localID, nonce)
 	if err != nil {
 		return err
 	}
 
 	si := s.loadFs(userID)
 	for i := uint32(0); i < of.SeqNum; i++ {
-		sf, err := s.GetOrderSeq(userID, s.localID, nonce, i)
+		sf, err := s.StateGetOrderSeq(s.ctx, userID, s.localID, nonce, i)
 		if err != nil {
 			return err
 		}

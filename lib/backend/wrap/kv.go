@@ -53,7 +53,7 @@ func (w *kv) NewTxnStore(update bool) (store.TxnStore, error) {
 	return w.db.NewTxnStore(update)
 }
 
-func (w *kv) Size() int64 {
+func (w *kv) Size() store.DiskStats {
 	return w.db.Size()
 }
 

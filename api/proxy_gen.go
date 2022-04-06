@@ -13,6 +13,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
 // common API permissions constraints
@@ -24,7 +25,10 @@ type CommonStruct struct {
 		AuthNew    func(ctx context.Context, erms []auth.Permission) ([]byte, error)  `perm:"admin"`
 
 		ConfigSet func(context.Context, string, string) error        `perm:"write"`
-		ConfigGet func(context.Context, string) (interface{}, error) `perm:"write"`
+		ConfigGet func(context.Context, string) (interface{}, error) `perm:"read"`
+
+		LocalStoreGetMeta func(context.Context) (store.DiskStats, error) `perm:"read"`
+		LocalStoreGetData func(context.Context) (store.DiskStats, error) `perm:"read"`
 
 		WalletNew    func(context.Context, types.KeyType) (address.Address, error)          `perm:"write"`
 		WalletSign   func(context.Context, address.Address, []byte) ([]byte, error)         `perm:"sign"`
@@ -66,11 +70,13 @@ type CommonStruct struct {
 
 		StateGetPDPPublicKey func(context.Context, uint64) (pdpcommon.PublicKey, error) `perm:"read"`
 
-		StateGetOrderState      func(context.Context, uint64, uint64) *types.NonceSeq                    `perm:"read"`
-		StateGetPostIncome      func(context.Context, uint64, uint64) (*types.PostIncome, error)         `perm:"read"`
-		StateGetPostIncomeAt    func(context.Context, uint64, uint64, uint64) (*types.PostIncome, error) `perm:"read"`
-		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
-		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
+		StateGetOrderState      func(context.Context, uint64, uint64) *types.NonceSeq                         `perm:"read"`
+		StateGetOrder           func(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)       `perm:"read"`
+		StateGetOrderSeq        func(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error) `perm:"read"`
+		StateGetPostIncome      func(context.Context, uint64, uint64) (*types.PostIncome, error)              `perm:"read"`
+		StateGetPostIncomeAt    func(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)      `perm:"read"`
+		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)             `perm:"read"`
+		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)           `perm:"read"`
 
 		SettleGetRoleID      func(context.Context) uint64                                        `perm:"read"`
 		SettleGetGroupID     func(context.Context) uint64                                        `perm:"read"`
@@ -113,6 +119,14 @@ func (s *CommonStruct) ConfigSet(ctx context.Context, key, val string) error {
 
 func (s *CommonStruct) ConfigGet(ctx context.Context, key string) (interface{}, error) {
 	return s.Internal.ConfigGet(ctx, key)
+}
+
+func (s *CommonStruct) LocalStoreGetMeta(ctx context.Context) (store.DiskStats, error) {
+	return s.Internal.LocalStoreGetMeta(ctx)
+}
+
+func (s *CommonStruct) LocalStoreGetData(ctx context.Context) (store.DiskStats, error) {
+	return s.Internal.LocalStoreGetData(ctx)
 }
 
 func (s *CommonStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
@@ -249,6 +263,14 @@ func (s *CommonStruct) StateGetPDPPublicKey(ctx context.Context, userID uint64) 
 
 func (s *CommonStruct) StateGetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
 	return s.Internal.StateGetOrderState(ctx, userID, proID)
+}
+
+func (s *CommonStruct) StateGetOrder(ctx context.Context, userID, proID, nonce uint64) (*types.OrderFull, error) {
+	return s.Internal.StateGetOrder(ctx, userID, proID, nonce)
+}
+
+func (s *CommonStruct) StateGetOrderSeq(ctx context.Context, userID, proID, nonce uint64, seqNum uint32) (*types.SeqFull, error) {
+	return s.Internal.StateGetOrderSeq(ctx, userID, proID, nonce, seqNum)
 }
 
 func (s *CommonStruct) StateGetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {

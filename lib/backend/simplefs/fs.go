@@ -9,6 +9,7 @@ import (
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var logger = logging.Logger("simplefs")
@@ -16,6 +17,7 @@ var logger = logging.Logger("simplefs")
 var _ store.FileStore = (*SimpleFs)(nil)
 
 type SimpleFs struct {
+	size    uint64
 	basedir string
 }
 
@@ -25,9 +27,27 @@ func NewSimpleFs(dir string) (*SimpleFs, error) {
 		return nil, err
 	}
 
+	sf := &SimpleFs{0, dir}
+	sf.walk(dir)
+
 	logger.Info("create simplefs at:", dir)
 
-	return &SimpleFs{dir}, nil
+	return sf, nil
+}
+
+func (sf *SimpleFs) walk(baseDir string) {
+	rd, err := ioutil.ReadDir(baseDir)
+	if err != nil {
+		return
+	}
+
+	for _, fi := range rd {
+		if fi.IsDir() {
+			sf.walk(path.Join(baseDir, fi.Name()))
+		} else {
+			sf.size += uint64(fi.Size())
+		}
+	}
 }
 
 func (sf *SimpleFs) Put(key, val []byte) error {
@@ -42,10 +62,17 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 
 	fn := path.Join(dir, path.Base(skey))
 
+	info, err := os.Stat(fn)
+	if err == nil {
+		sf.size -= uint64(info.Size())
+	}
+
 	err = ioutil.WriteFile(fn, val, 0644)
 	if err != nil {
 		return err
 	}
+
+	sf.size += uint64(len(val))
 
 	return nil
 }
@@ -88,11 +115,20 @@ func (sf *SimpleFs) Delete(key []byte) error {
 	dir := path.Join(sf.basedir, path.Dir(skey))
 	fn := path.Join(dir, path.Base(skey))
 
+	fi, err := os.Stat(fn)
+	if err != nil {
+		return err
+	}
+
+	sf.size -= uint64(fi.Size())
+
 	return os.Remove(fn)
 }
 
-func (sf *SimpleFs) Size() int64 {
-	return 0
+func (sf *SimpleFs) Size() store.DiskStats {
+	ds, _ := utils.GetDiskStatus(sf.basedir)
+	ds.Used = sf.size
+	return ds
 }
 
 func (sf *SimpleFs) Close() error {

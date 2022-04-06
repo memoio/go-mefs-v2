@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -451,8 +452,13 @@ func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *mi
 	//log.Println("put object: ", bucket, object)
 	_, err = l.memofs.GetObjectInfo(ctx, bucket, object)
 	if err == nil {
-		time := time.Now().Format("20060102T150405")
-		object = object + "-" + time
+		mtime := time.Now().Format("20060102T150405")
+		suffix := path.Ext(object)
+		if len(suffix) > 0 && len(object) > len(suffix) {
+			object = object[:len(object)-len(suffix)] + "-" + mtime + suffix
+		} else {
+			object = object + "-" + mtime
+		}
 	}
 	moi, err := l.memofs.PutObject(ctx, bucket, object, r, opts.UserDefined)
 	if err != nil {

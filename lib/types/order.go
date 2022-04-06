@@ -16,6 +16,7 @@ type OrderPayInfo struct {
 	Size        uint64
 	ConfirmSize uint64 // order submit to data
 	OnChainSize uint64 // order add to settle chain
+	ExpireSize  uint64 // order expired
 	NeedPay     *big.Int
 	Paid        *big.Int // order is added to settle chain
 	Balance     *big.Int

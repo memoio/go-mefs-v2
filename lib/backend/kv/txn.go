@@ -78,7 +78,7 @@ func (t *txn) Commit() error {
 	return t.txn.Commit()
 }
 
-func (t *txn) Size() int64 {
+func (t *txn) Size() store.DiskStats {
 	return t.db.Size()
 }
 

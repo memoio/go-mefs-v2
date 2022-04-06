@@ -54,7 +54,7 @@ func (c *cstore) NewTxnStore(update bool) (store.TxnStore, error) {
 	return c.db.NewTxnStore(update)
 }
 
-func (c *cstore) Size() int64 {
+func (c *cstore) Size() store.DiskStats {
 	return c.db.Size()
 }
 
