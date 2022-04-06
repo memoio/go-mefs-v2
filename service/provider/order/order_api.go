@@ -78,8 +78,8 @@ func (m *OrderMgr) OrderGetDetail(ctx context.Context, userID, nonce uint64, seq
 func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.OrderPayInfo, error) {
 	pi := new(types.OrderPayInfo)
 	if pid == 0 {
-		pi.Size = m.di.Size // may be less than
-		pi.ConfirmSize = m.di.ConfirmSize
+		pi.Size = m.di.Size - m.di.ExpireSize // may be less than
+		pi.ConfirmSize = m.di.ConfirmSize - m.di.ExpireSize
 		pi.OnChainSize = m.di.OnChainSize
 		pi.NeedPay = new(big.Int).Set(m.di.NeedPay)
 		pi.Paid = new(big.Int).Set(m.di.Paid)
@@ -94,7 +94,7 @@ func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.Or
 		of, ok := m.orders[pid]
 		if ok {
 			pi.ID = pid
-			pi.Size = of.di.Size
+			pi.Size = of.di.Size - of.di.ExpireSize
 			pi.ConfirmSize = of.di.ConfirmSize - of.di.ExpireSize
 			pi.OnChainSize = of.di.OnChainSize
 			pi.NeedPay = new(big.Int).Set(of.di.NeedPay)

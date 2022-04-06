@@ -163,7 +163,7 @@ func (m *OrderMgr) check() error {
 
 		of.di.OnChainSize = oi.Size
 
-		size += of.di.Received
+		size += of.di.Size
 		onChainSize += of.di.OnChainSize
 		confirmSize += of.di.ConfirmSize
 		expireSize += of.di.ExpireSize
@@ -190,7 +190,8 @@ func (m *OrderMgr) check() error {
 
 	m.di.Size = size
 	m.di.OnChainSize = onChainSize
-	m.di.ConfirmSize = confirmSize - expireSize
+	m.di.ConfirmSize = confirmSize
+	m.di.ExpireSize = expireSize
 	m.di.NeedPay.Set(needPay)
 	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
 	val, _ := m.di.Serialize()
@@ -259,6 +260,10 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	val, err := m.ds.Get(key)
 	if err == nil {
 		op.di.Deserialize(val)
+	}
+
+	if op.di.Size == 0 {
+		op.di.Size = op.di.ConfirmSize
 	}
 
 	dns := m.ics.StateGetOrderState(m.ctx, userID, m.localID)

@@ -15,7 +15,6 @@ const (
 
 type DataInfo struct {
 	types.OrderPayInfo
-	Received       uint64 // received size
 	ConfirmedNonce uint64 // nonce on data chain
 	SubNonce       uint64 // nonce on data chain
 }
