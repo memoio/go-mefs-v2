@@ -149,6 +149,11 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 
 		saveOrderSeq(or, m.ds)
 
+		or.di.Received += build.DefaultSegSize
+		key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, or.userID)
+		val, _ := or.di.Serialize()
+		m.ds.Put(key, val)
+
 		go func(nseg segment.Segment) {
 
 			id := nseg.SegmentID().Bytes()

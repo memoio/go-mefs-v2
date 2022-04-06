@@ -94,7 +94,7 @@ func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.Or
 		of, ok := m.orders[pid]
 		if ok {
 			pi.ID = pid
-			pi.Size = of.di.Size - of.di.ExpireSize
+			pi.Size = of.di.Received - of.di.ExpireSize
 			pi.ConfirmSize = of.di.ConfirmSize - of.di.ExpireSize
 			pi.OnChainSize = of.di.OnChainSize
 			pi.NeedPay = new(big.Int).Set(of.di.NeedPay)

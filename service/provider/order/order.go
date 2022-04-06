@@ -266,6 +266,10 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.di.Size = op.di.ConfirmSize
 	}
 
+	if op.di.Received == 0 {
+		op.di.Received = op.di.ConfirmSize
+	}
+
 	dns := m.ics.StateGetOrderState(m.ctx, userID, m.localID)
 
 	ns := new(NonceState)
