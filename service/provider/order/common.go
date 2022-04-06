@@ -17,6 +17,7 @@ type DataInfo struct {
 	types.OrderPayInfo
 	Received       uint64 // received size
 	ConfirmedNonce uint64 // nonce on data chain
+	SubNonce       uint64 // nonce on data chain
 }
 
 func (di *DataInfo) Serialize() ([]byte, error) {

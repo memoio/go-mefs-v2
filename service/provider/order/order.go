@@ -110,6 +110,7 @@ func (m *OrderMgr) runCheck() {
 
 func (m *OrderMgr) check() error {
 	size := uint64(0)
+	expireSize := uint64(0)
 	confirmSize := uint64(0)
 	onChainSize := uint64(0)
 	needPay := new(big.Int)
@@ -141,8 +142,6 @@ func (m *OrderMgr) check() error {
 			of.di.ConfirmedNonce++
 		}
 
-		// sub size when expire
-
 		oi, err := m.is.SettleGetStoreInfo(m.ctx, uid, m.localID)
 		if err != nil {
 			key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, uid)
@@ -150,11 +149,24 @@ func (m *OrderMgr) check() error {
 			m.ds.Put(key, val)
 			continue
 		}
+
+		// sub size when expire
+		for of.di.SubNonce < oi.SubNonce {
+			ofull, err := m.ics.StateGetOrder(m.ctx, uid, m.localID, of.di.SubNonce)
+			if err != nil {
+				break
+			}
+
+			of.di.ExpireSize += ofull.Size
+			of.di.SubNonce++
+		}
+
 		of.di.OnChainSize = oi.Size
 
 		size += of.di.Received
 		onChainSize += of.di.OnChainSize
 		confirmSize += of.di.ConfirmSize
+		expireSize += of.di.ExpireSize
 		needPay.Add(needPay, of.di.NeedPay)
 
 		key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, uid)
@@ -178,7 +190,7 @@ func (m *OrderMgr) check() error {
 
 	m.di.Size = size
 	m.di.OnChainSize = onChainSize
-	m.di.ConfirmSize = confirmSize
+	m.di.ConfirmSize = confirmSize - expireSize
 	m.di.NeedPay.Set(needPay)
 	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
 	val, _ := m.di.Serialize()
