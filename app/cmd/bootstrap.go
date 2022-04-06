@@ -12,8 +12,8 @@ import (
 )
 
 var bootstrapCmd = &cli.Command{
-	Name:  "boostrap",
-	Usage: "boostrap",
+	Name:  "bootstrap",
+	Usage: "bootstrap",
 	Subcommands: []*cli.Command{
 		bootstrapListCmd,
 		bootstrapAddCmd,
