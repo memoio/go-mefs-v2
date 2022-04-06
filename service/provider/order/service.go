@@ -60,7 +60,13 @@ func NewOrderMgr(ctx context.Context, roleID uint64, price uint64, ds store.KVSt
 		localID: roleID,
 		quo:     quo,
 
-		di: &DataInfo{},
+		di: &DataInfo{
+			OrderPayInfo: types.OrderPayInfo{
+				NeedPay: big.NewInt(0),
+				Paid:    big.NewInt(0),
+				Balance: big.NewInt(0),
+			},
+		},
 
 		users:  make([]uint64, 0, 128),
 		orders: make(map[uint64]*OrderFull),
@@ -146,15 +152,21 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 
 		saveOrderSeq(or, m.ds)
 
-		go func() {
-			id := seg.SegmentID().Bytes()
-			data, _ := seg.Content()
-			tags, _ := seg.Tags()
+		or.di.Received += build.DefaultSegSize
+		key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, or.userID)
+		val, _ := or.di.Serialize()
+		m.ds.Put(key, val)
+
+		go func(nseg segment.Segment) {
+
+			id := nseg.SegmentID().Bytes()
+			data, _ := nseg.Content()
+			tags, _ := nseg.Tags()
 
 			or.lw.Lock()
 			defer or.lw.Unlock()
 			or.dv.Add(id, data, tags[0])
-		}()
+		}(seg)
 
 		return nil
 	}
@@ -539,6 +551,8 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			or.seqState = OrderSeq_Done
 			or.seqTime = time.Now().Unix()
 
+			or.di.Size += uint64(or.seq.Segments.Size()) * build.DefaultSegSize
+
 			// save order seq
 
 			err = saveOrderBase(or, m.ds)
@@ -555,6 +569,10 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, or.userID)
+			val, _ := or.di.Serialize()
+			m.ds.Put(key, val)
 
 			return or.seq.Serialize()
 		}

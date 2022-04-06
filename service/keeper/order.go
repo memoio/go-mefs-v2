@@ -73,7 +73,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 		}
 
 		// sub order here
-		of, err := k.GetOrder(userID, proID, si.SubNonce)
+		of, err := k.StateGetOrder(k.ctx, userID, proID, si.SubNonce)
 		if err != nil {
 			logger.Debug("subOrder fail to get order info: ", userID, proID, err)
 			continue

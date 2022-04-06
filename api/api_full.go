@@ -197,6 +197,8 @@ type IChainState interface {
 	StateGetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
 
 	StateGetOrderState(context.Context, uint64, uint64) *types.NonceSeq
+	StateGetOrder(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)
+	StateGetOrderSeq(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error)
 	StateGetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)
 	StateGetPostIncomeAt(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)
 	StateGetAccPostIncome(context.Context, uint64) (*types.SignedAccPostIncome, error)

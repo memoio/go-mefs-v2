@@ -162,6 +162,14 @@ func (asq AggSegsQueue) Len() int {
 	return len(asq)
 }
 
+func (asq AggSegsQueue) Size() int {
+	res := 0
+	for _, as := range asq {
+		res += int(as.Length)
+	}
+	return res
+}
+
 func (asq AggSegsQueue) Less(i, j int) bool {
 	if asq[i].BucketID != asq[j].BucketID {
 		return asq[i].BucketID < asq[j].BucketID

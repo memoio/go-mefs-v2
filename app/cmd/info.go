@@ -205,9 +205,19 @@ var infoCmd = &cli.Command{
 			fmt.Println("Need Pay:", types.FormatMemo(pi.NeedPay))
 			fmt.Println("Paid:", types.FormatMemo(pi.Paid))
 		case pb.RoleInfo_Provider:
-			fmt.Println("Received Size: price")
-			fmt.Println("OnChain Size: price")
-			fmt.Println("Income: ")
+			papi, closer, err := client.NewProviderNode(cctx.Context, addr, headers)
+			if err != nil {
+				return err
+			}
+			defer closer()
+
+			pi, err := papi.OrderGetPayInfoAt(cctx.Context, 0)
+			if err != nil {
+				return err
+			}
+			fmt.Println("Received Size: ", types.FormatBytes(pi.Size))
+			fmt.Println("Confirmed Size:", types.FormatBytes(pi.ConfirmSize))
+			fmt.Println("OnChain Size: ", types.FormatBytes(pi.OnChainSize))
 		}
 
 		fmt.Println(ansi.Color("----------- Local Information -----------", "green"))

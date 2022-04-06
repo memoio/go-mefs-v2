@@ -70,11 +70,13 @@ type CommonStruct struct {
 
 		StateGetPDPPublicKey func(context.Context, uint64) (pdpcommon.PublicKey, error) `perm:"read"`
 
-		StateGetOrderState      func(context.Context, uint64, uint64) *types.NonceSeq                    `perm:"read"`
-		StateGetPostIncome      func(context.Context, uint64, uint64) (*types.PostIncome, error)         `perm:"read"`
-		StateGetPostIncomeAt    func(context.Context, uint64, uint64, uint64) (*types.PostIncome, error) `perm:"read"`
-		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)        `perm:"read"`
-		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)      `perm:"read"`
+		StateGetOrderState      func(context.Context, uint64, uint64) *types.NonceSeq                         `perm:"read"`
+		StateGetOrder           func(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)       `perm:"read"`
+		StateGetOrderSeq        func(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error) `perm:"read"`
+		StateGetPostIncome      func(context.Context, uint64, uint64) (*types.PostIncome, error)              `perm:"read"`
+		StateGetPostIncomeAt    func(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)      `perm:"read"`
+		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)             `perm:"read"`
+		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)           `perm:"read"`
 
 		SettleGetRoleID      func(context.Context) uint64                                        `perm:"read"`
 		SettleGetGroupID     func(context.Context) uint64                                        `perm:"read"`
@@ -261,6 +263,14 @@ func (s *CommonStruct) StateGetPDPPublicKey(ctx context.Context, userID uint64) 
 
 func (s *CommonStruct) StateGetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
 	return s.Internal.StateGetOrderState(ctx, userID, proID)
+}
+
+func (s *CommonStruct) StateGetOrder(ctx context.Context, userID, proID, nonce uint64) (*types.OrderFull, error) {
+	return s.Internal.StateGetOrder(ctx, userID, proID, nonce)
+}
+
+func (s *CommonStruct) StateGetOrderSeq(ctx context.Context, userID, proID, nonce uint64, seqNum uint32) (*types.SeqFull, error) {
+	return s.Internal.StateGetOrderSeq(ctx, userID, proID, nonce, seqNum)
 }
 
 func (s *CommonStruct) StateGetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {

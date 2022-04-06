@@ -1,6 +1,7 @@
 package order
 
 import (
+	"math/big"
 	"sync"
 	"time"
 
@@ -107,6 +108,10 @@ func (m *OrderMgr) runCheck() {
 }
 
 func (m *OrderMgr) check() error {
+	size := uint64(0)
+	confirmSize := uint64(0)
+	onChainSize := uint64(0)
+	needPay := new(big.Int)
 	ulen := len(m.users)
 	for i := 0; i < ulen; i++ {
 		m.lk.RLock()
@@ -119,10 +124,40 @@ func (m *OrderMgr) check() error {
 		}
 
 		ns := m.ics.StateGetOrderState(m.ctx, uid, m.localID)
+
+		// load size from
+		for of.di.ConfirmedNonce < ns.Nonce {
+			ofull, err := m.ics.StateGetOrder(m.ctx, uid, m.localID, of.di.ConfirmedNonce)
+			if err != nil {
+				break
+			}
+
+			pay := new(big.Int).SetInt64(ofull.End - ofull.Start)
+			pay.Mul(pay, ofull.Price)
+
+			of.di.ConfirmSize += ofull.Size
+			of.di.NeedPay.Add(of.di.NeedPay, pay)
+			of.di.ConfirmedNonce++
+		}
+
+		// sub size when expire
+
 		oi, err := m.is.SettleGetStoreInfo(m.ctx, uid, m.localID)
 		if err != nil {
+			key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, uid)
+			val, _ := of.di.Serialize()
+			m.ds.Put(key, val)
 			continue
 		}
+
+		size += of.di.Received
+		onChainSize += of.di.OnChainSize
+		confirmSize += of.di.ConfirmSize
+		needPay.Add(needPay, of.di.NeedPay)
+
+		key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, uid)
+		val, _ := of.di.Serialize()
+		m.ds.Put(key, val)
 
 		if ns.Nonce+1 < of.nonce || oi.Nonce+2 < of.nonce {
 			of.lw.Lock()
@@ -138,6 +173,14 @@ func (m *OrderMgr) check() error {
 			logger.Debugf("%d order is submitted to data or settle chain: %d %d %d ", uid, of.nonce, ns.Nonce, oi.Nonce)
 		}
 	}
+
+	m.di.Size = size
+	m.di.OnChainSize = onChainSize
+	m.di.ConfirmSize = confirmSize
+	m.di.NeedPay.Set(needPay)
+	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+	val, _ := m.di.Serialize()
+	m.ds.Put(key, val)
 
 	return nil
 }
@@ -176,7 +219,13 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		active:     time.Now(),
 		orderState: Order_Init,
 		seqState:   OrderSeq_Init,
-		di:         new(DataInfo),
+		di: &DataInfo{
+			OrderPayInfo: types.OrderPayInfo{
+				ID:      userID,
+				NeedPay: big.NewInt(0),
+				Paid:    big.NewInt(0),
+			},
+		},
 	}
 	m.users = append(m.users, userID)
 	m.orders[userID] = op

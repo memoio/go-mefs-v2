@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -74,11 +75,55 @@ func (m *OrderMgr) OrderGetDetail(ctx context.Context, userID, nonce uint64, seq
 	return sos, nil
 }
 
-func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, error) {
-	res := make([]*types.OrderPayInfo, 0)
-	return res, nil
+func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.OrderPayInfo, error) {
+	pi := new(types.OrderPayInfo)
+	if pid == 0 {
+		pi.Size = m.di.Size // may be less than
+		pi.ConfirmSize = m.di.ConfirmSize
+		pi.OnChainSize = m.di.OnChainSize
+		pi.NeedPay = new(big.Int).Set(m.di.NeedPay)
+		pi.Paid = new(big.Int).Set(m.di.Paid)
+
+		bi, err := m.is.SettleGetBalanceInfo(ctx, m.localID)
+		if err != nil {
+			return nil, err
+		}
+		pi.Balance = new(big.Int).Set(bi.ErcValue)
+		pi.Balance.Add(pi.Balance, bi.FsValue)
+	} else {
+		of, ok := m.orders[pid]
+		if ok {
+			pi.ID = pid
+			pi.Size = of.di.Size
+			pi.ConfirmSize = of.di.ConfirmSize
+			pi.OnChainSize = of.di.OnChainSize
+			pi.NeedPay = new(big.Int).Set(of.di.NeedPay)
+			pi.Paid = new(big.Int).Set(of.di.Paid)
+
+			if of.seq != nil {
+				pi.Size += of.seq.Size
+			} else {
+				if of.base != nil {
+					pi.Size += of.base.Size
+				}
+			}
+		}
+	}
+
+	return pi, nil
 }
 
-func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, id uint64) (*types.OrderPayInfo, error) {
-	return new(types.OrderPayInfo), nil
+func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, error) {
+	res := make([]*types.OrderPayInfo, 0, len(m.users))
+
+	for _, pid := range m.users {
+		oi, err := m.OrderGetPayInfoAt(ctx, pid)
+		if err != nil {
+			continue
+		}
+
+		res = append(res, oi)
+	}
+
+	return res, nil
 }

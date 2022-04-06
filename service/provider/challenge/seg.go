@@ -296,7 +296,7 @@ func (s *SegMgr) challenge(userID uint64) {
 	orderEnd := ns.Nonce
 
 	if ns.SeqNum > 0 {
-		so, err := s.GetOrder(userID, s.localID, ns.Nonce)
+		so, err := s.StateGetOrder(s.ctx, userID, s.localID, ns.Nonce)
 		if err != nil {
 			logger.Debug("challenge get order fails: ", userID, ns.Nonce, err)
 			return
@@ -321,7 +321,7 @@ func (s *SegMgr) challenge(userID uint64) {
 			}
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
-				sf, err := s.GetOrderSeq(userID, s.localID, ns.Nonce, i)
+				sf, err := s.StateGetOrderSeq(s.ctx, userID, s.localID, ns.Nonce, i)
 				if err != nil {
 					logger.Debug("challenge get order seq fails: ", userID, ns.Nonce, i, err)
 					return
@@ -412,7 +412,7 @@ func (s *SegMgr) challenge(userID uint64) {
 	if ns.Nonce > 0 {
 		// todo: choose some from [0, ns.Nonce)
 		for i := ns.SubNonce; i < ns.Nonce; i++ {
-			so, err := s.GetOrder(userID, s.localID, i)
+			so, err := s.StateGetOrder(s.ctx, userID, s.localID, i)
 			if err != nil {
 				logger.Debug("challenge get order fails:", userID, i, err)
 				return
@@ -449,7 +449,7 @@ func (s *SegMgr) challenge(userID uint64) {
 			pchal.Add(bls.SubFr(so.AccFr, so.DelPart.AccFr))
 
 			for k := uint32(0); k < so.SeqNum; k++ {
-				sf, err := s.GetOrderSeq(userID, s.localID, i, k)
+				sf, err := s.StateGetOrderSeq(s.ctx, userID, s.localID, i, k)
 				if err != nil {
 					logger.Debug("challenge get order seq fails:", userID, i, k, err)
 					return

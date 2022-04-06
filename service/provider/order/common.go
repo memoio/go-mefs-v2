@@ -3,6 +3,7 @@ package order
 import (
 	"github.com/fxamacker/cbor/v2"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 var logger = logging.Logger("pro-order")
@@ -13,9 +14,9 @@ const (
 )
 
 type DataInfo struct {
-	Received  uint64
-	Confirmed uint64
-	OnChain   uint64
+	types.OrderPayInfo
+	Received       uint64 // received size
+	ConfirmedNonce uint64 // nonce on data chain
 }
 
 func (di *DataInfo) Serialize() ([]byte, error) {
