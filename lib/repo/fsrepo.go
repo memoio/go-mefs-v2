@@ -537,7 +537,11 @@ func (r *FSRepo) SetAPIToken(token []byte) error {
 }
 
 func (r *FSRepo) LocalStoreGetMeta(ctx context.Context) (store.DiskStats, error) {
-	return r.metaDs.Size(), nil
+	mds := r.metaDs.Size()
+	sds := r.stateDs.Size()
+	sds.Used += mds.Used
+	sds.Path = r.path
+	return sds, nil
 }
 
 func (r *FSRepo) LocalStoreGetData(ctx context.Context) (store.DiskStats, error) {

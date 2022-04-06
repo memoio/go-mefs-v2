@@ -81,10 +81,7 @@ func (m *OrderMgr) Start() {
 	val, err := m.ds.Get(key)
 	if err == nil {
 		m.di.Deserialize(val)
-	} else {
-		// reload all?
 	}
-
 	// load some
 	users := m.ics.StateGetUsersAt(m.ctx, m.localID)
 	for _, uid := range users {

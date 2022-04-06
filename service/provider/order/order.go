@@ -97,6 +97,7 @@ func (m *OrderMgr) runCheck() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
+	m.check()
 	for {
 		select {
 		case <-m.ctx.Done():
@@ -149,6 +150,7 @@ func (m *OrderMgr) check() error {
 			m.ds.Put(key, val)
 			continue
 		}
+		of.di.OnChainSize = oi.Size
 
 		size += of.di.Received
 		onChainSize += of.di.OnChainSize

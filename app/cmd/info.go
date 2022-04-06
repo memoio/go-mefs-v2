@@ -215,6 +215,8 @@ var infoCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
+
+			fmt.Println(ansi.Color("----------- Store Information ----------", "green"))
 			fmt.Println("Received Size: ", types.FormatBytes(pi.Size))
 			fmt.Println("Confirmed Size:", types.FormatBytes(pi.ConfirmSize))
 			fmt.Println("OnChain Size: ", types.FormatBytes(pi.OnChainSize))
