@@ -154,6 +154,7 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		return err
 	}
 
+	object.ops = append(object.ops, op.OpID)
 	object.deletion = true
 	object.dirty = true
 	err = object.Save(l.userID, l.ds)
