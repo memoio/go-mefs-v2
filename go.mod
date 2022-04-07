@@ -20,8 +20,8 @@ require (
 	github.com/herumi/bls-eth-go-binary v0.0.0-20210917013441-d37c07cfda4e
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
 	github.com/ipfs/go-cid v0.1.0
-	github.com/ipfs/go-datastore v0.4.6
-	github.com/ipfs/go-ds-leveldb v0.4.2
+	github.com/ipfs/go-datastore v0.5.0
+	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/ipfs/go-fs-lock v0.0.7
 	github.com/ipfs/go-ipld-format v0.2.0
 	github.com/ipfs/go-unixfs v0.2.6
@@ -30,19 +30,17 @@ require (
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
 	github.com/klauspost/reedsolomon v1.9.15
-	github.com/libp2p/go-eventbus v0.2.1
-	github.com/libp2p/go-libp2p v0.14.0
-	github.com/libp2p/go-libp2p-core v0.8.6
-	github.com/libp2p/go-libp2p-discovery v0.5.0
-	github.com/libp2p/go-libp2p-kad-dht v0.12.0
-	github.com/libp2p/go-libp2p-mplex v0.4.1
-	github.com/libp2p/go-libp2p-noise v0.2.0
-	github.com/libp2p/go-libp2p-peerstore v0.3.0
-	github.com/libp2p/go-libp2p-pubsub v0.4.2
-	github.com/libp2p/go-libp2p-swarm v0.5.0
-	github.com/libp2p/go-libp2p-tls v0.1.3
-	github.com/libp2p/go-libp2p-yamux v0.5.4
-	github.com/libp2p/go-msgio v0.0.6
+	github.com/libp2p/go-libp2p v0.18.0
+	github.com/libp2p/go-libp2p-core v0.14.0
+	github.com/libp2p/go-libp2p-discovery v0.6.0
+	github.com/libp2p/go-libp2p-kad-dht v0.15.0
+	github.com/libp2p/go-libp2p-noise v0.3.0
+	github.com/libp2p/go-libp2p-peerstore v0.6.0
+	github.com/libp2p/go-libp2p-pubsub v0.6.1
+	github.com/libp2p/go-libp2p-swarm v0.10.2
+	github.com/libp2p/go-libp2p-tls v0.3.1
+	github.com/libp2p/go-libp2p-yamux v0.8.2
+	github.com/libp2p/go-msgio v0.1.0
 	github.com/memoio/minio v0.2.4
 	github.com/memoio/smt v0.2.1
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
@@ -54,7 +52,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/modood/table v0.0.0-20200225102042-88de94bb9876
 	github.com/mr-tron/base58 v1.2.0
-	github.com/multiformats/go-multiaddr v0.3.3
+	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/prometheus/client_golang v1.12.1

@@ -7,7 +7,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p/p2p/discovery"
 )
 
 type discoveryHandler struct {
@@ -35,13 +34,4 @@ func DiscoveryHandler(ctx context.Context, host host.Host) *discoveryHandler {
 		ctx:  ctx,
 		host: host,
 	}
-}
-
-func SetupDiscovery(ctx context.Context, host host.Host, handler *discoveryHandler) (discovery.Service, error) {
-	service, err := discovery.NewMdnsService(ctx, host, 60*time.Second, "mefs-discovery")
-	if err != nil {
-		return service, err
-	}
-	service.RegisterNotifee(handler)
-	return service, nil
 }

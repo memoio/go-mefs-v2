@@ -6,5 +6,6 @@ import (
 )
 
 func Peerstore() libp2p.Option {
-	return libp2p.Peerstore(pstoremem.NewPeerstore())
+	ps, _ := pstoremem.NewPeerstore()
+	return libp2p.Peerstore(ps)
 }

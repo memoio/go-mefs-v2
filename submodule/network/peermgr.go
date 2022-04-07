@@ -54,8 +54,16 @@ type PeerMgr struct {
 	done chan struct{}
 }
 
-type NewPeer struct {
-	Id peer.ID //nolint
+type PeerEvtType int
+
+const (
+	AddPeerEvt PeerEvtType = iota
+	RemovePeerEvt
+)
+
+type PeerEvt struct {
+	Type PeerEvtType
+	ID   peer.ID
 }
 
 func NewPeerMgr(netName string, h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*PeerMgr, error) {
@@ -74,7 +82,7 @@ func NewPeerMgr(netName string, h host.Host, dht *dht.IpfsDHT, bootstrap []peer.
 		done: make(chan struct{}),
 	}
 
-	emitter, err := h.EventBus().Emitter(new(NewPeer))
+	emitter, err := h.EventBus().Emitter(new(PeerEvt))
 	if err != nil {
 		return nil, xerrors.Errorf("creating NewPeer emitter: %w", err)
 	}
@@ -92,7 +100,7 @@ func NewPeerMgr(netName string, h host.Host, dht *dht.IpfsDHT, bootstrap []peer.
 }
 
 func (pmgr *PeerMgr) AddPeer(p peer.ID) {
-	_ = pmgr.peerEmitter.Emit(NewPeer{Id: p}) //nolint:errcheck
+	_ = pmgr.peerEmitter.Emit(PeerEvt{Type: AddPeerEvt, ID: p}) //nolint:errcheck
 	pmgr.peersLk.Lock()
 	defer pmgr.peersLk.Unlock()
 	pmgr.peers[p] = time.Duration(0)
@@ -115,10 +123,17 @@ func (pmgr *PeerMgr) SetPeerLatency(p peer.ID, latency time.Duration) {
 }
 
 func (pmgr *PeerMgr) Disconnect(p peer.ID) {
+	disconnected := false
 	if pmgr.h.Network().Connectedness(p) == net.NotConnected {
 		pmgr.peersLk.Lock()
-		defer pmgr.peersLk.Unlock()
-		delete(pmgr.peers, p)
+		_, disconnected = pmgr.peers[p]
+		if disconnected {
+			delete(pmgr.peers, p)
+		}
+		pmgr.peersLk.Unlock()
+	}
+	if disconnected {
+		_ = pmgr.peerEmitter.Emit(PeerEvt{Type: RemovePeerEvt, ID: p}) //nolint:errcheck
 	}
 }
 
