@@ -168,7 +168,9 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		if pid == math.MaxUint64 {
 			continue
 		}
+		m.lk.RLock()
 		or, ok := m.orders[pid]
+		m.lk.RUnlock()
 		if ok {
 			if !or.inStop {
 				cnt++
@@ -211,8 +213,9 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		}
 
 		// not have
-
+		m.lk.RLock()
 		or, ok := m.orders[pid]
+		m.lk.RUnlock()
 		if ok {
 			if or.ready && !or.inStop {
 				otherPros = append(otherPros, pid)
@@ -231,7 +234,9 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	for i := 0; i < lp.dc+lp.pc; i++ {
 		pid := lp.pros[i]
 		if pid != math.MaxUint64 {
+			m.lk.RLock()
 			or, ok := m.orders[pid]
+			m.lk.RUnlock()
 			if ok {
 				if !or.inStop {
 					continue
@@ -242,7 +247,9 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		for j < len(otherPros) {
 			npid := otherPros[j]
 			j++
+			m.lk.RLock()
 			or, ok := m.orders[npid]
+			m.lk.RUnlock()
 			if ok {
 				if !or.inStop && m.ready {
 					change = true
@@ -573,7 +580,9 @@ func (m *OrderMgr) dispatch() {
 				logger.Debug("fail dispatch to wrong pro:", pid)
 				continue
 			}
+			m.lk.RLock()
 			or, ok := m.orders[pid]
+			m.lk.RUnlock()
 			if !ok {
 				logger.Debug("fail dispatch to pro:", pid)
 				continue

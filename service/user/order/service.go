@@ -246,7 +246,9 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 
 		// handle order state
 		case quo := <-m.quoChan:
+			m.lk.RLock()
 			of, ok := m.orders[quo.ProID]
+			m.lk.RUnlock()
 			if ok {
 				if quo.SegPrice.Cmp(m.segPrice) > 0 {
 					of.failCnt++
@@ -260,7 +262,9 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				}
 			}
 		case ob := <-m.orderChan:
+			m.lk.RLock()
 			of, ok := m.orders[ob.ProID]
+			m.lk.RUnlock()
 			if ok {
 				of.availTime = time.Now().Unix()
 				err := m.runOrder(of, ob)
@@ -269,7 +273,9 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				}
 			}
 		case s := <-m.seqNewChan:
+			m.lk.RLock()
 			of, ok := m.orders[s.proID]
+			m.lk.RUnlock()
 			if ok {
 				of.availTime = time.Now().Unix()
 				err := m.sendSeq(of, s.os)
@@ -278,7 +284,9 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				}
 			}
 		case s := <-m.seqFinishChan:
+			m.lk.RLock()
 			of, ok := m.orders[s.proID]
+			m.lk.RUnlock()
 			if ok {
 				of.availTime = time.Now().Unix()
 				err := m.finishSeq(of, s.os)
@@ -290,8 +298,10 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 			logger.Debug("add order to pro:", of.pro)
 			_, ok := m.orders[of.pro]
 			if !ok {
+				m.lk.Lock()
 				m.orders[of.pro] = of
 				m.pros = append(m.pros, of.pro)
+				m.lk.Unlock()
 				go m.update(of.pro)
 			}
 		case lp := <-m.bucketChan:
@@ -301,7 +311,9 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				m.proMap[lp.bucketID] = lp
 			}
 		case pid := <-m.updateChan:
+			m.lk.RLock()
 			of, ok := m.orders[pid]
+			m.lk.RUnlock()
 			if ok {
 				of.availTime = time.Now().Unix()
 			} else {
@@ -312,7 +324,9 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 			m.dispatch()
 
 			for _, pid := range m.pros {
+				m.lk.RLock()
 				of := m.orders[pid]
+				m.lk.RUnlock()
 				m.check(of)
 			}
 		case <-lt.C:

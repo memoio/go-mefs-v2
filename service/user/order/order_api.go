@@ -34,6 +34,8 @@ func (m *OrderMgr) OrderGetJobInfo(ctx context.Context) ([]*api.OrderJobInfo, er
 }
 
 func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.OrderJobInfo, error) {
+	m.lk.RLock()
+	defer m.lk.RUnlock()
 	of, ok := m.orders[proID]
 	if ok {
 		oi := &api.OrderJobInfo{
@@ -108,7 +110,9 @@ func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.Or
 		pi.Balance = new(big.Int).Set(bi.ErcValue)
 		pi.Balance.Add(pi.Balance, bi.FsValue)
 	} else {
+		m.lk.RLock()
 		of, ok := m.orders[pid]
+		m.lk.RUnlock()
 		if ok {
 			pi.ID = pid
 			pi.Size = of.opi.Size
