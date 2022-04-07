@@ -193,7 +193,9 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 						val, _ = m.opi.Serialize()
 						m.ds.Put(key, val)
 
+						m.lk.RLock()
 						of, ok := m.orders[msg.To]
+						m.lk.RUnlock()
 						if ok {
 							of.opi.ConfirmSize += size
 							key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, msg.To)
@@ -475,7 +477,9 @@ func (m *OrderMgr) submitOrders() error {
 				val, _ := m.opi.Serialize()
 				m.ds.Put(key, val)
 
+				m.lk.RLock()
 				po, ok := m.orders[of.ProID]
+				m.lk.RUnlock()
 				if ok {
 					po.opi.OnChainSize += of.Size
 					po.opi.Paid.Add(po.opi.Paid, pay)
