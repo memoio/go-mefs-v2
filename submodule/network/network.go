@@ -16,6 +16,7 @@ import (
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	swarm "github.com/libp2p/go-libp2p-swarm"
+	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
 	ma "github.com/multiformats/go-multiaddr"
@@ -46,7 +47,7 @@ type NetworkSubmodule struct { //nolint
 	PeerMgr IPeerMgr
 
 	// find peer in local net
-	//Discovery discovery.Service
+	Discovery mdns.Service
 
 	// metrics info
 	Reporter *metrics.BandwidthCounter
@@ -169,6 +170,9 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 		return nil, xerrors.Errorf("failed to set up gossip %w", err)
 	}
 
+	mds := mdns.NewMdnsService(rawHost, "mefs-discovery", DiscoveryHandler(ctx, rawHost))
+	mds.Start()
+
 	// build the network submdule
 	return &NetworkSubmodule{
 		NetworkName: networkName,
@@ -178,7 +182,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 		Pubsub:      gsub,
 		Reporter:    bandwidthTracker,
 		PeerMgr:     peerMgr,
-		//Discovery:   mdnsdisc,
+		Discovery:   mds,
 	}, nil
 }
 
@@ -191,7 +195,7 @@ func (ns *NetworkSubmodule) Stop(ctx context.Context) {
 	if err != nil {
 		logger.Errorf("error closing host: %s", err)
 	}
-	//err = ns.Discovery.Close()
+	err = ns.Discovery.Close()
 	if err != nil {
 		logger.Errorf("error closing Discovery: %s", err)
 	}
