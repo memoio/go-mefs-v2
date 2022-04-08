@@ -22,10 +22,12 @@ func (m *OrderMgr) connect(proID uint64) error {
 	// otherwise get addr from declared address
 	pi, err := m.StateGetNetInfo(m.ctx, proID)
 	if err == nil {
-		m.ns.AddNode(proID, pi)
 		// todo: fix this
 		err := m.ns.Host().Connect(m.ctx, pi)
-		m.ns.Host().Peerstore().SetAddrs(pi.ID, pi.Addrs, time.Duration(24*time.Hour))
+		if err == nil {
+			m.ns.Host().Peerstore().SetAddrs(pi.ID, pi.Addrs, time.Duration(24*time.Hour))
+			m.ns.AddNode(proID, pi)
+		}
 		logger.Debugf("connect pro declared: %s %s", pi, err)
 	}
 
