@@ -97,6 +97,11 @@ func (k *KeeperNode) pushMsg(msg *tx.Message) {
 		logger.Debug("waiting tx message done: ", mid)
 
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			st, err := k.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)

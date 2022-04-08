@@ -50,6 +50,11 @@ func (s *SegMgr) pushMessage(msg *tx.Message) {
 		ctx, cancle := context.WithTimeout(s.ctx, 10*time.Minute)
 		defer cancle()
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			st, err := s.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)

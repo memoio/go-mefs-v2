@@ -83,6 +83,7 @@ func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb
 	if !p.ready {
 		logger.Debug("pro service not ready, fail handle quotation from:", mes.GetHeader().From)
 		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("service not ready")
 		return resp, nil
 	}
 

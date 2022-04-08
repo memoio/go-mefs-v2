@@ -2,6 +2,7 @@ package tx
 
 import (
 	"context"
+	"math"
 
 	lru "github.com/hashicorp/golang-lru"
 
@@ -272,5 +273,14 @@ func (ts *TxStoreImpl) GetTxMsgState(mid types.MsgID) (*MsgState, error) {
 
 	tms := new(MsgState)
 	err = tms.Deserialize(val)
+	if err != nil {
+		return nil, err
+	}
+
+	// iter to find
+	if tms.Height == math.MaxUint64 {
+		return ts.GetTxMsgState(tms.BlockID)
+	}
+
 	return tms, err
 }

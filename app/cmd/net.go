@@ -253,6 +253,11 @@ var declareCmd = &cli.Command{
 		ctx, cancle := context.WithTimeout(ctx, 6*time.Minute)
 		defer cancle()
 		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			st, err := napi.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(10 * time.Second)

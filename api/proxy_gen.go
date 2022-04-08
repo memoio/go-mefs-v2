@@ -97,6 +97,7 @@ type CommonStruct struct {
 		PushMessage         func(context.Context, *tx.Message) (types.MsgID, error)       `perm:"write"`
 		PushSignedMessage   func(context.Context, *tx.SignedMessage) (types.MsgID, error) `perm:"write"`
 
+		Ready    func(context.Context) bool  `perm:"read"`
 		Shutdown func(context.Context) error `perm:"admin"`
 	}
 }
@@ -351,6 +352,10 @@ func (s *CommonStruct) PushMessage(ctx context.Context, msg *tx.Message) (types.
 
 func (s *CommonStruct) PushSignedMessage(ctx context.Context, smsg *tx.SignedMessage) (types.MsgID, error) {
 	return s.Internal.PushSignedMessage(ctx, smsg)
+}
+
+func (s *CommonStruct) Ready(ctx context.Context) bool {
+	return s.Internal.Ready(ctx)
 }
 
 func (s *CommonStruct) Shutdown(ctx context.Context) error {

@@ -155,3 +155,7 @@ func (p *ProviderNode) Start(perm bool) error {
 	logger.Info("start provider for: ", p.RoleID())
 	return nil
 }
+
+func (p *ProviderNode) Ready(ctx context.Context) bool {
+	return p.ready
+}

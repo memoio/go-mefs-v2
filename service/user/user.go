@@ -39,6 +39,8 @@ type UserNode struct {
 	api.IDataService
 
 	ctx context.Context
+
+	ready bool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
@@ -148,6 +150,8 @@ func (u *UserNode) Start(perm bool) error {
 			return
 		}
 
+		u.ready = true
+
 		// start lfs service and its ordermgr service
 		u.LfsService.Start()
 	}()
@@ -159,6 +163,10 @@ func (u *UserNode) Start(perm bool) error {
 func (u *UserNode) Shutdown(ctx context.Context) error {
 	u.LfsService.Stop()
 	return u.BaseNode.Shutdown(ctx)
+}
+
+func (u *UserNode) Ready(ctx context.Context) bool {
+	return u.ready
 }
 
 func (u *UserNode) ServeRemote(perm bool) func(w http.ResponseWriter, r *http.Request) {

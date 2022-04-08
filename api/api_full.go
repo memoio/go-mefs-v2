@@ -31,6 +31,7 @@ type FullNode interface {
 	INetwork
 	ISettle
 
+	Ready(context.Context) bool
 	Shutdown(context.Context) error
 }
 
