@@ -183,6 +183,10 @@ var walletExportCmd = &cli.Command{
 			}
 			fmt.Println("secret key: ", hex.EncodeToString(ki.SecretKey))
 		} else {
+			repoDir, err = homedir.Expand(repoDir)
+			if err != nil {
+				return err
+			}
 			kfile := filepath.Join(repoDir, "keystore", maddr.String())
 			sk, err := keystore.LoadKeyFile(pw, kfile)
 			if err != nil {
