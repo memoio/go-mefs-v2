@@ -127,6 +127,10 @@ func (n *BaseNode) Start(perm bool) error {
 	return nil
 }
 
+func (n *BaseNode) Ready(ctx context.Context) bool {
+	return true
+}
+
 func (n *BaseNode) Stop(ctx context.Context) error {
 	// stop handle msg
 	n.NetServiceImpl.Stop()

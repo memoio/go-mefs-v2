@@ -33,6 +33,7 @@ type KeeperNode struct {
 	bc bcommon.ConsensusMgr
 
 	inProcess bool
+	ready     bool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
@@ -116,8 +117,13 @@ func (k *KeeperNode) Start(perm bool) error {
 		go k.updateChalEpoch()
 		go k.updatePay()
 		go k.updateOrder()
+		k.ready = true
 	}()
 
 	logger.Info("start keeper for: ", k.RoleID())
 	return nil
+}
+
+func (k *KeeperNode) Ready(ctx context.Context) bool {
+	return k.ready
 }

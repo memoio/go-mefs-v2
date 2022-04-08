@@ -217,6 +217,7 @@ var infoCmd = &cli.Command{
 			}
 
 			fmt.Println(ansi.Color("----------- Store Information ----------", "green"))
+			fmt.Println("Service Ready: ", papi.Ready(cctx.Context))
 			fmt.Println("Received Size: ", types.FormatBytes(pi.Size))
 			fmt.Println("Confirmed Size:", types.FormatBytes(pi.ConfirmSize))
 			fmt.Println("OnChain Size: ", types.FormatBytes(pi.OnChainSize))
