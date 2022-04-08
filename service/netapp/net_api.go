@@ -37,7 +37,9 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 			paddr := peer.AddrInfo{
 				ID: pid,
 			}
+			c.lk.RLock()
 			pai, ok := c.peerMap[pid]
+			c.lk.RUnlock()
 			if ok {
 				paddr.Addrs = append(paddr.Addrs, pai.addr.Addrs...)
 			}
@@ -176,7 +178,9 @@ func (c *NetServiceImpl) PublishEvent(ctx context.Context, em *pb.EventMessage) 
 }
 
 func (c *NetServiceImpl) GetPeerIDAt(ctx context.Context, id uint64) (peer.ID, error) {
+	c.lk.RLock()
 	pid, ok := c.idMap[id]
+	c.lk.RUnlock()
 	if ok {
 		return pid, nil
 	}
