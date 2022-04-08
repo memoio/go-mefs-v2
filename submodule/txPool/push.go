@@ -2,6 +2,7 @@ package txPool
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -135,6 +136,8 @@ func (pp *PushPool) syncPush() {
 							continue
 						}
 						if time.Since(pmsg.mtime) > 10*time.Minute {
+							origID := pmsg.msgID
+
 							gp := big.NewInt(10)
 							if pmsg.msg.GasPrice != nil {
 								gp = gp.Add(gp, pmsg.msg.GasPrice)
@@ -151,6 +154,11 @@ func (pp *PushPool) syncPush() {
 							// publish again
 							pp.INetService.PublishTxMsg(pp.ctx, pmsg.msg)
 							pmsg.mtime = time.Now()
+
+							pp.PutTxMsgState(origID, &tx.MsgState{
+								BlockID: pmsg.msgID,
+								Height:  math.MaxUint64,
+							})
 
 							// need store?
 						}

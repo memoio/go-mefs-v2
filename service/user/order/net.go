@@ -29,6 +29,10 @@ func (m *OrderMgr) connect(proID uint64) error {
 			m.ns.AddNode(proID, pi)
 		}
 		logger.Debugf("connect pro declared: %s %s", pi, err)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	// test remote service is ready or not

@@ -181,6 +181,11 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opts pb.Bu
 		logger.Debug("waiting tx message done: ", mid)
 
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)

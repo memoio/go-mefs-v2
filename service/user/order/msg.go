@@ -145,6 +145,11 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 		ctx, cancle := context.WithTimeout(m.ctx, 10*time.Minute)
 		defer cancle()
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			st, err := m.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)

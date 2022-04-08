@@ -131,15 +131,17 @@ func (n *BaseNode) Register() error {
 		for {
 			mid, err := n.PushPool.PushMessage(n.ctx, msg)
 			if err != nil {
-				time.Sleep(5 * time.Second)
+				time.Sleep(30 * time.Second)
 				continue
 			}
 
-			ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
-			defer cancle()
 			for {
-				st, err := n.PushPool.SyncGetTxMsgStatus(ctx, mid)
+				st, err := n.PushPool.SyncGetTxMsgStatus(n.ctx, mid)
 				if err != nil {
+					_, err := n.PushPool.GetRoleBaseInfo(n.RoleID())
+					if err == nil {
+						return nil
+					}
 					time.Sleep(10 * time.Second)
 					continue
 				}
@@ -207,11 +209,13 @@ func (n *BaseNode) UpdateNetAddr() error {
 			continue
 		}
 
-		ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
-		defer cancle()
 		for {
-			st, err := n.PushPool.SyncGetTxMsgStatus(ctx, mid)
+			st, err := n.PushPool.SyncGetTxMsgStatus(n.ctx, mid)
 			if err != nil {
+				_, err := n.PushPool.StateGetNetInfo(n.ctx, n.RoleID())
+				if err == nil {
+					return nil
+				}
 				time.Sleep(10 * time.Second)
 				continue
 			}
