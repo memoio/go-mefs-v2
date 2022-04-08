@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/dgraph-io/badger/v2"
 	"github.com/mitchellh/go-homedir"
@@ -30,8 +32,12 @@ var backupExportCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "path",
-			Usage: "path of file to store",
-			Value: "",
+			Usage: "path to store",
+		},
+		&cli.StringFlag{
+			Name:  "dbType",
+			Usage: "export dbtype: meta or state",
+			Value: "state",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -54,9 +60,25 @@ var backupExportCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		fi, err := os.Stat(p)
+		if err != nil {
+			return err
+		}
+
+		if !fi.IsDir() {
+			return xerrors.Errorf("%s should be dir", p)
+		}
+
+		dir := filepath.Dir(p)
+
+		dbType := cctx.String("dbType")
+		if dbType != "state" && dbType != "meta" {
+			return xerrors.Errorf("%s not supported, 'meta' or 'state'", dbType)
+		}
+
+		p = filepath.Join(dir, dbType+"-"+time.Now().Format("20060102T150405")+".db")
 
 		// check file exist
-
 		_, error := os.Stat(p)
 		// check if error is "file not exists"
 		if !os.IsNotExist(error) {
@@ -71,7 +93,7 @@ var backupExportCmd = &cli.Command{
 
 		bar := progressbar.DefaultBytes(-1, "export:")
 
-		stateDir := filepath.Join(repoDir, "state")
+		stateDir := filepath.Join(repoDir, dbType)
 		opt := badger.DefaultOptions(stateDir)
 		opt = opt.WithLoggingLevel(badger.ERROR)
 		db, err := badger.Open(opt)
@@ -86,7 +108,7 @@ var backupExportCmd = &cli.Command{
 
 		bar.Finish()
 
-		fmt.Printf("finish export to %s\n", p)
+		fmt.Printf("finish export %s to %s\n", dbType, p)
 		return nil
 	},
 }
@@ -99,6 +121,11 @@ var backupImportCmd = &cli.Command{
 			Name:  "path",
 			Usage: "path of file import from",
 			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "dbType",
+			Usage: "export dbtype: meta or state",
+			Value: "state",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -136,7 +163,16 @@ var backupImportCmd = &cli.Command{
 
 		bar := progressbar.DefaultBytes(fi.Size(), "import:")
 
-		stateDir := filepath.Join(repoDir, "state")
+		dbType := cctx.String("dbType")
+		if dbType != "state" && dbType != "meta" {
+			return xerrors.Errorf("%s not supported, 'meta' or 'state'", dbType)
+		}
+
+		if !strings.Contains(fi.Name(), dbType) {
+			return xerrors.Errorf("check your path, should have %s", dbType)
+		}
+
+		stateDir := filepath.Join(repoDir, dbType)
 		opt := badger.DefaultOptions(stateDir)
 		opt = opt.WithLoggingLevel(badger.ERROR)
 		db, err := badger.Open(opt)
@@ -153,7 +189,7 @@ var backupImportCmd = &cli.Command{
 
 		bar.Finish()
 
-		fmt.Printf("finish import from %s\n", p)
+		fmt.Printf("finish import %s from %s\n", dbType, p)
 
 		return nil
 	},
