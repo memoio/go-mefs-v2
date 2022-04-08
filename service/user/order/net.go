@@ -1,6 +1,8 @@
 package order
 
 import (
+	"time"
+
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
@@ -9,16 +11,26 @@ import (
 )
 
 func (m *OrderMgr) connect(proID uint64) error {
+	// test remote service is ready or not
+	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
+	if err == nil {
+		if resp.GetHeader().GetFrom() == proID && resp.GetHeader().GetType() != pb.NetMessage_Err {
+			return nil
+		}
+	}
+
+	// otherwise get addr from declared address
 	pi, err := m.StateGetNetInfo(m.ctx, proID)
 	if err == nil {
 		m.ns.AddNode(proID, pi)
 		// todo: fix this
 		err := m.ns.Host().Connect(m.ctx, pi)
+		m.ns.Host().Peerstore().SetAddrs(pi.ID, pi.Addrs, time.Duration(24*time.Hour))
 		logger.Debugf("connect pro declared: %s %s", pi, err)
 	}
 
 	// test remote service is ready or not
-	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
+	resp, err = m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
 		return err
 	}
