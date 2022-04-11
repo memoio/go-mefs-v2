@@ -140,6 +140,8 @@ var orderListJobCmd = &cli.Command{
 			return err
 		}
 
+		sort.Slice(ois, func(i, j int) bool { return ois[i].ID < ois[j].ID })
+
 		verbose := cctx.Bool("verbose")
 
 		type outPutOrderJobInfo struct {
