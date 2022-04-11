@@ -2,10 +2,10 @@ package utils
 
 import (
 	"os"
-	"syscall"
 
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/mitchellh/go-homedir"
+	"github.com/shirou/gopsutil/v3/disk"
 )
 
 // node repo path defaults
@@ -37,14 +37,13 @@ func GetDiskStatus(path string) (store.DiskStats, error) {
 	m := store.DiskStats{
 		Path: path,
 	}
-	fs := syscall.Statfs_t{}
-	err := syscall.Statfs(path, &fs)
+	dus, err := disk.Usage(path)
 	if err != nil {
 		return m, err
 	}
 
-	m.Total = fs.Blocks * uint64(fs.Bsize)
-	m.Free = fs.Bfree * uint64(fs.Bsize)
+	m.Total = dus.Total
+	m.Free = dus.Free
 
 	m.Used = m.Total - m.Free
 	return m, nil
