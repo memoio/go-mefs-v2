@@ -3,6 +3,9 @@ SHELL=/usr/bin/env bash
 all: build
 .PHONY: all
 
+windows: build-windows
+.PHONY: windows
+
 unexport GOFLAGS
 
 GOVERSION:=$(shell go version | cut -d' ' -f 3 | sed 's/^go//' | awk -F. '{printf "%d%03d%03d", $$1, $$2, $$3}')
@@ -52,10 +55,40 @@ provider: $(BUILD_DEPS)
 .PHONY: mefs-provider
 BINS+=mefs-provider
 
-
 build: mefs keeper user provider
-
 .PHONY: build
+
+mefs-windows: $(BUILD_DEPS)
+	rm -f mefs.exe
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GOFLAGS) -o mefs.exe ./app/mefs
+
+.PHONY: mefs-windows
+BINS+=mefs.exe
+
+keeper-windows: $(BUILD_DEPS)
+	rm -f mefs-keeper.exe
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GOFLAGS) -o mefs-keeper.exe ./app/keeper
+
+.PHONY: mefs-keeper-windows
+BINS+=mefs-keeper.exe 
+
+user-windows: $(BUILD_DEPS)
+	rm -f mefs-user.exe
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GOFLAGS) -o mefs-user.exe ./app/user
+
+.PHONY: mefs-user-windows
+BINS+=mefs-user.exe
+
+provider-windows: $(BUILD_DEPS)
+	rm -f mefs-provider.exe
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GOFLAGS) -o mefs-provider.exe ./app/provider
+
+.PHONY: mefs-provider-windows
+BINS+=mefs-provider.exe
+
+build-windows: mefs-windows keeper-windows user-windows provider-windows
+.PHONY: build-windows
+
 
 clean:
 	rm -rf $(BINS)
