@@ -20,5 +20,6 @@ func init() {
 		versionCmd,
 		backupCmd,
 		bootstrapCmd,
+		recoverCmd,
 	}
 }
