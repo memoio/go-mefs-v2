@@ -94,7 +94,7 @@ var backupExportCmd = &cli.Command{
 		bar := progressbar.DefaultBytes(-1, "export:")
 
 		stateDir := filepath.Join(repoDir, dbType)
-		opt := badger.DefaultOptions(stateDir)
+		opt := badger.DefaultOptions(stateDir).WithReadOnly(true)
 		opt = opt.WithLoggingLevel(badger.ERROR)
 		db, err := badger.Open(opt)
 		if err != nil {
