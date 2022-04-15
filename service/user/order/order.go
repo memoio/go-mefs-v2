@@ -116,22 +116,22 @@ type OrderFull struct {
 }
 
 func filterProList(id uint64) bool {
-	prolist := strings.Split(os.Getenv("PROLIST"), ",")
-	for _, pro := range prolist {
-		proi, _ := strconv.Atoi(pro)
-		if uint64(proi) == id {
-			return true
+	if os.Getenv("PROLIST") != "" {
+		prolist := strings.Split(os.Getenv("PROLIST"), ",")
+		for _, pro := range prolist {
+			proi, _ := strconv.Atoi(pro)
+			if uint64(proi) == id {
+				return false
+			}
 		}
+		return true
 	}
 	return false
 }
 
 func (m *OrderMgr) newProOrder(id uint64) {
-	if os.Getenv("PROLIST") != "" {
-		if !filterProList(id) {
-			return
-		}
-		logger.Debug("SET PROLIST", id)
+	if filterProList(id) {
+		return
 	}
 
 	m.lk.Lock()
