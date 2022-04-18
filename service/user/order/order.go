@@ -3,6 +3,9 @@ package order
 import (
 	"context"
 	"math/big"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -112,7 +115,25 @@ type OrderFull struct {
 	inStop bool // stop receiving data; duo to high price
 }
 
+func filterProList(id uint64) bool {
+	if os.Getenv("PROLIST") != "" {
+		prolist := strings.Split(os.Getenv("PROLIST"), ",")
+		for _, pro := range prolist {
+			proi, _ := strconv.Atoi(pro)
+			if uint64(proi) == id {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func (m *OrderMgr) newProOrder(id uint64) {
+	if filterProList(id) {
+		return
+	}
+
 	m.lk.Lock()
 	_, has := m.orders[id]
 	if has {
