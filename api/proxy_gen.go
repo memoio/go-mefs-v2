@@ -21,6 +21,8 @@ type CommonStruct struct {
 	Internal struct {
 		Version func(context.Context) (string, error) `perm:"admin"`
 
+		LogSetLevel func(ctx context.Context, l string) error `perm:"write"`
+
 		AuthVerify func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
 		AuthNew    func(ctx context.Context, erms []auth.Permission) ([]byte, error)  `perm:"admin"`
 
@@ -104,6 +106,10 @@ type CommonStruct struct {
 
 func (s *CommonStruct) Version(ctx context.Context) (string, error) {
 	return s.Internal.Version(ctx)
+}
+
+func (s *CommonStruct) LogSetLevel(ctx context.Context, l string) error {
+	return s.Internal.LogSetLevel(ctx, l)
 }
 
 func (s *CommonStruct) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {

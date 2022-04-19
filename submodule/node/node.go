@@ -237,3 +237,7 @@ func (n *BaseNode) Shutdown(ctx context.Context) error {
 	n.shutdownChan <- struct{}{}
 	return nil
 }
+
+func (n *BaseNode) LogSetLevel(ctx context.Context, level string) error {
+	return logging.SetLogLevel(level)
+}
