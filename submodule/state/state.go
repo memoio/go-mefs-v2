@@ -165,7 +165,7 @@ func (s *StateMgr) load() {
 	}
 
 	for i, ue := range build.UpdateMap {
-		if s.height > ue && s.version < i {
+		if s.height >= ue && s.version < i {
 			s.version = i
 		}
 	}
