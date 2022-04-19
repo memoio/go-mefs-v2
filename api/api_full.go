@@ -22,6 +22,7 @@ import (
 type FullNode interface {
 	Version(context.Context) (string, error)
 
+	ILog
 	IAuth
 	IConfig
 	ILocalStore
@@ -50,6 +51,10 @@ type ProviderNode interface {
 
 type KeeperNode interface {
 	FullNode
+}
+
+type ILog interface {
+	LogSetLevel(context.Context, string) error
 }
 
 // json api auth and verify
