@@ -65,9 +65,19 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 	info, err := os.Stat(fn)
 	if err == nil {
 		sf.size -= uint64(info.Size())
+		err := os.Remove(fn)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = ioutil.WriteFile(fn, val, 0644)
+	// write then rename
+	tmpfn := fn + ".tmp"
+	err = ioutil.WriteFile(tmpfn, val, 0644)
+	if err != nil {
+		return err
+	}
+	err = os.Rename(tmpfn, fn)
 	if err != nil {
 		return err
 	}
