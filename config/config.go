@@ -21,6 +21,7 @@ var Validators = map[string]func(string, string) error{
 type Config struct {
 	Identity  IdentityConfig  `json:"identity"`
 	Wallet    WalletConfig    `json:"wallet"`
+	Genesis   GenesisConfig   `json:"genesis"`
 	Net       SwarmConfig     `json:"net"`
 	API       APIConfig       `json:"api"`
 	Bootstrap BootstrapConfig `json:"bootstrap"`
@@ -39,6 +40,11 @@ func newDefaultContractConfig() ContractConfig {
 		EndPoint:     settle.EndPoint,
 		RoleContract: settle.RoleContract,
 	}
+}
+
+type GenesisConfig struct {
+	SMTVersion uint32 `json:"smtVersion,omitempty"`
+	SMTHeight  uint64 `json:"smtHeight,omitempty"`
 }
 
 type WalletConfig struct {
@@ -139,6 +145,7 @@ func NewDefaultConfig() *Config {
 	return &Config{
 		Identity:  newDefaultIdentityConfig(),
 		API:       newDefaultAPIConfig(),
+		Contract:  newDefaultContractConfig(),
 		Bootstrap: DefaultBootstrapConfig,
 		Data:      newDefaultStorePathConfig(),
 		Net:       newDefaultSwarmConfig(),

@@ -269,15 +269,15 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 	bid := sb.Hash()
 	logger.Debug("process tx block: ", sb.Height, bid)
 
-	newRoot, err := sp.ApplyBlock(sb)
+	_, err := sp.ApplyBlock(sb)
 	if err != nil {
 		logger.Warnf("apply wrong state at height %d, err: %s", sb.Height, err)
-		if !newRoot.Equal(sb.Root) {
-			// delete wrong block
-			sp.DeleteTxBlock(bid)
-			sp.DeleteTxBlockHeight(sb.Height)
-		}
-		panic("check your storage space left and re-sync")
+		// if !newRoot.Equal(sb.Root) {
+		// 	// delete wrong block
+		sp.DeleteTxBlock(bid)
+		sp.DeleteTxBlockHeight(sb.Height)
+		// }
+		panic("check your version, your storage space left, or re-sync by deleting 'state' dir")
 	}
 
 	mds := &blkDigest{
@@ -371,6 +371,20 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	// verify signaturs len >= threshold
 	if tb.Height > 0 && tb.Len() < sp.thre {
 		return xerrors.Errorf("block has not enough signers")
+	}
+
+	// verify minerID in block
+	ri, err := sp.GetRoleBaseInfo(tb.MinerID)
+	if err != nil {
+		return err
+	}
+
+	if ri.Type != pb.RoleInfo_Keeper {
+		return xerrors.Errorf("miner %d type %s is not keeper", tb.MinerID, ri.Type.String())
+	}
+
+	if ri.GroupID != tb.GroupID {
+		return xerrors.Errorf("miner %d group %d is different with %d", tb.MinerID, ri.GroupID, tb.GroupID)
 	}
 
 	// verify block

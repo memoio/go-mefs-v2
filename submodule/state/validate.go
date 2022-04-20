@@ -6,6 +6,7 @@ import (
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
@@ -29,9 +30,15 @@ func (s *StateMgr) reset() {
 }
 
 func (s *StateMgr) newValidateRoot(b []byte) {
+	if s.validateVersion >= build.SMTVersion {
+		sum := blake3.Sum256(b)
+		b = sum[:]
+	}
+
 	h := blake3.New()
 	h.Write(s.validateRoot.Bytes())
 	h.Write(b)
+
 	res := h.Sum(nil)
 	s.validateRoot = types.NewMsgID(res)
 }
@@ -71,6 +78,7 @@ func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	s.newValidateRoot(b)
 
+	// TODO: should return executed root or no root
 	return s.validateRoot, nil
 }
 

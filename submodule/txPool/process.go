@@ -266,7 +266,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 			}
 		}
 		if cnt < mp.GetQuorumSize() {
-			return mSet, xerrors.Errorf("not have enough keepers, got %d expect %d", cnt, mp.GetQuorumSize())
+			return mSet, xerrors.Errorf("not have enough keepers, current %d, need %d", cnt, mp.GetQuorumSize())
 		}
 		return mSet, nil
 	}
@@ -394,7 +394,7 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 	stats.Record(mp.ctx, metrics.TxBlockPublished.M(1))
 
 	if tb.MinerID == mp.minerID {
-		logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state now: %s, parent: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.Root.String(), tb.ParentRoot.String(), len(tb.Msgs))
+		logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.ParentRoot.String(), len(tb.Msgs))
 	}
 
 	return mp.INetService.PublishTxBlock(mp.ctx, tb)

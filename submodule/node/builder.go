@@ -185,6 +185,14 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, err
 	}
 
+	// load genesis
+	if cfg.Genesis.SMTVersion > 0 && cfg.Genesis.SMTHeight > 0 {
+		build.SMTVersion = cfg.Genesis.SMTVersion
+		build.UpdateMap[build.SMTVersion] = cfg.Genesis.SMTHeight
+		build.ChalDurMap[build.SMTVersion] = build.ChalDuration2
+		build.OrderDurMap[build.SMTVersion] = build.OrderMin2
+	}
+
 	cm, err := settle.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
 	if err != nil {
 		return nil, err

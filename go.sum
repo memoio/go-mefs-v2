@@ -1648,6 +1648,8 @@ github.com/memoio/console v0.15.8 h1:EiA0plNA0umyUzUYzMziETBbAKxf8MQZF2dUDn1mO00
 github.com/memoio/console v0.15.8/go.mod h1:E566ja72w5gvAGpLopsXUszA1Mgp6uXbZZtxrp4VxP8=
 github.com/memoio/minio v0.2.4 h1:nxixo08xNHE1mLLEbLIPvQL5OaVeQvscIXUlyTenKj4=
 github.com/memoio/minio v0.2.4/go.mod h1:XdYanSAnx8f7X5PaetSybr2yDLE7Hv3anua/vDLHKcQ=
+github.com/memoio/smt v0.2.1 h1:nJnJFxjAamLSsmL8tghcC6u74znB6PsE8NolXFsMGBQ=
+github.com/memoio/smt v0.2.1/go.mod h1:6uT4AXpOAV+dPU3PAyZV+GhGKWOSuleWqU226jVjJRg=
 github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b h1:j7+1HpAFS1zy5+Q4qx1fWh90gTKwiN4QCGoY9TWyyO4=
 github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b/go.mod h1:01TrycV0kFyexm33Z7vhZRXopbI8J3TDReVlkTgMUxE=
 github.com/microcosm-cc/bluemonday v1.0.1/go.mod h1:hsXNsILzKxV+sX77C5b8FSuKF00vh2OMYv+xgHpAMF4=

@@ -52,28 +52,28 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 
 	// load pay
 	key := store.NewKey(pb.MetaType_ST_SegPayKey, userID, proID)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err == nil {
 		oinfo.income.Deserialize(data)
 	}
 
 	// load proof
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, userID, proID)
-	data, err = s.ds.Get(key)
+	data, err = s.get(key)
 	if err == nil && len(data) >= 8 {
 		oinfo.prove = binary.BigEndian.Uint64(data[:8])
 	}
 
 	// load order state
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID)
-	data, err = s.ds.Get(key)
+	data, err = s.get(key)
 	if err == nil {
 		oinfo.ns.Deserialize(data)
 	}
 
 	// load current order
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.ns.Nonce)
-	data, err = s.ds.Get(key)
+	data, err = s.get(key)
 	if err != nil {
 		return oinfo
 	}
@@ -88,7 +88,7 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	// load pre order start and end
 	if oinfo.ns.Nonce > 0 {
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, userID, proID, oinfo.ns.Nonce-1)
-		data, err = s.ds.Get(key)
+		data, err = s.get(key)
 		if err != nil {
 			return oinfo
 		}
@@ -105,7 +105,7 @@ func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
 	return oinfo
 }
 
-func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) createOrder(msg *tx.Message) error {
 	or := new(types.SignedOrder)
 	err := or.Deserialize(msg.Params)
 	if err != nil {
@@ -205,7 +205,7 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -216,14 +216,14 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	// save for challenge
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, or.UserID, or.ProID, s.ceInfo.epoch)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -231,21 +231,21 @@ func (s *StateMgr) createOrder(msg *tx.Message, tds store.TxnStore) error {
 	// save up at first nonce
 	if or.Nonce == 0 {
 		key := store.NewKey(pb.MetaType_ST_ProsKey, or.UserID)
-		val, _ := tds.Get(key)
+		val, _ := s.get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], or.ProID)
-		err = tds.Put(key, buf)
+		err = s.put(key, buf)
 		if err != nil {
 			return err
 		}
 
 		key = store.NewKey(pb.MetaType_ST_UsersKey, or.ProID)
-		val, _ = tds.Get(key)
+		val, _ = s.get(key)
 		buf = make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], or.UserID)
-		err = tds.Put(key, buf)
+		err = s.put(key, buf)
 		if err != nil {
 			return err
 		}
@@ -347,7 +347,7 @@ func (s *StateMgr) canCreateOrder(msg *tx.Message) error {
 	return nil
 }
 
-func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) addSeq(msg *tx.Message) error {
 	so := new(types.SignedOrderSeq)
 	err := so.Deserialize(msg.Params)
 	if err != nil {
@@ -453,7 +453,7 @@ func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 
 	// verify segment
 	for _, seg := range so.Segments {
-		err := s.addChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID, tds)
+		err := s.addChunk(so.UserID, seg.BucketID, seg.Start, seg.Length, so.ProID, so.Nonce, seg.ChunkID)
 		if err != nil {
 			return err
 		}
@@ -480,7 +480,7 @@ func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 
 	// save order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, oinfo.base.Nonce)
-	data, err := tds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		return err
 	}
@@ -496,7 +496,7 @@ func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -515,7 +515,7 @@ func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -526,13 +526,13 @@ func (s *StateMgr) addSeq(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, so.UserID, so.ProID, s.ceInfo.epoch)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -660,7 +660,7 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 	return nil
 }
 
-func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) removeSeg(msg *tx.Message) error {
 	so := new(tx.SegRemoveParas)
 	err := so.Deserialize(msg.Params)
 	if err != nil {
@@ -693,7 +693,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 
 	// load order seq
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
-	data, err := tds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		return err
 	}
@@ -714,7 +714,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	data, err = tds.Get(key)
+	data, err = s.get(key)
 	if err != nil {
 		return err
 	}
@@ -759,7 +759,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -778,7 +778,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -789,7 +789,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -803,7 +803,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, so.UserID, so.ProID, s.ceInfo.current.Epoch)
-	data, err = tds.Get(key)
+	data, err = s.get(key)
 	if err == nil {
 		pi.Deserialize(data)
 	}
@@ -812,7 +812,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -825,7 +825,7 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
-	data, err = tds.Get(key)
+	data, err = s.get(key)
 	if err == nil {
 		spi.Deserialize(data)
 	}
@@ -834,13 +834,13 @@ func (s *StateMgr) removeSeg(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, s.ceInfo.current.Epoch)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -865,7 +865,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 
 	// load order
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, so.UserID, so.ProID, so.Nonce)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		return err
 	}
@@ -887,7 +887,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 
 	// load order seq
 	key = store.NewKey(pb.MetaType_ST_OrderSeqKey, so.UserID, so.ProID, so.Nonce, so.SeqNum)
-	data, err = s.ds.Get(key)
+	data, err = s.get(key)
 	if err != nil {
 		return err
 	}
@@ -908,7 +908,7 @@ func (s *StateMgr) canRemoveSeg(msg *tx.Message) error {
 	return nil
 }
 
-func (s *StateMgr) commitOrder(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) commitOrder(msg *tx.Message) error {
 	ocp := new(tx.OrderCommitParas)
 	err := ocp.Deserialize(msg.Params)
 	if err != nil {
@@ -953,13 +953,13 @@ func (s *StateMgr) commitOrder(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, ocp.UserID, ocp.ProID, s.ceInfo.epoch)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -1013,7 +1013,7 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 }
 
 // todo: add subOrder when order is expired
-func (s *StateMgr) subOrder(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) subOrder(msg *tx.Message) error {
 	osp := new(tx.OrderSubParas)
 	err := osp.Deserialize(msg.Params)
 	if err != nil {
@@ -1044,7 +1044,7 @@ func (s *StateMgr) subOrder(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, osp.UserID, osp.ProID, osp.Nonce)
-	data, err := tds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		return err
 	}
@@ -1068,13 +1068,13 @@ func (s *StateMgr) subOrder(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, osp.UserID, osp.ProID)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_OrderStateKey, osp.UserID, osp.ProID, s.ceInfo.epoch)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -1113,7 +1113,7 @@ func (s *StateMgr) canSubOrder(msg *tx.Message) error {
 	}
 
 	key := store.NewKey(pb.MetaType_ST_OrderBaseKey, osp.UserID, osp.ProID, osp.Nonce)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		return err
 	}

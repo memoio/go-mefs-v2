@@ -17,7 +17,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	nt := time.Now()
 	scp := new(tx.SegChalParams)
 	err := scp.Deserialize(msg.Params)
@@ -82,7 +82,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		SeqNum: oinfo.ns.SeqNum,
 	}
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, scp.Epoch)
-	data, err := tds.Get(key)
+	data, err := s.get(key)
 	if err == nil {
 		ns.Deserialize(data)
 	}
@@ -121,7 +121,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	if ns.SeqNum > 0 {
 		// load order
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
-		data, err = tds.Get(key)
+		data, err = s.get(key)
 		if err != nil {
 			return err
 		}
@@ -144,7 +144,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
-				data, err = tds.Get(key)
+				data, err = s.get(key)
 				if err != nil {
 					return err
 				}
@@ -175,7 +175,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
-			data, err = tds.Get(key)
+			data, err = s.get(key)
 			if err != nil {
 				return err
 			}
@@ -232,7 +232,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 	// save proof result
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID, scp.Epoch)
-	err = tds.Put(key, msg.Params)
+	err = s.put(key, msg.Params)
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID)
 	buf = make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, oinfo.prove)
-	err = tds.Put(key, buf)
+	err = s.put(key, buf)
 	if err != nil {
 		return err
 	}
@@ -251,7 +251,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -265,7 +265,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
-	data, err = tds.Get(key)
+	data, err = s.get(key)
 	if err == nil {
 		pi.Deserialize(data)
 	}
@@ -274,7 +274,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -287,7 +287,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
-	data, err = tds.Get(key)
+	data, err = s.get(key)
 	if err == nil {
 		spi.Deserialize(data)
 	}
@@ -296,13 +296,13 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, scp.Epoch)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -313,7 +313,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -395,7 +395,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 
 	// load
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, scp.Epoch)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err == nil {
 		ns.Deserialize(data)
 	}
@@ -434,7 +434,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	if ns.SeqNum > 0 {
 		// load order
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
-		data, err = s.ds.Get(key)
+		data, err = s.get(key)
 		if err != nil {
 			return err
 		}
@@ -457,7 +457,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
-				data, err = s.ds.Get(key)
+				data, err = s.get(key)
 				if err != nil {
 					return err
 				}
@@ -488,7 +488,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
-			data, err = s.ds.Get(key)
+			data, err = s.get(key)
 			if err != nil {
 				return err
 			}
