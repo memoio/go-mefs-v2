@@ -321,7 +321,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	return nil
 }
 
-func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *bucket, object *object, start, length int, w io.Writer) error {
+func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.BucketInfo, object *object, start, length int, w io.Writer) error {
 	logger.Debug("download object: ", object.BucketID, object.ObjectID, start, length)
 
 	sizeReceived := 0
@@ -367,7 +367,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 				go func(chunkID int) {
 					defer wg.Done()
 
-					segID, err := segment.NewSegmentID(l.fsID, bucket.BucketID, uint64(stripeID), uint32(chunkID))
+					segID, err := segment.NewSegmentID(l.fsID, bi.BucketID, uint64(stripeID), uint32(chunkID))
 					if err != nil {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
@@ -433,7 +433,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 					go func(chunkID int) {
 						defer wg.Done()
 
-						segID, err := segment.NewSegmentID(l.fsID, bucket.BucketID, uint64(stripeID), uint32(chunkID))
+						segID, err := segment.NewSegmentID(l.fsID, bi.BucketID, uint64(stripeID), uint32(chunkID))
 						if err != nil {
 							atomic.AddInt32(&failCnt, 1)
 							sm.Release(1)

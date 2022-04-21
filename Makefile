@@ -25,7 +25,7 @@ ifneq ($(strip $(LDFLAGS)),)
 	ldflags+=-extldflags=$(LDFLAGS)
 endif
 
-GOFLAGS+=-ldflags="$(ldflags)"
+GOFLAGS+=-ldflags="-s -w $(ldflags)"
 
 mefs: $(BUILD_DEPS)
 	rm -f mefs

@@ -140,6 +140,7 @@ message ObjectDeleteInfo {
 message ObjectRenameInfo {
     uint64  ObjectID = 1;
     string  Name     = 2;
+	int64 Time = 3;
 }
 
 // opart informations, insert into object when add data to an existing object

@@ -50,7 +50,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 	return buf.Bytes(), nil
 }
 
-func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object *object, writer io.Writer, opts types.DownloadObjectOptions) error {
+func (l *LfsService) downloadObject(ctx context.Context, bi types.BucketInfo, object *object, writer io.Writer, opts types.DownloadObjectOptions) error {
 	object.RLock()
 	defer object.RUnlock()
 
@@ -70,9 +70,9 @@ func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object 
 		return xerrors.Errorf("out of object size %d", object.Size)
 	}
 
-	dp, ok := l.dps[bucket.BucketID]
+	dp, ok := l.dps[bi.BucketID]
 	if !ok {
-		ndp, err := l.newDataProcess(bucket.BucketID, &bucket.BucketOption)
+		ndp, err := l.newDataProcess(bi.BucketID, &bi.BucketOption)
 		if err != nil {
 			return err
 		}
@@ -115,7 +115,7 @@ func (l *LfsService) downloadObject(ctx context.Context, bucket *bucket, object 
 			partLength -= (accLen + part.Length - uint64(readStart+readLength))
 		}
 
-		err := l.download(ctx, dp, bucket, object, int(partStart), int(partLength), writer)
+		err := l.download(ctx, dp, bi, object, int(partStart), int(partLength), writer)
 		if err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func (l *LfsService) getObject(ctx context.Context, bucketName, objectName strin
 		return err
 	}
 
-	err = l.downloadObject(ctx, bucket, object, writer, opts)
+	err = l.downloadObject(ctx, bucket.BucketInfo, object, writer, opts)
 	if err != nil {
 		return xerrors.Errorf("object %s download fail %s", object.Name, err)
 	}
@@ -178,7 +178,7 @@ func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, writer 
 		return xerrors.Errorf("object %d not exist", od.objectID)
 	}
 
-	return l.downloadObject(ctx, bucket, object, writer, opts)
+	return l.downloadObject(ctx, bucket.BucketInfo, object, writer, opts)
 }
 
 func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
