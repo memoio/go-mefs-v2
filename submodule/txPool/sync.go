@@ -374,7 +374,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	}
 
 	// verify minerID in block
-	ri, err := sp.GetRoleBaseInfo(tb.MinerID)
+	ri, err := sp.RoleGet(sp.ctx, tb.MinerID)
 	if err != nil {
 		return err
 	}
