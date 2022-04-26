@@ -206,7 +206,7 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 		resp, err := c.GenericService.SendNetRequest(ctx, lf, c.roleID, pb.NetMessage_Get, key, nil)
 		if err == nil && resp.GetHeader().GetType() != pb.NetMessage_Err {
 			logger.Debug("receive data from last good: ", lf, string(key))
-			cons := c.ns.Host.Network().ConnsToPeer(c.lastFetch)
+			cons := c.ns.Host.Network().ConnsToPeer(lf)
 			for _, con := range cons {
 				maddr := con.RemoteMultiaddr()
 				// is ip4/tcp or ip4/udp
