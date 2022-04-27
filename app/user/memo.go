@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	minio "github.com/memoio/minio/cmd"
@@ -28,7 +29,22 @@ type MemoFs struct {
 	headers http.Header
 }
 
-func NewMemofs(repoDir string) (*MemoFs, error) {
+func (l *lfsGateway) checkMemofs() bool {
+	if l.memofs == nil {
+		logger.Debug("Get Memo Info")
+		var err error
+		l.memofs, err = NewMemofs()
+		if err != nil {
+			logger.Error("Get memo error: ", err)
+			return false
+		}
+		return true
+	}
+	return true
+}
+
+func NewMemofs() (*MemoFs, error) {
+	repoDir := os.Getenv("MEFS_PATH")
 	addr, headers, err := mclient.GetMemoClientInfo(repoDir)
 	if err != nil {
 		return nil, err
