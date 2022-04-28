@@ -43,6 +43,7 @@ type NetServiceImpl struct {
 	ds store.KVStore
 
 	lastFetch peer.ID
+	lastGood  bool
 
 	idMap   map[uint64]peer.ID    // record id to netID
 	peerMap map[peer.ID]*peerInfo // record netID avaliale time
