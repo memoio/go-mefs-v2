@@ -169,12 +169,6 @@ func (g *Mefs) Name() string {
 
 // NewGatewayLayer implements Gateway interface and returns LFS ObjectLayer.
 func (g *Mefs) NewGatewayLayer(creds madmin.Credentials) (minio.ObjectLayer, error) {
-	var err error
-
-	if err != nil {
-		return nil, err
-	}
-
 	gw := &lfsGateway{
 		polices: make(map[string]*policy.Policy),
 	}
