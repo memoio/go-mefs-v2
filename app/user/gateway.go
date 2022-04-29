@@ -169,16 +169,7 @@ func (g *Mefs) Name() string {
 
 // NewGatewayLayer implements Gateway interface and returns LFS ObjectLayer.
 func (g *Mefs) NewGatewayLayer(creds madmin.Credentials) (minio.ObjectLayer, error) {
-	var err error
-
-	repoDir := os.Getenv("MEFS_PATH")
-	memofs, err := NewMemofs(repoDir)
-	if err != nil {
-		return nil, err
-	}
-
 	gw := &lfsGateway{
-		memofs:  memofs,
 		polices: make(map[string]*policy.Policy),
 	}
 
@@ -219,6 +210,14 @@ func (l *lfsGateway) SetBucketPolicy(ctx context.Context, bucket string, bucketP
 
 // GetBucketPolicy will get policy on bucket.
 func (l *lfsGateway) GetBucketPolicy(ctx context.Context, bucket string) (*policy.Policy, error) {
+	if bucket == "favicon.ico" {
+		return &policy.Policy{}, nil
+	}
+	err := l.getMemofs()
+	if err != nil {
+		return nil, err
+	}
+
 	bi, err := l.memofs.GetBucketInfo(ctx, bucket)
 	if err != nil {
 		return nil, err
@@ -270,7 +269,11 @@ func (l *lfsGateway) StorageInfo(ctx context.Context) (si minio.StorageInfo, err
 
 // MakeBucketWithLocation creates a new container on LFS backend.
 func (l *lfsGateway) MakeBucketWithLocation(ctx context.Context, bucket string, options minio.BucketOptions) error {
-	err := l.memofs.MakeBucketWithLocation(ctx, bucket)
+	err := l.getMemofs()
+	if err != nil {
+		return err
+	}
+	err = l.memofs.MakeBucketWithLocation(ctx, bucket)
 	if err != nil {
 		return err
 	}
@@ -280,6 +283,10 @@ func (l *lfsGateway) MakeBucketWithLocation(ctx context.Context, bucket string, 
 // GetBucketInfo gets bucket metadata.
 func (l *lfsGateway) GetBucketInfo(ctx context.Context, bucket string) (bi minio.BucketInfo, err error) {
 	//log.Println("get buckte info: ", bucket)
+	err = l.getMemofs()
+	if err != nil {
+		return bi, err
+	}
 	bucketInfo, err := l.memofs.GetBucketInfo(ctx, bucket)
 	if err != nil {
 		return bi, err
@@ -292,7 +299,10 @@ func (l *lfsGateway) GetBucketInfo(ctx context.Context, bucket string) (bi minio
 // ListBuckets lists all LFS buckets.
 func (l *lfsGateway) ListBuckets(ctx context.Context) (bs []minio.BucketInfo, err error) {
 	//log.Println("list bucktes")
-
+	err = l.getMemofs()
+	if err != nil {
+		return bs, err
+	}
 	buckets, err := l.memofs.ListBuckets(ctx)
 	if err != nil {
 		return nil, err
@@ -318,6 +328,10 @@ func (l *lfsGateway) DeleteBucket(ctx context.Context, bucket string, opts minio
 // ListObjects lists all blobs in LFS bucket filtered by prefix.
 func (l *lfsGateway) ListObjects(ctx context.Context, bucket, prefix, marker, delimiter string, maxKeys int) (loi minio.ListObjectsInfo, err error) {
 	//log.Println("list object: ", bucket, prefix, marker, delimiter, maxKeys)
+	err = l.getMemofs()
+	if err != nil {
+		return loi, err
+	}
 	mloi, err := l.memofs.ListObjects(ctx, bucket, prefix, marker, delimiter, maxKeys)
 	if err != nil {
 		return loi, err
@@ -408,8 +422,11 @@ func (l *lfsGateway) GetObjectNInfo(ctx context.Context, bucket, object string, 
 // startOffset indicates the starting read location of the object.
 // length indicates the total length of the object.
 func (l *lfsGateway) GetObject(ctx context.Context, bucketName, objectName string, startOffset, length int64, writer io.Writer, etag string, o minio.ObjectOptions) error {
-	//log.Println("get object: ", bucketName, objectName, startOffset, length/1024)
-	err := l.memofs.GetObject(ctx, bucketName, objectName, startOffset, length, writer)
+	err := l.getMemofs()
+	if err != nil {
+		return err
+	}
+	err = l.memofs.GetObject(ctx, bucketName, objectName, startOffset, length, writer)
 	if err != nil {
 		return err
 	}
@@ -418,7 +435,10 @@ func (l *lfsGateway) GetObject(ctx context.Context, bucketName, objectName strin
 
 // GetObjectInfo reads object info and replies back ObjectInfo.
 func (l *lfsGateway) GetObjectInfo(ctx context.Context, bucket, object string, opts minio.ObjectOptions) (objInfo minio.ObjectInfo, err error) {
-	//log.Println("get object info: ", bucket, object)
+	err = l.getMemofs()
+	if err != nil {
+		return objInfo, err
+	}
 	moi, err := l.memofs.GetObjectInfo(ctx, bucket, object)
 	if err != nil {
 		return objInfo, err
@@ -449,7 +469,10 @@ func (l *lfsGateway) GetObjectInfo(ctx context.Context, bucket, object string, o
 
 // PutObject creates a new object with the incoming data.
 func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *minio.PutObjReader, opts minio.ObjectOptions) (objInfo minio.ObjectInfo, err error) {
-	//log.Println("put object: ", bucket, object)
+	err = l.getMemofs()
+	if err != nil {
+		return objInfo, err
+	}
 	_, err = l.memofs.GetObjectInfo(ctx, bucket, object)
 	if err == nil {
 		mtime := time.Now().Format("20060102T150405")
