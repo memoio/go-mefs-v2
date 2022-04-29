@@ -289,7 +289,7 @@ func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.In
 
 		newVal.Sub(newVal, oldVal)
 		if newVal.Cmp(val) >= 0 {
-			logger.Debugf("Memo %s has balance %d now", addr, newVal)
+			logger.Debugf("Memo %s received balance %d", addr, newVal)
 			return nil
 		}
 
