@@ -51,6 +51,8 @@ message EventMessage {
 		Unknown = 0;
 		GetPeer = 1;  // data is roleID
 		PutPeer = 2;  // data is roleID + netID 
+
+		LfsMeta = 11;
 	}
 
 	Type type = 1;

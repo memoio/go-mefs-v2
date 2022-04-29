@@ -154,7 +154,7 @@ func (l *LfsService) createObject(ctx context.Context, bucket *bucket, objectNam
 
 	// update objectID in bucket
 	bucket.NextObjectID++
-	err = bucket.addOpRecord(l.userID, op, l.ds)
+	err = l.addOpRecord(bucket, op)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +209,7 @@ func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *o
 		Payload: payload,
 	}
 
-	err = bucket.addOpRecord(l.userID, op, l.ds)
+	err = l.addOpRecord(bucket, op)
 	if err != nil {
 		return err
 	}

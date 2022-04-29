@@ -35,7 +35,7 @@ func (l *LfsService) addBucket(bucketName string, opts pb.BucketOption) (types.B
 	l.sb.NextBucketID++
 	l.sb.dirty = true
 
-	err = l.sb.Save(l.userID, l.ds)
+	err = l.sb.save(l.userID, l.ds)
 	if err != nil {
 		return bi, err
 	}
@@ -141,7 +141,7 @@ func (l *LfsService) DeleteBucket(ctx context.Context, bucketName string) error 
 	bucket.BucketInfo.Deletion = true
 	bucket.dirty = true
 
-	err = bucket.Save(l.userID, l.ds)
+	err = bucket.save(l.userID, l.ds)
 	if err != nil {
 		return err
 	}

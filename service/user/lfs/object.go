@@ -149,7 +149,7 @@ func (l *LfsService) DeleteObject(ctx context.Context, bucketName, objectName st
 		Payload: payload,
 	}
 
-	err = bucket.addOpRecord(l.userID, op, l.ds)
+	err = l.addOpRecord(bucket, op)
 	if err != nil {
 		return err
 	}

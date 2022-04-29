@@ -153,6 +153,12 @@ message ObjectPartInfo {
 	bytes ETag = 6;               // MD5 of this part
 }
 
+message BucketNameInfo {
+	uint64 BucketID = 1;
+	int64  Time = 2;
+	string Name = 3;
+}
+
 // 'OpDoneKey'/fsID/bucketID
 // 'OpCountKey'/fsID/bucketID
 // key: 'OpInfoKey'/fsID/bucketID/opID
@@ -163,11 +169,13 @@ message OpRecord {
 	    AddData = 2;          // add data to objec; payload is PartInfo
 	    DeleteObject = 3;     // delete an object; payload is DeleteObject
 		Rename = 4;
+		CreateOption = 11;  // set bucket ops
+		SetName = 12;       // set bucket name
     }
 
 	OpType Type = 1;
 	uint64 OpID = 2;
-	int64 Time = 3;  // time of this op, need ?
+	int64 Time = 3;  // time of this op, need?
 	bytes Payload = 4;    
 }
 

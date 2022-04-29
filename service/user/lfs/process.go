@@ -107,7 +107,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 	buf := make([]byte, dp.stripeSize)
 	rdata := make([]byte, dp.stripeSize)
-	curStripe := bucket.Length / uint64(dp.stripeSize)
+	curStripe := bucket.Length / uint64(dp.stripeSize) // length is aligned
 
 	tr := etag.NewTree()
 
@@ -292,7 +292,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			bucket.Length += uint64(dp.stripeSize * stripeCount)
 			bucket.UsedBytes += usedBytes
 
-			err = bucket.addOpRecord(l.userID, op, l.ds)
+			err = l.addOpRecord(bucket, op)
 			if err != nil {
 				return err
 			}

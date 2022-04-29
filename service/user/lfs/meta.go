@@ -14,6 +14,7 @@ import (
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -36,7 +37,7 @@ type bucket struct {
 	sync.RWMutex
 	types.BucketInfo
 
-	objectTree *rbtree.Tree       // store objects; key is object name
+	objectTree *rbtree.Tree       // store objects; key is object name; chekc before insert
 	objects    map[uint64]*object // key is objectID
 
 	dirty bool
@@ -68,12 +69,13 @@ func newSuperBlock() *superBlock {
 		dirty:          true,
 		write:          false,
 		bucketVerify:   0,
+		buckets:        make([]*bucket, 0, 1),
 		bucketNameToID: make(map[string]uint64),
 		cids:           make(map[string]*objectDigest),
 	}
 }
 
-func (sbl *superBlock) Load(userID uint64, ds store.KVStore) error {
+func (sbl *superBlock) load(userID uint64, ds store.KVStore) error {
 	// from local
 	key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, userID)
 	data, err := ds.Get(key)
@@ -95,7 +97,7 @@ func (sbl *superBlock) Load(userID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func (sbl *superBlock) Save(userID uint64, ds store.KVStore) error {
+func (sbl *superBlock) save(userID uint64, ds store.KVStore) error {
 	// to local
 	if sbl.dirty {
 		key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, userID)
@@ -204,12 +206,44 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opts pb.Bu
 		}
 	}(bucketID, mid)
 
-	err = bu.SaveOptions(l.userID, l.ds)
+	err = bu.saveOptions(l.userID, l.ds)
 	if err != nil {
 		return nil, err
 	}
 
-	err = bu.Save(l.userID, l.ds)
+	// save ops: createOps + setName
+	payload, err := proto.Marshal(&opts)
+	if err != nil {
+		return nil, err
+	}
+
+	op := &pb.OpRecord{
+		Type:    pb.OpRecord_CreateOption,
+		Payload: payload,
+	}
+
+	err = l.addOpRecord(bu, op)
+	if err != nil {
+		return nil, err
+	}
+
+	bni := &pb.BucketNameInfo{
+		BucketID: bu.BucketID,
+		Time:     bu.CTime,
+		Name:     bu.Name,
+	}
+
+	payload, err = proto.Marshal(bni)
+	if err != nil {
+		return nil, err
+	}
+
+	op = &pb.OpRecord{
+		Type:    pb.OpRecord_SetName,
+		Payload: payload,
+	}
+
+	err = l.addOpRecord(bu, op)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +251,7 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opts pb.Bu
 	return bu, nil
 }
 
-func (bu *bucket) Load(userID uint64, bucketID uint64, ds store.KVStore) error {
+func (bu *bucket) load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	// from local
 	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, userID, bucketID)
 	data, err := ds.Get(key)
@@ -257,151 +291,7 @@ func (bu *bucket) Load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func (bu *bucket) loadSlow(userID uint64, bucketID uint64, ds store.KVStore) error {
-
-	// from local
-	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, userID, bucketID)
-	data, err := ds.Get(key)
-	if err != nil {
-		// if miss; init?
-		return err
-	}
-
-	bo := new(pb.BucketOption)
-	err = proto.Unmarshal(data, bo)
-	if err != nil {
-		return err
-	}
-
-	key = store.NewKey(pb.MetaType_LFS_BucketInfoKey, userID, bucketID)
-	data, err = ds.Get(key)
-	if err != nil {
-		// if miss; init?
-		return err
-	}
-
-	pbi := new(pb.BucketInfo)
-	err = proto.Unmarshal(data, pbi)
-	if err != nil {
-		return err
-	}
-
-	bu.Name = pbi.Name
-	bu.BucketID = pbi.BucketID
-	bu.BucketInfo.BucketOption = *bo
-	bu.objectTree = rbtree.NewTree()
-	bu.objects = make(map[uint64]*object)
-
-	nh := blake3.New()
-	opID := uint64(0)
-	for {
-		key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bucketID, opID)
-		data, err := ds.Get(key)
-		if err != nil {
-			return err
-		}
-
-		or := new(pb.OpRecord)
-		err = proto.Unmarshal(data, or)
-		if err != nil {
-			return err
-		}
-
-		err = bu.loadOp(or)
-		if err != nil {
-			return err
-		}
-
-		if bu.NextObjectID != or.OpID {
-			return xerrors.Errorf("opID mismatch at %d", bu.NextOpID)
-		}
-
-		bu.NextOpID++
-
-		nh.Write(bu.Root)
-		nh.Write(data)
-		bu.Root = nh.Sum(nil)
-
-		opID++
-	}
-}
-
-func (bu *bucket) loadOp(or *pb.OpRecord) error {
-	logger.Debug("load object ops: ", bu.BucketID, or.GetOpID(), or.GetType())
-
-	switch or.GetType() {
-	case pb.OpRecord_CreateObject:
-		oi := new(pb.ObjectInfo)
-		err := proto.Unmarshal(or.GetPayload(), oi)
-		if err != nil {
-			return err
-		}
-
-		obj := &object{
-			ObjectInfo: types.ObjectInfo{
-				ObjectInfo: *oi,
-				Parts:      make([]*pb.ObjectPartInfo, 0, 1),
-				Mtime:      oi.Time,
-			},
-		}
-
-		bu.objects[obj.ObjectID] = obj
-		if bu.objectTree.Find(MetaName(obj.Name)) == nil {
-			bu.objectTree.Insert(MetaName(obj.Name), obj)
-		}
-		bu.NextObjectID = obj.ObjectID + 1
-		bu.MTime = oi.GetTime()
-
-	case pb.OpRecord_AddData:
-		pi := new(pb.ObjectPartInfo)
-		err := proto.Unmarshal(or.GetPayload(), pi)
-		if err != nil {
-			return err
-		}
-
-		obj := bu.objects[pi.ObjectID]
-		obj.addPartInfo(pi)
-		// update size in bucket
-		if bu.Length != pi.Length {
-			return xerrors.Errorf("unligned size")
-		}
-
-		bu.MTime = pi.GetTime()
-		bu.Length += pi.Length
-		bu.UsedBytes += (pi.Length * uint64(bu.DataCount+bu.ParityCount) / uint64(bu.DataCount))
-	case pb.OpRecord_DeleteObject:
-		di := new(pb.ObjectDeleteInfo)
-		err := proto.Unmarshal(or.GetPayload(), di)
-		if err != nil {
-			return err
-		}
-
-		obj := bu.objects[di.ObjectID]
-		obj.deletion = true
-		bu.objectTree.Delete(MetaName(obj.Name))
-		delete(bu.objects, obj.ObjectID)
-
-		bu.MTime = di.GetTime()
-
-	case pb.OpRecord_Rename:
-		cni := new(pb.ObjectRenameInfo)
-		err := proto.Unmarshal(or.GetPayload(), cni)
-		if err != nil {
-			return err
-		}
-		obj := bu.objects[cni.ObjectID]
-
-		bu.objectTree.Delete(MetaName(obj.Name))
-		obj.Name = cni.GetName()
-		bu.objectTree.Insert(MetaName(cni.GetName()), obj)
-
-	default:
-		return xerrors.Errorf("unsupported type: %d", or.GetType())
-	}
-	return nil
-}
-
-func (bu *bucket) Save(userID uint64, ds store.KVStore) error {
+func (bu *bucket) save(userID uint64, ds store.KVStore) error {
 	// to local
 	if bu.dirty {
 		key := store.NewKey(pb.MetaType_LFS_BucketInfoKey, userID, bu.BucketID)
@@ -419,7 +309,7 @@ func (bu *bucket) Save(userID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func (bu *bucket) SaveOptions(userID uint64, ds store.KVStore) error {
+func (bu *bucket) saveOptions(userID uint64, ds store.KVStore) error {
 	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, userID, bu.BucketID)
 	data, err := proto.Marshal(&bu.BucketOption)
 	if err != nil {
@@ -433,15 +323,15 @@ func (bu *bucket) SaveOptions(userID uint64, ds store.KVStore) error {
 	return nil
 }
 
-func (bu *bucket) addOpRecord(userID uint64, por *pb.OpRecord, ds store.KVStore) error {
+func (l *LfsService) addOpRecord(bu *bucket, por *pb.OpRecord) error {
 	por.OpID = bu.NextOpID
 
-	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bu.BucketID, por.OpID)
+	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, l.userID, bu.BucketID, por.OpID)
 	data, err := proto.Marshal(por)
 	if err != nil {
 		return err
 	}
-	err = ds.Put(key, data)
+	err = l.ds.Put(key, data)
 	if err != nil {
 		return err
 	}
@@ -456,10 +346,12 @@ func (bu *bucket) addOpRecord(userID uint64, por *pb.OpRecord, ds store.KVStore)
 	bu.MTime = time.Now().Unix()
 	bu.dirty = true
 
-	err = bu.Save(userID, ds)
+	err = bu.save(l.userID, l.ds)
 	if err != nil {
 		return err
 	}
+
+	go l.broadcast(l.userID, bu.BucketID, por.OpID)
 
 	return nil
 }
@@ -472,7 +364,7 @@ func NewObject() *object {
 	}
 }
 
-func (ob *object) Load(userID uint64, bucketID, objectID uint64, ds store.KVStore) error {
+func (ob *object) load(userID uint64, bucketID, objectID uint64, ds store.KVStore) error {
 	// from local
 	key := store.NewKey(pb.MetaType_LFS_ObjectInfoKey, userID, bucketID, objectID)
 	data, err := ds.Get(key)
@@ -624,7 +516,7 @@ func (l *LfsService) load() error {
 	l.sb.Lock()
 	defer l.sb.Unlock()
 	// 1. load super block
-	l.sb.Load(l.userID, l.ds)
+	l.sb.load(l.userID, l.ds)
 
 	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
@@ -634,9 +526,9 @@ func (l *LfsService) load() error {
 		l.sb.buckets[i] = bu
 
 		bu.Lock()
-		err := bu.Load(l.userID, i, l.ds)
+		err := bu.load(l.userID, i, l.ds)
 		if err != nil {
-			logger.Warn("fail to load bucketID: ", i)
+			logger.Warn("fail to load bucketID: ", i, err)
 			bu.Unlock()
 			continue
 		}
@@ -650,7 +542,7 @@ func (l *LfsService) load() error {
 			for j := uint64(0); j < bu.NextObjectID; j++ {
 				logger.Debug("load object: ", j)
 				obj := NewObject()
-				err := obj.Load(l.userID, i, j, l.ds)
+				err := obj.load(l.userID, i, j, l.ds)
 				if err != nil {
 					continue
 				}
@@ -699,83 +591,14 @@ func (l *LfsService) load() error {
 	return nil
 }
 
-func (l *LfsService) loadSlow() error {
-	l.sb.Lock()
-	defer l.sb.Unlock()
-	// 1. load super block
-	l.sb.Load(l.userID, l.ds)
-
-	// 2. load each bucket
-	for i := uint64(0); i < l.sb.NextBucketID; i++ {
-		bu := new(bucket)
-
-		l.sb.buckets[i] = bu
-
-		bu.Lock()
-		err := bu.loadSlow(l.userID, i, l.ds)
-		if err != nil {
-			logger.Warn("fail to load bucketID: ", i)
-			bu.Unlock()
-			continue
-		}
-
-		logger.Debug("load bucket: ", i, bu.BucketInfo)
-
-		if !bu.BucketInfo.Deletion {
-			l.sb.bucketNameToID[bu.Name] = i
-
-			// 3. load objects
-			for j := uint64(0); j < bu.NextObjectID; j++ {
-				logger.Debug("load object: ", j)
-				obj := bu.objects[j]
-
-				if !obj.deletion {
-					tt, dist, donet, ct := 0, 0, 0, 0
-					for _, opID := range obj.ops[1 : 1+len(obj.Parts)] {
-						total, dis, done, c := l.OrderMgr.GetSegJogState(obj.BucketID, opID)
-						dist += dis
-						donet += done
-						tt += total
-						ct += c
-					}
-
-					obj.State = fmt.Sprintf("total: %d, dispatch: %d, sent: %d, confirm: %d", tt, dist, donet, ct)
-					if tt > 0 && tt == dist && tt == donet && tt == ct {
-						obj.pin = true
-					}
-
-					if obj.Name == "" {
-						newName, err := etag.ToString(obj.ETag)
-						if err != nil {
-							continue
-						}
-						obj.Name = newName
-					}
-
-					if len(obj.ETag) != md5.Size {
-						ename, _ := etag.ToString(obj.ETag)
-						l.sb.cids[ename] = &objectDigest{
-							bucketID: obj.BucketID,
-							objectID: obj.ObjectID,
-						}
-					}
-				}
-			}
-
-		}
-		bu.Unlock()
-	}
-	return nil
-}
-
 func (l *LfsService) save() error {
-	err := l.sb.Save(l.userID, l.ds)
+	err := l.sb.save(l.userID, l.ds)
 	if err != nil {
 		return err
 	}
 
 	for _, bucket := range l.sb.buckets {
-		err := bucket.Save(l.userID, l.ds)
+		err := bucket.save(l.userID, l.ds)
 		if err != nil {
 			logger.Errorf("Flush bucket: %s info failed: %s", &bucket.BucketInfo.Name, err)
 		}
@@ -846,4 +669,255 @@ func (l *LfsService) getPayInfo() {
 
 // put meta to remote?
 
-// reconstruct
+func (l *LfsService) broadcast(userID, bucketID, opID uint64) {
+	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bucketID, opID)
+	data, err := l.ds.Get(key)
+	if err != nil {
+		return
+	}
+
+	sr := &types.SignedRecord{
+		Record: types.Record{
+			Key:   key,
+			Value: data,
+		},
+	}
+
+	sig, err := l.RoleSign(l.ctx, l.userID, sr.Hash().Bytes(), types.SigSecp256k1)
+	if err != nil {
+		return
+	}
+
+	sr.Sign = sig
+
+	da, err := sr.Serialize()
+	if err != nil {
+		return
+	}
+
+	em := &pb.EventMessage{
+		Type: pb.EventMessage_LfsMeta,
+		Data: da,
+	}
+
+	l.INetService.PublishEvent(l.ctx, em)
+}
+
+// reconstruct related
+
+func (l *LfsService) Recontruct() error {
+	l.sb.Lock()
+	defer l.sb.Unlock()
+	// 1. load super block
+	l.sb.load(l.userID, l.ds)
+
+	// 2. load each bucket
+	for i := uint64(0); i < l.sb.NextBucketID; i++ {
+		bu := new(bucket)
+		bu.BucketID = i
+		bu.objectTree = rbtree.NewTree()
+		bu.objects = make(map[uint64]*object)
+
+		l.sb.buckets[i] = bu
+
+		bu.Lock()
+		err := bu.recontruct(l.userID, l.ds)
+		if err != nil {
+			logger.Warn("fail to load bucketID: ", i, err)
+			bu.Unlock()
+			continue
+		}
+
+		logger.Debug("load bucket: ", i, bu.BucketInfo)
+
+		if !bu.BucketInfo.Deletion {
+			l.sb.bucketNameToID[bu.Name] = i
+
+			// 3. load objects
+			for j := uint64(0); j < bu.NextObjectID; j++ {
+				logger.Debug("load object: ", j)
+				obj := bu.objects[j]
+
+				if !obj.deletion {
+					tt, dist, donet, ct := 0, 0, 0, 0
+					for _, opID := range obj.ops[1 : 1+len(obj.Parts)] {
+						total, dis, done, c := l.OrderMgr.GetSegJogState(obj.BucketID, opID)
+						dist += dis
+						donet += done
+						tt += total
+						ct += c
+					}
+
+					obj.State = fmt.Sprintf("total: %d, dispatch: %d, sent: %d, confirm: %d", tt, dist, donet, ct)
+					if tt > 0 && tt == dist && tt == donet && tt == ct {
+						obj.pin = true
+					}
+
+					if obj.Name == "" {
+						newName, err := etag.ToString(obj.ETag)
+						if err != nil {
+							continue
+						}
+						obj.Name = newName
+					}
+
+					if len(obj.ETag) != md5.Size {
+						ename, _ := etag.ToString(obj.ETag)
+						l.sb.cids[ename] = &objectDigest{
+							bucketID: obj.BucketID,
+							objectID: obj.ObjectID,
+						}
+					}
+				}
+			}
+
+		}
+		bu.Unlock()
+	}
+	return nil
+}
+
+func (bu *bucket) recontruct(userID uint64, ds store.KVStore) error {
+	nh := blake3.New()
+	opID := uint64(0)
+	for {
+		key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bu.BucketID, opID)
+		data, err := ds.Get(key)
+		if err != nil {
+			return nil
+		}
+
+		or := new(pb.OpRecord)
+		err = proto.Unmarshal(data, or)
+		if err != nil {
+			return err
+		}
+
+		err = bu.loadOp(or)
+		if err != nil {
+			return err
+		}
+
+		if bu.NextOpID != or.OpID {
+			return xerrors.Errorf("opID mismatch at %d", bu.NextOpID)
+		}
+
+		bu.NextOpID++
+
+		nh.Write(bu.Root)
+		nh.Write(data)
+		bu.Root = nh.Sum(nil)
+
+		opID++
+	}
+}
+
+func (bu *bucket) loadOp(or *pb.OpRecord) error {
+	logger.Debug("load object ops: ", bu.BucketID, or.GetOpID(), or.GetType())
+
+	switch or.GetType() {
+	case pb.OpRecord_CreateObject:
+		oi := new(pb.ObjectInfo)
+		err := proto.Unmarshal(or.GetPayload(), oi)
+		if err != nil {
+			return err
+		}
+
+		obj := &object{
+			ObjectInfo: types.ObjectInfo{
+				ObjectInfo: *oi,
+				Parts:      make([]*pb.ObjectPartInfo, 0, 1),
+				Mtime:      oi.Time,
+			},
+			ops: make([]uint64, 0, 2),
+		}
+		obj.ops = append(obj.ops, or.OpID)
+
+		bu.objects[obj.ObjectID] = obj
+		if bu.objectTree.Find(MetaName(obj.Name)) == nil {
+			bu.objectTree.Insert(MetaName(obj.Name), obj)
+		}
+		bu.NextObjectID = obj.ObjectID + 1
+		bu.MTime = oi.GetTime()
+
+	case pb.OpRecord_AddData:
+		pi := new(pb.ObjectPartInfo)
+		err := proto.Unmarshal(or.GetPayload(), pi)
+		if err != nil {
+			return err
+		}
+
+		logger.Debug("load: ", pi.Offset, pi.Length, pi.StoredBytes)
+
+		obj := bu.objects[pi.ObjectID]
+		obj.addPartInfo(pi)
+		obj.ops = append(obj.ops, or.OpID)
+		// update size in bucket
+		if bu.Length != pi.Offset {
+			return xerrors.Errorf("mismatch start %d %d", bu.Length, pi.Offset)
+		}
+
+		bu.MTime = pi.GetTime()
+
+		if bu.DataCount != 0 {
+			stripeCnt := (pi.Length-1)/(build.DefaultSegSize*uint64(bu.DataCount)) + 1
+			bu.Length += stripeCnt * uint64(bu.DataCount) * build.DefaultSegSize
+			bu.UsedBytes += stripeCnt * uint64(bu.DataCount+bu.ParityCount) * build.DefaultSegSize
+		}
+
+	case pb.OpRecord_DeleteObject:
+		di := new(pb.ObjectDeleteInfo)
+		err := proto.Unmarshal(or.GetPayload(), di)
+		if err != nil {
+			return err
+		}
+
+		obj := bu.objects[di.ObjectID]
+		obj.deletion = true
+		bu.objectTree.Delete(MetaName(obj.Name))
+		delete(bu.objects, obj.ObjectID)
+
+		obj.ops = append(obj.ops, or.OpID)
+
+		bu.MTime = di.GetTime()
+
+	case pb.OpRecord_Rename:
+		cni := new(pb.ObjectRenameInfo)
+		err := proto.Unmarshal(or.GetPayload(), cni)
+		if err != nil {
+			return err
+		}
+		obj := bu.objects[cni.ObjectID]
+
+		bu.objectTree.Delete(MetaName(obj.Name))
+		obj.Name = cni.GetName()
+		bu.objectTree.Insert(MetaName(cni.GetName()), obj)
+
+		obj.ops = append(obj.ops, or.OpID)
+
+	case pb.OpRecord_CreateOption:
+		bo := new(pb.BucketOption)
+		err := proto.Unmarshal(or.GetPayload(), bo)
+		if err != nil {
+			return err
+		}
+
+		bu.BucketOption = *bo
+		bu.CTime = or.Time
+		bu.MTime = or.Time
+
+	case pb.OpRecord_SetName:
+		bni := new(pb.BucketNameInfo)
+		err := proto.Unmarshal(or.GetPayload(), bni)
+		if err != nil {
+			return err
+		}
+
+		bu.Name = bni.Name
+		bu.MTime = bni.Time
+
+	default:
+		return xerrors.Errorf("unsupported type: %d", or.GetType())
+	}
+	return nil
+}

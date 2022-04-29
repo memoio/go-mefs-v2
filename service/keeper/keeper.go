@@ -79,6 +79,8 @@ func (k *KeeperNode) Start(perm bool) error {
 	k.TxMsgHandle.Register(k.txMsgHandler)
 	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
+	k.EventHandle.Register(pb.EventMessage_LfsMeta, k.putLfsMetaHandler)
+
 	k.StateMgr.RegisterAddUserFunc(k.AddUsers)
 	k.StateMgr.RegisterAddUPFunc(k.AddUP)
 
