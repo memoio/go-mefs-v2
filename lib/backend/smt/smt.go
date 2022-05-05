@@ -14,21 +14,18 @@ var _ store.SMTStore = (*SMTree)(nil)
 var emptyValue = []byte{}
 
 type SMTree struct {
-	root          []byte
+	root          []byte // keep_root, branches on / before this root will not be cleaned
 	nodes, values store.KVStore
-	nTxn, vTxn    store.TxnStore
-	txnExist      bool
 	smt           *smt.SparseMerkleTree
 }
 
 func NewSMTree(root []byte, n store.KVStore, v store.KVStore) *SMTree {
 	smtree := &SMTree{
-		root:     root,
-		nodes:    n,
-		values:   &ValueStore{v},
-		txnExist: false,
+		root:   root,
+		nodes:  n,
+		values: &ValueStore{v},
 	}
-	s := smt.NewSparseMerkleTree(n, v, sha256.New())
+	s := smt.NewSparseMerkleTree(smtree.nodes, smtree.values, sha256.New())
 	if root == nil {
 		smtree.root = s.Root()
 	} else {
@@ -38,13 +35,19 @@ func NewSMTree(root []byte, n store.KVStore, v store.KVStore) *SMTree {
 	return smtree
 }
 
+// get latest root from trie
 func (smt *SMTree) Root() []byte {
-	return smt.root
+	return smt.smt.Root()
 }
 
+// should set root before a new round put to keep old branches
 func (smt *SMTree) SetRoot(root []byte) {
-	smt.root = root
-	smt.smt.SetRoot(root)
+	if root == nil {
+		smt.root = smt.smt.Root()
+	} else {
+		smt.root = root
+		smt.smt.SetRoot(root)
+	}
 }
 
 // Rewind rewinds the sparse merkle tree to a new root. The method will try to remove discarded branches and leaves by old root and keys in the old-root tree. Note: makes sure that rewinds the root backwards.
@@ -66,43 +69,15 @@ func (smt *SMTree) Rewind(newroot, oldroot []byte, keys [][]byte) error {
 // 2. current block's inserted/updated keys (rollback)
 // TODO: should consider same root case (as smt.Put())
 func (smt *SMTree) CleanHistory(oldroot []byte, keys [][]byte) error {
-	// if txn exists, discards it to avoid inconsistency
-	if smt.txnExist {
-		smt.Discard()
-	}
-
-	smt.NewTxn()
-	defer smt.Discard()
-
 	// cleans old-root tree
 	err := smt.smt.RemovePathsForRoot(keys, oldroot)
 	if err != nil {
 		return err
 	}
-	smt.Commit()
-	return nil
-}
-
-func (smt *SMTree) NewTxn() error {
-	var err error
-	smt.nTxn, err = smt.nodes.NewTxnStore(true)
-	if err != nil {
-		return err
-	}
-	smt.vTxn, err = smt.values.NewTxnStore(true)
-	if err != nil {
-		return err
-	}
-	smt.txnExist = true
-	smt.smt.SetStore(smt.nTxn, smt.vTxn, smt.root)
 	return nil
 }
 
 func (smt *SMTree) Get(key []byte) ([]byte, error) {
-	if !smt.txnExist { // get value from KVStore
-		// set kvstore for smt's mapstore
-		smt.smt.SetStore(smt.nodes, smt.values, smt.root)
-	}
 	value, err := smt.smt.Get(key)
 	if bytes.Equal(value, emptyValue) {
 		return nil, xerrors.Errorf("%s not found", string(key))
@@ -111,21 +86,10 @@ func (smt *SMTree) Get(key []byte) ([]byte, error) {
 }
 
 func (smt *SMTree) GetFromRoot(key, root []byte) ([]byte, error) {
-	if !smt.txnExist { // get value from KVStore
-		// set kvstore for smt's mapstore
-		smt.smt.SetStore(smt.nodes, smt.values, smt.root)
-	}
 	return smt.smt.GetFromRoot(key, root)
 }
 
 func (smt *SMTree) Put(key, value []byte) error {
-	if !smt.txnExist {
-		err := smt.NewTxn()
-		if err != nil {
-			return err
-		}
-	}
-
 	// intermediate root use to clean intermediate branch
 	oldRoot := smt.smt.Root()
 	_, err := smt.smt.Update(key, value)
@@ -148,20 +112,10 @@ func (smt *SMTree) Put(key, value []byte) error {
 }
 
 func (smt *SMTree) Has(key []byte) (bool, error) {
-	if !smt.txnExist {
-		smt.smt.SetStore(smt.nodes, smt.values, smt.root)
-	}
 	return smt.smt.Has(key)
 }
 
 func (smt *SMTree) Delete(key []byte) error {
-	if !smt.txnExist {
-		err := smt.NewTxn()
-		if err != nil {
-			return err
-		}
-	}
-
 	oldRoot := smt.smt.Root()
 	_, err := smt.smt.Delete(key)
 	if err != nil {
@@ -194,30 +148,4 @@ func (smt *SMTree) Close() error {
 	}
 	smt.smt = nil
 	return nil
-}
-
-func (smt *SMTree) Commit() error {
-	if !smt.txnExist {
-		return nil
-	}
-	err := smt.nTxn.Commit()
-	if err != nil {
-		return err
-	}
-	err = smt.vTxn.Commit()
-	if err != nil {
-		return err
-	}
-	// save new root in memory
-	smt.root = smt.smt.Root()
-	return nil
-}
-
-func (smt *SMTree) Discard() {
-	if !smt.txnExist {
-		return
-	}
-	smt.nTxn.Discard()
-	smt.vTxn.Discard()
-	smt.txnExist = false
 }
