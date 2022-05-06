@@ -162,13 +162,13 @@ func TestSMTRewind(t *testing.T) {
 
 // Test all block-ops in bulk.
 func TestSparseMerkleTree(t *testing.T) {
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 1; i++ {
 		// Test more inserts/updates than deletions.
-		bulkOperations(t, 100, 100, 100, 50)
+		bulkOperations(t, 200, 100, 100, 50)
 	}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 1; i++ {
 		// 	// Test extreme deletions.
-		bulkOperations(t, 100, 100, 100, 500)
+		bulkOperations(t, 200, 100, 100, 500)
 	}
 }
 

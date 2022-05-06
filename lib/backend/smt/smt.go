@@ -16,6 +16,7 @@ var emptyValue = []byte{}
 type SMTree struct {
 	root          []byte // keep_root, branches on / before this root will not be cleaned
 	nodes, values store.KVStore
+	nTxn, vTxn    store.TxnStore
 	smt           *smt.SparseMerkleTree
 }
 
@@ -77,7 +78,44 @@ func (smt *SMTree) CleanHistory(oldroot []byte, keys [][]byte) error {
 	return nil
 }
 
+// a single operation share a common txn
+func (smt *SMTree) newTxn(update bool) error {
+	var err error
+	smt.nTxn, err = smt.nodes.NewTxnStore(update)
+	if err != nil {
+		return err
+	}
+	smt.vTxn, err = smt.values.NewTxnStore(update)
+	if err != nil {
+		return err
+	}
+	smt.smt.SetStore(smt.nTxn, smt.vTxn, smt.smt.Root())
+	return nil
+}
+
+func (smt *SMTree) commitTxn() error {
+	err := smt.nTxn.Commit()
+	if err != nil {
+		return err
+	}
+	err = smt.vTxn.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (smt *SMTree) discardTxn() {
+	smt.nTxn.Discard()
+	smt.vTxn.Discard()
+}
+
 func (smt *SMTree) Get(key []byte) ([]byte, error) {
+	if err := smt.newTxn(false); err != nil {
+		return nil, err
+	}
+	defer smt.discardTxn()
+
 	value, err := smt.smt.Get(key)
 	if bytes.Equal(value, emptyValue) {
 		return nil, xerrors.Errorf("%s not found", string(key))
@@ -86,10 +124,20 @@ func (smt *SMTree) Get(key []byte) ([]byte, error) {
 }
 
 func (smt *SMTree) GetFromRoot(key, root []byte) ([]byte, error) {
+	if err := smt.newTxn(false); err != nil {
+		return nil, err
+	}
+	defer smt.discardTxn()
+
 	return smt.smt.GetFromRoot(key, root)
 }
 
 func (smt *SMTree) Put(key, value []byte) error {
+	if err := smt.newTxn(true); err != nil {
+		return err
+	}
+	defer smt.discardTxn()
+
 	// intermediate root use to clean intermediate branch
 	oldRoot := smt.smt.Root()
 	_, err := smt.smt.Update(key, value)
@@ -106,16 +154,30 @@ func (smt *SMTree) Put(key, value []byte) error {
 	}
 	// preserve last block's root
 	if !bytes.Equal(oldRoot, smt.root) {
-		err = smt.smt.RemovePath(key, oldRoot, smt.root)
+		if err = smt.smt.RemovePath(key, oldRoot, smt.root); err != nil {
+			return err
+		}
 	}
+
+	err = smt.commitTxn()
 	return err
 }
 
 func (smt *SMTree) Has(key []byte) (bool, error) {
+	if err := smt.newTxn(false); err != nil {
+		return false, err
+	}
+	defer smt.discardTxn()
+
 	return smt.smt.Has(key)
 }
 
 func (smt *SMTree) Delete(key []byte) error {
+	if err := smt.newTxn(true); err != nil {
+		return err
+	}
+	defer smt.discardTxn()
+
 	oldRoot := smt.smt.Root()
 	_, err := smt.smt.Delete(key)
 	if err != nil {
@@ -127,8 +189,12 @@ func (smt *SMTree) Delete(key []byte) error {
 		return err
 	}
 	if !bytes.Equal(oldRoot, smt.root) {
-		err = smt.smt.RemovePath(key, oldRoot, smt.root)
+		if err = smt.smt.RemovePath(key, oldRoot, smt.root); err != nil {
+			return err
+		}
 	}
+
+	err = smt.commitTxn()
 	return err
 }
 
