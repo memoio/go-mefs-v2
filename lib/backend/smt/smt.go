@@ -14,52 +14,44 @@ var _ store.SMTStore = (*SMTree)(nil)
 var emptyValue = []byte{}
 
 type SMTree struct {
-	root          []byte // keep_root, branches on / before this root will not be cleaned
-	nodes, values store.KVStore
-	nTxn, vTxn    store.TxnStore
-	smt           *smt.SparseMerkleTree
+	blkRoot, curRoot []byte // branches on / before blkRoot root will not be cleaned
+	nodes, values    store.KVStore
 }
 
 func NewSMTree(root []byte, n store.KVStore, v store.KVStore) *SMTree {
 	smtree := &SMTree{
-		root:   root,
-		nodes:  n,
-		values: &ValueStore{v},
+		blkRoot: root,
+		curRoot: root,
+		nodes:   n,
+		values:  &ValueStore{v},
 	}
-	s := smt.NewSparseMerkleTree(smtree.nodes, smtree.values, sha256.New())
 	if root == nil {
-		smtree.root = s.Root()
-	} else {
-		s.SetRoot(root)
+		tempTrie := smt.NewSparseMerkleTree(smtree.nodes, smtree.values, sha256.New())
+		smtree.SetRoot(tempTrie.Root())
 	}
-	smtree.smt = s
 	return smtree
 }
 
 // get latest root from trie
-func (smt *SMTree) Root() []byte {
-	return smt.smt.Root()
+func (s *SMTree) Root() []byte {
+	return s.curRoot
 }
 
 // should set root before a new round put to keep old branches
-func (smt *SMTree) SetRoot(root []byte) {
-	if root == nil {
-		smt.root = smt.smt.Root()
-	} else {
-		smt.root = root
-		smt.smt.SetRoot(root)
-	}
+func (s *SMTree) SetRoot(root []byte) {
+	s.blkRoot = root
+	s.curRoot = root
 }
 
 // Rewind rewinds the sparse merkle tree to a new root. The method will try to remove discarded branches and leaves by old root and keys in the old-root tree. Note: makes sure that rewinds the root backwards.
-func (smt *SMTree) Rewind(newroot, oldroot []byte, keys [][]byte) error {
-	err := smt.CleanHistory(oldroot, keys)
+func (s *SMTree) Rewind(newroot, oldroot []byte, keys [][]byte) error {
+	err := s.CleanHistory(oldroot, keys)
 	if err != nil {
 		return err
 	}
 
 	// root rollback
-	smt.SetRoot(newroot)
+	s.SetRoot(newroot)
 	return nil
 }
 
@@ -68,134 +60,174 @@ func (smt *SMTree) Rewind(newroot, oldroot []byte, keys [][]byte) error {
 // <keys>:
 // 1. next block's inserted/updated keys (clean old history)
 // 2. current block's inserted/updated keys (rollback)
-// TODO: should consider same root case (as smt.Put())
-func (smt *SMTree) CleanHistory(oldroot []byte, keys [][]byte) error {
+// TODO: should consider same root case (as s.Put())
+func (s *SMTree) CleanHistory(oldroot []byte, keys [][]byte) error {
+	// a single operation share a common txn
+	nTxn, err := s.nodes.NewTxnStore(true)
+	if err != nil {
+		return err
+	}
+	vTxn, err := s.values.NewTxnStore(true)
+	if err != nil {
+		return err
+	}
+	defer nTxn.Discard()
+	defer vTxn.Discard()
+
+	// new a tree
+	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), oldroot)
+
 	// cleans old-root tree
-	err := smt.smt.RemovePathsForRoot(keys, oldroot)
-	if err != nil {
-		return err
-	}
-	return nil
+	err = trie.RemovePathsForRoot(keys, oldroot)
+	return err
 }
 
-// a single operation share a common txn
-func (smt *SMTree) newTxn(update bool) error {
-	var err error
-	smt.nTxn, err = smt.nodes.NewTxnStore(update)
+func (s *SMTree) Get(key []byte) ([]byte, error) {
+	// a single operation share a common txn
+	nTxn, err := s.nodes.NewTxnStore(false)
 	if err != nil {
-		return err
-	}
-	smt.vTxn, err = smt.values.NewTxnStore(update)
-	if err != nil {
-		return err
-	}
-	smt.smt.SetStore(smt.nTxn, smt.vTxn, smt.smt.Root())
-	return nil
-}
-
-func (smt *SMTree) commitTxn() error {
-	err := smt.nTxn.Commit()
-	if err != nil {
-		return err
-	}
-	err = smt.vTxn.Commit()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (smt *SMTree) discardTxn() {
-	smt.nTxn.Discard()
-	smt.vTxn.Discard()
-}
-
-func (smt *SMTree) Get(key []byte) ([]byte, error) {
-	if err := smt.newTxn(false); err != nil {
 		return nil, err
 	}
-	defer smt.discardTxn()
+	vTxn, err := s.values.NewTxnStore(false)
+	if err != nil {
+		return nil, err
+	}
+	defer nTxn.Discard()
+	defer vTxn.Discard()
 
-	value, err := smt.smt.Get(key)
+	// new a tree
+	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), s.curRoot)
+
+	value, err := trie.Get(key)
 	if bytes.Equal(value, emptyValue) {
 		return nil, xerrors.Errorf("%s not found", string(key))
 	}
 	return value, err
 }
 
-func (smt *SMTree) GetFromRoot(key, root []byte) ([]byte, error) {
-	if err := smt.newTxn(false); err != nil {
+func (s *SMTree) GetFromRoot(key, root []byte) ([]byte, error) {
+	// a single operation share a common txn
+	nTxn, err := s.nodes.NewTxnStore(false)
+	if err != nil {
 		return nil, err
 	}
-	defer smt.discardTxn()
+	vTxn, err := s.values.NewTxnStore(false)
+	if err != nil {
+		return nil, err
+	}
+	defer nTxn.Discard()
+	defer vTxn.Discard()
 
-	return smt.smt.GetFromRoot(key, root)
+	// new a tree
+	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), s.curRoot)
+
+	return trie.GetFromRoot(key, root)
 }
 
-func (smt *SMTree) Put(key, value []byte) error {
-	if err := smt.newTxn(true); err != nil {
+func (s *SMTree) Put(key, value []byte) error {
+	// a single operation share a common txn
+	nTxn, err := s.nodes.NewTxnStore(true)
+	if err != nil {
 		return err
 	}
-	defer smt.discardTxn()
+	vTxn, err := s.values.NewTxnStore(true)
+	if err != nil {
+		return err
+	}
+	defer nTxn.Discard()
+	defer vTxn.Discard()
 
-	// intermediate root use to clean intermediate branch
-	oldRoot := smt.smt.Root()
-	_, err := smt.smt.Update(key, value)
+	// new a tree
+	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), s.curRoot)
+
+	newRoot, err := trie.Update(key, value)
 	if err != nil {
 		// debug
-		smt.smt.PrintSMT(smt.root)
-		smt.smt.PrintSMT(smt.smt.Root())
+		trie.PrintSMT(s.blkRoot)
+		trie.PrintSMT(trie.Root())
 		return xerrors.Errorf("smt put fail: %w", err)
 	}
 
 	// a meaningless put (same key & value)
-	if bytes.Equal(oldRoot, smt.smt.Root()) {
+	if bytes.Equal(s.curRoot, newRoot) {
 		return nil
 	}
 	// preserve last block's root
-	if !bytes.Equal(oldRoot, smt.root) {
-		if err = smt.smt.RemovePath(key, oldRoot, smt.root); err != nil {
+	if !bytes.Equal(s.curRoot, s.blkRoot) {
+		// intermediate root use to clean intermediate branch
+		if err = trie.RemovePath(key, s.curRoot, s.blkRoot); err != nil {
 			return err
 		}
 	}
 
-	err = smt.commitTxn()
-	return err
-}
-
-func (smt *SMTree) Has(key []byte) (bool, error) {
-	if err := smt.newTxn(false); err != nil {
-		return false, err
-	}
-	defer smt.discardTxn()
-
-	return smt.smt.Has(key)
-}
-
-func (smt *SMTree) Delete(key []byte) error {
-	if err := smt.newTxn(true); err != nil {
+	if err = nTxn.Commit(); err != nil {
 		return err
 	}
-	defer smt.discardTxn()
+	if err = vTxn.Commit(); err != nil {
+		return err
+	}
+	s.curRoot = newRoot
+	return nil
+}
 
-	oldRoot := smt.smt.Root()
-	_, err := smt.smt.Delete(key)
+func (s *SMTree) Has(key []byte) (bool, error) {
+	// a single operation share a common txn
+	nTxn, err := s.nodes.NewTxnStore(false)
+	if err != nil {
+		return false, err
+	}
+	vTxn, err := s.values.NewTxnStore(false)
+	if err != nil {
+		return false, err
+	}
+	defer nTxn.Discard()
+	defer vTxn.Discard()
+
+	// new a tree
+	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), s.curRoot)
+
+	return trie.Has(key)
+}
+
+func (s *SMTree) Delete(key []byte) error {
+	// a single operation share a common txn
+	nTxn, err := s.nodes.NewTxnStore(true)
+	if err != nil {
+		return err
+	}
+	vTxn, err := s.values.NewTxnStore(true)
+	if err != nil {
+		return err
+	}
+	defer nTxn.Discard()
+	defer vTxn.Discard()
+
+	// new a tree
+	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), s.curRoot)
+
+	newRoot, err := trie.Delete(key)
 	if err != nil {
 		return xerrors.Errorf("smt delete fail: %w", err)
 	}
 
 	// a meaningless delete (already empty)
-	if bytes.Equal(oldRoot, smt.smt.Root()) {
+	if bytes.Equal(s.curRoot, newRoot) {
 		return err
 	}
-	if !bytes.Equal(oldRoot, smt.root) {
-		if err = smt.smt.RemovePath(key, oldRoot, smt.root); err != nil {
+	if !bytes.Equal(s.curRoot, s.blkRoot) {
+		if err = trie.RemovePath(key, s.curRoot, s.blkRoot); err != nil {
 			return err
 		}
 	}
 
-	err = smt.commitTxn()
-	return err
+	if err = nTxn.Commit(); err != nil {
+		return err
+	}
+	if err = vTxn.Commit(); err != nil {
+		return err
+	}
+	s.curRoot = newRoot
+	return nil
 }
 
 func (smt *SMTree) Size() store.DiskStats {
@@ -204,14 +236,11 @@ func (smt *SMTree) Size() store.DiskStats {
 }
 
 func (smt *SMTree) Close() error {
-	err := smt.nodes.Close()
-	if err != nil {
+	if err := smt.nodes.Close(); err != nil {
 		return err
 	}
-	err = smt.values.Close()
-	if err != nil {
+	if err := smt.values.Close(); err != nil {
 		return err
 	}
-	smt.smt = nil
 	return nil
 }
