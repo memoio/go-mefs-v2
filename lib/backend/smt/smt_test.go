@@ -42,14 +42,9 @@ func TestSMTBasic(t *testing.T) {
 		os.RemoveAll(path1)
 	}()
 
-	err := smtree.NewTxn()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// put and commit
+	// round1: put and commit
 	oldRoot := smtree.Root()
-	err = smtree.Put(testKey, testVal)
+	err := smtree.Put(testKey, testVal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,16 +55,12 @@ func TestSMTBasic(t *testing.T) {
 	if !bytes.Equal(val, testVal) {
 		t.Fatalf("put value: %s, get value %s\n", testVal, val)
 	}
-	if !bytes.Equal(oldRoot, smtree.Root()) {
-		t.Fatal("Root has been modifed before committing")
-	}
-	smtree.Commit()
-	smtree.Discard()
-
-	// verify the root
+	// commit changes
 	curRoot := smtree.Root()
+
+	// round1: verify the root and value
 	if bytes.Equal(curRoot, oldRoot) {
-		t.Fatal("Root has not been modified after committing")
+		t.Fatal("Root has not been modified")
 	}
 	// get
 	getVal, err := smtree.Get(testKey)
@@ -80,39 +71,39 @@ func TestSMTBasic(t *testing.T) {
 		t.Fatalf("get value: %s, expect %s\n", getVal, testVal)
 	}
 
-	// test intermediate clean
-	// TODO: maybe should use the number of keys to replace the size
-	err = smtree.NewTxn()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// round2: test intermediate clean
+	smtree.SetRoot(curRoot)
 	testVal2 := []byte("bbbbb")
 	err = smtree.Put(testKey, testVal2)
 	if err != nil {
 		t.Fatal(err)
 	}
+	tempRoot := smtree.Root()
 	testVal3 := []byte("ccccc")
 	err = smtree.Put(testKey, testVal3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	smtree.Commit()
-	smtree.Discard()
+	// commit changes
 	curRoot = smtree.Root()
-
-	// test no commit
-	err = smtree.NewTxn()
-	if err != nil {
-		t.Fatal(err)
+	// check whether exists
+	smtree.SetRoot(tempRoot)
+	if tempv, err := smtree.Get(testKey); err != nil {
+		t.Log("clean ok, go on")
+	} else {
+		if bytes.Equal(tempv, testVal2) {
+			t.Fatalf("Not clean the intermediate branches, for %s\n", tempv)
+		}
 	}
+
+	// round3: test no commit
+	smtree.SetRoot(curRoot)
 	err = smtree.Put(testKey, testVal2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	smtree.Discard()
-	if !bytes.Equal(curRoot, smtree.Root()) {
-		t.Fatal("Root has been modifed after discarding")
-	}
+	// not commit
+	smtree.SetRoot(curRoot)
 	curVal, _ := smtree.Get(testKey)
 	if !bytes.Equal(curVal, testVal3) {
 		t.Fatalf("get value: %s, expect %s\n", curVal, testVal3)
@@ -129,26 +120,22 @@ func TestSMTRewind(t *testing.T) {
 		os.RemoveAll(path1)
 	}()
 
-	// emulates block executions
+	// emulates 5 blocks' execution
 	for i := 0; i < 5; i++ {
-		err := smtree.NewTxn()
-		if err != nil {
-			t.Fatal(err)
-		}
 		tKey := append(testKey, []byte(strconv.Itoa(i))...)
-		err = smtree.Put(tKey, testVal)
+		err := smtree.Put(tKey, testVal)
 		if err != nil {
 			t.Fatal(err)
 		}
-		smtree.Commit()
-		smtree.Discard()
+		// commit
+		smtree.SetRoot(smtree.Root())
 		keys = append(keys, tKey)
 		roots = append(roots, smtree.Root())
 	}
 
 	// rollback
 	for i := 1; i <= 4; i++ {
-		tempkeys := [][]byte{keys[5-i]}
+		tempkeys := [][]byte{keys[len(keys)-i]}
 		err := smtree.Rewind(roots[len(roots)-i-1], roots[len(roots)-i], tempkeys)
 		if err != nil {
 			t.Fatal(err)
@@ -156,10 +143,19 @@ func TestSMTRewind(t *testing.T) {
 		if !bytes.Equal(smtree.Root(), roots[len(roots)-i-1]) {
 			t.Fatal("Root has not been rewind")
 		}
-		if ok, _ := smtree.Has(keys[5-i]); ok {
+
+		// if _, err := smtree.GetFromRoot(keys[len(keys)-i], roots[len(roots)-i]); err == nil {
+		// 	t.Fatal("Key still exists, rewind wrong")
+		// }
+		// substitute (when 'GetFromRoot' is not exposed)
+		smtree.SetRoot(roots[len(roots)-i])
+		if _, err := smtree.Get(keys[len(keys)-i]); err == nil {
+			t.Log(err)
 			t.Fatal("Key still exists, rewind wrong")
 		}
-		if ok, _ := smtree.Has(keys[5-i-1]); !ok {
+		smtree.SetRoot(roots[len(keys)-i-1]) // restore
+
+		if ok, _ := smtree.Has(keys[len(keys)-i-1]); !ok {
 			t.Fatal("Key not exists, rewind wrong")
 		}
 	}
@@ -175,11 +171,11 @@ func TestSMTRewind(t *testing.T) {
 
 // Test all block-ops in bulk.
 func TestSparseMerkleTree(t *testing.T) {
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
 		// Test more inserts/updates than deletions.
 		bulkOperations(t, 200, 100, 100, 50)
 	}
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
 		// 	// Test extreme deletions.
 		bulkOperations(t, 200, 100, 100, 500)
 	}
@@ -208,10 +204,6 @@ func bulkOperations(t *testing.T, blocks int, insert int, update int, del int) {
 			for k, v := range kv[i-1] {
 				kv[i][k] = v
 			}
-		}
-		err := smt.NewTxn()
-		if err != nil {
-			t.Fatal(err)
 		}
 		for j := 0; j < 50; j++ {
 			n := rand.Intn(max)
@@ -258,10 +250,9 @@ func bulkOperations(t *testing.T, blocks int, insert int, update int, del int) {
 					t.Errorf("error: %v", err)
 				}
 			}
-
 		}
-		smt.Commit()
-		smt.Discard()
+		// commit
+		smt.SetRoot(smt.Root())
 		roots[i] = smt.Root()
 		checkOne(t, smt, &kv[i], i)
 	}

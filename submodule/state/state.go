@@ -371,15 +371,9 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		return s.root, xerrors.Errorf("apply wrong block at height %d, blk root got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
 	}
 
-	// init a smt txn
-	err := s.smt.NewTxn()
-	if err != nil {
-		return s.root, xerrors.Errorf("create smt txn fail: %w", err)
-	}
-	defer s.smt.Discard()
-
 	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
 	// old txn may be put but not committed, which should be dropped
+	var err error
 	s.tds, err = s.ds.NewTxnStore(true)
 	if err != nil {
 		return s.root, xerrors.Errorf("create new txn fail: %w", err)
@@ -476,10 +470,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	}
 
 	// apply block ok, commit smt and update new root
-	err = s.smt.Commit()
-	if err != nil {
-		return s.root, xerrors.Errorf("apply smt commit fail %w", err)
-	}
+	s.smt.SetRoot(s.smt.Root())
 
 	err = s.saveRoot()
 	if err != nil {

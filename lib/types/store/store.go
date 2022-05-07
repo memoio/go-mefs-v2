@@ -35,13 +35,10 @@ type TxnStore interface {
 
 type SMTStore interface {
 	Store
-	Commit() error
-	Discard()
 	Root() []byte
 	SetRoot([]byte)
 	Rewind([]byte, []byte, [][]byte) error
 	CleanHistory([]byte, [][]byte) error
-	NewTxn() error
 }
 
 type FileStore interface {
