@@ -135,7 +135,7 @@ func TestSMTRewind(t *testing.T) {
 
 	// rollback
 	for i := 1; i <= 4; i++ {
-		tempkeys := [][]byte{keys[5-i]}
+		tempkeys := [][]byte{keys[len(keys)-i]}
 		err := smtree.Rewind(roots[len(roots)-i-1], roots[len(roots)-i], tempkeys)
 		if err != nil {
 			t.Fatal(err)
@@ -143,10 +143,19 @@ func TestSMTRewind(t *testing.T) {
 		if !bytes.Equal(smtree.Root(), roots[len(roots)-i-1]) {
 			t.Fatal("Root has not been rewind")
 		}
-		if ok, _ := smtree.Has(keys[5-i]); ok {
+
+		// if _, err := smtree.GetFromRoot(keys[len(keys)-i], roots[len(roots)-i]); err == nil {
+		// 	t.Fatal("Key still exists, rewind wrong")
+		// }
+		// substitute (when 'GetFromRoot' is not exposed)
+		smtree.SetRoot(roots[len(roots)-i])
+		if _, err := smtree.Get(keys[len(keys)-i]); err == nil {
+			t.Log(err)
 			t.Fatal("Key still exists, rewind wrong")
 		}
-		if ok, _ := smtree.Has(keys[5-i-1]); !ok {
+		smtree.SetRoot(roots[len(keys)-i-1]) // restore
+
+		if ok, _ := smtree.Has(keys[len(keys)-i-1]); !ok {
 			t.Fatal("Key not exists, rewind wrong")
 		}
 	}

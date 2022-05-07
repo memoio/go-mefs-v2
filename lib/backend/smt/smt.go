@@ -78,31 +78,21 @@ func (s *SMTree) CleanHistory(oldroot []byte, keys [][]byte) error {
 	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), oldroot)
 
 	// cleans old-root tree
-	err = trie.RemovePathsForRoot(keys, oldroot)
-	return err
+	if err = trie.RemovePathsForRoot(keys, oldroot); err != nil {
+		return err
+	}
+
+	if err = nTxn.Commit(); err != nil {
+		return err
+	}
+	if err = vTxn.Commit(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *SMTree) Get(key []byte) ([]byte, error) {
-	// a single operation share a common txn
-	nTxn, err := s.nodes.NewTxnStore(false)
-	if err != nil {
-		return nil, err
-	}
-	vTxn, err := s.values.NewTxnStore(false)
-	if err != nil {
-		return nil, err
-	}
-	defer nTxn.Discard()
-	defer vTxn.Discard()
-
-	// new a tree
-	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), s.curRoot)
-
-	value, err := trie.Get(key)
-	if bytes.Equal(value, emptyValue) {
-		return nil, xerrors.Errorf("%s not found", string(key))
-	}
-	return value, err
+	return s.GetFromRoot(key, s.curRoot)
 }
 
 func (s *SMTree) GetFromRoot(key, root []byte) ([]byte, error) {
@@ -121,7 +111,15 @@ func (s *SMTree) GetFromRoot(key, root []byte) ([]byte, error) {
 	// new a tree
 	trie := smt.ImportSparseMerkleTree(nTxn, vTxn, sha256.New(), s.curRoot)
 
-	return trie.GetFromRoot(key, root)
+	value, err := trie.GetFromRoot(key, root)
+	if err != nil {
+		return nil, err
+	}
+	if bytes.Equal(value, emptyValue) {
+		return nil, xerrors.Errorf("%s not found", key)
+	}
+
+	return value, nil
 }
 
 func (s *SMTree) Put(key, value []byte) error {
@@ -149,6 +147,7 @@ func (s *SMTree) Put(key, value []byte) error {
 	}
 
 	// a meaningless put (same key & value)
+	// should not commit (commit will result in the increasing of the value's cnt)
 	if bytes.Equal(s.curRoot, newRoot) {
 		return nil
 	}
@@ -156,6 +155,7 @@ func (s *SMTree) Put(key, value []byte) error {
 	if !bytes.Equal(s.curRoot, s.blkRoot) {
 		// intermediate root use to clean intermediate branch
 		if err = trie.RemovePath(key, s.curRoot, s.blkRoot); err != nil {
+			// clean fail, do not commit any change
 			return err
 		}
 	}
