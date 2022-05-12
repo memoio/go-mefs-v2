@@ -109,6 +109,7 @@ var LfsCmd = &cli.Command{
 		listObjectsCmd,
 		delObjectCmd,
 		downlaodObjectCmd,
+		showStorageCmd,
 	},
 }
 
@@ -245,6 +246,33 @@ var headBucketCmd = &cli.Command{
 
 		fmt.Println("Head bucket: ")
 		fmt.Println(FormatBucketInfo(bi))
+
+		return nil
+	},
+}
+
+var showStorageCmd = &cli.Command{
+	Name:  "showStorage",
+	Usage: "show storage info",
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		napi, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ss, err := napi.ShowStorage(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Lfs has storage: ", utils.FormatBytes(int64(ss)))
 
 		return nil
 	},
