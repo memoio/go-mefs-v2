@@ -201,11 +201,15 @@ func disorder(array []peer.AddrInfo) {
 
 // fetch
 func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) {
+	c.lk.Lock()
 	lf := c.lastFetch
-	if lf.Validate() == nil {
+	lg := c.lastGood
+	c.lk.Unlock()
+
+	if lg && lf.Validate() == nil {
 		resp, err := c.GenericService.SendNetRequest(ctx, lf, c.roleID, pb.NetMessage_Get, key, nil)
 		if err == nil && resp.GetHeader().GetType() != pb.NetMessage_Err {
-			logger.Debug("receive data from last good: ", lf, string(key))
+			logger.Debugf("last good %s receive data %s", lf.Pretty(), string(key))
 			cons := c.ns.Host.Network().ConnsToPeer(lf)
 			for _, con := range cons {
 				maddr := con.RemoteMultiaddr()
@@ -215,7 +219,9 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 					// is public addr
 					ok = mnet.IsPublicAddr(maddr)
 					if ok {
-						c.lastFetch = peer.ID("")
+						c.lk.Lock()
+						c.lastGood = false
+						c.lk.Unlock()
 						break
 					}
 				}
@@ -225,7 +231,9 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 		}
 	}
 
-	c.lastFetch = peer.ID("")
+	c.lk.Lock()
+	c.lastGood = false
+	c.lk.Unlock()
 
 	// iter over connected peers
 	pinfos, err := c.ns.NetPeers(ctx)
@@ -245,7 +253,10 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 			continue
 		}
 
+		c.lk.Lock()
 		c.lastFetch = pi.ID
+		c.lastGood = true
+		c.lk.Unlock()
 
 		return resp.GetData().GetMsgInfo(), nil
 	}

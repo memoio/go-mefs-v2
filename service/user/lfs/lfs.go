@@ -276,7 +276,7 @@ func (l *LfsService) LfsGetInfo(ctx context.Context, update bool) (types.LfsInfo
 
 	li := types.LfsInfo{
 		Status: l.Writeable(),
-		Bucket: l.sb.bucketVerify,
+		Bucket: uint64(len(l.sb.buckets)),
 		Used:   0,
 	}
 
@@ -297,11 +297,7 @@ func (l *LfsService) ShowStorage(ctx context.Context) (uint64, error) {
 
 	var storageSpace uint64
 	for _, bucket := range l.sb.buckets {
-		bucketStorage, err := l.ShowBucketStorage(ctx, bucket.Name)
-		if err != nil {
-			continue
-		}
-		storageSpace += uint64(bucketStorage)
+		storageSpace += uint64(bucket.UsedBytes)
 	}
 
 	return storageSpace, nil
@@ -316,14 +312,19 @@ func (l *LfsService) ShowBucketStorage(ctx context.Context, bucketName string) (
 
 	bucket.RLock()
 	defer bucket.RUnlock()
+
 	var storageSpace uint64
+	if bucket.objectTree.Empty() {
+		return storageSpace, nil
+	}
 	objectIter := bucket.objectTree.Iterator()
-	for ; objectIter != nil; objectIter = objectIter.Next() {
-		object := objectIter.Value.(*object)
-		if object.deletion {
-			continue
+	for objectIter != nil {
+		object, ok := objectIter.Value.(*object)
+		if ok && !object.deletion {
+			storageSpace += uint64(object.Size)
 		}
-		storageSpace += uint64(object.Size)
+		objectIter = objectIter.Next()
+
 	}
 	return storageSpace, nil
 }
