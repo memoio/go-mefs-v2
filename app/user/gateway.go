@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -32,6 +33,7 @@ var GatewayCmd = &cli2.Command{
 	Usage: "memo gateway",
 	Subcommands: []*cli2.Command{
 		gatewayRunCmd,
+		gatewayStopCmd,
 	},
 }
 
@@ -65,7 +67,6 @@ var gatewayRunCmd = &cli2.Command{
 		},
 	},
 	Action: func(cctx *cli2.Context) error {
-
 		var terminate = make(chan os.Signal, 1)
 		signal.Notify(terminate, os.Interrupt, syscall.SIGTERM)
 		defer signal.Stop(terminate)
@@ -84,20 +85,61 @@ var gatewayRunCmd = &cli2.Command{
 		if !strings.Contains(consoleAddress, ":") {
 			consoleAddress = ":" + consoleAddress
 		}
-		err := Start(username, pwd, endPoint, consoleAddress)
+
+		// save process id
+		pidpath, err := BestKnownPath()
+		if err != nil {
+			return err
+		}
+		pid := os.Getpid()
+		logger.Info("pid is ", pid)
+		pids := []byte(strconv.Itoa(pid))
+		err = os.WriteFile(path.Join(pidpath, "pid"), pids, 0644)
+		if err != nil {
+			return err
+		}
+
+		err = Start(username, pwd, endPoint, consoleAddress)
 		if err != nil {
 			return err
 		}
 
 		<-terminate
-		log.Println("received shutdown signal")
-		log.Println("shutdown...")
+		logger.Info("received shutdown signal")
+		logger.Info("shutdown...")
 
 		return nil
 	},
 }
 
-var DefaultPathRoot = "~/.mefs_gw"
+var gatewayStopCmd = &cli2.Command{
+	Name:  "stop",
+	Usage: "stop a memo gateway",
+	Action: func(ctx *cli2.Context) error {
+		pidpath, err := BestKnownPath()
+		if err != nil {
+			return err
+		}
+
+		pd, _ := ioutil.ReadFile(path.Join(pidpath, "pid"))
+		pid, err := strconv.Atoi(string(pd))
+		if err != nil {
+			return err
+		}
+
+		p, err := os.FindProcess(pid)
+		if err != nil {
+			return err
+		}
+
+		p.Signal(syscall.SIGTERM)
+		logger.Info("gateway gracefully exit...")
+
+		return nil
+	},
+}
+
+var DefaultPathRoot string = "~/.mefs_gw"
 
 // BestKnownPath returns the best known fsrepo path. If the ENV override is
 // present, this function returns that value. Otherwise, it returns the default
