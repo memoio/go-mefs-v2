@@ -334,7 +334,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 	}
 
 	if !oRoot.Equal(sb.ParentRoot) {
-		logger.Warnf("OnPropose at %d has wrong state, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
+		logger.Debugf("OnPropose at %d has wrong state, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
 		return xerrors.Errorf("OnPropose at %d wrong state, got: %s, expected: %s", sb.Height, oRoot, sb.ParentRoot)
 	}
 
@@ -347,7 +347,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		// validate msg sign
 		ok, err := mp.RoleVerify(mp.ctx, sm.From, sm.Hash().Bytes(), sm.Signature)
 		if err != nil {
-			logger.Warnf("OnPropose at %d has wrong message", sb.Height)
+			logger.Debugf("OnPropose at %d has wrong message", sb.Height)
 			return err
 		}
 
@@ -360,12 +360,12 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		if err != nil {
 			// should not; todo
 			if sb.Receipts[i].Err == 0 {
-				logger.Error("fail to validate message, shoule be right: ", newRoot, err)
+				logger.Debug("fail to validate message, shoule be right: ", newRoot, err)
 				return xerrors.Errorf("fail to validate message, shoule be right")
 			}
 		} else {
 			if sb.Receipts[i].Err != 0 {
-				logger.Error("fail to validate message, shoule be wrong: ", newRoot)
+				logger.Debug("fail to validate message, shoule be wrong: ", newRoot)
 				return xerrors.Errorf("fail to validate message, shoule be wrong")
 			}
 		}
@@ -373,7 +373,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 
 	// todo: should handle this
 	if !newRoot.Equal(sb.Root) {
-		logger.Warnf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
+		logger.Debugf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 		return xerrors.Errorf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 	}
 

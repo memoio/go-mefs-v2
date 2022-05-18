@@ -120,7 +120,7 @@ func (k *KeeperNode) Start(perm bool) error {
 		k.ready = true
 	}()
 
-	logger.Info("start keeper for: ", k.RoleID())
+	logger.Info("start keeper: ", k.RoleID())
 	return nil
 }
 

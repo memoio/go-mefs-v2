@@ -40,8 +40,7 @@ func DiscoveryHandler(ctx context.Context, host host.Host) *discoveryHandler {
 func SetupDiscovery(ctx context.Context, host host.Host, handler *discoveryHandler) (discovery.Service, error) {
 	service, err := discovery.NewMdnsService(ctx, host, 60*time.Second, "mefs-discovery")
 	if err != nil {
-		logger.Error("create mdns error: ", err)
-		return service, nil
+		return service, err
 	}
 	service.RegisterNotifee(handler)
 	return service, nil

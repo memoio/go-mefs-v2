@@ -134,7 +134,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		} else if err != nil {
 			return err
 		} else if n != dp.stripeSize {
-			logger.Warn("fail to get enough data")
+			logger.Debug("fail to get enough data")
 			return xerrors.New("upload fails due to read io")
 		}
 
@@ -186,7 +186,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 		encodedData, err := dp.coder.Encode(dp.segID, buf)
 		if err != nil {
-			logger.Warn("encode data error:", dp.segID, err)
+			logger.Debug("encode data error:", dp.segID, err)
 			return err
 		}
 
@@ -200,12 +200,12 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			err := dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
 			if err != nil {
-				logger.Warn("Process data error:", dp.segID, err)
+				logger.Debug("Process data error:", dp.segID, err)
 			}
 
 			err = l.OrderMgr.PutSegmentToLocal(ctx, seg)
 			if err != nil {
-				logger.Warn("Process data error:", dp.segID, err)
+				logger.Debug("Process data error:", dp.segID, err)
 				return err
 			}
 		}
@@ -354,7 +354,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 
 				// fails too many, no need to download
 				if atomic.LoadInt32(&failCnt) > int32(dp.parityCount) {
-					logger.Errorf("download chunk failed too much")
+					logger.Warn("download chunk failed too much")
 					break
 				}
 
@@ -378,7 +378,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 					if err != nil {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
-						logger.Warn("download chunk fail: ", segID, err)
+						logger.Debug("download chunk fail: ", segID, err)
 						return
 					}
 
@@ -387,7 +387,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 					if err != nil || !ok {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
-						logger.Warn("download chunk is wrong: ", chunkID, segID, err)
+						logger.Debug("download chunk is wrong: ", chunkID, segID, err)
 						return
 					}
 
@@ -420,7 +420,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 
 					// fails too many, no need to download
 					if atomic.LoadInt32(&failCnt) > int32(dp.parityCount) {
-						logger.Errorf("download chunk failed too much")
+						logger.Warn("download chunk failed too much")
 						break
 					}
 
@@ -444,7 +444,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 						if err != nil {
 							atomic.AddInt32(&failCnt, 1)
 							sm.Release(1)
-							logger.Warn("download chunk fail: ", segID, err)
+							logger.Debug("download chunk fail: ", segID, err)
 							return
 						}
 
@@ -453,7 +453,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bucket *buck
 						if err != nil || !ok {
 							atomic.AddInt32(&failCnt, 1)
 							sm.Release(1)
-							logger.Warn("download chunk is wrong: ", chunkID, segID, err)
+							logger.Debug("download chunk is wrong: ", chunkID, segID, err)
 							return
 						}
 

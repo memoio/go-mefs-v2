@@ -31,7 +31,7 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 			return peer.ID(""), nil, xerrors.Errorf("failed to get peer ID %w", err)
 		}
 
-		logger.Info("load local peerID: ", p.Pretty())
+		logger.Info("load local peer: ", p.Pretty())
 
 		return p, sk, nil
 	}
@@ -63,6 +63,6 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 		return peer.ID(""), nil, xerrors.Errorf("failed to get peer ID %w", err)
 	}
 
-	logger.Info("generated peerID: ", p.Pretty())
+	logger.Info("generated p2p network peer: ", p.Pretty())
 	return p, sk, nil
 }

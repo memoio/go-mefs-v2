@@ -120,7 +120,7 @@ func (hsm *HotstuffManager) HandleMessage(ctx context.Context, msg *hs.HotstuffM
 		err = hsm.handleDecideMsg(msg)
 
 	default:
-		logger.Warn("unknown hotstuff message type", msg.Type)
+		//logger.Warn("unknown hotstuff message type", msg.Type)
 		return xerrors.Errorf("unknown hotstuff message type %d", msg.Type)
 	}
 

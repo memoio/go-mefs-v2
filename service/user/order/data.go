@@ -407,14 +407,14 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 
 	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false, true)
 	if err != nil {
-		logger.Warn("fail to add seg:", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start, err)
+		logger.Debug("fail to add seg:", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
 	if seg.Start+seg.Length == sj.Start {
 		seg.Length += sj.Length
 	} else {
-		logger.Warn("fail to add seg:", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start)
+		logger.Debug("fail to add seg:", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start)
 		return
 	}
 
@@ -432,14 +432,14 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 
 	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
-		logger.Warn("fail to finish seg:", seg.Start, seg.Length, sj.Start, err)
+		logger.Debug("fail to finish seg:", seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
 	for i := uint64(0); i < sj.Length; i++ {
 		id := uint(sj.Start+i-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
 		if !seg.dispatchBits.Test(id) {
-			logger.Warn("finish seg is not dispatch: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
+			logger.Debug("finish seg is not dispatch: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 		}
 		seg.doneBits.Set(id)
 	}
@@ -458,18 +458,18 @@ func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 
 	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
-		logger.Warn("fail to confirm seg:", seg.Start, seg.Length, sj.Start, err)
+		logger.Debug("fail to confirm seg:", seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
 	for i := uint64(0); i < sj.Length; i++ {
 		id := uint(sj.Start+i-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
 		if !seg.dispatchBits.Test(id) {
-			logger.Warn("confirm seg is not dispatch in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
+			logger.Debug("confirm seg is not dispatch in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
 		}
 
 		if !seg.doneBits.Test(id) {
-			logger.Warn("confirm seg is not sent in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
+			logger.Debug("confirm seg is not sent in confirm: ", sj.BucketID, sj.JobID, sj.Start, i, sj.ChunkID)
 			// reset again
 			seg.doneBits.Set(id)
 		}

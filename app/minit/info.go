@@ -35,7 +35,7 @@ func StartMetrics() {
 		EnableMemory: true,
 	})
 	if err != nil {
-		fmt.Errorf("enabling runtime metrics: %w", err)
+		fmt.Printf("enabling runtime metrics: %s", err)
 	}
 
 	view.Register(metrics.DefaultViews...)
