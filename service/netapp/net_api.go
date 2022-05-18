@@ -18,7 +18,7 @@ import (
 	mnet "github.com/multiformats/go-multiaddr/net"
 )
 
-var logger = logging.Logger("netApp")
+var logger = logging.Logger("net-app")
 
 // wrap net direct send and pubsub
 

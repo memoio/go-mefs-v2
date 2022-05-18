@@ -15,7 +15,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("roleinfo")
+var logger = logging.Logger("role")
 
 var _ api.IRole = &roleAPI{}
 

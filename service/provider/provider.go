@@ -152,7 +152,7 @@ func (p *ProviderNode) Start(perm bool) error {
 		p.ready = true
 	}()
 
-	logger.Info("start provider for: ", p.RoleID())
+	logger.Info("start provider: ", p.RoleID())
 	return nil
 }
 

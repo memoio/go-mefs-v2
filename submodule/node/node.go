@@ -122,7 +122,7 @@ func (n *BaseNode) Start(perm bool) error {
 		}
 	}()
 
-	logger.Info("start base node")
+	logger.Info("start base node: ", n.roleID)
 
 	return nil
 }
@@ -146,7 +146,7 @@ func (n *BaseNode) Stop(ctx context.Context) error {
 		logger.Errorf("error closing repo: %s", err)
 	}
 
-	logger.Info("stopping Memoriae :(")
+	logger.Info("stopping memoriae node :(")
 	return nil
 }
 
@@ -194,13 +194,13 @@ func (n *BaseNode) RunDaemon() error {
 			logger.Warn("received shutdown signal: ", sig)
 		}
 
-		logger.Warn("shutdown...")
+		logger.Warn("shutdown ...")
 		// stop api service
 		ctx, cancle1 := context.WithTimeout(context.TODO(), 1*time.Minute)
 		defer cancle1()
 		err = apiserv.Shutdown(ctx)
 		if err != nil {
-			logger.Errorf("shut down api server failed: %s", err)
+			logger.Errorf("shutdown api server failed: %s", err)
 		}
 
 		ctx, cancle2 := context.WithTimeout(context.TODO(), 1*time.Minute)
@@ -208,10 +208,10 @@ func (n *BaseNode) RunDaemon() error {
 		// stop node
 		err = n.Stop(ctx)
 		if err != nil {
-			logger.Errorf("shut down node failed: %s", err)
+			logger.Errorf("shutdown node failed: %s", err)
 		}
 
-		logger.Info("shutdown successful")
+		logger.Info("shutdown successfully")
 		close(n.shutdownChan)
 	}()
 	signal.Notify(terminate, syscall.SIGTERM, syscall.SIGINT)

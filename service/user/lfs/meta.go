@@ -491,8 +491,8 @@ func (l *LfsService) load() error {
 		bu.Lock()
 		err := bu.Load(l.userID, i, l.ds)
 		if err != nil {
-			logger.Warn("fail to load bucketID: ", i)
 			bu.Unlock()
+			logger.Warn("fail to load bucketID: ", i)
 			continue
 		}
 
@@ -563,7 +563,7 @@ func (l *LfsService) save() error {
 	for _, bucket := range l.sb.buckets {
 		err := bucket.Save(l.userID, l.ds)
 		if err != nil {
-			logger.Errorf("Flush bucket: %s info failed: %s", &bucket.BucketInfo.Name, err)
+			logger.Errorf("flush bucket: %s failed: %s", &bucket.BucketInfo.Name, err)
 		}
 	}
 

@@ -140,7 +140,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 
 	mdnsdisc, err := SetupDiscovery(ctx, peerHost, DiscoveryHandler(ctx, peerHost))
 	if err != nil {
-		logger.Error("Setup Discovery falied, error:", err)
+		logger.Error("Setup Discovery falied:", err)
 		return nil, err
 	}
 
@@ -197,15 +197,15 @@ func (ns *NetworkSubmodule) API() *networkAPI {
 func (ns *NetworkSubmodule) Stop(ctx context.Context) {
 	err := ns.Host.Close()
 	if err != nil {
-		logger.Errorf("error closing host: %s\n", err)
+		logger.Errorf("error closing host: %s", err)
 	}
 	err = ns.Discovery.Close()
 	if err != nil {
-		logger.Errorf("error closing Discovery: %s\n", err)
+		logger.Errorf("error closing Discovery: %s", err)
 	}
 	err = ns.PeerMgr.Stop(ctx)
 	if err != nil {
-		logger.Errorf("error closing PeerMgr: %s\n", err)
+		logger.Errorf("error closing PeerMgr: %s", err)
 	}
 }
 

@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -32,6 +34,7 @@ var GatewayCmd = &cli2.Command{
 	Usage: "memo gateway",
 	Subcommands: []*cli2.Command{
 		gatewayRunCmd,
+		gatewayStopCmd,
 	},
 }
 
@@ -60,12 +63,11 @@ var gatewayRunCmd = &cli2.Command{
 		&cli2.StringFlag{
 			Name:    "console",
 			Aliases: []string{"c"},
-			Usage:   "input your endpoint",
+			Usage:   "input your console for browser",
 			Value:   "8080",
 		},
 	},
 	Action: func(cctx *cli2.Context) error {
-
 		var terminate = make(chan os.Signal, 1)
 		signal.Notify(terminate, os.Interrupt, syscall.SIGTERM)
 		defer signal.Stop(terminate)
@@ -84,7 +86,20 @@ var gatewayRunCmd = &cli2.Command{
 		if !strings.Contains(consoleAddress, ":") {
 			consoleAddress = ":" + consoleAddress
 		}
-		err := Start(username, pwd, endPoint, consoleAddress)
+
+		// save process id
+		pidpath, err := BestKnownPath()
+		if err != nil {
+			return err
+		}
+		pid := os.Getpid()
+		pids := []byte(strconv.Itoa(pid))
+		err = os.WriteFile(path.Join(pidpath, "pid"), pids, 0644)
+		if err != nil {
+			return err
+		}
+
+		err = Start(username, pwd, endPoint, consoleAddress)
 		if err != nil {
 			return err
 		}
@@ -97,11 +112,35 @@ var gatewayRunCmd = &cli2.Command{
 	},
 }
 
-var DefaultPathRoot = "~/.mefs_gw"
+var gatewayStopCmd = &cli2.Command{
+	Name:  "stop",
+	Usage: "stop a memo gateway",
+	Action: func(ctx *cli2.Context) error {
+		pidpath, err := BestKnownPath()
+		if err != nil {
+			return err
+		}
 
-// BestKnownPath returns the best known fsrepo path. If the ENV override is
-// present, this function returns that value. Otherwise, it returns the default
-// repo path.
+		pd, _ := ioutil.ReadFile(path.Join(pidpath, "pid"))
+		pid, err := strconv.Atoi(string(pd))
+		if err != nil {
+			return err
+		}
+
+		p, err := os.FindProcess(pid)
+		if err != nil {
+			return err
+		}
+
+		p.Signal(syscall.SIGTERM)
+		log.Println("gateway gracefully exit...")
+
+		return nil
+	},
+}
+
+var DefaultPathRoot string = "~/.mefs_gw"
+
 func BestKnownPath() (string, error) {
 	mefsPath := DefaultPathRoot
 	mefsPath, err := homedir.Expand(mefsPath)
