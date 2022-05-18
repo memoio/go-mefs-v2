@@ -133,7 +133,7 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 		go ds.periodicGC()
 	}
 
-	logger.Infof("start badger ds at %s", ds.basedir)
+	logger.Info("start badger ds at: ", ds.basedir)
 	return ds, nil
 }
 

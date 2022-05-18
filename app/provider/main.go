@@ -9,11 +9,8 @@ import (
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/build"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
-
-var logger = logging.Logger("mefs-provider")
 
 func main() {
 	local := make([]*cli.Command, 0, len(cmd.CommonCmd))

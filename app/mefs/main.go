@@ -9,10 +9,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/build"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
-
-var logger = logging.Logger("mefs")
 
 // full compatible with ipfs
 func main() {

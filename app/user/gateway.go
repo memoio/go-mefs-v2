@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -62,7 +63,7 @@ var gatewayRunCmd = &cli2.Command{
 		&cli2.StringFlag{
 			Name:    "console",
 			Aliases: []string{"c"},
-			Usage:   "input your endpoint",
+			Usage:   "input your console for browser",
 			Value:   "8080",
 		},
 	},
@@ -92,7 +93,6 @@ var gatewayRunCmd = &cli2.Command{
 			return err
 		}
 		pid := os.Getpid()
-		logger.Info("pid is ", pid)
 		pids := []byte(strconv.Itoa(pid))
 		err = os.WriteFile(path.Join(pidpath, "pid"), pids, 0644)
 		if err != nil {
@@ -105,8 +105,8 @@ var gatewayRunCmd = &cli2.Command{
 		}
 
 		<-terminate
-		logger.Info("received shutdown signal")
-		logger.Info("shutdown...")
+		log.Println("received shutdown signal")
+		log.Println("shutdown...")
 
 		return nil
 	},
@@ -133,7 +133,7 @@ var gatewayStopCmd = &cli2.Command{
 		}
 
 		p.Signal(syscall.SIGTERM)
-		logger.Info("gateway gracefully exit...")
+		log.Println("gateway gracefully exit...")
 
 		return nil
 	},
@@ -141,9 +141,6 @@ var gatewayStopCmd = &cli2.Command{
 
 var DefaultPathRoot string = "~/.mefs_gw"
 
-// BestKnownPath returns the best known fsrepo path. If the ENV override is
-// present, this function returns that value. Otherwise, it returns the default
-// repo path.
 func BestKnownPath() (string, error) {
 	mefsPath := DefaultPathRoot
 	mefsPath, err := homedir.Expand(mefsPath)

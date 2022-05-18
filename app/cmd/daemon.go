@@ -95,12 +95,12 @@ var daemonStopCmd = &cli.Command{
 
 // create a node with repo data and start it
 func daemonStartFunc(cctx *cli.Context) (_err error) {
-	logger.Info("Initializing daemon...")
-
 	ctx := cctx.Context
 	minit.StartMetrics()
 
 	minit.PrintVersion()
+
+	logger.Info("initializing daemon...")
 
 	stopFunc, err := minit.ProfileIfEnabled()
 	if err != nil {
@@ -126,7 +126,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	if sk != "" {
 		err = minit.Create(cctx.Context, rep, pwd, sk)
 		if err != nil {
-			logger.Errorf("Error initializing node %s", err)
+			logger.Errorf("fail starting node %s", err)
 			return err
 		}
 	}
