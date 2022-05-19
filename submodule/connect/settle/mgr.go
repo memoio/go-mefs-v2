@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"memoc/contracts/issu"
 	"memoc/contracts/role"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -129,6 +130,11 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 	if err != nil {
 		return nil, err
 	}
+	err = cm.ValidIssuanceAddr(isAddr)
+	if err != nil {
+		return nil, err
+	}
+
 	cm.isAddr = isAddr
 	logger.Debug("issu contract address: ", isAddr.Hex())
 
@@ -427,4 +433,31 @@ func GetIssuanceAddr(endPoint string, rAddr, addr common.Address) (common.Addres
 
 		return is, nil
 	}
+}
+
+func (cm *ContractMgr) ValidIssuanceAddr(isAddr common.Address) error {
+	client := getClient(cm.endPoint)
+	defer client.Close()
+	is, err := issu.NewIIssuance(isAddr, client)
+	if err != nil {
+		return err
+	}
+
+	auth, err := makeAuth(cm.chainID, cm.hexSK, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	tx, err := is.SetTP(auth, big.NewInt(0), big.NewInt(0))
+	if err != nil {
+		return err
+	}
+
+	err = checkTx(cm.endPoint, tx, "SetTP")
+	if err != nil {
+		logger.Debugf("setTP fail expected %s", err)
+		return nil
+	}
+
+	return xerrors.Errorf("setTP in issu should fail")
 }
