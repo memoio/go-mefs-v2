@@ -9,6 +9,7 @@ import (
 	"github.com/jbenet/goprocess"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/lib"
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -451,6 +452,14 @@ func (m *OrderMgr) submitOrders() error {
 				continue
 			}
 
+			err = m.validOrder(of.SignedOrder)
+			if err != nil {
+				pMap[proID] = struct{}{}
+				fin++
+				logger.Debug("addOrder params wrong", m.localID, proID, of.DelPart.Size, err)
+				continue
+			}
+
 			avail, err := m.is.SettleGetBalanceInfo(m.ctx, of.UserID)
 			if err != nil {
 				pMap[proID] = struct{}{}
@@ -497,6 +506,35 @@ func (m *OrderMgr) submitOrders() error {
 
 		}
 		time.Sleep(10 * time.Second)
+	}
+
+	return nil
+}
+
+func (m *OrderMgr) validOrder(so types.SignedOrder) error {
+	err := lib.CheckOrder(so.OrderBase)
+	if err != nil {
+		return err
+	}
+
+	if so.Size == 0 {
+		return xerrors.Errorf("size is zero")
+	}
+
+	ok, err := m.RoleVerify(m.ctx, so.ProID, so.Hash(), so.Psign)
+	if err != nil {
+		return xerrors.Errorf("%d order pro sign is wrong %s", so.ProID, err)
+	}
+	if !ok {
+		return xerrors.Errorf("%d order pro sign is wrong", so.ProID)
+	}
+
+	ok, err = m.RoleVerify(m.ctx, so.UserID, so.Hash(), so.Usign)
+	if err != nil {
+		return xerrors.Errorf("%d order user sign is wrong %s", so.UserID, err)
+	}
+	if !ok {
+		return xerrors.Errorf("%d order user sign is wrong", so.UserID)
 	}
 
 	return nil
