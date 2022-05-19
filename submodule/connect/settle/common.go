@@ -117,12 +117,8 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 		return xerrors.Errorf("%s %s cann't get tx receipt, tx not packaged", name, tx.Hash())
 	}
 
-	logger.Debugf("%s %s GasUsed: %d, CumulativeGasUsed: %d", name, tx.Hash(), receipt.GasUsed, receipt.CumulativeGasUsed)
-
 	if receipt.Status == 0 { //等于0表示交易失败，等于1表示成功
-		if receipt.GasUsed != receipt.CumulativeGasUsed {
-			return xerrors.Errorf("%s %s transaction exceed gas limit", name, tx.Hash())
-		}
+		logger.Debugf("%s %s GasUsed: %d, CumulativeGasUsed: %d", name, tx.Hash(), receipt.GasUsed, receipt.CumulativeGasUsed)
 		return xerrors.Errorf("%s %s transaction mined but execution failed, please check your tx input", name, tx.Hash())
 	}
 
