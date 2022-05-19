@@ -118,7 +118,12 @@ func checkTx(endPoint string, tx *types.Transaction, name string) error {
 	}
 
 	if receipt.Status == 0 { //等于0表示交易失败，等于1表示成功
-		logger.Debugf("%s %s GasUsed: %d, CumulativeGasUsed: %d", name, tx.Hash(), receipt.GasUsed, receipt.CumulativeGasUsed)
+		txReceipt, err := receipt.MarshalJSON()
+		if err != nil {
+			return err
+		}
+
+		logger.Debugf("tx receipt %s %s %s", name, tx.Hash(), string(txReceipt))
 		return xerrors.Errorf("%s %s transaction mined but execution failed, please check your tx input", name, tx.Hash())
 	}
 
