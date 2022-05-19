@@ -340,6 +340,7 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 	err = checkTx(cm.endPoint, tx, "AddOrder")
 	if err != nil {
 		logger.Warnf("add order user %d pro %d nonce %d size %d start %d end %d, price %d balance %s tx fail %w", so.UserID, so.ProID, so.Nonce, so.Size, so.Start, so.End, so.Price, types.FormatMemo(avil), err)
+		return err
 	} else {
 		logger.Debugf("add order user %d pro %d nonce %d size %d", so.UserID, so.ProID, so.Nonce, so.Size)
 	}
