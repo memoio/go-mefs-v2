@@ -55,9 +55,11 @@ func OptionsFromRepo(r repo.Repo) ([]BuilderOpt, error) {
 	cfgopts := []BuilderOpt{
 		// Libp2pOptions can only be called once, so add all options here.
 		Libp2pOptions(
+			libp2p.UserAgent("memoriae-"+build.UserVersion()),
 			libp2p.ListenAddrStrings(cfg.Net.Addresses...),
 			libp2p.Identity(sk),
 			libp2p.DisableRelay(),
+			libp2p.Ping(true),
 		),
 	}
 

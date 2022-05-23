@@ -67,19 +67,14 @@ func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil 
 func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName string) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
 
-	libP2pOpts := append(nconfig.Libp2pOpts(), Transport())
+	libP2pOpts := nconfig.Libp2pOpts()
 	libP2pOpts = append(libP2pOpts, libp2p.BandwidthReporter(bandwidthTracker))
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
-	libP2pOpts = append(libP2pOpts, Peerstore())
-	libP2pOpts = append(libP2pOpts, makeSmuxTransportOption())
-	libP2pOpts = append(libP2pOpts, Security(true, false))
 
 	// set up host
 	rawHost, err := libp2p.New(
-		libp2p.UserAgent("memoriae-"+build.UserVersion()),
 		libp2p.ChainOptions(libP2pOpts...),
-		libp2p.Ping(true),
 	)
 	if err != nil {
 		return nil, err
