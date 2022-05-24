@@ -17,7 +17,7 @@ var logger = logging.Logger("simplefs")
 var _ store.FileStore = (*SimpleFs)(nil)
 
 type SimpleFs struct {
-	size    uint64
+	size    int64
 	basedir string
 }
 
@@ -45,7 +45,7 @@ func (sf *SimpleFs) walk(baseDir string) {
 		if fi.IsDir() {
 			sf.walk(path.Join(baseDir, fi.Name()))
 		} else {
-			sf.size += uint64(fi.Size())
+			sf.size += fi.Size()
 		}
 	}
 }
@@ -63,12 +63,13 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 	fn := path.Join(dir, path.Base(skey))
 
 	info, err := os.Stat(fn)
-	if err == nil {
-		sf.size -= uint64(info.Size())
+	if err == nil && !info.IsDir() {
 		err := os.Remove(fn)
 		if err != nil {
 			return err
 		}
+
+		sf.size -= info.Size()
 	}
 
 	// write then rename
@@ -82,7 +83,7 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 		return err
 	}
 
-	sf.size += uint64(len(val))
+	sf.size += int64(len(val))
 
 	return nil
 }
@@ -130,14 +131,26 @@ func (sf *SimpleFs) Delete(key []byte) error {
 		return err
 	}
 
-	sf.size -= uint64(fi.Size())
+	err = os.Remove(fn)
+	if err != nil {
+		return err
+	}
 
-	return os.Remove(fn)
+	if !fi.IsDir() {
+		sf.size -= fi.Size()
+	}
+
+	return nil
 }
 
 func (sf *SimpleFs) Size() store.DiskStats {
 	ds, _ := utils.GetDiskStatus(sf.basedir)
-	ds.Used = sf.size
+	if sf.size > 0 {
+		ds.Used = uint64(sf.size)
+	} else {
+		ds.Used = 0
+	}
+
 	return ds
 }
 
