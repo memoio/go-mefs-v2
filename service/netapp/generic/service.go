@@ -82,7 +82,7 @@ func New(ctx context.Context, ns *network.NetworkSubmodule) (*GenericService, er
 	// register for network notifications
 	ns.Host.Network().Notify(sn)
 
-	logger.Info("start generic service")
+	logger.Info("Start generic service")
 
 	return service, nil
 }

@@ -156,7 +156,7 @@ func (u *UserNode) Start(perm bool) error {
 		u.LfsService.Start()
 	}()
 
-	logger.Info("start user: ", u.RoleID())
+	logger.Info("Start user: ", u.RoleID())
 	return nil
 }
 

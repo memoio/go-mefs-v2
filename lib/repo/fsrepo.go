@@ -95,18 +95,18 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 
 	if !hasConfig {
 		if cfg != nil {
-			logger.Info("initializing repo at: ", repoPath)
+			logger.Info("Initializing repo at: ", repoPath)
 			if err = initFSRepo(repoPath, cfg); err != nil {
 				return nil, err
 			}
 		} else {
-			return nil, xerrors.Errorf("no repo found at %s; run: 'init [--repo=%s]'", repoPath, repoPath)
+			return nil, xerrors.Errorf("No repo found at %s; run: 'init [--repo=%s]'", repoPath, repoPath)
 		}
 	}
 
 	info, err := os.Stat(repoPath)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to stat repo %s %w", repoPath, err)
+		return nil, xerrors.Errorf("Failed to stat repo %s %w", repoPath, err)
 	}
 
 	// Resolve path if it's a symlink.
@@ -133,7 +133,7 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 		return nil, err
 	}
 
-	logger.Info("open repo at:", repoPath)
+	logger.Info("Open repo at:", repoPath)
 
 	return r, nil
 }
@@ -156,37 +156,37 @@ func initFSRepo(dir string, cfg *config.Config) error {
 func (r *FSRepo) loadFromDisk() error {
 	err := r.removeAPIFile()
 	if err != nil {
-		logger.Warnf("fail to remove api: %s", err)
+		logger.Warnf("Fail to remove api: %s", err)
 	}
 
 	err = r.loadConfig()
 	if err != nil {
-		return xerrors.Errorf("failed to load config file %w", err)
+		return xerrors.Errorf("Failed to load config file %w", err)
 	}
 
 	err = r.openKeyStore()
 	if err != nil {
-		return xerrors.Errorf("failed to open keystore %w", err)
+		return xerrors.Errorf("Failed to open keystore %w", err)
 	}
 
 	err = r.openDhtStore()
 	if err != nil {
-		return xerrors.Errorf("failed to open dht datastore %w", err)
+		return xerrors.Errorf("Failed to open dht datastore %w", err)
 	}
 
 	err = r.openMetaStore()
 	if err != nil {
-		return xerrors.Errorf("failed to open meta store %w", err)
+		return xerrors.Errorf("Failed to open meta store %w", err)
 	}
 
 	err = r.openStateStore()
 	if err != nil {
-		return xerrors.Errorf("failed to open state store %w", err)
+		return xerrors.Errorf("Failed to open state store %w", err)
 	}
 
 	err = r.openFileStore()
 	if err != nil {
-		return xerrors.Errorf("failed to open metadata datastore %w", err)
+		return xerrors.Errorf("Failed to open metadata datastore %w", err)
 	}
 
 	return nil

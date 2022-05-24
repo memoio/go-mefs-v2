@@ -100,7 +100,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 
 	minit.PrintVersion()
 
-	logger.Info("initializing daemon...")
+	logger.Info("Initializing daemon...")
 
 	stopFunc, err := minit.ProfileIfEnabled()
 	if err != nil {
@@ -126,7 +126,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	if sk != "" {
 		err = minit.Create(cctx.Context, rep, pwd, sk)
 		if err != nil {
-			logger.Errorf("fail starting node %s", err)
+			logger.Errorf("Fail starting node, reason: %s", err)
 			return err
 		}
 	}
