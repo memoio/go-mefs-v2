@@ -53,7 +53,7 @@ var initCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		logger.Info("initializing memoriae node")
+		logger.Info("Initializing memoriae node")
 
 		pw := cctx.String(pwKwd)
 		setpass := cctx.Bool("setPass")
@@ -78,7 +78,7 @@ var initCmd = &cli.Command{
 			return xerrors.Errorf("repo at '%s' is already initialized", repoDir)
 		}
 
-		logger.Info("initializing repo at: ", repoDir)
+		logger.Info("Initializing repo at: ", repoDir)
 
 		// new repo
 		rep, err := repo.NewFSRepo(repoDir, config.NewDefaultConfig())
@@ -104,7 +104,7 @@ var initCmd = &cli.Command{
 
 			err = minit.Create(cctx.Context, rep, pw, sk)
 			if err != nil {
-				logger.Errorf("fail initializing node %s", err)
+				logger.Errorf("Fail initializing node, reason %s", err)
 				return err
 			}
 
@@ -115,7 +115,7 @@ var initCmd = &cli.Command{
 		sk := cctx.String("sk")
 		err = minit.Create(cctx.Context, rep, pw, sk)
 		if err != nil {
-			logger.Errorf("fail initializing node %s", err)
+			logger.Errorf("Fail initializing node, reason %s", err)
 			return err
 		}
 		return nil

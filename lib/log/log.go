@@ -45,7 +45,8 @@ func init() {
 
 	mLogger = logger.Sugar()
 
-	mLoglevel.SetLevel(zapcore.DebugLevel)
+	// info level for default
+	mLoglevel.SetLevel(zapcore.InfoLevel)
 
 	//mLogger.Info("mefs logger init success")
 }

@@ -37,7 +37,7 @@ func Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.Rol
 }
 
 func (cm *ContractMgr) RegisterAcc() error {
-	logger.Debug("register an account to get an unique ID")
+	logger.Info("Register an account to get an unique ID")
 
 	// check if addr has registered
 	ri, err := cm.getRoleInfo(cm.eAddr)
@@ -71,7 +71,7 @@ func (cm *ContractMgr) RegisterAcc() error {
 
 // RegisterKeeper called by anyone to register Keeper role, befor this, you should pledge in PledgePool
 func (cm *ContractMgr) RegisterKeeper() error {
-	logger.Debug("register keeper")
+	logger.Info("Register keeper")
 
 	// check index
 	addr, err := cm.getAddrAt(cm.roleID)
@@ -142,7 +142,7 @@ func (cm *ContractMgr) RegisterKeeper() error {
 
 // RegisterProvider called by anyone to register Provider role, befor this, you should pledge in PledgePool
 func (cm *ContractMgr) RegisterProvider() error {
-	logger.Debug("register provider")
+	logger.Info("Register provider")
 
 	pledgep, err := cm.getPledgeP() // 申请Provider最少需质押的金额
 	if err != nil {
@@ -197,7 +197,7 @@ func (cm *ContractMgr) RegisterProvider() error {
 }
 
 func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
-	logger.Debug("resgister user")
+	logger.Info("Register user")
 
 	// check gindex
 	isActive, isBanned, _, _, _, _, _, err := cm.getGroupInfo(gIndex)
