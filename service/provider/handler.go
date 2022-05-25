@@ -83,7 +83,14 @@ func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb
 	if !p.ready {
 		logger.Debug("pro service not ready, fail handle quotation from:", mes.GetHeader().From)
 		resp.Header.Type = pb.NetMessage_Err
-		resp.Data.MsgInfo = []byte("service not ready")
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	if !p.orderService {
+		logger.Debug("pro order service not ready, fail handle quotation from:", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro order service not ready, no space left")
 		return resp, nil
 	}
 
@@ -147,6 +154,20 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 		}
 	*/
 
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle seg from:", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	if !p.orderService {
+		logger.Debug("pro order service not ready, fail handle seg from:", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro order service not ready, no space left")
+		return resp, nil
+	}
+
 	seg := new(segment.BaseSegment)
 	err := seg.Deserialize(mes.GetData().GetMsgInfo())
 	if err != nil {
@@ -187,6 +208,13 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 		logger.Debug("pro service not ready, fail handle create order from:", mes.GetHeader().From)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	if !p.orderService {
+		logger.Debug("pro order service not ready, fail handle create order from:", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro order service not ready, no space left")
 		return resp, nil
 	}
 

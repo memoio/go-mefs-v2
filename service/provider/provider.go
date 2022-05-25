@@ -11,6 +11,7 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/memoio/go-mefs-v2/service/data"
 	pchal "github.com/memoio/go-mefs-v2/service/provider/challenge"
 	porder "github.com/memoio/go-mefs-v2/service/provider/order"
@@ -38,7 +39,8 @@ type ProviderNode struct {
 
 	ctx context.Context
 
-	ready bool
+	orderService bool // false when no available space
+	ready        bool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
@@ -152,10 +154,34 @@ func (p *ProviderNode) Start(perm bool) error {
 		p.ready = true
 	}()
 
+	go p.check()
+
 	logger.Info("start provider: ", p.RoleID())
 	return nil
 }
 
 func (p *ProviderNode) Ready(ctx context.Context) bool {
 	return p.ready
+}
+
+func (p *ProviderNode) check() {
+	ds := p.Repo.FileStore().Size()
+	if ds.Free > utils.GiB {
+		p.orderService = true
+	}
+
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+			ds := p.Repo.FileStore().Size()
+			if ds.Free < utils.GiB {
+				logger.Debug("order stop due to low space")
+				p.orderService = false
+			}
+		}
+	}
 }
