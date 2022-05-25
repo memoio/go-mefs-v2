@@ -285,6 +285,20 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 		Data: &pb.NetMessage_MsgData{},
 	}
 
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle create seq from:", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	if !p.orderService {
+		logger.Debug("pro order service not ready, fail handle create seq from:", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro order service not ready, no space left")
+		return resp, nil
+	}
+
 	// verify sig
 	sigFrom := new(types.Signature)
 	err := sigFrom.Deserialize(mes.GetData().GetSign())
@@ -345,6 +359,13 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 			From:    p.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
+	}
+
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle finish seq from:", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
 	}
 
 	// verify sig

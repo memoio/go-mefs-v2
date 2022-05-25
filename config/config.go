@@ -128,6 +128,7 @@ func newDefaultStorePathConfig() StorePathConfig {
 }
 
 type OrderConfig struct {
+	Stop     bool   `json:"stop"` // stop accept order
 	Price    uint64 `json:"price"`
 	Duration uint64 `json:"duration"` // day
 	Wait     uint64 `json:"wait"`     // seconds
@@ -135,6 +136,7 @@ type OrderConfig struct {
 
 func newDefaultOrderConfig() OrderConfig {
 	return OrderConfig{
+		Stop:     false,
 		Price:    build.DefaultSegPrice.Uint64(),
 		Duration: 100,       // 100 day
 		Wait:     3600 * 12, // 12 hour

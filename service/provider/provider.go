@@ -39,7 +39,7 @@ type ProviderNode struct {
 
 	ctx context.Context
 
-	orderService bool // false when no available space
+	orderService bool // false when no available space or stop in config
 	ready        bool
 }
 
@@ -165,6 +165,11 @@ func (p *ProviderNode) Ready(ctx context.Context) bool {
 }
 
 func (p *ProviderNode) check() {
+	if p.Repo.Config().Order.Stop {
+		p.orderService = false
+		return
+	}
+
 	ds := p.Repo.FileStore().Size()
 	if ds.Free > utils.GiB {
 		p.orderService = true
