@@ -90,11 +90,11 @@ func (l *LfsService) CreateBucket(ctx context.Context, bucketName string, opts p
 		return bi, xerrors.Errorf("data or parity count should not be zero")
 	}
 
-	if opts.DataCount+opts.ParityCount > 256 {
+	if opts.DataCount+opts.ParityCount > rsMax {
 		return bi, xerrors.Errorf("unsupport data or parity count, please reduce data or parity count")
 	}
 
-	if (opts.DataCount+opts.ParityCount)*(2+(opts.ParityCount-1)/opts.DataCount) > 256 {
+	if (opts.DataCount+opts.ParityCount)*(2+(opts.ParityCount-1)/opts.DataCount) > rsMax {
 		return bi, xerrors.Errorf("unsupport data or parity count, please increase data or reduce parity count")
 	}
 
