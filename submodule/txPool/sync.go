@@ -27,9 +27,6 @@ type blkDigest struct {
 
 var _ api.IChainSync = &SyncPool{}
 
-var blockCount uint64
-var curPer uint8
-
 type SyncPool struct {
 	lk sync.RWMutex
 
@@ -348,28 +345,6 @@ func (sp *SyncPool) SyncGetTxMsgStatus(ctx context.Context, mid types.MsgID) (*t
 
 func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	logger.Debug("add block: ", tb.Height, sp.nextHeight, sp.remoteHeight)
-
-	blockCount++
-
-	var floatPer float64
-	var intPer uint8
-
-	switch {
-	case sp.remoteHeight == blockCount:
-		curPer = 100
-	case sp.remoteHeight == 0:
-		curPer = 0
-	default:
-		floatPer = (float64)(blockCount) / (float64)(sp.remoteHeight)
-		floatPer = floatPer * 100
-		intPer = (uint8)(math.Floor(floatPer))
-	}
-
-	// update current percentage
-	if intPer > curPer {
-		curPer = intPer
-		logger.Infof("Downloading block: %d%%", curPer)
-	}
 
 	if tb.Height < sp.nextHeight {
 		return xerrors.Errorf("height expected %d, got %d", sp.nextHeight, tb.Height)
