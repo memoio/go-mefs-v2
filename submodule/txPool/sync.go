@@ -313,7 +313,8 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		sp.blkDone <- mds
 	}
 
-	logger.Info("process tx block done: ", sb.Height, bid)
+	logger.Infof("process tx block '%s' done, current: %d, remote: %d", bid, sb.Height, sp.remoteHeight)
+
 	return nil
 }
 
@@ -344,6 +345,7 @@ func (sp *SyncPool) SyncGetTxMsgStatus(ctx context.Context, mid types.MsgID) (*t
 
 func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	logger.Debug("add block: ", tb.Height, sp.nextHeight, sp.remoteHeight)
+
 	if tb.Height < sp.nextHeight {
 		return xerrors.Errorf("height expected %d, got %d", sp.nextHeight, tb.Height)
 	}

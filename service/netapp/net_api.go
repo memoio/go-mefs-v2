@@ -84,7 +84,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Warn("found no network id for roleID: ", id)
+			logger.Debug("found no network id for roleID: ", id)
 			return nil, ctx.Err()
 		default:
 			c.lk.RLock()
