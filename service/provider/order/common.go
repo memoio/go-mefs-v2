@@ -9,8 +9,8 @@ import (
 var logger = logging.Logger("pro-order")
 
 const (
-	orderMaxSize = 10 * 1024 * 1024 * 1024 * 1024 // 10 TB
-	seqMaxSize   = 1024 * 1024 * 1024 * 1024      // 1 TB
+	orderMaxSize = uint64(10 * 1024 * 1024 * 1024 * 1024) // 10 TB
+	seqMaxSize   = uint64(1024 * 1024 * 1024 * 1024)      // 1 TB
 )
 
 type DataInfo struct {

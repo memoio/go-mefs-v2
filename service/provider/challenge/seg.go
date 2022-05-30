@@ -225,7 +225,7 @@ func (s *SegMgr) challenge(userID uint64) {
 
 	err := s.subDataOrder(userID)
 	if err != nil {
-		logger.Debug("challenge sub order fails")
+		logger.Debug("challenge sub order fails", err)
 	}
 
 	// get epoch info
