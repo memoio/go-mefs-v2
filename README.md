@@ -72,7 +72,7 @@ challenge local data per epoch
 > make keeper
 // init
 > ./mefs-keeper init
-// start; waiting for charge
+// start; need charge memo first
 > MEFS_PATH=$mpath ./mefs-keeper daemon --swarm-port=$port --api=$api --group=$gorupID 
 // example
 > ./mefs-keeper daemon --swarm-port=17201 --api=/ip4/127.0.0.1/tcp/18201 --group=2
@@ -85,7 +85,7 @@ challenge local data per epoch
 > make provider
 // init
 > ./mefs-provider init
-// start; waiting for charge
+// start; need charge memo first
 > MEFS_PATH=$mpath ./mefs-provider daemon --swarm-port=$port --api=$api --data-path=$dpath --group=$gorupID  
 // example
 > ./mefs-provider daemon --swarm-port=27201 --api=/ip4/127.0.0.1/tcp/28201 --data-path=/mnt --group=2 
@@ -98,7 +98,7 @@ challenge local data per epoch
 > make user
 // init
 > ./mefs-user init
-// start; waiting for charge
+// start; need charge memo first
 > MEFS_PATH=$mpath ./mefs-user daemon --swarm-port=$port --api=$api --group=$gorupID
 // example
 > ./mefs-user daemon --swarm-port=37201 --api=/ip4/127.0.0.1/tcp/38201 --group=2
