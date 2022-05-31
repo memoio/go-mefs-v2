@@ -37,6 +37,7 @@ require (
 	github.com/libp2p/go-libp2p-pubsub v0.6.1
 	github.com/libp2p/go-libp2p-swarm v0.10.2
 	github.com/libp2p/go-msgio v0.1.0
+	github.com/memoio/contractsv2 v0.0.0-00010101000000-000000000000
 	github.com/memoio/minio v0.2.4
 	github.com/memoio/smt v0.2.1
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
@@ -69,4 +70,7 @@ require (
 	memoc v0.0.0-00010101000000-000000000000
 )
 
-replace memoc => ../memo-go-contracts-v2
+replace (
+	github.com/memoio/contractsv2 => ../memov2-contractsv2
+	memoc => ../memo-go-contracts-v2
+)
