@@ -91,10 +91,11 @@ func (b *OrderBase) Deserialize(buf []byte) error {
 
 type SignedOrder struct {
 	OrderBase
-	Size  uint64
-	Price *big.Int
-	Usign Signature
-	Psign Signature // sign hash
+	Version uint8
+	Size    uint64
+	Price   *big.Int
+	Usign   Signature
+	Psign   Signature // sign hash
 }
 
 // for sign on settle chain
@@ -113,8 +114,15 @@ func (so *SignedOrder) Hash() []byte {
 	d.Write(buf)
 	binary.BigEndian.PutUint64(buf, so.Size)
 	d.Write(buf)
-	binary.BigEndian.PutUint32(buf[:4], so.TokenIndex)
-	d.Write(buf[:4])
+
+	if so.Version != 0 {
+		buf[0] = byte(uint8(so.TokenIndex))
+		d.Write(buf[:1])
+	} else {
+		binary.BigEndian.PutUint32(buf[:4], so.TokenIndex)
+		d.Write(buf[:4])
+	}
+
 	d.Write(utils.LeftPadBytes(so.Price.Bytes(), 32))
 	return d.Sum(nil)
 }

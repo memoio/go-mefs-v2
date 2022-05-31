@@ -74,7 +74,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	oc := bn.Repo.Config().Order
 
-	por := porder.NewOrderMgr(ctx, bn.RoleID(), oc.Price, ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.PushPool, bn.ContractMgr)
+	por := porder.NewOrderMgr(ctx, bn.RoleID(), oc.Price, ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.PushPool, bn.ISettle)
 
 	rp := readpay.NewReceivePay(localAddr, ds)
 

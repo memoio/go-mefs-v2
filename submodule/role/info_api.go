@@ -220,3 +220,23 @@ func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (
 
 	return true, nil
 }
+
+func (rm *RoleMgr) RoleExpand(ctx context.Context, cnt uint64) error {
+	acnt := rm.is.SettleGetAddrCnt(rm.ctx)
+	pnum := len(rm.providers)
+	for i := uint64(1); i <= acnt; {
+		end := i + 128
+		if end > acnt {
+			end = acnt
+		}
+		rm.syncFromChain(i, acnt)
+		npnum := len(rm.providers)
+		// found enough providers
+		if npnum >= pnum+int(cnt) {
+			return nil
+		}
+		i = end + 1
+	}
+
+	return nil
+}

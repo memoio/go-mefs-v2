@@ -40,6 +40,7 @@ func (pi *PostIncome) Deserialize(b []byte) error {
 }
 
 type AccPostIncome struct {
+	Version    uint8
 	ProID      uint64
 	TokenIndex uint32
 	Value      *big.Int // duo to income
@@ -51,8 +52,14 @@ func (api *AccPostIncome) Hash() []byte {
 	d := sha3.NewLegacyKeccak256()
 	binary.BigEndian.PutUint64(buf, api.ProID)
 	d.Write(buf)
-	binary.BigEndian.PutUint32(buf[:4], api.TokenIndex)
-	d.Write(buf[:4])
+	if api.Version != 0 {
+		buf[0] = byte(uint8(api.TokenIndex))
+		d.Write(buf[:1])
+	} else {
+		binary.BigEndian.PutUint32(buf[:4], api.TokenIndex)
+		d.Write(buf[:4])
+	}
+
 	d.Write(utils.LeftPadBytes(api.Value.Bytes(), 32))
 	d.Write(utils.LeftPadBytes(api.Penalty.Bytes(), 32))
 	return d.Sum(nil)

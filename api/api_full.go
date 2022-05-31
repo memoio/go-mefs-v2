@@ -212,6 +212,7 @@ type IChainState interface {
 }
 
 type ISettle interface {
+	SettleGetAddrCnt(context.Context) uint64
 	SettleGetRoleID(context.Context) uint64
 	SettleGetGroupID(context.Context) uint64
 	SettleGetThreshold(context.Context) int
@@ -221,6 +222,9 @@ type ISettle interface {
 	SettleGetPledgeInfo(context.Context, uint64) (*PledgeInfo, error)
 	SettleGetStoreInfo(context.Context, uint64, uint64) (*StoreInfo, error)
 
+	SettleAddOrder(context.Context, *types.SignedOrder) error
+	SettleSubOrder(context.Context, *types.SignedOrder) error
+	SettleCharge(context.Context, *big.Int) error
 	SettleWithdraw(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error
 	SettlePledge(context.Context, *big.Int) error
 	SettleCanclePledge(context.Context, *big.Int) error

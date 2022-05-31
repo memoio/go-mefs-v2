@@ -17,7 +17,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp"
-	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
@@ -26,7 +25,7 @@ type OrderMgr struct {
 	api.IDataService
 	*txPool.PushPool
 
-	is *settle.ContractMgr
+	is api.ISettle
 	ns *netapp.NetServiceImpl
 	ds store.KVStore // save order info
 
@@ -79,7 +78,7 @@ type OrderMgr struct {
 	inCheck bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDuration, orderLast uint64, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is *settle.ContractMgr) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDuration, orderLast uint64, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is api.ISettle) *OrderMgr {
 	if orderLast < 600 {
 		logger.Debug("order last is set to 12 hours")
 		orderLast = 12 * 3600

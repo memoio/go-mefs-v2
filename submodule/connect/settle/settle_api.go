@@ -10,6 +10,7 @@ import (
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
@@ -26,8 +27,13 @@ func (cm *ContractMgr) SettleGetThreshold(ctx context.Context) int {
 }
 
 // as net prefix
-func (cm *ContractMgr) GetRoleAddr() common.Address {
+func (cm *ContractMgr) GetBaseAddr() common.Address {
 	return cm.rAddr
+}
+
+func (cm *ContractMgr) SettleGetAddrCnt(ctx context.Context) uint64 {
+	tc, _ := cm.getAddrCount()
+	return tc
 }
 
 // get info
@@ -74,9 +80,9 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 
 	gi := &api.GroupInfo{
 		EndPoint: cm.endPoint,
-		RoleAddr: cm.rAddr.String(),
+		BaseAddr: cm.rAddr.String(),
 		ID:       gIndex,
-		Level:    level,
+		Level:    uint8(level),
 		FsAddr:   fsAddr.String(),
 		Size:     size.Uint64(),
 		Price:    new(big.Int).Set(price),
@@ -162,6 +168,11 @@ func (cm *ContractMgr) SettlePledge(ctx context.Context, val *big.Int) error {
 	return cm.pledge(val)
 }
 
+func (cm *ContractMgr) SettleCharge(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d charge %d", cm.roleID, val)
+	return cm.Recharge(val)
+}
+
 func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d cancle pledge %d", cm.roleID, val)
 
@@ -195,4 +206,12 @@ func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int
 	}
 
 	return nil
+}
+
+func (cm *ContractMgr) SettleAddOrder(ctx context.Context, so *types.SignedOrder) error {
+	return cm.AddOrder(so)
+}
+
+func (cm *ContractMgr) SettleSubOrder(ctx context.Context, so *types.SignedOrder) error {
+	return cm.SubOrder(so)
 }

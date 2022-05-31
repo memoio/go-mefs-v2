@@ -213,7 +213,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		groupID:      b.groupID,
 		pw:           b.walletPassword,
 		version:      build.UserVersion(),
-		ContractMgr:  cm,
+		ISettle:      cm,
 		LocalWallet:  lw,
 		shutdownChan: make(chan struct{}),
 	}
@@ -261,7 +261,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.NetServiceImpl = cs
 
 	// role mgr
-	rm, err := role.New(ctx, b.roleID, nd.groupID, nd.MetaStore(), nd.LocalWallet, nd.ContractMgr)
+	rm, err := role.New(ctx, b.roleID, nd.groupID, nd.MetaStore(), nd.LocalWallet, nd.ISettle)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create role service %w", err)
 	}
@@ -275,7 +275,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.Store = txs
 
 	// state mgr
-	stDB := state.NewStateMgr(cm.GetRoleAddr().Bytes(), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
+	stDB := state.NewStateMgr(cm.GetBaseAddr().Bytes(), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
 
 	// sync pool
 	sp := txPool.NewSyncPool(ctx, b.groupID, nd.SettleGetThreshold(ctx), stDB, txs, cs)

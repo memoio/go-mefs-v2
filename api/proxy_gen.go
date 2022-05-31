@@ -81,6 +81,7 @@ type CommonStruct struct {
 		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)           `perm:"read"`
 
 		SettleGetRoleID      func(context.Context) uint64                                        `perm:"read"`
+		SettleGetAddrCnt     func(context.Context) uint64                                        `perm:"read"`
 		SettleGetGroupID     func(context.Context) uint64                                        `perm:"read"`
 		SettleGetThreshold   func(context.Context) int                                           `perm:"read"`
 		SettleGetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)                 `perm:"read"`
@@ -89,8 +90,11 @@ type CommonStruct struct {
 		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)                  `perm:"read"`
 		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error)           `perm:"read"`
 		SettleWithdraw       func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
+		SettleCharge         func(context.Context, *big.Int) error                               `perm:"write"`
 		SettlePledge         func(context.Context, *big.Int) error                               `perm:"write"`
 		SettleCanclePledge   func(context.Context, *big.Int) error                               `perm:"write"`
+		SettleAddOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
+		SettleSubOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
 
 		SyncGetInfo        func(context.Context) (*SyncInfo, error)                 `perm:"read"`
 		SyncGetTxMsgStatus func(context.Context, types.MsgID) (*tx.MsgState, error) `perm:"read"`
@@ -296,6 +300,10 @@ func (s *CommonStruct) StateGetAccPostIncomeAt(ctx context.Context, proID, epoch
 	return s.Internal.StateGetAccPostIncomeAt(ctx, proID, epoch)
 }
 
+func (s *CommonStruct) SettleGetAddrCnt(ctx context.Context) uint64 {
+	return s.Internal.SettleGetAddrCnt(ctx)
+}
+
 func (s *CommonStruct) SettleGetRoleID(ctx context.Context) uint64 {
 	return s.Internal.SettleGetRoleID(ctx)
 }
@@ -336,8 +344,20 @@ func (s *CommonStruct) SettlePledge(ctx context.Context, val *big.Int) error {
 	return s.Internal.SettlePledge(ctx, val)
 }
 
+func (s *CommonStruct) SettleCharge(ctx context.Context, val *big.Int) error {
+	return s.Internal.SettleCharge(ctx, val)
+}
+
 func (s *CommonStruct) SettleCanclePledge(ctx context.Context, val *big.Int) error {
 	return s.Internal.SettleCanclePledge(ctx, val)
+}
+
+func (s *CommonStruct) SettleAddOrder(ctx context.Context, so *types.SignedOrder) error {
+	return s.Internal.SettleAddOrder(ctx, so)
+}
+
+func (s *CommonStruct) SettleSubOrder(ctx context.Context, so *types.SignedOrder) error {
+	return s.Internal.SettleSubOrder(ctx, so)
 }
 
 func (s *CommonStruct) SyncGetInfo(ctx context.Context) (*SyncInfo, error) {

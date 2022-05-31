@@ -23,7 +23,6 @@ import (
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	mauth "github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
-	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
@@ -52,7 +51,7 @@ type BaseNode struct {
 
 	*txPool.PushPool
 
-	*settle.ContractMgr
+	api.ISettle
 
 	tx.Store
 

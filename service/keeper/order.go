@@ -55,7 +55,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		si, err := k.ContractMgr.SettleGetStoreInfo(k.ctx, userID, proID)
+		si, err := k.SettleGetStoreInfo(k.ctx, userID, proID)
 		if err != nil {
 			logger.Debug("subOrder fail to get order info in chain: ", userID, proID, err)
 			continue
@@ -84,13 +84,13 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		err = k.ContractMgr.SubOrder(&of.SignedOrder)
+		err = k.SettleSubOrder(k.ctx, &of.SignedOrder)
 		if err != nil {
 			logger.Debug("subOrder fail to sub order: ", userID, proID, err)
 			continue
 		}
 
-		avail, err := k.ContractMgr.SettleGetBalanceInfo(k.ctx, userID)
+		avail, err := k.SettleGetBalanceInfo(k.ctx, userID)
 		if err != nil {
 			logger.Debug("subOrder fail to get balance: ", userID, proID, err)
 			continue
@@ -98,7 +98,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 
 		logger.Debugf("subOrder user %d has balance %d", userID, avail)
 
-		avail, err = k.ContractMgr.SettleGetBalanceInfo(k.ctx, proID)
+		avail, err = k.SettleGetBalanceInfo(k.ctx, proID)
 		if err != nil {
 			logger.Debug("subOrder fail to get balance: ", userID, proID, err)
 			continue

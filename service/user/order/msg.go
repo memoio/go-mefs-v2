@@ -121,7 +121,7 @@ func (m *OrderMgr) checkBalance() {
 	}
 
 	if bal.FsValue.Cmp(needPay) < 0 {
-		m.is.Recharge(needPay)
+		m.is.SettleCharge(m.ctx, needPay)
 	}
 
 	// after recharge
@@ -461,7 +461,7 @@ func (m *OrderMgr) submitOrders() error {
 
 			logger.Debugf("addOrder user %d has balance %d", of.UserID, avail)
 
-			err = m.is.AddOrder(&of.SignedOrder)
+			err = m.is.SettleAddOrder(m.ctx, &of.SignedOrder)
 			if err != nil {
 				pMap[proID] = struct{}{}
 				fin++
