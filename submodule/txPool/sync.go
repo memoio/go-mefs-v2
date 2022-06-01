@@ -313,7 +313,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		sp.blkDone <- mds
 	}
 
-	logger.Infof("process tx block '%s' done, current: %d, remote: %d", bid, sb.Height, sp.remoteHeight)
+	logger.Debugf("process tx block '%s' done, current: %d, remote: %d", bid, sb.Height, sp.remoteHeight)
 
 	return nil
 }
