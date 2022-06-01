@@ -78,15 +78,18 @@ func (cm *ContractMgr) RegisterRole(typ pb.RoleInfo_Type) error {
 func (cm *ContractMgr) AddToGroup(gi uint64) error {
 	pval := cm.getIns.GetPledgeAt(cm.roleID, 0)
 
-	gi := cm.getIns.GetGroupInfo(gi)
+	ginfo, err := cm.getIns.GetGroupInfo(gi)
+	if err != nil {
+		return err
+	}
 
 	require := new(big.Int)
 
 	switch cm.typ {
 	case pb.RoleInfo_Keeper:
-		require.Set()
+		require.Set(ginfo.Kpr)
 	case pb.RoleInfo_Provider:
-		require = cm.getIns.GetProRequire(gi)
+		require.Set(ginfo.Ppr)
 	case pb.RoleInfo_User:
 	default:
 		return xerrors.Errorf("unsupported role type %s", cm.typ)
@@ -103,7 +106,7 @@ func (cm *ContractMgr) AddToGroup(gi uint64) error {
 	}
 
 	logger.Infof("Add to group %d", gi)
-	err := cm.proxyIns.AddToGroup(gi)
+	err = cm.proxyIns.AddToGroup(gi)
 	if err != nil {
 		return err
 	}

@@ -35,8 +35,8 @@ type IGetter interface {
 	// fs related
 	GetFsPool() (common.Address, error)
 	GetBalAt(i uint64, ti uint8) *big.Int
-	GetStoreInfo(ui, pi uint64, ti uint8) fs.StoreOut
-	GetSettleInfo(pi uint64, ti uint8) fs.SettleOut
-	GetFsInfo(ui, pi uint64) fs.FsOut
-	GetGInfo(gi uint64, ti uint8) fs.GroupOut
+	GetStoreInfo(ui, pi uint64, ti uint8) *fs.StoreOut
+	GetSettleInfo(pi uint64, ti uint8) *fs.SettleOut
+	GetFsInfo(ui, pi uint64) *fs.FsOut
+	GetGInfo(gi uint64, ti uint8) *fs.GroupOut
 }
