@@ -77,11 +77,14 @@ func (cm *ContractMgr) RegisterRole(typ pb.RoleInfo_Type) error {
 
 func (cm *ContractMgr) AddToGroup(gi uint64) error {
 	pval := cm.getIns.GetPledgeAt(cm.roleID, 0)
+
+	gi := cm.getIns.GetGroupInfo(gi)
+
 	require := new(big.Int)
 
 	switch cm.typ {
 	case pb.RoleInfo_Keeper:
-		require = cm.getIns.GetKeeperRequire(gi)
+		require.Set()
 	case pb.RoleInfo_Provider:
 		require = cm.getIns.GetProRequire(gi)
 	case pb.RoleInfo_User:

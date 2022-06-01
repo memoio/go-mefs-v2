@@ -32,9 +32,6 @@ type IGetter interface {
 	GetPledge(ti uint8) *big.Int
 	GetPledgeAt(i uint64, ti uint8) *big.Int
 
-	GetProRequire(gi uint64) *big.Int
-	GetKeeperRequire(gi uint64) *big.Int
-
 	// fs related
 	GetFsPool() (common.Address, error)
 	GetBalAt(i uint64, ti uint8) *big.Int
