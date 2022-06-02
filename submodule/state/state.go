@@ -22,15 +22,15 @@ import (
 )
 
 // not in smt
-// store.NewKey(pb.MetaType_ST_BlockHeightKey)
-// store.NewKey(pb.MetaType_ST_RootKey)
-// store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
+// store.NewKey(pb.MetaType_ST_BlockHeightKey), val: height
+// store.NewKey(pb.MetaType_ST_BlockHeightKey, height), val: // blk hash(20), slot(8)
+// store.NewKey(pb.MetaType_ST_RootKey), val: state hash
+// store.NewKey(pb.MetaType_ST_RootKey, height), val: state hash
 
 // store.NewKey(pb.MetaType_ST_KeepersKey)
 // store.NewKey(pb.MetaType_ST_ProsKey)
 // store.NewKey(pb.MetaType_ST_UsersKey)
 
-// key: pb.MetaType_ST_RootKey; val: root []byte
 type StateMgr struct {
 	lk sync.RWMutex
 
@@ -170,9 +170,13 @@ func (s *StateMgr) load() {
 	// load block height, epoch and uncompleted msgs
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 	val, err := s.ds.Get(key)
-	if err == nil && len(val) >= 16 {
-		s.height = binary.BigEndian.Uint64(val[:8]) + 1
-		s.slot = binary.BigEndian.Uint64(val[8:16])
+	if err == nil {
+		if len(val) >= 8 {
+			s.height = binary.BigEndian.Uint64(val[:8]) + 1
+		}
+		if len(val) >= 16 {
+			s.slot = binary.BigEndian.Uint64(val[8:16])
+		}
 	}
 
 	for i, ue := range build.UpdateMap {
@@ -180,39 +184,60 @@ func (s *StateMgr) load() {
 			s.version = i
 		}
 	}
-
 	s.validateVersion = s.version
 
-	// load root
+	// load slot and blk root at some height
+	if s.height > 0 {
+		key = store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
+		val, err = s.ds.Get(key)
+		if err == nil {
+			if len(val) >= 20 {
+				rt, err := types.FromBytes(val[:20])
+				if err == nil {
+					s.blkID = rt
+				}
+			}
+
+			if len(val) >= 28 {
+				s.slot = binary.BigEndian.Uint64(val[20:28])
+			}
+		}
+	}
+
+	// load state
 	key = store.NewKey(pb.MetaType_ST_RootKey)
 	val, err = s.ds.Get(key)
 	if err == nil {
 		switch len(val) {
 		case 32:
 			s.root = types.NewMsgID(val)
-			s.validateRoot = s.root
 			// smt set root
 			s.smt.SetRoot(val)
 		default:
 			rt, err := types.FromBytes(val)
 			if err == nil {
 				s.root = rt
-				s.validateRoot = rt
 			}
 		}
 	}
 
-	// load blk root
-	if s.height > 0 {
-		key = store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
-		val, err = s.ds.Get(key)
-		if err == nil {
+	// load state at some height
+	key = store.NewKey(pb.MetaType_ST_RootKey, s.height-1)
+	val, err = s.ds.Get(key)
+	if err == nil {
+		switch len(val) {
+		case 32:
+			s.root = types.NewMsgID(val)
+			// smt set root
+			s.smt.SetRoot(val)
+		default:
 			rt, err := types.FromBytes(val)
 			if err == nil {
-				s.blkID = rt
+				s.root = rt
 			}
 		}
 	}
+	s.validateRoot = s.root
 
 	logger.Debug("load state at: ", s.height, s.slot, s.root, s.blkID)
 
@@ -301,6 +326,12 @@ func (s *StateMgr) saveRoot() error {
 		if err != nil {
 			return err
 		}
+
+		key = store.NewKey(pb.MetaType_ST_RootKey, s.height)
+		err = s.tds.Put(key, s.smt.Root())
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -361,6 +392,14 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	nt := time.Now()
 
+	if blk.Height != s.height {
+		return s.root, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
+	}
+
+	if blk.Slot <= s.slot {
+		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.slot)
+	}
+
 	if !blk.PrevID.Equal(s.blkID) {
 		//logger.Errorf("apply wrong block at height %d, block prevID got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
 		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, s.root, blk.ParentRoot)
@@ -368,6 +407,18 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	if !s.root.Equal(blk.ParentRoot) {
 		//logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
+
+		// set height to previous one for smt recovery
+		if blk.Height > 0 && s.version >= build.SMTVersion {
+			key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
+			buf := make([]byte, 8)
+			binary.BigEndian.PutUint64(buf[:8], blk.Height-1)
+			err := s.ds.Put(key, buf)
+			if err != nil {
+				return s.root, err
+			}
+		}
+
 		return s.root, xerrors.Errorf("apply wrong block at height %d, blk root got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
 	}
 
@@ -382,14 +433,6 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		s.tds.Discard()
 		s.tds = nil
 	}()
-
-	if blk.Height != s.height {
-		return s.root, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
-	}
-
-	if blk.Slot <= s.slot {
-		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.slot)
-	}
 
 	if blk.Height > 0 {
 		// verify sign
@@ -433,16 +476,20 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	}
 
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	buf := make([]byte, 16)
+	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf[:8], blk.Height)
-	binary.BigEndian.PutUint64(buf[8:16], blk.Slot)
 	err = s.tds.Put(key, buf)
 	if err != nil {
 		return s.root, err
 	}
+
 	blkID := blk.Hash()
+	buf = make([]byte, 28)
+	binary.BigEndian.PutUint64(buf[:8], blk.Slot)
+	copy(buf[8:28], blkID.Bytes())
+	// slot, blk hash
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
-	err = s.tds.Put(key, blkID.Bytes())
+	err = s.tds.Put(key, buf)
 	if err != nil {
 		return s.root, err
 	}
