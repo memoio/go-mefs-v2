@@ -31,6 +31,7 @@ type Config struct {
 }
 
 type ContractConfig struct {
+	Version      uint32 `json:"version,omitempty"`
 	EndPoint     string `json:"endPoint"`
 	RoleContract string `json:"roleContract"`
 }
@@ -43,7 +44,6 @@ func newDefaultContractConfig() ContractConfig {
 }
 
 type GenesisConfig struct {
-	Version    uint32 `json:"version,omitempty"`
 	SMTVersion uint32 `json:"smtVersion,omitempty"`
 	SMTHeight  uint64 `json:"smtHeight,omitempty"`
 }

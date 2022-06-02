@@ -14,6 +14,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
+	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 	"github.com/mitchellh/go-homedir"
 
@@ -196,6 +197,11 @@ var transferErcCmd = &cli.Command{
 			Usage: "address role contract",
 			Value: callconts.RoleAddr.String(),
 		},
+		&cli.IntFlag{
+			Name:  "version",
+			Usage: "contract version",
+			Value: 0,
+		},
 		&cli.StringFlag{
 			Name:  "sk",
 			Usage: "secret key of admin",
@@ -224,6 +230,7 @@ var transferErcCmd = &cli.Command{
 		ep := cctx.String("endPoint")
 		rAddr := common.HexToAddress(cctx.String("roleContract"))
 		sk := cctx.String("sk")
+		ver := cctx.Int("version")
 
 		if addr == "0x0" {
 			configFile := filepath.Join(repoDir, "config.json")
@@ -240,17 +247,28 @@ var transferErcCmd = &cli.Command{
 
 			rAddr = common.HexToAddress(cfg.Contract.RoleContract)
 			ep = cfg.Contract.EndPoint
+			ver = int(cfg.Contract.Version)
 		}
 
-		rtAddr, err := settle.GetRoleTokenAddr(ep, rAddr, toAdderss)
-		if err != nil {
-			return err
+		if ver == 0 {
+			rtAddr, err := settle.GetRoleTokenAddr(ep, rAddr, toAdderss)
+			if err != nil {
+				return err
+			}
+
+			tAddr, err := settle.GetTokenAddr(ep, rtAddr, toAdderss, 0)
+			if err != nil {
+				return err
+			}
+			return settle.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
+		} else {
+			tAddr, err := v2.GetTokenAddr(ep, rAddr, sk)
+			if err != nil {
+				return err
+			}
+
+			return v2.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
 		}
 
-		tAddr, err := settle.GetTokenAddr(ep, rtAddr, toAdderss, 0)
-		if err != nil {
-			return err
-		}
-		return settle.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
 	},
 }

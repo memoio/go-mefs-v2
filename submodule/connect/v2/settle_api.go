@@ -28,8 +28,8 @@ func (cm *ContractMgr) SettleGetThreshold(ctx context.Context) int {
 }
 
 // as net prefix
-func (cm *ContractMgr) GetBaseAddr() common.Address {
-	return cm.proxyAddr
+func (cm *ContractMgr) SettleGetBaseAddr(ctx context.Context) []byte {
+	return cm.baseAddr.Bytes()
 }
 
 func (cm *ContractMgr) SettleGetAddrCnt(ctx context.Context) uint64 {
@@ -88,7 +88,7 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 
 	agi := &api.GroupInfo{
 		EndPoint: cm.endPoint,
-		BaseAddr: cm.proxyAddr.String(),
+		BaseAddr: cm.baseAddr.String(),
 		ID:       gIndex,
 		Level:    gi.Level,
 	}

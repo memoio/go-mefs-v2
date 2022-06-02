@@ -22,6 +22,7 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
+	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
 	"github.com/memoio/go-mefs-v2/submodule/state"
@@ -187,8 +188,8 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, err
 	}
 
-	if cfg.Genesis.Version > 0 {
-		build.Version = cfg.Genesis.Version
+	if cfg.Contract.Version > 0 {
+		build.Version = cfg.Contract.Version
 	}
 
 	// load genesis
@@ -199,16 +200,6 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		build.OrderDurMap[build.SMTVersion] = build.OrderMin2
 	}
 
-	cm, err := settle.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
-	if err != nil {
-		return nil, err
-	}
-
-	err = cm.Start(pb.RoleInfo_Unknown, b.groupID)
-	if err != nil {
-		return nil, err
-	}
-
 	// create the node
 	nd := &BaseNode{
 		ctx:          ctx,
@@ -217,9 +208,32 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		groupID:      b.groupID,
 		pw:           b.walletPassword,
 		version:      build.UserVersion(),
-		ISettle:      cm,
 		LocalWallet:  lw,
 		shutdownChan: make(chan struct{}),
+	}
+
+	if cfg.Contract.Version == 0 {
+		cm, err := settle.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
+		if err != nil {
+			return nil, err
+		}
+
+		err = cm.Start(pb.RoleInfo_Unknown, b.groupID)
+		if err != nil {
+			return nil, err
+		}
+		nd.ISettle = cm
+	} else {
+		cm, err := v2.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
+		if err != nil {
+			return nil, err
+		}
+
+		err = cm.Start(pb.RoleInfo_Unknown, b.groupID)
+		if err != nil {
+			return nil, err
+		}
+		nd.ISettle = cm
 	}
 
 	networkName := cfg.Contract.RoleContract[2:10] + "/" + strconv.FormatUint(b.groupID, 10)
@@ -279,7 +293,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.Store = txs
 
 	// state mgr
-	stDB := state.NewStateMgr(cm.GetBaseAddr().Bytes(), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
+	stDB := state.NewStateMgr(nd.ISettle.SettleGetBaseAddr(ctx), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
 
 	// sync pool
 	sp := txPool.NewSyncPool(ctx, b.groupID, nd.SettleGetThreshold(ctx), stDB, txs, cs)

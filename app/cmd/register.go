@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"path/filepath"
 	"strconv"
 
@@ -75,20 +76,23 @@ var registerCmd = &cli.Command{
 			return err
 		}
 
-		cm, err := settle.NewContractMgr(cctx.Context, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
+		typ := pb.RoleInfo_Unknown
+		switch cctx.Args().Get(0) {
+		case "user":
+			typ = pb.RoleInfo_User
+		case "provider":
+			typ = pb.RoleInfo_Provider
+		case "keeper":
+			typ = pb.RoleInfo_Keeper
+		}
+
+		uid, gid, err := settle.Register(cctx.Context, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, typ, gid)
 		if err != nil {
 			return err
 		}
 
-		switch cctx.Args().Get(0) {
-		case "user":
-			return cm.Start(pb.RoleInfo_User, gid)
-		case "provider":
-			return cm.Start(pb.RoleInfo_Provider, gid)
-		case "keeper":
-			return cm.Start(pb.RoleInfo_Keeper, gid)
-		default:
-			return cm.Start(pb.RoleInfo_Unknown, gid)
-		}
+		fmt.Printf("register as %d in group %d", uid, gid)
+
+		return nil
 	},
 }

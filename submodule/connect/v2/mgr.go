@@ -3,17 +3,19 @@ package v2
 import (
 	"context"
 	"encoding/hex"
-	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"golang.org/x/xerrors"
+
+	inst "github.com/memoio/contractsv2/go_contracts/instance"
+
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/submodule/connect/v2/impl"
 	inter "github.com/memoio/go-mefs-v2/submodule/connect/v2/interface"
-
-	"golang.org/x/xerrors"
 )
 
 var _ api.ISettle = &ContractMgr{}
@@ -23,7 +25,6 @@ type ContractMgr struct {
 
 	// chain related
 	endPoint string
-	chainID  *big.Int
 
 	// role related
 	roleID uint64
@@ -38,26 +39,22 @@ type ContractMgr struct {
 	sk    string
 	eAddr common.Address
 
-	proxyAddr common.Address
+	baseAddr common.Address
 
 	proxyIns inter.IProxy  //
-	getIns   inter.IGetter // addr is get from proxy
+	getIns   inter.IGetter // addr is get from base
 	ercIns   inter.IERC20  //
 }
 
 // create and verify
-func NewContractMgr(ctx context.Context, endPoint, proxyAddr string, sk []byte) (*ContractMgr, error) {
-	logger.Debug("create contract mgr: ", endPoint, ", ", proxyAddr)
+func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (*ContractMgr, error) {
+	logger.Debug("create contract mgr: ", endPoint, ", ", baseAddr)
 
 	client, err := ethclient.DialContext(context.TODO(), endPoint)
 	if err != nil {
 		return nil, xerrors.Errorf("get client from %s fail: %s", endPoint, err)
 	}
-
-	chainID, err := client.NetworkID(context.TODO())
-	if err != nil {
-		return nil, xerrors.Errorf("get networkID from %s fail: %s", endPoint, err)
-	}
+	defer client.Close()
 
 	// convert key
 	hexSk := hex.EncodeToString(sk)
@@ -73,14 +70,55 @@ func NewContractMgr(ctx context.Context, endPoint, proxyAddr string, sk []byte) 
 		return nil, xerrors.Errorf("not have tx fee on chain")
 	}
 
-	// ins
+	base := common.HexToAddress(baseAddr)
+
+	// get contract addr from instance contract and create ins
+	insti, err := inst.NewInstance(base, client)
+	if err != nil {
+		return nil, err
+	}
+
+	getAddr, err := insti.Instances(&bind.CallOpts{
+		From: eAddr,
+	}, 150)
+	if err != nil {
+		return nil, err
+	}
+	geti, err := impl.NewGetter(endPoint, hexSk, getAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	erc20Addr, err := geti.GetToken(0)
+	if err != nil {
+		return nil, err
+	}
+	erc20i, err := impl.NewErc20(endPoint, hexSk, erc20Addr)
+	if err != nil {
+		return nil, err
+	}
+
+	proxyAddr, err := insti.Instances(&bind.CallOpts{
+		From: eAddr,
+	}, 100)
+	if err != nil {
+		return nil, err
+	}
+	proxyi, err := impl.NewProxy(endPoint, hexSk, proxyAddr)
+	if err != nil {
+		return nil, err
+	}
 
 	cm := &ContractMgr{
 		ctx:      ctx,
 		endPoint: endPoint,
-		chainID:  chainID,
 
-		eAddr: eAddr,
+		eAddr:    eAddr,
+		baseAddr: base,
+
+		ercIns:   erc20i,
+		getIns:   geti,
+		proxyIns: proxyi,
 	}
 
 	// getInfo
@@ -174,4 +212,43 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	}
 
 	return nil
+}
+
+func GetTokenAddr(endPoint string, baseAddr common.Address, hexSk string) (common.Address, error) {
+	var res common.Address
+	client, err := ethclient.DialContext(context.TODO(), endPoint)
+	if err != nil {
+		return res, xerrors.Errorf("get client from %s fail: %s", endPoint, err)
+	}
+	defer client.Close()
+
+	eAddr, err := impl.SkToAddr(hexSk)
+	if err != nil {
+		return res, err
+	}
+
+	val := GetTxBalance(endPoint, eAddr)
+	logger.Debugf("%s has tx fee %d", eAddr, val)
+	if val.BitLen() == 0 {
+		return res, xerrors.Errorf("not have tx fee on chain")
+	}
+
+	// get contract addr from instance contract and create ins
+	insti, err := inst.NewInstance(baseAddr, client)
+	if err != nil {
+		return res, err
+	}
+
+	getAddr, err := insti.Instances(&bind.CallOpts{
+		From: eAddr,
+	}, 150)
+	if err != nil {
+		return res, err
+	}
+	geti, err := impl.NewGetter(endPoint, hexSk, getAddr)
+	if err != nil {
+		return res, err
+	}
+
+	return geti.GetToken(0)
 }

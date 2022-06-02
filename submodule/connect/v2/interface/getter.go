@@ -5,24 +5,26 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/memoio/contractsv2/go_contracts/fs"
-	"github.com/memoio/contractsv2/go_contracts/role"
+	"github.com/memoio/contractsv2/go_contracts/getter"
 )
 
 type GroupInfo struct {
 	IsActive bool
 	IsBan    bool
-	Level    uint8
+	Level    uint16
 	KManage  common.Address
 	Kpr      *big.Int
 	Ppr      *big.Int
 }
 
 type IGetter interface {
+	// token related
+	GetToken(ti uint8) (common.Address, error)
+
 	// role Related
 	GetAddrCnt() uint64
 	GetAddrAt(i uint64) (common.Address, error)
-	GetRoleInfo(addr common.Address) (*role.RoleOut, error)
+	GetRoleInfo(addr common.Address) (*getter.RoleOut, error)
 
 	GetGroupInfo(gi uint64) (*GroupInfo, error)
 
@@ -35,8 +37,8 @@ type IGetter interface {
 	// fs related
 	GetFsPool() (common.Address, error)
 	GetBalAt(i uint64, ti uint8) *big.Int
-	GetStoreInfo(ui, pi uint64, ti uint8) *fs.StoreOut
-	GetSettleInfo(pi uint64, ti uint8) *fs.SettleOut
-	GetFsInfo(ui, pi uint64) *fs.FsOut
-	GetGInfo(gi uint64, ti uint8) *fs.GroupOut
+	GetStoreInfo(ui, pi uint64, ti uint8) *getter.StoreOut
+	GetSettleInfo(pi uint64, ti uint8) *getter.SettleOut
+	GetFsInfo(ui, pi uint64) *getter.FsOut
+	GetGInfo(gi uint64, ti uint8) *getter.GroupOut
 }
