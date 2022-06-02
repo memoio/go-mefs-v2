@@ -402,7 +402,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	if !blk.PrevID.Equal(s.blkID) {
 		//logger.Errorf("apply wrong block at height %d, block prevID got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
-		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, s.root, blk.ParentRoot)
+		return s.root, xerrors.Errorf("apply wrong block at height %d, block got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
 	}
 
 	if !s.root.Equal(blk.ParentRoot) {
@@ -419,7 +419,7 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 			}
 		}
 
-		return s.root, xerrors.Errorf("apply wrong block at height %d, blk root got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
+		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
 	}
 
 	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
@@ -485,8 +485,9 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	blkID := blk.Hash()
 	buf = make([]byte, 28)
-	binary.BigEndian.PutUint64(buf[:8], blk.Slot)
-	copy(buf[8:28], blkID.Bytes())
+	copy(buf[:20], blkID.Bytes())
+	binary.BigEndian.PutUint64(buf[20:28], blk.Slot)
+
 	// slot, blk hash
 	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
 	err = s.tds.Put(key, buf)
