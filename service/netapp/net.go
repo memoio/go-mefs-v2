@@ -11,10 +11,10 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"go.opencensus.io/tag"
 
-	"github.com/memoio/go-mefs-v2/build"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
@@ -70,22 +70,22 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 		return nil, err
 	}
 
-	eTopic, err := ns.Pubsub.Join(build.EventTopic(ns.NetworkName))
+	eTopic, err := ns.Pubsub.Join(types.EventTopic(ns.NetworkName))
 	if err != nil {
 		return nil, err
 	}
 
-	mTopic, err := ns.Pubsub.Join(build.MsgTopic(ns.NetworkName))
+	mTopic, err := ns.Pubsub.Join(types.MsgTopic(ns.NetworkName))
 	if err != nil {
 		return nil, err
 	}
 
-	bTopic, err := ns.Pubsub.Join(build.BlockTopic(ns.NetworkName))
+	bTopic, err := ns.Pubsub.Join(types.BlockTopic(ns.NetworkName))
 	if err != nil {
 		return nil, err
 	}
 
-	hTopic, err := ns.Pubsub.Join(build.HSMsgTopic(ns.NetworkName))
+	hTopic, err := ns.Pubsub.Join(types.HSMsgTopic(ns.NetworkName))
 	if err != nil {
 		return nil, err
 	}

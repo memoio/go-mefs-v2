@@ -23,9 +23,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils/net"
 )
 
@@ -109,7 +109,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	dhtopts := []dht.Option{dht.Mode(dht.ModeAutoServer),
 		dht.Datastore(nconfig.Repo().DhtStore()),
 		dht.Validator(validator),
-		dht.ProtocolPrefix(build.MemoriaeDHT(networkName)),
+		dht.ProtocolPrefix(types.MemoriaeDHT(networkName)),
 		// uncomment these in mainnet
 		//dht.QueryFilter(dht.PublicQueryFilter),
 		//dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
@@ -139,10 +139,10 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	}
 
 	allowTopics := []string{
-		build.MsgTopic(networkName),
-		build.BlockTopic(networkName),
-		build.HSMsgTopic(networkName),
-		build.EventTopic(networkName),
+		types.MsgTopic(networkName),
+		types.BlockTopic(networkName),
+		types.HSMsgTopic(networkName),
+		types.EventTopic(networkName),
 	}
 
 	pubsub.GossipSubHeartbeatInterval = 100 * time.Millisecond

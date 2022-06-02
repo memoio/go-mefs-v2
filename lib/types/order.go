@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
@@ -91,11 +92,10 @@ func (b *OrderBase) Deserialize(buf []byte) error {
 
 type SignedOrder struct {
 	OrderBase
-	Version uint8
-	Size    uint64
-	Price   *big.Int
-	Usign   Signature
-	Psign   Signature // sign hash
+	Size  uint64
+	Price *big.Int
+	Usign Signature
+	Psign Signature // sign hash
 }
 
 // for sign on settle chain
@@ -115,7 +115,7 @@ func (so *SignedOrder) Hash() []byte {
 	binary.BigEndian.PutUint64(buf, so.Size)
 	d.Write(buf)
 
-	if so.Version != 0 {
+	if build.Version != 0 {
 		buf[0] = byte(uint8(so.TokenIndex))
 		d.Write(buf[:1])
 	} else {

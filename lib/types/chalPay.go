@@ -5,8 +5,10 @@ import (
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/memoio/go-mefs-v2/lib/utils"
 	"golang.org/x/crypto/sha3"
+
+	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 type ChalEpoch struct {
@@ -40,7 +42,6 @@ func (pi *PostIncome) Deserialize(b []byte) error {
 }
 
 type AccPostIncome struct {
-	Version    uint8
 	ProID      uint64
 	TokenIndex uint32
 	Value      *big.Int // duo to income
@@ -52,7 +53,7 @@ func (api *AccPostIncome) Hash() []byte {
 	d := sha3.NewLegacyKeccak256()
 	binary.BigEndian.PutUint64(buf, api.ProID)
 	d.Write(buf)
-	if api.Version != 0 {
+	if build.Version != 0 {
 		buf[0] = byte(uint8(api.TokenIndex))
 		d.Write(buf[:1])
 	} else {

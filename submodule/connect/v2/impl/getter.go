@@ -47,7 +47,7 @@ func NewGetter(endPoint, hexSk string, getAddr common.Address) (inter.IGetter, e
 		return nil, err
 	}
 
-	_, err = getIns.Name(&bind.CallOpts{
+	_, err = getIns.FsVersion(&bind.CallOpts{
 		From: eAddr,
 	})
 	if err != nil {

@@ -35,9 +35,11 @@ const (
 
 // version 3
 
-var SMTVersion uint32 = math.MaxUint32
-
-//	SMTHeight  = 83500
+var (
+	Version uint32 = 0
+	// SMTHeight  = 83500
+	SMTVersion uint32 = math.MaxUint32
+)
 
 var (
 	DefaultSegPrice   = big.NewInt(250 * 1000) // per seg, 1AttoMemo/(byte*second)

@@ -1,11 +1,9 @@
-package build
+package types
 
 import (
 	"fmt"
 
 	"github.com/libp2p/go-libp2p-core/protocol"
-
-	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 // broadcast an event
@@ -24,6 +22,6 @@ func MemoriaeNet(netName string) protocol.ID {
 	return protocol.ID(fmt.Sprintf("/memo/net/%s", netName))
 }
 
-func GenesisBlockID(netName string) types.MsgID {
-	return types.NewMsgID([]byte(fmt.Sprintf("/memo/genesis/%s", netName)))
+func GenesisBlockID(netName string) MsgID {
+	return NewMsgID([]byte(fmt.Sprintf("/memo/genesis/%s", netName)))
 }

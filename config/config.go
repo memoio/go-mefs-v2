@@ -43,6 +43,7 @@ func newDefaultContractConfig() ContractConfig {
 }
 
 type GenesisConfig struct {
+	Version    uint32 `json:"version,omitempty"`
 	SMTVersion uint32 `json:"smtVersion,omitempty"`
 	SMTHeight  uint64 `json:"smtHeight,omitempty"`
 }

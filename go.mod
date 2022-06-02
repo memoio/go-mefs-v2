@@ -8,7 +8,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.2.1
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/dgraph-io/badger/v2 v2.2007.4
-	github.com/ethereum/go-ethereum v1.10.12
+	github.com/ethereum/go-ethereum v1.10.16
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gbrlsnchs/jwt/v3 v3.0.1

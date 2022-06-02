@@ -187,6 +187,10 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, err
 	}
 
+	if cfg.Genesis.Version > 0 {
+		build.Version = cfg.Genesis.Version
+	}
+
 	// load genesis
 	if cfg.Genesis.SMTVersion > 0 && cfg.Genesis.SMTHeight > 0 {
 		build.SMTVersion = cfg.Genesis.SMTVersion

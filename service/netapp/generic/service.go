@@ -11,8 +11,8 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
 
-	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
 	"github.com/memoio/go-mefs-v2/submodule/network"
@@ -45,7 +45,7 @@ type GenericService struct {
 func New(ctx context.Context, ns *network.NetworkSubmodule) (*GenericService, error) {
 	var protocols, serverProtocols []protocol.ID
 
-	v1proto := build.MemoriaeNet(ns.NetworkName)
+	v1proto := types.MemoriaeNet(ns.NetworkName)
 
 	protocols = []protocol.ID{v1proto}
 	serverProtocols = []protocol.ID{v1proto}
