@@ -15,6 +15,7 @@ import (
 const (
 	MsgIDHashCode = 0x4c
 	MsgIDHashLen  = 20
+	MsgLen        = 22
 
 	// todo add type for content
 )
@@ -27,6 +28,7 @@ type MsgID struct{ str string }
 
 var MsgIDUndef = MsgID{}
 
+// msgLen = prefix len(2) + hash len(20)
 func NewMsgID(data []byte) MsgID {
 	res, err := mh.Sum(data, MsgIDHashCode, MsgIDHashLen)
 	if err != nil {

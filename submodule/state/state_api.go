@@ -119,7 +119,7 @@ func (s *StateMgr) GetBlockIDAt(ctx context.Context, ht uint64) (types.MsgID, er
 		return types.MsgIDUndef, err
 	}
 
-	return types.FromBytes(data)
+	return types.FromBytes(data[:types.MsgLen])
 }
 
 func (s *StateMgr) StateGetNonce(ctx context.Context, roleID uint64) uint64 {
