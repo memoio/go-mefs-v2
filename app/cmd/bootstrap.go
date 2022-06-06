@@ -52,7 +52,7 @@ var bootstrapListCmd = &cli.Command{
 
 			fmt.Println("bootstrap addresses: ", out.String())
 		} else {
-			rep, err := repo.NewFSRepo(repoDir, nil)
+			rep, err := repo.NewFSRepo(repoDir, nil, false)
 			if err != nil {
 				return err
 			}
@@ -95,7 +95,7 @@ var bootstrapAddCmd = &cli.Command{
 
 		repoDir := cctx.String(FlagNodeRepo)
 
-		rep, err := repo.NewFSRepo(repoDir, nil)
+		rep, err := repo.NewFSRepo(repoDir, nil, false)
 		if err != nil {
 			return err
 		}
@@ -162,7 +162,7 @@ var bootstrapClearCmd = &cli.Command{
 
 		repoDir := cctx.String(FlagNodeRepo)
 
-		rep, err := repo.NewFSRepo(repoDir, nil)
+		rep, err := repo.NewFSRepo(repoDir, nil, false)
 		if err != nil {
 			return err
 		}

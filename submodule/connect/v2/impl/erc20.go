@@ -66,9 +66,9 @@ func NewErc20(endPoint, hexSk string, erc20 common.Address) (inter.IERC20, error
 }
 
 func (e *ercImpl) Transfer(recipient common.Address, amount *big.Int) error {
-	val := e.BalanceOf(e.erc20)
+	val := e.BalanceOf(e.eAddr)
 	if val.Cmp(amount) < 0 {
-		return xerrors.Errorf("balance not enough, need %d, has %d", amount, val)
+		return xerrors.Errorf("%s balance not enough, need %d, has %d", e.eAddr, amount, val)
 	}
 
 	client, err := ethclient.DialContext(context.TODO(), e.endPoint)

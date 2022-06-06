@@ -43,7 +43,7 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 		return peer.ID(""), nil, xerrors.Errorf("failed to create peer key %w", err)
 	}
 
-	data, err := sk.Raw()
+	data, err := crypto.MarshalPrivateKey(sk)
 	if err != nil {
 		return peer.ID(""), nil, err
 	}

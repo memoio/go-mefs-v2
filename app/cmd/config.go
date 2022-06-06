@@ -63,7 +63,7 @@ var configGetCmd = &cli.Command{
 
 			fmt.Printf("get key: %s, value: %v\n", key, out.String())
 		} else {
-			rep, err := repo.NewFSRepo(repoDir, nil)
+			rep, err := repo.NewFSRepo(repoDir, nil, false)
 			if err != nil {
 				return err
 			}
@@ -133,7 +133,7 @@ var configSetCmd = &cli.Command{
 			fmt.Printf("set %s to %v\n", key, value)
 			fmt.Println("It will take affect at next start")
 		} else {
-			rep, err := repo.NewFSRepo(repoDir, nil)
+			rep, err := repo.NewFSRepo(repoDir, nil, false)
 			if err != nil {
 				return err
 			}

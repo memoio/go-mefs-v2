@@ -81,7 +81,7 @@ var initCmd = &cli.Command{
 		logger.Info("initializing repo at: ", repoDir)
 
 		// new repo
-		rep, err := repo.NewFSRepo(repoDir, config.NewDefaultConfig())
+		rep, err := repo.NewFSRepo(repoDir, config.NewDefaultConfig(), true)
 		if err != nil {
 			return err
 		}

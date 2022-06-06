@@ -48,7 +48,7 @@ type ContractMgr struct {
 
 // create and verify
 func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (*ContractMgr, error) {
-	logger.Debug("create contract mgr: ", endPoint, ", ", baseAddr)
+	logger.Debug("create v2 contract mgr: ", endPoint, ", ", baseAddr)
 
 	client, err := ethclient.DialContext(context.TODO(), endPoint)
 	if err != nil {
@@ -82,8 +82,10 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 		From: eAddr,
 	}, 150)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get getter contract fail: %s", err)
 	}
+	logger.Debug("getter contract:", getAddr)
+
 	geti, err := impl.NewGetter(endPoint, hexSk, getAddr)
 	if err != nil {
 		return nil, err
@@ -91,8 +93,10 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 
 	erc20Addr, err := geti.GetToken(0)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get token contract fail: %s", err)
 	}
+	logger.Debug("erc20 contract:", erc20Addr)
+
 	erc20i, err := impl.NewErc20(endPoint, hexSk, erc20Addr)
 	if err != nil {
 		return nil, err
@@ -102,8 +106,9 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 		From: eAddr,
 	}, 100)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get proxy contract fail: %s", err)
 	}
+	logger.Debug("proxy contract:", proxyAddr)
 	proxyi, err := impl.NewProxy(endPoint, hexSk, proxyAddr)
 	if err != nil {
 		return nil, err
@@ -113,6 +118,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 		ctx:      ctx,
 		endPoint: endPoint,
 
+		sk:       hexSk,
 		eAddr:    eAddr,
 		baseAddr: base,
 
@@ -122,14 +128,27 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 	}
 
 	// getInfo
-	ri, err := cm.getRoleInfo(cm.eAddr)
+	ri, err := cm.getIns.GetRoleInfo(eAddr)
 	if err != nil {
-		return cm, err
+		return nil, err
 	}
 
-	cm.roleID = ri.RoleID
-	cm.typ = ri.Type
-	cm.groupID = ri.GroupID
+	switch ri.RType {
+	case 1:
+		cm.typ = pb.RoleInfo_User
+	case 2:
+		cm.typ = pb.RoleInfo_Provider
+	case 3:
+		cm.typ = pb.RoleInfo_Keeper
+		if ri.GIndex > 0 && !ri.IsActive {
+			return nil, xerrors.Errorf("keeper is not active, activate first")
+		}
+	default:
+		cm.typ = pb.RoleInfo_Unknown
+	}
+
+	cm.roleID = ri.Index
+	cm.groupID = ri.GIndex
 
 	return cm, nil
 }
@@ -168,6 +187,12 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		if cm.roleID == 0 {
 			return xerrors.Errorf("register account fails")
 		}
+	}
+
+	if typ == pb.RoleInfo_Unknown && gIndex > 0 {
+		cm.typ = pb.RoleInfo_Unknown
+		cm.groupID = gIndex
+		return nil
 	}
 
 	// register role

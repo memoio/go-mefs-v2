@@ -135,7 +135,7 @@ func TestKeeperNode(t *testing.T) {
 const pw = "memoriae"
 
 func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode {
-	rp, err := repo.NewFSRepo(repoDir, cfg)
+	rp, err := repo.NewFSRepo(repoDir, cfg, true)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -67,13 +67,15 @@ type FSRepo struct {
 
 	dhtDs datastore.Batching
 
+	storeFlag bool
+
 	// lockfile is the file system lock to prevent others from opening the same repo.
 	lockfile io.Closer
 }
 
 var _ Repo = (*FSRepo)(nil)
 
-func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
+func NewFSRepo(dir string, cfg *config.Config, storeFlag bool) (*FSRepo, error) {
 	repoPath, err := homedir.Expand(dir)
 	if err != nil {
 		return nil, err
@@ -120,7 +122,10 @@ func NewFSRepo(dir string, cfg *config.Config) (*FSRepo, error) {
 		}
 	}
 
-	r := &FSRepo{path: actualPath}
+	r := &FSRepo{
+		path:      actualPath,
+		storeFlag: storeFlag,
+	}
 
 	r.lockfile, err = lockfile.Lock(r.path, lockFile)
 	if err != nil {
@@ -164,29 +169,32 @@ func (r *FSRepo) loadFromDisk() error {
 		return xerrors.Errorf("failed to load config file %w", err)
 	}
 
-	err = r.openKeyStore()
-	if err != nil {
-		return xerrors.Errorf("failed to open keystore %w", err)
-	}
+	if r.storeFlag {
 
-	err = r.openDhtStore()
-	if err != nil {
-		return xerrors.Errorf("failed to open dht datastore %w", err)
-	}
+		err = r.openKeyStore()
+		if err != nil {
+			return xerrors.Errorf("failed to open keystore %w", err)
+		}
 
-	err = r.openMetaStore()
-	if err != nil {
-		return xerrors.Errorf("failed to open meta store %w", err)
-	}
+		err = r.openDhtStore()
+		if err != nil {
+			return xerrors.Errorf("failed to open dht datastore %w", err)
+		}
 
-	err = r.openStateStore()
-	if err != nil {
-		return xerrors.Errorf("failed to open state store %w", err)
-	}
+		err = r.openMetaStore()
+		if err != nil {
+			return xerrors.Errorf("failed to open meta store %w", err)
+		}
 
-	err = r.openFileStore()
-	if err != nil {
-		return xerrors.Errorf("failed to open metadata datastore %w", err)
+		err = r.openStateStore()
+		if err != nil {
+			return xerrors.Errorf("failed to open state store %w", err)
+		}
+
+		err = r.openFileStore()
+		if err != nil {
+			return xerrors.Errorf("failed to open metadata datastore %w", err)
+		}
 	}
 
 	return nil
@@ -239,32 +247,34 @@ func (r *FSRepo) DhtStore() datastore.Batching {
 
 // Close closes the repo.
 func (r *FSRepo) Close() error {
-	err := r.keyDs.Close()
-	if err != nil {
-		return xerrors.Errorf("failed to close key store %w", err)
+	if r.storeFlag {
+		err := r.keyDs.Close()
+		if err != nil {
+			return xerrors.Errorf("failed to close key store %w", err)
+		}
+
+		err = r.dhtDs.Close()
+		if err != nil {
+			return xerrors.Errorf("failed to close dht datastore %w", err)
+		}
+
+		err = r.fileDs.Close()
+		if err != nil {
+			return xerrors.Errorf("failed to close file store %w", err)
+		}
+
+		err = r.metaDs.Close()
+		if err != nil {
+			return xerrors.Errorf("failed to close meta store %w", err)
+		}
+
+		err = r.stateDs.Close()
+		if err != nil {
+			return xerrors.Errorf("failed to close state store %w", err)
+		}
 	}
 
-	err = r.dhtDs.Close()
-	if err != nil {
-		return xerrors.Errorf("failed to close dht datastore %w", err)
-	}
-
-	err = r.fileDs.Close()
-	if err != nil {
-		return xerrors.Errorf("failed to close file store %w", err)
-	}
-
-	err = r.metaDs.Close()
-	if err != nil {
-		return xerrors.Errorf("failed to close meta store %w", err)
-	}
-
-	err = r.stateDs.Close()
-	if err != nil {
-		return xerrors.Errorf("failed to close state store %w", err)
-	}
-
-	err = r.removeAPIFile()
+	err := r.removeAPIFile()
 	if err != nil {
 		return xerrors.Errorf("failed to remove API file %w", err)
 	}

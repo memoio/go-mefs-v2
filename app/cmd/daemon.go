@@ -17,6 +17,7 @@ import (
 	"github.com/memoio/go-mefs-v2/service/provider"
 	"github.com/memoio/go-mefs-v2/service/user"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
+	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -110,7 +111,7 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 
 	repoDir := cctx.String(FlagNodeRepo)
 	// generate a repo from repoDir
-	rep, err := repo.NewFSRepo(repoDir, nil)
+	rep, err := repo.NewFSRepo(repoDir, nil, true)
 	if err != nil {
 		return err
 	}
@@ -177,14 +178,21 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	}
 
 	var node minit.Node
+	var rid, gid uint64
 	// create the node with opts above
 	switch cctx.String(FlagRoleType) {
 	case pb.RoleInfo_Keeper.String():
-		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
-		if err != nil {
-			return err
+		if cfg.Contract.Version == 0 {
+			rid, gid, err = settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
+		} else {
+			rid, gid, err = v2.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
 		}
-
 		cfg.Identity.Role = "keeper"
 		cfg.Identity.Group = strconv.Itoa(int(gid))
 
@@ -198,9 +206,16 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	case pb.RoleInfo_Provider.String():
-		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
-		if err != nil {
-			return err
+		if cfg.Contract.Version == 0 {
+			rid, gid, err = settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
+		} else {
+			rid, gid, err = v2.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
 		}
 
 		cfg.Identity.Role = "provider"
@@ -215,9 +230,16 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	case pb.RoleInfo_User.String():
-		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
-		if err != nil {
-			return err
+		if cfg.Contract.Version == 0 {
+			rid, gid, err = settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
+		} else {
+			rid, gid, err = v2.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
 		}
 
 		cfg.Identity.Role = "user"
@@ -232,9 +254,16 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	default:
-		rid, gid, err := settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
-		if err != nil {
-			return err
+		if cfg.Contract.Version == 0 {
+			rid, gid, err = settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
+		} else {
+			rid, gid, err = v2.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
 		}
 
 		cfg.Identity.Role = "unkown"

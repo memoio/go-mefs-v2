@@ -114,7 +114,7 @@ func TestBaseNode(t *testing.T) {
 }
 
 func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *BaseNode {
-	rp, err := repo.NewFSRepo(repoDir, cfg)
+	rp, err := repo.NewFSRepo(repoDir, cfg, true)
 	if err != nil {
 		t.Fatal(err)
 	}

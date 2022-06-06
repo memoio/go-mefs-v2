@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"context"
 	"encoding/hex"
 	"math/big"
 
@@ -13,6 +14,21 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
+
+// register account and register role
+func Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.RoleInfo_Type, gIndex uint64) (uint64, uint64, error) {
+	cm, err := NewContractMgr(ctx, endPoint, rAddr, sk)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	err = cm.Start(typ, gIndex)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return cm.roleID, cm.groupID, nil
+}
 
 func (cm *ContractMgr) RegisterAccount() error {
 	logger.Debug("register an account to get an unique ID")
@@ -64,7 +80,7 @@ func (cm *ContractMgr) RegisterRole(typ pb.RoleInfo_Type) error {
 		}
 		extra = pdpKeySet.VerifyKey().Serialize()
 	default:
-		return xerrors.Errorf("unsupported role type %s", typ)
+		return xerrors.Errorf("Register role unsupported role type %s", typ)
 	}
 
 	logger.Info("Register role: ", typ)

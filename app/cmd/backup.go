@@ -43,7 +43,7 @@ var backupExportCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		// test repo is lock?
 		repoDir := cctx.String(FlagNodeRepo)
-		rep, err := repo.NewFSRepo(repoDir, nil)
+		rep, err := repo.NewFSRepo(repoDir, nil, true)
 		if err != nil {
 			return err
 		}
@@ -131,7 +131,7 @@ var backupImportCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		// test repo is lock?
 		repoDir := cctx.String(FlagNodeRepo)
-		rep, err := repo.NewFSRepo(repoDir, nil)
+		rep, err := repo.NewFSRepo(repoDir, nil, true)
 		if err != nil {
 			return err
 		}
