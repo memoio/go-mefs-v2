@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -122,17 +125,11 @@ var gatewayStopCmd = &cli2.Command{
 		}
 
 		pd, _ := ioutil.ReadFile(path.Join(pidpath, "pid"))
-		pid, err := strconv.Atoi(string(pd))
+		err = kill(string(pd))
 		if err != nil {
 			return err
 		}
 
-		p, err := os.FindProcess(pid)
-		if err != nil {
-			return err
-		}
-
-		p.Signal(syscall.SIGTERM)
 		log.Println("gateway gracefully exit...")
 
 		return nil
@@ -156,6 +153,26 @@ func BestKnownPath() (string, error) {
 		}
 	}
 	return mefsPath, nil
+}
+
+func kill(pid string) error {
+	if runtime.GOOS == "windows" {
+		err := exec.Command("taskkill", "/T", "/F", "/PID", pid).Start()
+		return err
+	}
+	if runtime.GOOS == "linux" {
+		pidi, err := strconv.Atoi(pid)
+		if err != nil {
+			return err
+		}
+
+		p, err := os.FindProcess(pidi)
+		if err != nil {
+			return err
+		}
+		return p.Signal(syscall.SIGTERM)
+	}
+	return errors.New("unsupported os")
 }
 
 // Start gateway
