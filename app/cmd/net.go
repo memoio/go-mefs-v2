@@ -101,8 +101,23 @@ var netPeersCmd = &cli.Command{
 			return err
 		}
 
+		type adr struct {
+			s  []string
+			fs map[string]struct{}
+		}
+		res := make(map[string]*adr)
+
 		for _, peer := range info {
-			addrs := make([]string, 0, len(peer.Addrs))
+			ar, ok := res[peer.ID.Pretty()]
+
+			if !ok {
+				ar = &adr{
+					s:  make([]string, 0, 16),
+					fs: make(map[string]struct{}),
+				}
+				res[peer.ID.Pretty()] = ar
+			}
+
 			for _, maddr := range peer.Addrs {
 				saddr := maddr.String()
 				if strings.Contains(saddr, "/127.0.0.1/") {
@@ -113,11 +128,18 @@ var netPeersCmd = &cli.Command{
 					continue
 				}
 
-				addrs = append(addrs, saddr)
+				_, has := ar.fs[saddr]
+				if !has {
+					ar.s = append(ar.s, saddr)
+					ar.fs[saddr] = struct{}{}
+				}
 			}
-
-			fmt.Printf("%s %s\n", peer.ID, addrs)
 		}
+
+		for pid, out := range res {
+			fmt.Printf("%s %s\n", pid, out.s)
+		}
+
 		return nil
 	},
 }

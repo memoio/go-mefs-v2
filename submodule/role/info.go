@@ -46,7 +46,14 @@ func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.I
 		ds:      ds,
 	}
 
-	rm.get(roleID)
+	ri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, roleID)
+	if err != nil {
+		return nil, err
+	}
+
+	ri.GroupID = rm.groupID
+
+	rm.addRoleInfo(ri, true)
 
 	return rm, nil
 }

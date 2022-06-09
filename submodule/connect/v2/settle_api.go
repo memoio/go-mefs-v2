@@ -48,7 +48,7 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 		return nil, xerrors.Errorf("%d is banned", ri.Index)
 	}
 
-	if !ri.IsActive {
+	if ri.RType > 0 && !ri.IsActive {
 		return nil, xerrors.Errorf("%d is not active", ri.Index)
 	}
 
@@ -89,19 +89,7 @@ func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb
 }
 
 func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.GroupInfo, error) {
-	gi, err := cm.getIns.GetGroupInfo(gIndex)
-	if err != nil {
-		return nil, err
-	}
-
-	agi := &api.GroupInfo{
-		EndPoint: cm.endPoint,
-		BaseAddr: cm.baseAddr.String(),
-		ID:       gIndex,
-		Level:    gi.Level,
-	}
-
-	return agi, nil
+	return cm.getIns.GetGroupInfo(gIndex)
 }
 
 func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (*api.PledgeInfo, error) {
@@ -125,16 +113,11 @@ func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) 
 		return nil, err
 	}
 
-	fpool, err := cm.getIns.GetFsPool()
-	if err != nil {
-		return nil, err
-	}
-
 	avil := cm.getIns.GetBalAt(roleID, cm.tIndex)
 
 	bi := &api.BalanceInfo{
-		Value:    cm.ercIns.BalanceOf(gotAddr),
-		ErcValue: cm.ercIns.BalanceOf(fpool),
+		Value:    GetTxBalance(cm.endPoint, gotAddr),
+		ErcValue: cm.ercIns.BalanceOf(gotAddr),
 		FsValue:  avil,
 	}
 
@@ -158,7 +141,7 @@ func (cm *ContractMgr) SettleGetStoreInfo(ctx context.Context, userID, proID uin
 }
 
 func (cm *ContractMgr) SettleCharge(ctx context.Context, val *big.Int) error {
-	logger.Debugf("%d pledge %d", cm.roleID, val)
+	logger.Debugf("%d charge %d", cm.roleID, val)
 	return cm.Recharge(cm.roleID, cm.tIndex, false, val)
 }
 
@@ -179,7 +162,7 @@ func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) err
 }
 
 func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
-	logger.Debugf("%d withdraw", cm.roleID)
+	logger.Debugf("%d withdraw %d", cm.roleID, val)
 
 	ri, err := cm.SettleGetRoleInfoAt(ctx, cm.roleID)
 	if err != nil {

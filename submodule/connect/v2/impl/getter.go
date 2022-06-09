@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/memoio/contractsv2/go_contracts/getter"
+	"github.com/memoio/go-mefs-v2/api"
 	inter "github.com/memoio/go-mefs-v2/submodule/connect/v2/interface"
 )
 
@@ -188,7 +189,7 @@ func (g *getImpl) GetRoleInfo(addr common.Address) (*getter.RoleOut, error) {
 	}
 }
 
-func (g *getImpl) GetGroupInfo(gi uint64) (*inter.GroupInfo, error) {
+func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
 		return nil, err
@@ -235,15 +236,24 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*inter.GroupInfo, error) {
 		return nil, err
 	}
 
-	ginfo := new(inter.GroupInfo)
+	gout, err := getIns.GetGSInfo(&bind.CallOpts{
+		From: g.eAddr,
+	}, gi, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	ginfo := new(api.GroupInfo)
 
 	ginfo.IsActive = isActive
 	ginfo.IsBan = isBanned
 	ginfo.Level = level
 	ginfo.Kpr = kpr
 	ginfo.Ppr = ppr
-	ginfo.KManage = km
-	ginfo.KCnt = kcnt
+	ginfo.FsAddr = km.String()
+	ginfo.KCount = uint64(kcnt)
+	ginfo.Size = gout.Size
+	ginfo.Price = gout.Sprice
 
 	return ginfo, nil
 }

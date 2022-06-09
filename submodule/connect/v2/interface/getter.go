@@ -6,17 +6,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/memoio/contractsv2/go_contracts/getter"
+	"github.com/memoio/go-mefs-v2/api"
 )
-
-type GroupInfo struct {
-	IsActive bool
-	IsBan    bool
-	Level    uint8
-	KManage  common.Address
-	KCnt     uint8
-	Kpr      *big.Int
-	Ppr      *big.Int
-}
 
 type IGetter interface {
 	// token related
@@ -27,7 +18,7 @@ type IGetter interface {
 	GetAddrAt(i uint64) (common.Address, error)
 	GetRoleInfo(addr common.Address) (*getter.RoleOut, error)
 
-	GetGroupInfo(gi uint64) (*GroupInfo, error)
+	GetGroupInfo(gi uint64) (*api.GroupInfo, error)
 
 	// pledge related
 	GetPledgePool() (common.Address, error)
