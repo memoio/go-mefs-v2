@@ -115,7 +115,7 @@ func (so *SignedOrder) Hash() []byte {
 	binary.BigEndian.PutUint64(buf, so.Size)
 	d.Write(buf)
 
-	if build.Version != 0 {
+	if build.ContractVersion != 0 {
 		buf[0] = byte(uint8(so.TokenIndex))
 		d.Write(buf[:1])
 	} else {

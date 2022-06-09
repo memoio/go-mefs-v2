@@ -3,18 +3,20 @@ package minit
 import (
 	"context"
 	"encoding/hex"
-	"log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/zeebo/blake3"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
+	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 )
+
+var logger = logging.Logger("init")
 
 // init ops for mefs
 func Create(ctx context.Context, r repo.Repo, password, sk string) error {
@@ -30,7 +32,7 @@ func Create(ctx context.Context, r repo.Repo, password, sk string) error {
 
 	var sBytes []byte
 	if sk == "" {
-		log.Println("generating wallet address...")
+		logger.Debug("generating wallet address...")
 
 		privkey, err := signature.GenerateKey(types.Secp256k1)
 		if err != nil {
@@ -64,12 +66,12 @@ func Create(ctx context.Context, r repo.Repo, password, sk string) error {
 	wa := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
 
 	if sk == "" {
-		log.Println("generated wallet address: ", wa)
+		logger.Debug("generated wallet address: ", wa)
 	} else {
-		log.Println("import wallet address: ", wa)
+		logger.Debug("import wallet address: ", wa)
 	}
 
-	log.Println("generating bls key...")
+	logger.Debug("generating bls key...")
 
 	blsSeed := make([]byte, len(sBytes)+1)
 	copy(blsSeed[:len(sBytes)], sBytes)
@@ -85,7 +87,7 @@ func Create(ctx context.Context, r repo.Repo, password, sk string) error {
 		return err
 	}
 
-	log.Println("genenrated bls key: ", blsAddr.String())
+	logger.Debug("genenrated bls key: ", blsAddr.String())
 
 	r.Config().Wallet.DefaultAddress = addr.String()
 

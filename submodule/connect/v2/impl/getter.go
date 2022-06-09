@@ -228,6 +228,13 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*inter.GroupInfo, error) {
 		return nil, err
 	}
 
+	kcnt, err := getIns.GetKCnt(&bind.CallOpts{
+		From: g.eAddr,
+	}, gi)
+	if err != nil {
+		return nil, err
+	}
+
 	ginfo := new(inter.GroupInfo)
 
 	ginfo.IsActive = isActive
@@ -236,6 +243,7 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*inter.GroupInfo, error) {
 	ginfo.Kpr = kpr
 	ginfo.Ppr = ppr
 	ginfo.KManage = km
+	ginfo.KCnt = kcnt
 
 	return ginfo, nil
 }

@@ -188,16 +188,16 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		return nil, err
 	}
 
-	if cfg.Contract.Version > 0 {
-		build.Version = cfg.Contract.Version
-	}
-
 	// load genesis
 	if cfg.Genesis.SMTVersion > 0 && cfg.Genesis.SMTHeight > 0 {
 		build.SMTVersion = cfg.Genesis.SMTVersion
 		build.UpdateMap[build.SMTVersion] = cfg.Genesis.SMTHeight
 		build.ChalDurMap[build.SMTVersion] = build.ChalDuration2
-		build.OrderDurMap[build.SMTVersion] = build.OrderMin2
+	}
+
+	if cfg.Contract.Version > 0 {
+		build.ContractVersion = cfg.Contract.Version
+		build.SMTVersion = 0 // use smt default
 	}
 
 	// create the node

@@ -190,21 +190,8 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	sgi, err := m.ics.StateGetInfo(m.ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	orderMin := build.OrderDurMap[sgi.Version]
-	nht, ok := build.UpdateMap[sgi.Version+1]
-	if ok {
-		if nht-sgi.Height < 2880 {
-			orderMin = build.OrderDurMap[sgi.Version+1]
-		}
-	}
-
-	if ob.OrderBase.End-ob.OrderBase.Start < orderMin {
-		return nil, xerrors.Errorf("order duration %d is short than %d", ob.OrderBase.End-ob.OrderBase.Start, orderMin)
+	if ob.OrderBase.End-ob.OrderBase.Start < build.OrderMin {
+		return nil, xerrors.Errorf("order duration %d is short than %d", ob.OrderBase.End-ob.OrderBase.Start, build.OrderMin)
 	}
 
 	err = lib.CheckOrder(ob.OrderBase)

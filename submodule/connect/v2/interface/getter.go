@@ -11,8 +11,9 @@ import (
 type GroupInfo struct {
 	IsActive bool
 	IsBan    bool
-	Level    uint16
+	Level    uint8
 	KManage  common.Address
+	KCnt     uint8
 	Kpr      *big.Int
 	Ppr      *big.Int
 }

@@ -53,7 +53,7 @@ func (api *AccPostIncome) Hash() []byte {
 	d := sha3.NewLegacyKeccak256()
 	binary.BigEndian.PutUint64(buf, api.ProID)
 	d.Write(buf)
-	if build.Version != 0 {
+	if build.ContractVersion != 0 {
 		buf[0] = byte(uint8(api.TokenIndex))
 		d.Write(buf[:1])
 	} else {

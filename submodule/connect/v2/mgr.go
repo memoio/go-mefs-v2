@@ -101,6 +101,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 	if err != nil {
 		return nil, err
 	}
+	logger.Debugf("%s has memo %d", eAddr, erc20i.BalanceOf(eAddr))
 
 	proxyAddr, err := insti.Instances(&bind.CallOpts{
 		From: eAddr,
@@ -133,6 +134,9 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 		return nil, err
 	}
 
+	cm.roleID = ri.Index
+	cm.groupID = ri.GIndex
+
 	switch ri.RType {
 	case 1:
 		cm.typ = pb.RoleInfo_User
@@ -141,14 +145,12 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 	case 3:
 		cm.typ = pb.RoleInfo_Keeper
 		if ri.GIndex > 0 && !ri.IsActive {
+			logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
 			return nil, xerrors.Errorf("keeper is not active, activate first")
 		}
 	default:
 		cm.typ = pb.RoleInfo_Unknown
 	}
-
-	cm.roleID = ri.Index
-	cm.groupID = ri.GIndex
 
 	return cm, nil
 }
@@ -156,6 +158,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 // register account, type and group
 func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	if cm.groupID > 0 {
+		logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
 		return nil
 	}
 
@@ -235,6 +238,8 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			return xerrors.Errorf("add to group fails")
 		}
 	}
+
+	logger.Debug("register in contract: ", cm.roleID, cm.typ, cm.groupID)
 
 	return nil
 }

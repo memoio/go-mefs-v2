@@ -134,7 +134,7 @@ func (cm *ContractMgr) Pledge(roleID uint64, val *big.Int) error {
 	// check erc20
 	bal := cm.ercIns.BalanceOf(cm.eAddr)
 	if val.Cmp(bal) > 0 {
-		return xerrors.Errorf("balance not enough, need %d, has %d", val, bal)
+		return xerrors.Errorf("pledge balance not enough, need %d, has %d", val, bal)
 	}
 
 	ppool, err := cm.getIns.GetPledgePool()

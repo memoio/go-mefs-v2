@@ -103,6 +103,7 @@ func (rm *RoleMgr) syncFromChain(cnt, acnt uint64) uint64 {
 		if pri.GroupID != rm.groupID {
 			continue
 		}
+
 		rm.AddRoleInfo(pri)
 	}
 

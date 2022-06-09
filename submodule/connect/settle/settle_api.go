@@ -82,7 +82,7 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 		EndPoint: cm.endPoint,
 		BaseAddr: cm.rAddr.String(),
 		ID:       gIndex,
-		Level:    level,
+		Level:    uint8(level),
 		FsAddr:   fsAddr.String(),
 		Size:     size.Uint64(),
 		Price:    new(big.Int).Set(price),

@@ -44,6 +44,14 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 		return nil, err
 	}
 
+	if ri.IsBan {
+		return nil, xerrors.Errorf("%d is banned", ri.Index)
+	}
+
+	if !ri.IsActive {
+		return nil, xerrors.Errorf("%d is not active", ri.Index)
+	}
+
 	pri := new(pb.RoleInfo)
 
 	pri.RoleID = ri.Index

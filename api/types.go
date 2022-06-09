@@ -13,7 +13,7 @@ type GroupInfo struct {
 	EndPoint string
 	BaseAddr string
 	ID       uint64
-	Level    uint16
+	Level    uint8
 	Size     uint64
 	Price    *big.Int
 	KCount   uint64
