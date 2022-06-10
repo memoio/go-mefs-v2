@@ -143,9 +143,6 @@ func FormatBytesDec(i int64) (result string) {
 }
 
 func Binomial(n, k uint64) uint64 {
-	if n < 0 || k < 0 {
-		panic("negative input")
-	}
 	if n < k {
 		panic("n must no less than k")
 	}

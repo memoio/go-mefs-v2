@@ -3,6 +3,7 @@ package impl
 import (
 	"context"
 	"math/big"
+	"sort"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -321,6 +322,36 @@ func (p *proxyImpl) ProWithdraw(ps proxy.PWIn, kis []uint64, ksigns [][]byte) er
 	}
 	defer client.Close()
 
+	sLen := len(kis)
+	if sLen > len(ksigns) {
+		sLen = len(ksigns)
+	}
+
+	type pks struct {
+		ki uint64
+		s  []byte
+	}
+
+	ks := make([]*pks, sLen)
+
+	for i := 0; i < sLen; i++ {
+		ks[i] = &pks{
+			ki: kis[i],
+			s:  ksigns[i],
+		}
+	}
+
+	sort.Slice(ks, func(i, j int) bool {
+		return ks[i].ki < ks[j].ki
+	})
+
+	nkis := make([]uint64, sLen)
+	nksigns := make([][]byte, sLen)
+	for i := 0; i < sLen; i++ {
+		nkis[i] = ks[i].ki
+		nksigns[i] = ks[i].s
+	}
+
 	proxyIns, err := proxy.NewProxy(p.proxy, client)
 	if err != nil {
 		return err
@@ -331,7 +362,7 @@ func (p *proxyImpl) ProWithdraw(ps proxy.PWIn, kis []uint64, ksigns [][]byte) er
 		return err
 	}
 
-	tx, err := proxyIns.ProWithdraw(auth, ps, kis, ksigns)
+	tx, err := proxyIns.ProWithdraw(auth, ps, nkis, nksigns)
 	if err != nil {
 		return err
 	}
