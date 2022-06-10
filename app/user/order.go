@@ -75,6 +75,9 @@ var orderListProvidersCmd = &cli.Command{
 						if strings.Contains(maddr, "/::1/") {
 							continue
 						}
+						if strings.Contains(maddr, "udp") {
+							continue
+						}
 
 						addrs = append(addrs, maddr)
 					}
