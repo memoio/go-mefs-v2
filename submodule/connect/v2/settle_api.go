@@ -89,7 +89,15 @@ func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb
 }
 
 func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.GroupInfo, error) {
-	return cm.getIns.GetGroupInfo(gIndex)
+	gi, err := cm.getIns.GetGroupInfo(gIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	gi.EndPoint = cm.endPoint
+	gi.BaseAddr = cm.baseAddr.String()
+
+	return gi, nil
 }
 
 func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (*api.PledgeInfo, error) {

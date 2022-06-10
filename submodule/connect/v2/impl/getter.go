@@ -243,17 +243,18 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 		return nil, err
 	}
 
-	ginfo := new(api.GroupInfo)
-
-	ginfo.IsActive = isActive
-	ginfo.IsBan = isBanned
-	ginfo.Level = level
-	ginfo.Kpr = kpr
-	ginfo.Ppr = ppr
-	ginfo.FsAddr = km.String()
-	ginfo.KCount = uint64(kcnt)
-	ginfo.Size = gout.Size
-	ginfo.Price = gout.Sprice
+	ginfo := &api.GroupInfo{
+		EndPoint: g.endPoint,
+		IsActive: isActive,
+		IsBan:    isBanned,
+		Level:    level,
+		Kpr:      kpr,
+		Ppr:      ppr,
+		FsAddr:   km.String(),
+		KCount:   uint64(kcnt),
+		Size:     gout.Size,
+		Price:    gout.Sprice,
+	}
 
 	return ginfo, nil
 }
