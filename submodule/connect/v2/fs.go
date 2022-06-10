@@ -76,8 +76,10 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 		Sprice: so.Price,
 	}
 
-	go cm.proxyIns.AddOrder(poi, so.Usign.Data, so.Psign.Data)
-
+	err := cm.proxyIns.AddOrder(poi, so.Usign.Data, so.Psign.Data)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

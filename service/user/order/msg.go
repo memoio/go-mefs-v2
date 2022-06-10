@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/jbenet/goprocess"
@@ -415,61 +416,45 @@ func (m *OrderMgr) submitOrders() error {
 	logger.Debug("addOrder for user: ", m.localID)
 
 	pros := m.StateGetProsAt(m.ctx, m.localID)
-	pLen := len(pros)
-	fin := 0
-	pMap := make(map[uint64]struct{}, pLen)
-	for fin < pLen {
-		for _, proID := range pros {
-			_, ok := pMap[proID]
-			if ok {
-				continue
-			}
-			ns := m.StateGetOrderState(m.ctx, m.localID, proID)
-			si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
-			if err != nil {
-				pMap[proID] = struct{}{}
-				fin++
-				logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
-				continue
-			}
 
-			logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, si.Nonce, si.SubNonce, ns.Nonce)
+	var wg sync.WaitGroup
+	for _, proID := range pros {
+		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
+		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
+		if err != nil {
+			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
+			continue
+		}
 
-			if si.Nonce >= ns.Nonce {
-				pMap[proID] = struct{}{}
-				fin++
-				continue
-			}
-			logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, si.Nonce)
+		logger.Debugf("addOrder user %d pro %d has order %d %d %d", m.localID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 
-			// add order here
-			of, err := m.StateGetOrder(m.ctx, m.localID, proID, si.Nonce)
-			if err != nil {
-				pMap[proID] = struct{}{}
-				fin++
-				logger.Debug("addOrder fail to get order info", m.localID, proID, err)
-				continue
-			}
+		if si.Nonce >= ns.Nonce {
+			continue
+		}
+		logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, si.Nonce)
+
+		// add order here
+		tof, err := m.StateGetOrder(m.ctx, m.localID, proID, si.Nonce)
+		if err != nil {
+			logger.Debug("addOrder fail to get order info", m.localID, proID, err)
+			continue
+		}
+
+		wg.Add(1)
+		go func(of *types.SignedOrder) {
+			defer wg.Done()
 
 			avail, err := m.is.SettleGetBalanceInfo(m.ctx, of.UserID)
 			if err != nil {
-				pMap[proID] = struct{}{}
-				fin++
-				logger.Debug("addOrder fail to add order ", m.localID, proID, err)
-				continue
+				logger.Debug("addOrder fail to add order ", m.localID, of.ProID, err)
 			}
 
 			logger.Debugf("addOrder user %d has balance %d", of.UserID, avail)
 
-			err = m.is.SettleAddOrder(m.ctx, &of.SignedOrder)
+			err = m.is.SettleAddOrder(m.ctx, of)
 			if err != nil {
-				pMap[proID] = struct{}{}
-				fin++
-				logger.Debug("addOrder fail to add order ", m.localID, proID, err)
-				continue
-			}
-
-			if err == nil {
+				logger.Debug("addOrder fail to add order ", m.localID, of.ProID, err)
+			} else {
 				pay := new(big.Int).SetInt64(of.End - of.Start)
 				pay.Mul(pay, of.Price)
 
@@ -494,10 +479,8 @@ func (m *OrderMgr) submitOrders() error {
 				}
 				m.sizelk.Unlock()
 			}
-
-		}
-		time.Sleep(10 * time.Second)
+		}(&tof.SignedOrder)
 	}
-
+	wg.Wait()
 	return nil
 }
