@@ -358,9 +358,9 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 			Params:  data,
 		}
 
-		m.msgChan <- msg
+		logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ocp.Nonce, ocp.SeqNum)
 
-		logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, nextSeq)
+		m.msgChan <- msg
 
 		ns.Nonce++
 		ns.SeqNum = 0
