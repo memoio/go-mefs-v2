@@ -694,7 +694,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	}
 
 	// last seq is not finish
-	if o.sjq.Len() == 0 {
+	if o.sjq.Len() == 0 && len(o.base.Psign.Data) == 0 {
 		ocp.SeqNum = o.seq.SeqNum
 	}
 

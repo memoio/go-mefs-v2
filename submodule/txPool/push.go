@@ -171,7 +171,7 @@ func (pp *PushPool) syncPush() {
 }
 
 func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgID, error) {
-	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Method)
+	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.To, mes.Method)
 
 	pp.lk.Lock()
 	if !pp.ready {
