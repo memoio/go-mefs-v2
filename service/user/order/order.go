@@ -13,6 +13,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -783,8 +784,19 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 		sLen := o.sjq.Len()
 		ss := *o.sjq
 
+		size := uint64(0)
 		for i := 0; i < sLen; i++ {
+			size += ss[i].Length * build.DefaultSegSize
 			m.redoSegJob(ss[i])
+		}
+
+		// size is added to base, so reduce it here
+		if o.seqState == OrderSeq_Commit {
+			if o.base.Size > size {
+				o.base.Size -= size
+			} else {
+				o.base.Size = 0
+			}
 		}
 
 		o.sjq = new(types.SegJobsQueue)
@@ -920,7 +932,7 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 		o.RLock()
 		if o.inflight {
 			o.RUnlock()
-			logger.Debug("order has running data", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
+			logger.Debug("order has running data: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 			return nil
 		}
 		o.RUnlock()

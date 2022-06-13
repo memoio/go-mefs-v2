@@ -293,7 +293,12 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 	}
 
 	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok, _ := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
+	ok, err := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
+	if err != nil {
+		logger.Debug("fail get finish seq ack from: ", proID, err)
+		return err
+	}
+
 	if ok {
 		osp := &orderSeqPro{
 			proID: proID,
