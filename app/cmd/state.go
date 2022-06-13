@@ -142,7 +142,7 @@ var stateWithdrawCmd = &cli.Command{
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.RoleID, types.FormatMemo(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
+			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
 
 			fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.RoleID, types.FormatMemo(spi.Value), types.FormatMemo(spi.Penalty), spi.Sig.Signer)
 
