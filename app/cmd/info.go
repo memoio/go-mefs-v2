@@ -21,6 +21,9 @@ import (
 var infoCmd = &cli.Command{
 	Name:  "info",
 	Usage: "print information of this node",
+	Subcommands: []*cli.Command{
+		selfInfoCmd,
+	},
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -237,6 +240,33 @@ var infoCmd = &cli.Command{
 		}
 
 		fmt.Printf("Data Usage: path %s, used %s, free %s\n", dm.Path, types.FormatBytes(dm.Used), types.FormatBytes(dm.Free))
+
+		return nil
+	},
+}
+
+var selfInfoCmd = &cli.Command{
+	Name:  "self",
+	Usage: "print node id",
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		pri, err := api.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("ID: ", pri.RoleID, pri.Type, pri.GroupID)
 
 		return nil
 	},
