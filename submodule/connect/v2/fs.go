@@ -54,15 +54,15 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 	// todo: check uIndex,pIndex,gIndex,tIndex
 
 	// check balance
-	avil := cm.getIns.GetBalAt(so.UserID, uint8(so.TokenIndex))
-
+	avail, lock := cm.getIns.GetBalAt(so.UserID, uint8(so.TokenIndex))
+	avail.Add(avail, lock)
 	pay := new(big.Int).Set(so.Price)
 	pay.Mul(pay, big.NewInt(so.End-so.Start))
 	pay.Mul(pay, big.NewInt(12))
 	pay.Div(pay, big.NewInt(10))
 
-	if pay.Cmp(avil) > 0 {
-		return xerrors.Errorf("add order insufficiecnt funds user %d has balance %s, require %s", so.UserID, types.FormatMemo(avil), types.FormatMemo(pay))
+	if pay.Cmp(avail) > 0 {
+		return xerrors.Errorf("add order insufficiecnt funds user %d has balance %s, require %s", so.UserID, types.FormatMemo(avail), types.FormatMemo(pay))
 	}
 
 	poi := proxy.OrderIn{

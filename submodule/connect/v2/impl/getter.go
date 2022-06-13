@@ -416,36 +416,35 @@ func (g *getImpl) GetFsPool() (common.Address, error) {
 	}
 }
 
-func (g *getImpl) GetBalAt(i uint64, ti uint8) *big.Int {
+func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int) {
 	res := new(big.Int)
+	lock := new(big.Int)
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return res
+		return res, lock
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return res
+		return res, lock
 	}
 
 	retryCount := 0
 	for {
 		retryCount++
-		res, lock, err := getIns.FsBalanceOf(&bind.CallOpts{
+		res, lock, err = getIns.FsBalanceOf(&bind.CallOpts{
 			From: g.eAddr,
 		}, i, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return res
+				return res, lock
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		res.Add(res, lock)
-
-		return res
+		return res, lock
 	}
 }
 

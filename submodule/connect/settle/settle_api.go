@@ -196,8 +196,9 @@ func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int
 	case pb.RoleInfo_Provider:
 		err := cm.proWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, kindex, ksigns)
 		if err != nil {
-			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
+			return xerrors.Errorf("%d pro withdraw fail %s", cm.roleID, err)
 		}
+
 	default:
 		err = cm.withdrawFromFs(cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
 		if err != nil {

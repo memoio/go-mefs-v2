@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/xerrors"
@@ -121,7 +122,8 @@ func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) 
 		return nil, err
 	}
 
-	avil := cm.getIns.GetBalAt(roleID, cm.tIndex)
+	avil, lock := cm.getIns.GetBalAt(roleID, cm.tIndex)
+	avil.Add(avil, lock)
 
 	bi := &api.BalanceInfo{
 		Value:    GetTxBalance(cm.endPoint, gotAddr),
@@ -190,7 +192,14 @@ func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int
 			return xerrors.Errorf("%d pro withdraw fail %s", cm.roleID, err)
 		}
 
-		return nil
+		time.Sleep(10 * time.Second)
+
+		avail, _ := cm.getIns.GetBalAt(cm.roleID, cm.tIndex)
+		if err != nil {
+			return xerrors.Errorf("%d withdraw get val fail %s", cm.roleID, err)
+		}
+
+		val.Set(avail)
 	}
 
 	err = cm.proxyIns.Withdraw(cm.roleID, cm.tIndex, val)

@@ -166,14 +166,14 @@ var stateWithdrawCmd = &cli.Command{
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.RoleID, types.FormatMemo(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
+			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
 		default:
 			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.RoleID, types.FormatMemo(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
+			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
 
 			err = napi.SettleWithdraw(cctx.Context, big.NewInt(1_000_000_000), big.NewInt(0), nil, nil)
 			if err != nil {
@@ -188,7 +188,7 @@ var stateWithdrawCmd = &cli.Command{
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.RoleID, types.FormatMemo(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
+			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
 		}
 
 		return nil
