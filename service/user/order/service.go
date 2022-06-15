@@ -128,10 +128,10 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 
 		updateChan: make(chan uint64, 16),
 
-		quoChan:       make(chan *types.Quotation, 16),
-		orderChan:     make(chan *types.SignedOrder, 16),
-		seqNewChan:    make(chan *orderSeqPro, 16),
-		seqFinishChan: make(chan *orderSeqPro, 16),
+		quoChan:       make(chan *types.Quotation, 128),
+		orderChan:     make(chan *types.SignedOrder, 128),
+		seqNewChan:    make(chan *orderSeqPro, 128),
+		seqFinishChan: make(chan *orderSeqPro, 128),
 
 		segAddChan:     make(chan *types.SegJob, 128),
 		segRedoChan:    make(chan *types.SegJob, 128),

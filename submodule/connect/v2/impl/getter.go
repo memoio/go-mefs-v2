@@ -291,17 +291,17 @@ func (g *getImpl) GetPledgePool() (common.Address, error) {
 	}
 }
 
-func (g *getImpl) GetTotalPledge() *big.Int {
+func (g *getImpl) GetTotalPledge() (*big.Int, error) {
 	res := new(big.Int)
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return res
+		return res, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return res
+		return res, err
 	}
 
 	retryCount := 0
@@ -312,27 +312,27 @@ func (g *getImpl) GetTotalPledge() *big.Int {
 		})
 		if err != nil {
 			if retryCount > 3 {
-				return res
+				return res, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return res
+		return res, nil
 	}
 }
 
-func (g *getImpl) GetPledge(ti uint8) *big.Int {
+func (g *getImpl) GetPledge(ti uint8) (*big.Int, error) {
 	res := new(big.Int)
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return res
+		return res, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return res
+		return res, err
 	}
 
 	retryCount := 0
@@ -343,27 +343,27 @@ func (g *getImpl) GetPledge(ti uint8) *big.Int {
 		}, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return res
+				return res, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return res
+		return res, nil
 	}
 }
 
-func (g *getImpl) GetPledgeAt(i uint64, ti uint8) *big.Int {
+func (g *getImpl) GetPledgeAt(i uint64, ti uint8) (*big.Int, error) {
 	res := new(big.Int)
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return res
+		return res, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return res
+		return res, err
 	}
 
 	retryCount := 0
@@ -374,13 +374,13 @@ func (g *getImpl) GetPledgeAt(i uint64, ti uint8) *big.Int {
 		}, i, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return res
+				return res, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return res
+		return res, nil
 	}
 }
 
@@ -416,18 +416,18 @@ func (g *getImpl) GetFsPool() (common.Address, error) {
 	}
 }
 
-func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int) {
+func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int, error) {
 	res := new(big.Int)
 	lock := new(big.Int)
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return res, lock
+		return res, lock, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return res, lock
+		return res, lock, err
 	}
 
 	retryCount := 0
@@ -438,26 +438,26 @@ func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int) {
 		}, i, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return res, lock
+				return res, lock, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return res, lock
+		return res, lock, err
 	}
 }
 
-func (g *getImpl) GetStoreInfo(ui, pi uint64, ti uint8) *getter.StoreOut {
+func (g *getImpl) GetStoreInfo(ui, pi uint64, ti uint8) (*getter.StoreOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	retryCount := 0
@@ -468,26 +468,26 @@ func (g *getImpl) GetStoreInfo(ui, pi uint64, ti uint8) *getter.StoreOut {
 		}, ui, pi, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return nil
+				return nil, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return &res
+		return &res, err
 	}
 }
 
-func (g *getImpl) GetSettleInfo(pi uint64, ti uint8) *getter.SettleOut {
+func (g *getImpl) GetSettleInfo(pi uint64, ti uint8) (*getter.SettleOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	retryCount := 0
@@ -498,26 +498,26 @@ func (g *getImpl) GetSettleInfo(pi uint64, ti uint8) *getter.SettleOut {
 		}, pi, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return nil
+				return nil, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return &res
+		return &res, nil
 	}
 }
 
-func (g *getImpl) GetFsInfo(ui, pi uint64) *getter.FsOut {
+func (g *getImpl) GetFsInfo(ui, pi uint64) (*getter.FsOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	retryCount := 0
@@ -528,26 +528,26 @@ func (g *getImpl) GetFsInfo(ui, pi uint64) *getter.FsOut {
 		}, ui, pi)
 		if err != nil {
 			if retryCount > 3 {
-				return nil
+				return nil, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return &res
+		return &res, nil
 	}
 }
 
-func (g *getImpl) GetGInfo(gi uint64, ti uint8) *getter.GroupOut {
+func (g *getImpl) GetGInfo(gi uint64, ti uint8) (*getter.GroupOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	retryCount := 0
@@ -558,12 +558,12 @@ func (g *getImpl) GetGInfo(gi uint64, ti uint8) *getter.GroupOut {
 		}, gi, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return nil
+				return nil, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return &res
+		return &res, nil
 	}
 }

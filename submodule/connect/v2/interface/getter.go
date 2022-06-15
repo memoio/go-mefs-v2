@@ -22,15 +22,15 @@ type IGetter interface {
 
 	// pledge related
 	GetPledgePool() (common.Address, error)
-	GetTotalPledge() *big.Int
-	GetPledge(ti uint8) *big.Int
-	GetPledgeAt(i uint64, ti uint8) *big.Int
+	GetTotalPledge() (*big.Int, error)
+	GetPledge(ti uint8) (*big.Int, error)
+	GetPledgeAt(i uint64, ti uint8) (*big.Int, error)
 
 	// fs related
 	GetFsPool() (common.Address, error)
-	GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int)
-	GetStoreInfo(ui, pi uint64, ti uint8) *getter.StoreOut
-	GetSettleInfo(pi uint64, ti uint8) *getter.SettleOut
-	GetFsInfo(ui, pi uint64) *getter.FsOut
-	GetGInfo(gi uint64, ti uint8) *getter.GroupOut
+	GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int, error)
+	GetStoreInfo(ui, pi uint64, ti uint8) (*getter.StoreOut, error)
+	GetSettleInfo(pi uint64, ti uint8) (*getter.SettleOut, error)
+	GetFsInfo(ui, pi uint64) (*getter.FsOut, error)
+	GetGInfo(gi uint64, ti uint8) (*getter.GroupOut, error)
 }

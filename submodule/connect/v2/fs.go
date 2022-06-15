@@ -54,7 +54,10 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 	// todo: check uIndex,pIndex,gIndex,tIndex
 
 	// check balance
-	avail, lock := cm.getIns.GetBalAt(so.UserID, uint8(so.TokenIndex))
+	avail, lock, err := cm.getIns.GetBalAt(so.UserID, uint8(so.TokenIndex))
+	if err != nil {
+		return err
+	}
 	avail.Add(avail, lock)
 	pay := new(big.Int).Set(so.Price)
 	pay.Mul(pay, big.NewInt(so.End-so.Start))
@@ -76,7 +79,7 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 		Sprice: so.Price,
 	}
 
-	err := cm.proxyIns.AddOrder(poi, so.Usign.Data, so.Psign.Data)
+	err = cm.proxyIns.AddOrder(poi, so.Usign.Data, so.Psign.Data)
 	if err != nil {
 		return err
 	}

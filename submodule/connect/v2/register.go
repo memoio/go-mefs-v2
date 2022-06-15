@@ -92,7 +92,10 @@ func (cm *ContractMgr) RegisterRole(typ pb.RoleInfo_Type) error {
 }
 
 func (cm *ContractMgr) AddToGroup(gi uint64) error {
-	pval := cm.getIns.GetPledgeAt(cm.roleID, 0)
+	pval, err := cm.getIns.GetPledgeAt(cm.roleID, cm.tIndex)
+	if err != nil {
+		return err
+	}
 
 	ginfo, err := cm.getIns.GetGroupInfo(gi)
 	if err != nil {

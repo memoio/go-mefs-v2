@@ -102,11 +102,20 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 }
 
 func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (*api.PledgeInfo, error) {
-	tp := cm.getIns.GetTotalPledge()
+	tp, err := cm.getIns.GetTotalPledge()
+	if err != nil {
+		return nil, err
+	}
 
-	ep := cm.getIns.GetPledge(cm.tIndex)
+	ep, err := cm.getIns.GetPledge(cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
 
-	pv := cm.getIns.GetPledgeAt(roleID, cm.tIndex)
+	pv, err := cm.getIns.GetPledgeAt(roleID, cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
 
 	pi := &api.PledgeInfo{
 		Value:    pv,
@@ -122,7 +131,10 @@ func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) 
 		return nil, err
 	}
 
-	avil, lock := cm.getIns.GetBalAt(roleID, cm.tIndex)
+	avil, lock, err := cm.getIns.GetBalAt(roleID, cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
 	avil.Add(avil, lock)
 
 	bi := &api.BalanceInfo{
@@ -136,8 +148,16 @@ func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) 
 
 // return time, size, price
 func (cm *ContractMgr) SettleGetStoreInfo(ctx context.Context, userID, proID uint64) (*api.StoreInfo, error) {
-	so := cm.getIns.GetStoreInfo(userID, proID, cm.tIndex)
-	fo := cm.getIns.GetFsInfo(userID, proID)
+
+	fo, err := cm.getIns.GetFsInfo(userID, proID)
+	if err != nil {
+		return nil, err
+	}
+
+	so, err := cm.getIns.GetStoreInfo(userID, proID, cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
 
 	si := &api.StoreInfo{
 		Nonce:    fo.Nonce,
@@ -194,7 +214,7 @@ func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int
 
 		time.Sleep(10 * time.Second)
 
-		avail, _ := cm.getIns.GetBalAt(cm.roleID, cm.tIndex)
+		avail, _, err := cm.getIns.GetBalAt(cm.roleID, cm.tIndex)
 		if err != nil {
 			return xerrors.Errorf("%d withdraw get val fail %s", cm.roleID, err)
 		}
