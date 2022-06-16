@@ -322,8 +322,6 @@ func (m *OrderMgr) check(o *OrderFull) {
 		o.RLock()
 		if o.hasSeg() && !o.inStop {
 			go m.getQuotation(o.pro)
-			o.RUnlock()
-			return
 		}
 		o.RUnlock()
 	case Order_Wait:
@@ -340,6 +338,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			if err != nil {
 				logger.Debugf("%d order fail due to close order %d %s", o.pro, o.failCnt, err)
 			}
+			return
 		}
 		switch o.seqState {
 		case OrderSeq_Init:
@@ -694,8 +693,8 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 		SeqNum: o.seqNum,
 	}
 
-	// last seq is not finish
-	if o.sjq.Len() == 0 && len(o.base.Psign.Data) == 0 {
+	// last seq is not start, so use it
+	if o.sjq.Len() == 0 && o.base.Size == o.seq.Size {
 		ocp.SeqNum = o.seq.SeqNum
 	}
 
