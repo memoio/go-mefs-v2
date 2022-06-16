@@ -3,6 +3,7 @@ package readpay
 import (
 	"bytes"
 	"math/big"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/memoio/go-mefs-v2/lib/address"
@@ -13,6 +14,7 @@ import (
 )
 
 type ReceivePay struct {
+	sync.RWMutex
 	localAddr address.Address
 
 	toAddr common.Address
@@ -50,6 +52,9 @@ func (rp *ReceivePay) Verify(p *Paycheck, val *big.Int) error {
 	pStr := p.String()
 
 	key := store.NewKey(pb.MetaType_ReadPay_ChannelKey, p.ContractAddr.String(), p.FromAddr.String(), p.ToAddr.String(), p.Nonce)
+
+	rp.Lock()
+	defer rp.Unlock()
 
 	lchk, ok := rp.pool[pStr]
 	if !ok {
