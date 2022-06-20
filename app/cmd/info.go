@@ -166,7 +166,13 @@ var infoCmd = &cli.Command{
 		fmt.Println("Security Level: ", gi.Level)
 		fmt.Println("Size: ", types.FormatBytes(gi.Size))
 		fmt.Println("Price: ", gi.Price)
-		fmt.Printf("Keepers: %d, Providers: %d, Users: %d\n", gi.KCount, gi.PCount, gi.UCount)
+
+		pros, err := api.RoleGetRelated(cctx.Context, pb.RoleInfo_Provider)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Keepers: %d, Providers: %d\n", gi.KCount, len(pros))
 
 		fmt.Println(ansi.Color("----------- Pledge Information ----------", "green"))
 
