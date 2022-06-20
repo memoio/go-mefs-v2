@@ -490,7 +490,7 @@ var delObjectCmd = &cli.Command{
 	},
 }
 
-var downlaodObjectCmd = &cli.Command{
+var downloadObjectCmd = &cli.Command{
 	Name:  "downloadObject",
 	Usage: "download object using rpc",
 	Flags: []cli.Flag{

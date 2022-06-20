@@ -311,6 +311,7 @@ func (ns *NetworkSubmodule) NetPeerInfo(ctx context.Context, p peer.ID) (*api.Ex
 func (ns *NetworkSubmodule) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 	conns := ns.Host.Network().Conns()
 	out := make([]peer.AddrInfo, 0, len(conns))
+	hmap := make(map[peer.ID]int, len(conns))
 
 	for _, conn := range conns {
 		id := conn.RemotePeer()
@@ -332,12 +333,18 @@ func (ns *NetworkSubmodule) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 			continue
 		}
 
-		out = append(out, peer.AddrInfo{
-			ID: id,
-			Addrs: []ma.Multiaddr{
-				conn.RemoteMultiaddr(),
-			},
-		})
+		pindex, ok := hmap[id]
+		if !ok {
+			hmap[id] = len(out)
+			out = append(out, peer.AddrInfo{
+				ID: id,
+				Addrs: []ma.Multiaddr{
+					conn.RemoteMultiaddr(),
+				},
+			})
+		} else {
+			out[pindex].Addrs = append(out[pindex].Addrs, conn.RemoteMultiaddr())
+		}
 	}
 
 	return out, nil

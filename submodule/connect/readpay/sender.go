@@ -49,14 +49,14 @@ func NewSender(localAddr address.Address, iw api.IWallet, ds store.KVStore) *Sen
 }
 
 func (s *SendPay) Pay(to address.Address, val *big.Int) ([]byte, error) {
-	s.lw.Lock()
-	defer s.lw.Unlock()
-
 	if val.Sign() <= 0 {
 		return nil, xerrors.Errorf("pay value should be larger than zero")
 	}
 
 	toAddr := common.BytesToAddress(utils.ToEthAddress(to.Bytes()))
+
+	s.lw.Lock()
+	defer s.lw.Unlock()
 
 	p, ok := s.pool[toAddr]
 	if !ok {
