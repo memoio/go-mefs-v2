@@ -266,6 +266,7 @@ func (s *SegMgr) challenge(userID uint64) {
 	ns := s.GetOrderStateAt(userID, s.localID, si.nextChal)
 	if ns.Nonce == 0 && ns.SeqNum == 0 {
 		logger.Debug("challenge on empty data at epoch: ", userID, si.nextChal)
+		si.nextChal++
 		return
 	}
 
@@ -304,6 +305,7 @@ func (s *SegMgr) challenge(userID uint64) {
 
 		if so.Start >= chalEnd {
 			logger.Debug("challenge not latest one, duo to time is not up")
+			si.nextChal++
 			return
 		} else {
 			if so.End <= chalStart {
@@ -421,7 +423,8 @@ func (s *SegMgr) challenge(userID uint64) {
 
 			if so.Start >= chalEnd {
 				logger.Debug("challenge order is not up: ", userID, si.nextChal, i, so)
-				continue
+				si.nextChal++
+				return
 			}
 
 			if so.End <= chalStart {
@@ -546,6 +549,7 @@ func (s *SegMgr) challenge(userID uint64) {
 
 	if cnt == 0 {
 		logger.Debug("challenge has zero size: ", userID, si.nextChal)
+		si.nextChal++
 		return
 	}
 
