@@ -304,6 +304,7 @@ func (s *SegMgr) challenge(userID uint64) {
 
 		if so.Start >= chalEnd {
 			logger.Debug("challenge not latest one, duo to time is not up")
+			return
 		} else {
 			if so.End <= chalStart {
 				logger.Debug("challenge orders all expired: ", userID, si.nextChal, ns.Nonce)

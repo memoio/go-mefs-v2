@@ -375,7 +375,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 				o.failCnt++
 				err := m.commitSeq(o)
 				if err != nil {
-					logger.Debugf("%d order fail due to commit seq %d", o.pro, o.failCnt)
+					logger.Debugf("%d order fail due to commit seq %d %s", o.pro, o.failCnt, err)
 				}
 			}
 		case OrderSeq_Finish:
@@ -392,7 +392,10 @@ func (m *OrderMgr) check(o *OrderFull) {
 		o.RUnlock()
 		switch o.seqState {
 		case OrderSeq_Send:
-			m.commitSeq(o)
+			err := m.commitSeq(o)
+			if err != nil {
+				logger.Debugf("%d order fail due to commit seq %d %s", o.pro, o.failCnt, err)
+			}
 		case OrderSeq_Commit:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
@@ -986,7 +989,7 @@ func (m *OrderMgr) commitSeq(o *OrderFull) error {
 func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	logger.Debug("handle finish seq: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil {
-		return xerrors.Errorf("order empty")
+		return xerrors.Errorf("order empty at %d %d %d %s %s", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	}
 
 	if o.seq == nil || o.seqState != OrderSeq_Commit {

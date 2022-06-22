@@ -277,7 +277,7 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 		sp.DeleteTxBlock(bid)
 		sp.DeleteTxBlockHeight(sb.Height)
 		// }
-		panic("check your version, your storage space left, or re-sync by deleting 'state' dir")
+		panic("check your version, your storage space left and restart; or re-sync by deleting 'state' dir")
 	}
 
 	mds := &blkDigest{
