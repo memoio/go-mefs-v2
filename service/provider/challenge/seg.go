@@ -144,7 +144,7 @@ func (s *SegMgr) regularChallenge() {
 
 			if len(s.users) <= i {
 				i = 0
-				time.Sleep(10 * time.Second)
+				time.Sleep(60 * time.Second)
 			}
 
 			userID := s.users[i]
