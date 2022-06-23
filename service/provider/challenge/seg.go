@@ -417,7 +417,7 @@ func (s *SegMgr) challenge(userID uint64) {
 		for i := ns.SubNonce; i < ns.Nonce; i++ {
 			so, err := s.StateGetOrder(s.ctx, userID, s.localID, i)
 			if err != nil {
-				logger.Debug("challenge get order fails:", userID, i, err)
+				logger.Debug("challenge get order fails: ", userID, i, err)
 				return
 			}
 
@@ -455,7 +455,7 @@ func (s *SegMgr) challenge(userID uint64) {
 			for k := uint32(0); k < so.SeqNum; k++ {
 				sf, err := s.StateGetOrderSeq(s.ctx, userID, s.localID, i, k)
 				if err != nil {
-					logger.Debug("challenge get order seq fails:", userID, i, k, err)
+					logger.Debug("challenge get order seq fails: ", userID, i, k, err)
 					return
 				}
 

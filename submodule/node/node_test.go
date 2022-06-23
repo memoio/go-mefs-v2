@@ -85,7 +85,7 @@ func TestBaseNode(t *testing.T) {
 				return
 			}
 
-			log.Println("receive:", received.GetSignature())
+			log.Println("receive: ", received.GetSignature())
 
 		}
 	}()

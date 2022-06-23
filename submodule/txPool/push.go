@@ -99,7 +99,7 @@ func (pp *PushPool) syncPush() {
 		case <-pp.ctx.Done():
 			return
 		case bh := <-pp.msgDone:
-			logger.Debug("process new block at:", bh.height)
+			logger.Debug("process new block at: ", bh.height)
 
 			pp.lk.Lock()
 			for _, md := range bh.msgs {

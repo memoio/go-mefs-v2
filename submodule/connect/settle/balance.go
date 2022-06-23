@@ -206,7 +206,7 @@ func (cm *ContractMgr) proWithdraw(roleAddr, rTokenAddr common.Address, pIndex u
 	}
 	tx, err := roleFSIns.ProWithdraw(auth, ps)
 	if err != nil {
-		logger.Debug("ProWithdraw Err:", err)
+		logger.Debug("ProWithdraw Err: ", err)
 		return err
 	}
 

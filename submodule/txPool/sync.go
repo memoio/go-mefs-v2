@@ -117,11 +117,11 @@ func (sp *SyncPool) syncBlock() {
 		}
 
 		if sp.remoteHeight == sp.nextHeight {
-			logger.Debug("regular get block synced at:", sp.nextHeight)
+			logger.Debug("regular get block synced at: ", sp.nextHeight)
 			continue
 		}
 
-		logger.Debug("regular get block:", sp.nextHeight, sp.remoteHeight)
+		logger.Debug("regular get block: ", sp.nextHeight, sp.remoteHeight)
 
 		// if far from remote, parallel get it
 		if sp.remoteHeight > sp.nextHeight+128 {
@@ -158,11 +158,11 @@ func (sp *SyncPool) handleBlock() {
 		}
 
 		if sp.remoteHeight == sp.nextHeight {
-			logger.Debug("regular process block synced at:", sp.nextHeight)
+			logger.Debug("regular process block synced at: ", sp.nextHeight)
 			continue
 		}
 
-		logger.Debug("regular process block get:", sp.nextHeight, sp.remoteHeight)
+		logger.Debug("regular process block get: ", sp.nextHeight, sp.remoteHeight)
 		// sync all block from end -> begin
 		// use prevID to find
 		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
@@ -207,7 +207,7 @@ func (sp *SyncPool) handleBlock() {
 			sp.lk.Unlock()
 		}
 
-		logger.Debug("regular process block:", sp.nextHeight, sp.remoteHeight)
+		logger.Debug("regular process block: ", sp.nextHeight, sp.remoteHeight)
 
 		// process syncd blk
 		for i := sp.nextHeight; i < sp.remoteHeight; i++ {
@@ -505,7 +505,7 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
 
 		ok, err := sp.RoleVerify(ctx, msg.From, mid.Bytes(), msg.Signature)
 		if err != nil {
-			logger.Debug("add tx msg:", msg.From, mid, err)
+			logger.Debug("add tx msg: ", msg.From, mid, err)
 			return err
 		}
 

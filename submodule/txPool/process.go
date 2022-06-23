@@ -113,7 +113,7 @@ func (mp *InPool) sync() {
 
 			mp.lk.Unlock()
 		case bh := <-mp.blkDone:
-			logger.Debug("process new block at:", bh.height)
+			logger.Debug("process new block at: ", bh.height)
 
 			mp.lk.Lock()
 			for _, md := range bh.msgs {
@@ -249,7 +249,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 					}
 					nroot, err := mp.ValidateMsg(&m.Message)
 					if err != nil {
-						logger.Debug("block message invalid:", m.From, m.Nonce, m.Method, err)
+						logger.Debug("block message invalid: ", m.From, m.Nonce, m.Method, err)
 						tr.Err = 1
 						tr.Extra = err.Error()
 					} else {
@@ -290,7 +290,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 				}
 				nroot, err := mp.ValidateMsg(&m.Message)
 				if err != nil {
-					logger.Debug("block message invalid:", m.From, m.Nonce, m.Method, err)
+					logger.Debug("block message invalid: ", m.From, m.Nonce, m.Method, err)
 					tr.Err = 1
 					tr.Extra = err.Error()
 				}

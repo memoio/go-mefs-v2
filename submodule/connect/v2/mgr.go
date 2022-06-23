@@ -84,7 +84,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 	if err != nil {
 		return nil, xerrors.Errorf("get getter contract fail: %s", err)
 	}
-	logger.Debug("getter contract:", getAddr)
+	logger.Debug("getter contract: ", getAddr)
 
 	geti, err := impl.NewGetter(endPoint, hexSk, getAddr)
 	if err != nil {
@@ -95,7 +95,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 	if err != nil {
 		return nil, xerrors.Errorf("get token contract fail: %s", err)
 	}
-	logger.Debug("erc20 contract:", erc20Addr)
+	logger.Debug("erc20 contract: ", erc20Addr)
 
 	erc20i, err := impl.NewErc20(endPoint, hexSk, erc20Addr)
 	if err != nil {
@@ -109,7 +109,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 	if err != nil {
 		return nil, xerrors.Errorf("get proxy contract fail: %s", err)
 	}
-	logger.Debug("proxy contract:", proxyAddr)
+	logger.Debug("proxy contract: ", proxyAddr)
 	proxyi, err := impl.NewProxy(endPoint, hexSk, proxyAddr)
 	if err != nil {
 		return nil, err

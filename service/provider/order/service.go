@@ -115,16 +115,16 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 
 	or.availTime = time.Now().Unix()
 
-	logger.Debug("handle add data: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
+	logger.Debug("handle add data sat: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
 
 	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
 		if or.seq.Segments.Has(seg.SegmentID().GetBucketID(), seg.SegmentID().GetStripeID(), seg.SegmentID().GetChunkID()) {
-			logger.Debug("handle add data already: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
+			logger.Debug("handle add data already sat: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
 		}
 
 		has, _ := m.ids.HasSegment(m.ctx, seg.SegmentID())
 		if has {
-			logger.Debug("handle add data already: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
+			logger.Debug("handle add data already sat: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
 			return nil
 		}
 
@@ -168,7 +168,7 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		return nil
 	}
 
-	return xerrors.Errorf("fail handle data user %d nonce %d seq %d state %s %s", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
+	return xerrors.Errorf("fail handle add data sat: %d nonce %d seq %d state %s %s", userID, or.nonce, or.seqNum, or.orderState, or.seqState)
 }
 
 func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
@@ -230,7 +230,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 
 	or.availTime = time.Now().Unix()
 
-	logger.Debug("handle create order: ", ob.UserID, ob.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle create order sat: ", ob.UserID, ob.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
 	if or.nonce == ob.Nonce {
 		// handle previous
 		if or.base != nil && or.orderState == Order_Ack {
@@ -336,7 +336,7 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		}
 	}
 
-	return nil, xerrors.Errorf("fail create order user %d nonce %d seq %d state %s %s, got %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, ob.Nonce)
+	return nil, xerrors.Errorf("fail create order sat: %d nonce %d seq %d state %s %s, got %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, ob.Nonce)
 }
 
 func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
@@ -356,22 +356,21 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 
 	or.availTime = time.Now().Unix()
 
-	logger.Debug("handle create seq: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle create seq sat: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
 
 	if or.base == nil || or.orderState != Order_Ack || or.base.Nonce != os.Nonce {
-		return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
+		return nil, xerrors.Errorf("fail create seq sat: %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 	}
 
 	if or.seqNum == os.SeqNum && (or.seqState == OrderSeq_Init || or.seqState == OrderSeq_Done) {
 		// verify accPrice and accSize
 		if os.Price.Cmp(or.base.Price) != 0 || os.Size != or.base.Size {
-			logger.Debug("handle create seq: ", os.UserID, os.Nonce, os.SeqNum, os.Size, or.base.Size)
-			return nil, xerrors.Errorf("fail create seq %d %d due to wrong size, got %d expect %d", os.Nonce, os.SeqNum, os.Size, or.base.Size)
+			return nil, xerrors.Errorf("fail create seq sat: %d %d %d due to wrong size, got %d expect %d", os.UserID, os.Nonce, os.SeqNum, os.Size, or.base.Size)
 		}
 
 		// space time should not too large
 		if or.base.Size > orderMaxSize {
-			return nil, xerrors.Errorf("fail create seq %d %d due to large size, got %d sgould less than %d", os.Nonce, os.SeqNum, or.base.Size, orderMaxSize)
+			return nil, xerrors.Errorf("fail create seq sat: %d %d %d due to large size, got %d sgould less than %d", os.UserID, os.Nonce, os.SeqNum, or.base.Size, orderMaxSize)
 		}
 
 		or.seq = os
@@ -403,7 +402,7 @@ func (m *OrderMgr) HandleCreateSeq(userID uint64, b []byte) ([]byte, error) {
 		return data, nil
 	}
 
-	return nil, xerrors.Errorf("fail create seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
+	return nil, xerrors.Errorf("fail create seq sat: %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 }
 
 func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
@@ -424,10 +423,10 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 	or.availTime = time.Now().Unix()
 
-	logger.Debug("handle finish seq: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle finish seq sat: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
 
 	if or.base == nil || or.orderState != Order_Ack || or.base.Nonce != os.Nonce {
-		return nil, xerrors.Errorf("fail finish seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
+		return nil, xerrors.Errorf("fail finish seq sat: %d nonce %d %d seq %d state %s %s, got %d %d", or.userID, os.Nonce, or.base.Nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 	}
 
 	if or.seq != nil && or.seq.SeqNum == os.SeqNum {
@@ -438,13 +437,13 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			rHash := os.Hash()
 			lHash := or.seq.Hash()
 			if !rHash.Equal(lHash) {
-				logger.Debug("handle seq md5:", lHash.String(), " and ", rHash.String())
+				logger.Debug("handle seq md5: ", lHash.String(), " and ", rHash.String())
 
 				// todo: load missing or reget
 				if !or.seq.Segments.Equal(os.Segments) {
-					logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
-					logger.Debug("handle seq remote:", os.Segments.Len(), os)
-					logger.Warn("segments are not equal, load or re-get missing")
+					logger.Debug("handle seqIn local: ", or.seq.Segments.Len(), or.seq)
+					logger.Debug("handle seqIn remote: ", os.Segments.Len(), os)
+					logger.Warn("segments are not equal, load or re-get missing sat: ", userID)
 
 					or.seq.Price.Set(or.base.Price)
 					or.seq.Size = or.base.Size
@@ -563,9 +562,9 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 		if or.seqState == OrderSeq_Done {
 			if !os.Hash().Equal(or.seq.Hash()) {
-				logger.Debug("handle seq local:", or.seq.Segments.Len(), or.seq)
-				logger.Debug("handle seq remote:", os.Segments.Len(), os)
-				return nil, xerrors.Errorf("done segments are not equal, load or re-get missing")
+				logger.Debug("handle seqIn local: ", or.seq.Segments.Len(), or.seq)
+				logger.Debug("handle seqIn remote: ", os.Segments.Len(), os)
+				return nil, xerrors.Errorf("done segments are not equal, load or re-get missing sat: %d", userID)
 			}
 			data, err := or.seq.Serialize()
 			if err != nil {
@@ -576,5 +575,5 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		}
 	}
 
-	return nil, xerrors.Errorf("fail finish seq user %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
+	return nil, xerrors.Errorf("fail finish seq sat: %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 }

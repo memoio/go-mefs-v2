@@ -572,7 +572,7 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error
 	}
 
 	nt := time.Now()
-	//logger.Debug("block apply message:", msg.From, msg.Method, msg.Nonce, s.root)
+	//logger.Debug("block apply message: ", msg.From, msg.Method, msg.Nonce, s.root)
 
 	ri, ok := s.rInfo[msg.From]
 	if !ok {

@@ -186,7 +186,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 		encodedData, err := dp.coder.Encode(dp.segID, buf)
 		if err != nil {
-			logger.Debug("encode data error:", dp.segID, err)
+			logger.Debug("encode data error: ", dp.segID, err)
 			return err
 		}
 
@@ -200,12 +200,12 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			err := dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
 			if err != nil {
-				logger.Debug("Process data error:", dp.segID, err)
+				logger.Debug("Process data error: ", dp.segID, err)
 			}
 
 			err = l.OrderMgr.PutSegmentToLocal(ctx, seg)
 			if err != nil {
-				logger.Debug("Process data error:", dp.segID, err)
+				logger.Debug("Process data error: ", dp.segID, err)
 				return err
 			}
 		}

@@ -119,7 +119,7 @@ func (m *OrderMgr) getSeqRemote(proID uint64) (*types.SignedOrderSeq, error) {
 }
 
 func (m *OrderMgr) getQuotation(proID uint64) error {
-	logger.Debug("get new quotation from: ", proID)
+	logger.Debug("new quotation getr: ", proID)
 	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func (m *OrderMgr) getQuotation(proID uint64) error {
 }
 
 func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
-	logger.Debug("get new order ack from: ", proID)
+	logger.Debug("new order ack getr: ", proID)
 	msg := blake3.Sum256(data)
 	sig, err := m.RoleSign(m.ctx, m.localID, msg[:], types.SigSecp256k1)
 	if err != nil {
@@ -206,7 +206,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 }
 
 func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
-	logger.Debug("get new seq ack from: ", proID)
+	logger.Debug("new seq ack getr: ", proID)
 	msg := blake3.Sum256(data)
 	sig, err := m.RoleSign(m.ctx, m.localID, msg[:], types.SigSecp256k1)
 	if err != nil {
@@ -256,7 +256,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 }
 
 func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
-	logger.Debug("get finish seq ack from: ", proID)
+	logger.Debug("finish seq ack getrr: ", proID)
 	msg := blake3.Sum256(data)
 	sig, err := m.RoleSign(m.ctx, m.localID, msg[:], types.SigSecp256k1)
 	if err != nil {

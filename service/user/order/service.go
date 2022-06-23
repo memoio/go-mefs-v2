@@ -155,6 +155,7 @@ func (m *OrderMgr) Start() {
 	m.ready = true
 
 	m.proc.Go(m.runSched)
+	m.proc.Go(m.runSegSched)
 
 	m.proc.Go(m.runPush)
 	m.proc.Go(m.runCheck)
@@ -222,6 +223,26 @@ func (m *OrderMgr) addPros() {
 	}
 }
 
+func (m *OrderMgr) runSegSched(proc goprocess.Process) {
+	for {
+		// handle data
+		select {
+		case <-proc.Closing():
+			return
+		case sj := <-m.segAddChan:
+			m.addSegJob(sj)
+		case sj := <-m.segRedoChan:
+			m.redoSegJob(sj)
+		case sj := <-m.segDoneChan:
+			m.finishSegJob(sj)
+		case sj := <-m.segConfirmChan:
+			m.confirmSegJob(sj)
+		default:
+			time.Sleep(3 * time.Second)
+		}
+	}
+}
+
 func (m *OrderMgr) runSched(proc goprocess.Process) {
 	st := time.NewTicker(30 * time.Second)
 	defer st.Stop()
@@ -232,17 +253,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 	m.addPros() // add providers
 
 	for {
-		// handle data
 		select {
-		case sj := <-m.segAddChan:
-			m.addSegJob(sj)
-		case sj := <-m.segRedoChan:
-			m.redoSegJob(sj)
-		case sj := <-m.segDoneChan:
-			m.finishSegJob(sj)
-		case sj := <-m.segConfirmChan:
-			m.confirmSegJob(sj)
-
 		// handle order state
 		case quo := <-m.quoChan:
 			m.lk.RLock()
@@ -256,7 +267,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 					of.availTime = time.Now().Unix()
 					err := m.createOrder(of, quo)
 					if err != nil {
-						logger.Debug("fail create new order:", err)
+						logger.Debug("fail create new order: ", err)
 					}
 				}
 			}
@@ -268,7 +279,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				of.availTime = time.Now().Unix()
 				err := m.runOrder(of, ob)
 				if err != nil {
-					logger.Debug("fail run new order:", ob.ProID, err)
+					logger.Debug("fail run new order: ", ob.ProID, err)
 				}
 			}
 		case s := <-m.seqNewChan:
@@ -279,7 +290,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				of.availTime = time.Now().Unix()
 				err := m.sendSeq(of, s.os)
 				if err != nil {
-					logger.Debug("fail send new seq:", err)
+					logger.Debug("fail send new seq: ", err)
 				}
 			}
 		case s := <-m.seqFinishChan:
@@ -290,11 +301,11 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				of.availTime = time.Now().Unix()
 				err := m.finishSeq(of, s.os)
 				if err != nil {
-					logger.Debug("fail finish seq:", err)
+					logger.Debug("fail finish seq: ", err)
 				}
 			}
 		case of := <-m.proChan:
-			logger.Debug("add order to pro:", of.pro)
+			logger.Debug("add order to pro: ", of.pro)
 			_, ok := m.orders[of.pro]
 			if !ok {
 				m.lk.Lock()

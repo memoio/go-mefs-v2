@@ -392,7 +392,7 @@ func (ob *object) load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 			oi := new(pb.ObjectInfo)
 			err = proto.Unmarshal(or.GetPayload(), oi)
 			if err != nil {
-				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
+				logger.Debug("load object ops err: ", objectID, opID, or.GetType(), err)
 				continue
 			}
 
@@ -403,12 +403,12 @@ func (ob *object) load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 			pi := new(pb.ObjectPartInfo)
 			err = proto.Unmarshal(or.GetPayload(), pi)
 			if err != nil {
-				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
+				logger.Debug("load object ops err: ", objectID, opID, or.GetType(), err)
 				continue
 			}
 
 			if pi.ObjectID != ob.ObjectID {
-				logger.Debug("load object ops fail:", objectID, opID, or.GetType(), pi.ObjectID, ob.ObjectID)
+				logger.Debug("load object ops err: ", objectID, opID, or.GetType(), pi.ObjectID, ob.ObjectID)
 				continue
 			}
 
@@ -417,12 +417,12 @@ func (ob *object) load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 			di := new(pb.ObjectDeleteInfo)
 			err = proto.Unmarshal(or.GetPayload(), di)
 			if err != nil {
-				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
+				logger.Debug("load object ops err: ", objectID, opID, or.GetType(), err)
 				continue
 			}
 
 			if di.ObjectID != ob.ObjectID {
-				logger.Debug("load object ops fail:", objectID, opID, or.GetType(), di.ObjectID, ob.ObjectID)
+				logger.Debug("load object ops err: ", objectID, opID, or.GetType(), di.ObjectID, ob.ObjectID)
 				continue
 			}
 
@@ -431,7 +431,7 @@ func (ob *object) load(userID uint64, bucketID, objectID uint64, ds store.KVStor
 			cni := new(pb.ObjectRenameInfo)
 			err = proto.Unmarshal(or.GetPayload(), cni)
 			if err != nil {
-				logger.Debug("load object ops err:", objectID, opID, or.GetType(), err)
+				logger.Debug("load object ops err: ", objectID, opID, or.GetType(), err)
 				continue
 			}
 			ob.Name = cni.GetName()

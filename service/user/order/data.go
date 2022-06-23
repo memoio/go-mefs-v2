@@ -397,7 +397,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 
 		if seg.confirmBits.Count() != cnt {
 			seg.dispatchBits = bitset.From(seg.doneBits.Bytes())
-			logger.Debug("load unfinished job:", bucketID, i, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count(), cnt)
+			logger.Debug("load unfinished job: ", bucketID, i, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count(), cnt)
 		}
 	}
 }
@@ -407,14 +407,14 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 
 	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false, true)
 	if err != nil {
-		logger.Debug("fail to add seg:", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start, err)
+		logger.Debug("fail to add seg: ", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
 	if seg.Start+seg.Length == sj.Start {
 		seg.Length += sj.Length
 	} else {
-		logger.Debug("fail to add seg:", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start)
+		logger.Debug("fail to add seg: ", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start)
 		return
 	}
 
@@ -432,7 +432,7 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 
 	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
-		logger.Debug("fail to finish seg:", seg.Start, seg.Length, sj.Start, err)
+		logger.Debug("fail to finish seg: ", seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
@@ -458,7 +458,7 @@ func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 
 	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
-		logger.Debug("fail to confirm seg:", seg.Start, seg.Length, sj.Start, err)
+		logger.Debug("fail to confirm seg: ", seg.Start, seg.Length, sj.Start, err)
 		return
 	}
 
@@ -571,20 +571,20 @@ func (m *OrderMgr) dispatch() {
 		lp.lk.RUnlock()
 
 		if len(pros) == 0 {
-			logger.Debug("fail get providers dispatch for bucket:", seg.BucketID, len(pros))
+			logger.Debug("fail get providers dispatch for bucket: ", seg.BucketID, len(pros))
 			continue
 		}
 
 		for i, pid := range pros {
 			if pid == math.MaxUint64 {
-				logger.Debug("fail dispatch to wrong pro:", pid)
+				logger.Debug("fail dispatch to wrong pro: ", pid)
 				continue
 			}
 			m.lk.RLock()
 			or, ok := m.orders[pid]
 			m.lk.RUnlock()
 			if !ok {
-				logger.Debug("fail dispatch to pro:", pid)
+				logger.Debug("fail dispatch to pro: ", pid)
 				continue
 			}
 
@@ -699,8 +699,8 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				continue
 			}
 
-			err := m.sendCtr.Acquire(m.ctx, 1)
-			if err != nil {
+			got := m.sendCtr.TryAcquire(1)
+			if !got {
 				time.Sleep(time.Second)
 				continue
 			}
@@ -735,7 +735,7 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
 			if err != nil {
 				m.sendCtr.Release(1)
-				logger.Debug("send segment fail:", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
+				logger.Debug("send segment fail: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
 
 				// weather has been sent
 				key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
@@ -758,7 +758,7 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 			}
 			m.sendCtr.Release(1)
 
-			logger.Debug("send segment:", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
+			logger.Debug("send segment: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
 
 			o.availTime = time.Now().Unix()
 

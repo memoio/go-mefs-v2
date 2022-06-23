@@ -13,7 +13,7 @@ const (
 	defaultAckWaiting = 35
 
 	// parallel number of net send
-	defaultWeighted = 50
+	defaultWeighted = 32
 	minFailCnt      = 100
 )
 
