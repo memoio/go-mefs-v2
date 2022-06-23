@@ -697,7 +697,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	}
 
 	// last seq is not start, so use it
-	if o.sjq.Len() == 0 && (o.base.Size == o.seq.Size) {
+	if o.sjq.Len() == 0 && (o.base.Size == o.seq.Size) && len(o.seq.ProDataSig.Data) == 0 {
 		ocp.SeqNum = o.seq.SeqNum
 	}
 
@@ -1063,7 +1063,6 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	// reset
 	o.seqState = OrderSeq_Init
-	o.sjq = new(types.SegJobsQueue)
 	o.failCnt = 0
 
 	// trigger new seq
