@@ -228,7 +228,8 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("order service pause for %d", ob.UserID)
 	}
 
-	or.availTime = time.Now().Unix()
+	ntn := time.Now()
+	or.availTime = ntn.Unix()
 
 	logger.Debug("handle create order sat: ", ob.UserID, ob.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
 	if or.nonce == ob.Nonce {
@@ -285,6 +286,8 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 				return nil, err
 			}
 
+			logger.Debug("handle create order end sat: ", ob.UserID, ob.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState, time.Since(ntn))
+
 			return or.base.Serialize()
 		}
 	}
@@ -296,6 +299,8 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			logger.Debug("handle create order end sat: ", ob.UserID, ob.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState, time.Since(ntn))
 
 			return data, nil
 		} else {

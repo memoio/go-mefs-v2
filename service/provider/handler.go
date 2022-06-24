@@ -271,6 +271,8 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 
 	resp.Data.Sign = sigByte
 
+	logger.Debug("handle create order end sat: ", mes.GetHeader().From)
+
 	return resp, nil
 }
 
@@ -347,6 +349,8 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	resp.Data.Sign = sigByte
 
+	logger.Debug("handle create seq end sat: ", mes.GetHeader().From)
+
 	return resp, nil
 }
 
@@ -420,6 +424,8 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 	}
 
 	resp.Data.Sign = sigByte
+
+	logger.Debug("handle finish seq end sat: ", mes.GetHeader().From)
 
 	return resp, nil
 }
