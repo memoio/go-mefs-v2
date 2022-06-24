@@ -151,9 +151,16 @@ func (m *OrderMgr) getQuotation(proID uint64) error {
 
 	// verify
 	msg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok, _ := m.RoleVerify(m.ctx, proID, msg[:], *sig)
+	ok, err := m.RoleVerify(m.ctx, proID, msg[:], *sig)
+	if err != nil {
+		logger.Debug("fail get new quotation from: ", proID, err)
+		return err
+	}
+
 	if ok {
+		logger.Debug("new quotation end getr: ", proID)
 		m.quoChan <- quo
+		logger.Debug("new quotation end1 getr: ", proID)
 	}
 
 	return nil
@@ -198,9 +205,15 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 	}
 
 	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok, _ := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
+	ok, err := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
+	if err != nil {
+		logger.Debug("fail get new order ack from: ", proID, err)
+		return err
+	}
 	if ok {
+		logger.Debug("new order ack end getr: ", proID)
 		m.orderChan <- ob
+		logger.Debug("new order ack end1 getr: ", proID)
 	}
 
 	return nil
@@ -245,20 +258,27 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 	}
 
 	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
-	ok, _ := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
+	ok, err := m.RoleVerify(m.ctx, proID, pmsg[:], *psig)
+	if err != nil {
+		logger.Debug("fail get new seq ack from: ", proID, err)
+		return err
+	}
+
 	if ok {
+		logger.Debug("new seq ack end getr: ", proID)
 		osp := &orderSeqPro{
 			proID: proID,
 			os:    os,
 		}
 		m.seqNewChan <- osp
+		logger.Debug("new seq ack end1 getr: ", proID)
 	}
 
 	return nil
 }
 
 func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
-	logger.Debug("finish seq ack getrr: ", proID)
+	logger.Debug("finish seq ack getr: ", proID)
 	msg := blake3.Sum256(data)
 	sig, err := m.RoleSign(m.ctx, m.localID, msg[:], types.SigSecp256k1)
 	if err != nil {
@@ -303,11 +323,13 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 	}
 
 	if ok {
+		logger.Debug("finish seq ack end getr: ", proID)
 		osp := &orderSeqPro{
 			proID: proID,
 			os:    os,
 		}
 		m.seqFinishChan <- osp
+		logger.Debug("finish seq ack end1 getr: ", proID)
 	}
 
 	return nil
