@@ -620,7 +620,6 @@ func (m *OrderMgr) dispatch() {
 
 func (o *OrderFull) hasSeg() bool {
 	has := false
-	o.RLock()
 	for _, bid := range o.buckets {
 		bjob, ok := o.jobs[bid]
 		if ok && len(bjob.jobs) > 0 {
@@ -628,7 +627,6 @@ func (o *OrderFull) hasSeg() bool {
 			break
 		}
 	}
-	o.RUnlock()
 
 	return has
 }

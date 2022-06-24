@@ -154,8 +154,9 @@ func (m *OrderMgr) Start() {
 
 	m.ready = true
 
-	m.proc.Go(m.runSched)
+	m.proc.Go(m.runProSched)
 	m.proc.Go(m.runSegSched)
+	m.proc.Go(m.runSched)
 
 	m.proc.Go(m.runPush)
 	m.proc.Go(m.runCheck)
@@ -243,14 +244,60 @@ func (m *OrderMgr) runSegSched(proc goprocess.Process) {
 	}
 }
 
-func (m *OrderMgr) runSched(proc goprocess.Process) {
-	st := time.NewTicker(30 * time.Second)
-	defer st.Stop()
-
+// add and update pro
+func (m *OrderMgr) runProSched(proc goprocess.Process) {
 	lt := time.NewTicker(5 * time.Minute)
 	defer lt.Stop()
 
 	m.addPros() // add providers
+
+	for {
+		select {
+		case of := <-m.proChan:
+			logger.Debug("add order to pro: ", of.pro)
+			_, ok := m.orders[of.pro]
+			if !ok {
+				m.lk.Lock()
+				m.orders[of.pro] = of
+				m.pros = append(m.pros, of.pro)
+				m.lk.Unlock()
+				go m.update(of.pro)
+			}
+		case lp := <-m.bucketChan:
+			_, ok := m.proMap[lp.bucketID]
+			if !ok {
+				m.buckets = append(m.buckets, lp.bucketID)
+				m.proMap[lp.bucketID] = lp
+			}
+		case pid := <-m.updateChan:
+			m.lk.RLock()
+			of, ok := m.orders[pid]
+			m.lk.RUnlock()
+			if ok {
+				of.availTime = time.Now().Unix()
+			} else {
+				go m.newProOrder(pid)
+			}
+		case <-lt.C:
+			m.addPros() // add providers
+
+			m.save()
+
+			for _, bid := range m.pros {
+				lp, ok := m.proMap[bid]
+				if ok {
+					m.updateProsForBucket(lp)
+				}
+			}
+		case <-proc.Closing():
+			return
+		}
+	}
+}
+
+func (m *OrderMgr) runSched(proc goprocess.Process) {
+	st := time.NewTicker(60 * time.Second)
+	defer st.Stop()
 
 	for {
 		select {
@@ -304,31 +351,6 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 					logger.Debug("fail finish seq: ", err)
 				}
 			}
-		case of := <-m.proChan:
-			logger.Debug("add order to pro: ", of.pro)
-			_, ok := m.orders[of.pro]
-			if !ok {
-				m.lk.Lock()
-				m.orders[of.pro] = of
-				m.pros = append(m.pros, of.pro)
-				m.lk.Unlock()
-				go m.update(of.pro)
-			}
-		case lp := <-m.bucketChan:
-			_, ok := m.proMap[lp.bucketID]
-			if !ok {
-				m.buckets = append(m.buckets, lp.bucketID)
-				m.proMap[lp.bucketID] = lp
-			}
-		case pid := <-m.updateChan:
-			m.lk.RLock()
-			of, ok := m.orders[pid]
-			m.lk.RUnlock()
-			if ok {
-				of.availTime = time.Now().Unix()
-			} else {
-				go m.newProOrder(pid)
-			}
 		case <-st.C:
 			// dispatch to each pro
 			m.dispatch()
@@ -338,17 +360,6 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				of := m.orders[pid]
 				m.lk.RUnlock()
 				m.check(of)
-			}
-		case <-lt.C:
-			m.addPros() // add providers
-
-			m.save()
-
-			for _, bid := range m.pros {
-				lp, ok := m.proMap[bid]
-				if ok {
-					m.updateProsForBucket(lp)
-				}
 			}
 		case <-proc.Closing():
 			return
