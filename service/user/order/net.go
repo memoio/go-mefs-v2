@@ -174,11 +174,12 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 
 	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_CreateOrder, data, sigByte)
 	if err != nil {
+		logger.Debug("fail get new order ack from: ", proID, string(resp.GetData().MsgInfo))
 		return err
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		logger.Debugf("fail get new order ack from %d %s ", proID, string(resp.GetData().MsgInfo))
+		logger.Debug("fail get new order ack from: ", proID, string(resp.GetData().MsgInfo))
 		return xerrors.Errorf("get new order ack from %d fail %s", proID, resp.GetData().MsgInfo)
 	}
 
@@ -220,6 +221,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 
 	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_CreateSeq, data, sigByte)
 	if err != nil {
+		logger.Debug("fail get new seq ack from: ", proID, err)
 		return err
 	}
 
@@ -270,6 +272,7 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 
 	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_FinishSeq, data, sigByte)
 	if err != nil {
+		logger.Debug("fail get finish seq ack from: ", proID, err)
 		return err
 	}
 

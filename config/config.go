@@ -79,9 +79,6 @@ func newDefaultSwarmConfig() SwarmConfig {
 		Name: "devnet",
 		Addresses: []string{
 			"/ip4/0.0.0.0/tcp/7000",
-			"/ip6/::/tcp/7001",
-			"/ip4/0.0.0.0/udp/7000/quic",
-			"/ip6/::/udp/7001/quic",
 		},
 	}
 }

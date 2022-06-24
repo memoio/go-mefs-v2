@@ -421,9 +421,10 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("order service not ready for %d", userID)
 	}
 
-	or.availTime = time.Now().Unix()
+	nt := time.Now()
+	or.availTime = nt.Unix()
 
-	logger.Debug("handle finish seq sat: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState)
+	logger.Debug("handle finish seq sat: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState, nt)
 
 	if or.base == nil || or.orderState != Order_Ack || or.base.Nonce != os.Nonce {
 		return nil, xerrors.Errorf("fail finish seq sat: %d nonce %d %d seq %d state %s %s, got %d %d", or.userID, os.Nonce, or.base.Nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
@@ -557,7 +558,14 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			val, _ := or.di.Serialize()
 			m.ds.Put(key, val)
 
-			return or.seq.Serialize()
+			data, err := or.seq.Serialize()
+			if err != nil {
+				return nil, err
+			}
+
+			logger.Debug("handle finish seq end sat: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState, time.Since(nt))
+
+			return data, nil
 		}
 
 		if or.seqState == OrderSeq_Done {
@@ -570,6 +578,8 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			logger.Debug("handle finish seq end sat: ", userID, os.Nonce, or.nonce, or.seqNum, or.orderState, or.seqState, time.Since(nt))
 
 			return data, nil
 		}

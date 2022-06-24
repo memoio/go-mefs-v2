@@ -714,7 +714,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 
 	m.msgChan <- msg
 
-	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce, o.seqNum)
+	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce, o.seqNum, o.base.Size, o.seq.Size)
 
 	o.orderState = Order_Done
 	o.orderTime = time.Now().Unix()
@@ -998,15 +998,15 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 	oHash := o.seq.Hash()
 	ok, _ := m.RoleVerify(m.ctx, o.pro, oHash.Bytes(), s.ProDataSig)
 	if !ok {
-		logger.Debug("handle seq local: ", o.seq.Segments.Len(), o.seq)
-		logger.Debug("handle seq remote: ", s.Segments.Len(), s)
+		logger.Debug("handle seqIn local: ", o.seq.Segments.Len(), o.seq)
+		logger.Debug("handle seqIn remote: ", s.Segments.Len(), s)
 		return xerrors.Errorf("%d has %d %d, got %d %d seq sign is wrong", o.pro, o.seq.Nonce, o.seq.SeqNum, s.Nonce, s.SeqNum)
 	}
 
 	ok, _ = m.RoleVerify(m.ctx, o.pro, o.base.Hash(), s.ProSig)
 	if !ok {
-		logger.Debug("handle order seq local: ", o.seq)
-		logger.Debug("handle order seq remote: ", s)
+		logger.Debug("handle order seqIn local: ", o.seq)
+		logger.Debug("handle order seqIn remote: ", s)
 		return xerrors.Errorf("%d has %d %d, got %d %d order sign is wrong", o.pro, o.seq.Nonce, o.seq.SeqNum, s.Nonce, s.SeqNum)
 	}
 
