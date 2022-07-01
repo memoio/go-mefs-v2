@@ -201,7 +201,7 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 		return nil, err
 	}
 
-	isActive, isBanned, err := getIns.GetGInfo(&bind.CallOpts{
+	state, err := getIns.GetGS(&bind.CallOpts{
 		From: g.eAddr,
 	}, gi)
 	if err != nil {
@@ -245,8 +245,7 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 
 	ginfo := &api.GroupInfo{
 		EndPoint: g.endPoint,
-		IsActive: isActive,
-		IsBan:    isBanned,
+		State:    state,
 		Level:    level,
 		Kpr:      kpr,
 		Ppr:      ppr,
@@ -419,6 +418,7 @@ func (g *getImpl) GetFsPool() (common.Address, error) {
 func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int, error) {
 	res := new(big.Int)
 	lock := new(big.Int)
+	penalty := new(big.Int)
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
 		return res, lock, err
@@ -433,7 +433,7 @@ func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int, error) {
 	retryCount := 0
 	for {
 		retryCount++
-		res, lock, err = getIns.FsBalanceOf(&bind.CallOpts{
+		res, lock, penalty, err = getIns.FsBalanceOf(&bind.CallOpts{
 			From: g.eAddr,
 		}, i, ti)
 		if err != nil {
@@ -443,6 +443,8 @@ func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int, error) {
 			time.Sleep(5 * time.Second)
 			continue
 		}
+
+		res.Sub(res, penalty)
 
 		return res, lock, err
 	}

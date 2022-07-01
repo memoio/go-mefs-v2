@@ -13,8 +13,7 @@ type GroupInfo struct {
 	EndPoint string
 	BaseAddr string
 	ID       uint64
-	IsActive bool
-	IsBan    bool
+	State    uint8
 	Level    uint8
 	Size     uint64
 	Price    *big.Int

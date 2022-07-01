@@ -45,11 +45,11 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 		return nil, err
 	}
 
-	if ri.IsBan {
-		return nil, xerrors.Errorf("%d is banned", ri.Index)
-	}
+	//if ri.State == 1 {
+	//	return nil, xerrors.Errorf("%d is banned", ri.Index)
+	//}
 
-	if ri.RType > 0 && !ri.IsActive {
+	if ri.RType > 0 && ri.State != 3 {
 		return nil, xerrors.Errorf("%d is not active", ri.Index)
 	}
 
@@ -58,16 +58,26 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 	pri.RoleID = ri.Index
 	pri.GroupID = ri.GIndex
 	pri.ChainVerifyKey = eAddr.Bytes()
+	pri.Desc = ri.Desc
+
+	switch ri.State {
+	case 1:
+		pri.State = "banned"
+	case 2:
+		pri.State = "inactive"
+	case 3:
+		pri.State = "active"
+	}
 
 	switch ri.RType {
 	case 1:
 		pri.Type = pb.RoleInfo_User
-		pri.Extra = ri.Extra
+		pri.Extra = ri.VerifyKey
 	case 2:
 		pri.Type = pb.RoleInfo_Provider
 	case 3:
 		pri.Type = pb.RoleInfo_Keeper
-		pri.BlsVerifyKey = ri.Extra
+		pri.BlsVerifyKey = ri.VerifyKey
 	default:
 		pri.Type = pb.RoleInfo_Unknown
 	}

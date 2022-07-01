@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/build"
@@ -534,7 +535,10 @@ func apiAddrFromFile(repoPath string) (string, error) {
 		return "", xerrors.Errorf("failed to read API file %w", err)
 	}
 
-	return string(jsonrpcAPI), nil
+	sapi := string(jsonrpcAPI)
+	sapi = strings.TrimSpace(sapi) // trim end space
+
+	return sapi, nil
 }
 
 // APIAddr reads the FSRepo's api file and returns the api address

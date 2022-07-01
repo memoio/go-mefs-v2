@@ -144,7 +144,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 		cm.typ = pb.RoleInfo_Provider
 	case 3:
 		cm.typ = pb.RoleInfo_Keeper
-		if ri.GIndex > 0 && !ri.IsActive {
+		if ri.GIndex > 0 && ri.State != 3 {
 			logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
 			return nil, xerrors.Errorf("keeper is not active, activate first")
 		}
