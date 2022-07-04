@@ -151,10 +151,11 @@ func (m *OrderMgr) newProOrder(id uint64) {
 	m.inCreation[id] = struct{}{}
 	m.lk.Unlock()
 
-	logger.Debug("create order for provider: ", id)
+	logger.Debug("create order sat: ", id)
 	of := m.loadProOrder(id)
+	logger.Debug("load order sat: ", of.pro, of.nonce, of.seqNum, of.orderState, of.seqState)
 	err := m.loadUnfinished(of)
-	logger.Debug("create order for provider: ", id, err)
+	logger.Debug("finish create order sat: ", id, err)
 	// resend tx msg
 	m.proChan <- of
 }
@@ -279,8 +280,6 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 	if err != nil {
 		return op
 	}
-
-	logger.Debug("load order: ", op.pro, op.nonce, op.seqNum, op.orderState, op.seqState, op.base.Size, op.seq.Size)
 
 	return op
 }
