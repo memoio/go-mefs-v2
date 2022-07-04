@@ -181,7 +181,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 
 	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_CreateOrder, data, sigByte)
 	if err != nil {
-		logger.Debug("fail get new order ack from: ", proID, string(resp.GetData().MsgInfo))
+		logger.Debug("fail get new order ack from: ", proID, err)
 		return err
 	}
 
