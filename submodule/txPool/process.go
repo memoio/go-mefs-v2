@@ -234,7 +234,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 						break
 					}
 
-					ri, err := mp.RoleGet(mp.ctx, m.From)
+					ri, err := mp.RoleGet(mp.ctx, m.From, false)
 					if err != nil {
 						break
 					}

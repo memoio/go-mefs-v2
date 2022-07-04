@@ -223,16 +223,19 @@ func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo, save bool) {
 		default:
 			return
 		}
+	} else {
+		logger.Debug("update role info for: ", ri.RoleID, save)
+		rm.infos[ri.RoleID] = ri
+	}
 
-		if save {
-			key := store.NewKey(pb.MetaType_RoleInfoKey, ri.RoleID)
+	if save {
+		key := store.NewKey(pb.MetaType_RoleInfoKey, ri.RoleID)
 
-			pbyte, err := proto.Marshal(ri)
-			if err != nil {
-				return
-			}
-			rm.ds.Put(key, pbyte)
+		pbyte, err := proto.Marshal(ri)
+		if err != nil {
+			return
 		}
+		rm.ds.Put(key, pbyte)
 	}
 }
 

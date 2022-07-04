@@ -374,7 +374,7 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	}
 
 	// verify minerID in block
-	ri, err := sp.RoleGet(sp.ctx, tb.MinerID)
+	ri, err := sp.RoleGet(sp.ctx, tb.MinerID, false)
 	if err != nil {
 		return err
 	}
@@ -400,10 +400,12 @@ func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
 	for _, msg := range tb.Msgs {
 		ok, err := sp.RoleVerify(sp.ctx, msg.From, msg.Hash().Bytes(), msg.Signature)
 		if err != nil {
+			go sp.RoleGet(sp.ctx, msg.From, true)
 			return err
 		}
 
 		if !ok {
+			go sp.RoleGet(sp.ctx, msg.From, true)
 			return xerrors.Errorf("%s block at height %d msg %d sign is invalid", bid, tb.Height, msg.From)
 		}
 	}

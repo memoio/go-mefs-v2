@@ -50,7 +50,7 @@ type CommonStruct struct {
 		NetPeers         func(context.Context) ([]peer.AddrInfo, error)                `perm:"read"`
 
 		RoleSelf        func(context.Context) (*pb.RoleInfo, error)                                   `perm:"read"`
-		RoleGet         func(context.Context, uint64) (*pb.RoleInfo, error)                           `perm:"read"`
+		RoleGet         func(context.Context, uint64, bool) (*pb.RoleInfo, error)                     `perm:"read"`
 		RoleGetRelated  func(context.Context, pb.RoleInfo_Type) ([]uint64, error)                     `perm:"read"`
 		RoleSign        func(context.Context, uint64, []byte, types.SigType) (types.Signature, error) `perm:"write"`
 		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)          `perm:"read"`
@@ -205,8 +205,8 @@ func (s *CommonStruct) RoleSelf(ctx context.Context) (*pb.RoleInfo, error) {
 	return s.Internal.RoleSelf(ctx)
 }
 
-func (s *CommonStruct) RoleGet(ctx context.Context, id uint64) (*pb.RoleInfo, error) {
-	return s.Internal.RoleGet(ctx, id)
+func (s *CommonStruct) RoleGet(ctx context.Context, id uint64, update bool) (*pb.RoleInfo, error) {
+	return s.Internal.RoleGet(ctx, id, update)
 }
 
 func (s *CommonStruct) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {

@@ -122,7 +122,7 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 		return seg, err
 	}
 
-	pri, err := d.RoleGet(ctx, from)
+	pri, err := d.RoleGet(ctx, from, false)
 	if err != nil {
 		return seg, err
 	}

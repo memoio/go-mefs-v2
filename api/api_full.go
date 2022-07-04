@@ -111,7 +111,7 @@ type INetwork interface {
 
 type IRole interface {
 	RoleSelf(context.Context) (*pb.RoleInfo, error)
-	RoleGet(context.Context, uint64) (*pb.RoleInfo, error)
+	RoleGet(context.Context, uint64, bool) (*pb.RoleInfo, error)
 	RoleGetRelated(context.Context, pb.RoleInfo_Type) ([]uint64, error)
 
 	RoleSanityCheck(context.Context, *tx.SignedMessage) (bool, error)

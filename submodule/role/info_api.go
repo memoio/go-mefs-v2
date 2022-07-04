@@ -30,11 +30,25 @@ func (rm *RoleMgr) RoleSelf(ctx context.Context) (*pb.RoleInfo, error) {
 	return rm.get(rm.roleID)
 }
 
-func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64) (*pb.RoleInfo, error) {
+func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64, update bool) (*pb.RoleInfo, error) {
 	rm.Lock()
 	defer rm.Unlock()
 
-	return rm.get(id)
+	if !update {
+		return rm.get(id)
+	}
+
+	pri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if pri.GroupID != rm.groupID {
+		return nil, err
+	}
+
+	rm.AddRoleInfo(pri)
+	return pri, nil
 }
 
 func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {
