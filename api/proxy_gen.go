@@ -408,6 +408,13 @@ type ProviderNodeStruct struct {
 		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
 
 		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
+
+		RestrictStat   func(context.Context) (bool, error)     `perm:"read"`
+		RestrictEnable func(context.Context, bool) error       `perm:"write"`
+		RestrictAdd    func(context.Context, uint64) error     `perm:"write"`
+		RestrictDelete func(context.Context, uint64) error     `perm:"write"`
+		RestrictHas    func(context.Context, uint64) bool      `perm:"read"`
+		RestrictList   func(context.Context) ([]uint64, error) `perm:"read"`
 	}
 }
 
@@ -433,6 +440,27 @@ func (s *ProviderNodeStruct) OrderList(ctx context.Context) ([]uint64, error) {
 
 func (s *ProviderNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
 	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
+}
+
+func (s *ProviderNodeStruct) RestrictStat(ctx context.Context) (bool, error) {
+	return s.Internal.RestrictStat(ctx)
+}
+func (s *ProviderNodeStruct) RestrictEnable(ctx context.Context, ea bool) error {
+	return s.Internal.RestrictEnable(ctx, ea)
+}
+
+func (s *ProviderNodeStruct) RestrictAdd(ctx context.Context, uid uint64) error {
+	return s.Internal.RestrictAdd(ctx, uid)
+}
+func (s *ProviderNodeStruct) RestrictDelete(ctx context.Context, uid uint64) error {
+	return s.Internal.RestrictDelete(ctx, uid)
+}
+func (s *ProviderNodeStruct) RestrictHas(ctx context.Context, uid uint64) bool {
+	return s.Internal.RestrictHas(ctx, uid)
+}
+
+func (s *ProviderNodeStruct) RestrictList(ctx context.Context) ([]uint64, error) {
+	return s.Internal.RestrictList(ctx)
 }
 
 type UserNodeStruct struct {
@@ -463,6 +491,13 @@ type UserNodeStruct struct {
 		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
 
 		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
+
+		RestrictStat   func(context.Context) (bool, error)     `perm:"read"`
+		RestrictEnable func(context.Context, bool) error       `perm:"write"`
+		RestrictAdd    func(context.Context, uint64) error     `perm:"write"`
+		RestrictDelete func(context.Context, uint64) error     `perm:"write"`
+		RestrictHas    func(context.Context, uint64) bool      `perm:"read"`
+		RestrictList   func(context.Context) ([]uint64, error) `perm:"read"`
 	}
 }
 
@@ -536,6 +571,27 @@ func (s *UserNodeStruct) OrderGetPayInfoAt(ctx context.Context, proID uint64) (*
 
 func (s *UserNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
 	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
+}
+
+func (s *UserNodeStruct) RestrictStat(ctx context.Context) (bool, error) {
+	return s.Internal.RestrictStat(ctx)
+}
+func (s *UserNodeStruct) RestrictEnable(ctx context.Context, ea bool) error {
+	return s.Internal.RestrictEnable(ctx, ea)
+}
+
+func (s *UserNodeStruct) RestrictAdd(ctx context.Context, uid uint64) error {
+	return s.Internal.RestrictAdd(ctx, uid)
+}
+func (s *UserNodeStruct) RestrictDelete(ctx context.Context, uid uint64) error {
+	return s.Internal.RestrictDelete(ctx, uid)
+}
+func (s *UserNodeStruct) RestrictHas(ctx context.Context, uid uint64) bool {
+	return s.Internal.RestrictHas(ctx, uid)
+}
+
+func (s *UserNodeStruct) RestrictList(ctx context.Context) ([]uint64, error) {
+	return s.Internal.RestrictList(ctx)
 }
 
 type KeeperNodeStruct struct {

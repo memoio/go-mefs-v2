@@ -19,6 +19,7 @@ func main() {
 	local = append(local, lfscmd.LfsCmd)
 	local = append(local, OrderCmd)
 	local = append(local, GatewayCmd)
+	local = append(local, cmd.RestrictCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-user",

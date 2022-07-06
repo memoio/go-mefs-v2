@@ -17,12 +17,14 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp"
+	"github.com/memoio/go-mefs-v2/submodule/control"
 	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 type OrderMgr struct {
 	api.IRole
 	api.IDataService
+	api.IRestrict
 	*txPool.PushPool
 
 	is api.ISettle
@@ -93,6 +95,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 		IRole:        ir,
 		IDataService: id,
 		PushPool:     pp,
+		IRestrict:    control.New(ds),
 
 		ds: ds,
 		ns: ns,

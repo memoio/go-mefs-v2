@@ -135,6 +135,10 @@ func (m *OrderMgr) newProOrder(id uint64) {
 		return
 	}
 
+	if !m.RestrictHas(m.ctx, id) {
+		return
+	}
+
 	m.lk.Lock()
 	_, has := m.orders[id]
 	if has {

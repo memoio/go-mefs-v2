@@ -41,12 +41,14 @@ type UserNode interface {
 
 	ILfsService
 	IOrder
+	IRestrict
 }
 
 type ProviderNode interface {
 	FullNode
 
 	IOrder
+	IRestrict
 }
 
 type KeeperNode interface {
@@ -239,4 +241,13 @@ type IOrder interface {
 	OrderGetPayInfoAt(context.Context, uint64) (*types.OrderPayInfo, error)
 
 	OrderGetDetail(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error)
+}
+
+type IRestrict interface {
+	RestrictStat(context.Context) (bool, error)
+	RestrictEnable(context.Context, bool) error
+	RestrictAdd(context.Context, uint64) error
+	RestrictDelete(context.Context, uint64) error
+	RestrictHas(context.Context, uint64) bool
+	RestrictList(context.Context) ([]uint64, error)
 }

@@ -16,9 +16,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/submodule/control"
 )
 
 type OrderMgr struct {
+	api.IRestrict
+
 	ir  api.IRole
 	ids api.IDataService
 	ics api.IChainState
@@ -47,8 +50,9 @@ func NewOrderMgr(ctx context.Context, roleID uint64, price uint64, ds store.KVSt
 	}
 
 	om := &OrderMgr{
-		ir:  ir,
-		ids: id,
+		IRestrict: control.New(ds),
+		ir:        ir,
+		ids:       id,
 
 		ics: pp,
 		ins: in,
@@ -92,6 +96,10 @@ func (m *OrderMgr) Start() {
 }
 
 func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
+	if !m.RestrictHas(m.ctx, userID) {
+		return xerrors.Errorf("disable service for user")
+	}
+
 	or := m.getOrder(userID)
 
 	or.lw.Lock()
@@ -174,6 +182,12 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
 	m.lk.RLock()
 	defer m.lk.RUnlock()
+
+	if !m.RestrictHas(m.ctx, userID) {
+		logger.Debug("disable service for user sat: ", userID)
+		return nil, xerrors.Errorf("disable service for user")
+	}
+
 	data, err := m.quo.Serialize()
 	if err != nil {
 		return nil, err
