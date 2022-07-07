@@ -120,6 +120,11 @@ func (m *OrderMgr) getSeqRemote(proID uint64) (*types.SignedOrderSeq, error) {
 
 func (m *OrderMgr) getQuotation(proID uint64) error {
 	logger.Debug("new quotation getr: ", proID)
+
+	if !m.RestrictHas(m.ctx, proID) {
+		return xerrors.Errorf("provider %d not in restrict list", proID)
+	}
+
 	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
 		return err

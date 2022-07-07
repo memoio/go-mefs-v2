@@ -44,6 +44,10 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 		res := make(chan uint64, len(m.pros))
 		var wg sync.WaitGroup
 		for _, pid := range m.pros {
+			if !m.RestrictHas(m.ctx, pid) {
+				continue
+			}
+
 			wg.Add(1)
 			go func(pid uint64) {
 				defer wg.Done()
@@ -168,6 +172,11 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		if pid == math.MaxUint64 {
 			continue
 		}
+
+		if !m.RestrictHas(m.ctx, pid) {
+			continue
+		}
+
 		m.lk.RLock()
 		or, ok := m.orders[pid]
 		m.lk.RUnlock()
