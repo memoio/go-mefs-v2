@@ -197,6 +197,10 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 
 	otherPros := make([]uint64, 0, len(m.pros))
 	for _, pid := range m.pros {
+		if !m.RestrictHas(m.ctx, pid) {
+			continue
+		}
+
 		has := false
 		for _, dpid := range lp.deleted {
 			if pid == dpid {
