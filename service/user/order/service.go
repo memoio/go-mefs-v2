@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"encoding/binary"
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -284,14 +285,30 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 		case <-lt.C:
 			m.addPros() // add providers
 
-			m.save()
-
+			expand := false
 			for _, bid := range m.pros {
 				lp, ok := m.proMap[bid]
 				if ok {
 					m.updateProsForBucket(lp)
+
+					if expand {
+						continue
+					}
+
+					for _, pid := range lp.pros {
+						if pid == math.MaxUint64 {
+							expand = true
+							break
+						}
+					}
 				}
 			}
+
+			if expand {
+				go m.IRole.RoleExpand(m.ctx)
+			}
+
+			m.save()
 		case <-proc.Closing():
 			return
 		}

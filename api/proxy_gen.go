@@ -52,6 +52,7 @@ type CommonStruct struct {
 		RoleSelf        func(context.Context) (*pb.RoleInfo, error)                                   `perm:"read"`
 		RoleGet         func(context.Context, uint64, bool) (*pb.RoleInfo, error)                     `perm:"read"`
 		RoleGetRelated  func(context.Context, pb.RoleInfo_Type) ([]uint64, error)                     `perm:"read"`
+		RoleExpand      func(context.Context) error                                                   `perm:"write"`
 		RoleSign        func(context.Context, uint64, []byte, types.SigType) (types.Signature, error) `perm:"write"`
 		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)          `perm:"read"`
 		RoleVerifyMulti func(context.Context, []byte, types.MultiSignature) (bool, error)             `perm:"read"`
@@ -211,6 +212,10 @@ func (s *CommonStruct) RoleGet(ctx context.Context, id uint64, update bool) (*pb
 
 func (s *CommonStruct) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {
 	return s.Internal.RoleGetRelated(ctx, typ)
+}
+
+func (s *CommonStruct) RoleExpand(ctx context.Context) error {
+	return s.Internal.RoleExpand(ctx)
 }
 
 func (s *CommonStruct) RoleSign(ctx context.Context, id uint64, msg []byte, typ types.SigType) (types.Signature, error) {
