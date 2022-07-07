@@ -53,6 +53,10 @@ func (m *OrderMgr) connect(proID uint64) error {
 }
 
 func (m *OrderMgr) update(proID uint64) {
+	if !m.RestrictHas(m.ctx, proID) {
+		return
+	}
+
 	err := m.connect(proID)
 	if err != nil {
 		logger.Debug("fail connect: ", proID, err)

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 
 	"github.com/memoio/go-mefs-v2/api/client"
@@ -42,6 +43,10 @@ var restrictListCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+
+		sort.Slice(ois, func(i, j int) bool {
+			return ois[i] < ois[j]
+		})
 
 		fmt.Println(ois)
 
