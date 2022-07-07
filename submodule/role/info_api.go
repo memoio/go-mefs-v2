@@ -35,7 +35,10 @@ func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64, update bool) (*pb.Rol
 	defer rm.Unlock()
 
 	if !update {
-		return rm.get(id)
+		ri, err := rm.get(id)
+		if err == nil {
+			return ri, nil
+		}
 	}
 
 	pri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, id)
