@@ -101,8 +101,8 @@ func (rm *RoleMgr) syncFromChain(cnt, acnt uint64) uint64 {
 	//get all addrs and added it into roleMgr
 	logger.Debug("sync from settle chain: ", rm.groupID, cnt, acnt)
 	i := cnt
-	for ; i <= acnt; cnt++ {
-		pri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, cnt)
+	for ; i <= acnt; i++ {
+		pri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, i)
 		if err != nil {
 			break
 		}
