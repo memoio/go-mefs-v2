@@ -23,6 +23,7 @@ import (
 	"github.com/minio/madmin-go"
 	"github.com/minio/pkg/bucket/policy"
 	"github.com/minio/pkg/bucket/policy/condition"
+	"github.com/minio/pkg/mimedb"
 	"github.com/mitchellh/go-homedir"
 	cli2 "github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -31,6 +32,7 @@ import (
 	"github.com/memoio/go-mefs-v2/app/user/mutipart"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	metag "github.com/memoio/go-mefs-v2/lib/utils/etag"
+	miniogo "github.com/minio/minio-go/v7"
 )
 
 var GatewayCmd = &cli2.Command{
@@ -450,7 +452,9 @@ func (l *lfsGateway) GetObjectNInfo(ctx context.Context, bucket, object string, 
 	if err != nil {
 		return nil, minio.ErrorRespToObjectError(err, bucket, object)
 	}
-
+	if objInfo.UserDefined["content-type"] == "" {
+		objInfo.UserDefined["content-type"] = mimedb.TypeByExtension(path.Ext(object))
+	}
 	fn, off, length, err := minio.NewGetObjectReader(rs, objInfo, opts)
 	if err != nil {
 		return nil, minio.ErrorRespToObjectError(err, bucket, object)
@@ -526,6 +530,12 @@ func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *mi
 	if err != nil {
 		return objInfo, err
 	}
+	putOpts := miniogo.PutObjectOptions{
+		UserMetadata:         opts.UserDefined,
+		ServerSideEncryption: opts.ServerSideEncryption,
+		SendContentMd5:       true,
+	}
+
 	_, err = l.memofs.GetObjectInfo(ctx, bucket, object)
 	if err == nil {
 		mtime := time.Now().Format("20060102T150405")
@@ -536,6 +546,11 @@ func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *mi
 			object = object + "-" + mtime
 		}
 	}
+	contentType := putOpts.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	opts.UserDefined["Content-Type"] = contentType
 	moi, err := l.memofs.PutObject(ctx, bucket, object, r, opts.UserDefined)
 	if err != nil {
 		return objInfo, err
@@ -663,6 +678,16 @@ func (l *lfsGateway) PutObjectPart(ctx context.Context, bucket, object, uploadID
 func (l *lfsGateway) GetMultipartInfo(ctx context.Context, bucket, object, uploadID string, opts minio.ObjectOptions) (result minio.MultipartInfo, err error) {
 	log.Printf("get %v\n", l.mutipart.Pending)
 
+	putOpts := miniogo.PutObjectOptions{
+		UserMetadata:         opts.UserDefined,
+		ServerSideEncryption: opts.ServerSideEncryption,
+		SendContentMd5:       true,
+	}
+	contentType := putOpts.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	opts.UserDefined["Content-Type"] = contentType
 	result.Bucket = bucket
 	result.Object = object
 	result.UploadID = uploadID
