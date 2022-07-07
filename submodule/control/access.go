@@ -39,7 +39,10 @@ func New(ds store.KVStore) *wl {
 }
 
 func (w *wl) add(key, value []byte) error {
-	w.list[binary.BigEndian.Uint64(value)] = struct{}{}
+	if len(value) == 8 {
+		w.list[binary.BigEndian.Uint64(value)] = struct{}{}
+	}
+
 	return nil
 }
 
