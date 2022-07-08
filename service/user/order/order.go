@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"os"
 	"strconv"
@@ -131,6 +132,10 @@ func filterProList(id uint64) bool {
 }
 
 func (m *OrderMgr) newProOrder(id uint64) {
+	if id == math.MaxUint64 {
+		return
+	}
+
 	if filterProList(id) {
 		return
 	}

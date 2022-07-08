@@ -126,7 +126,10 @@ func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64) ([]uint64, []uint64) {
 
 	delres := make([]uint64, len(val)/8)
 	for i := 0; i < len(val)/8; i++ {
-		delres[i] = binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+		if pid != math.MaxUint64 {
+			delres[i] = pid
+		}
 	}
 
 	return res, delres
@@ -143,6 +146,9 @@ func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) {
 
 	buf = make([]byte, 8*len(lp.deleted))
 	for i, pid := range lp.deleted {
+		if pid == math.MaxUint64 {
+			continue
+		}
 		binary.BigEndian.PutUint64(buf[8*i:8*(i+1)], pid)
 	}
 
@@ -203,6 +209,9 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 
 		has := false
 		for _, dpid := range lp.deleted {
+			if dpid == math.MaxUint64 {
+				continue
+			}
 			if pid == dpid {
 				has = true
 				break
