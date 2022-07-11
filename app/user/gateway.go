@@ -638,7 +638,6 @@ func (l *lfsGateway) StatObject(ctx context.Context, bucket, object string, opts
 
 // Multipart operations.
 func (l *lfsGateway) ListMultipartUploads(ctx context.Context, bucket, prefix, keyMarker, uploadIDMarker, delimiter string, maxUploads int) (result minio.ListMultipartsInfo, err error) {
-	log.Printf("list %v\n", l.mutipart.Pending)
 	return result, minio.NotImplemented{}
 }
 
@@ -652,7 +651,6 @@ func (l *lfsGateway) NewMultipartUpload(ctx context.Context, bucket string, obje
 	if err != nil {
 		return uploadID, minio.ErrorRespToObjectError(err, bucket, object)
 	}
-	log.Printf("new %v\n", l.mutipart.Pending)
 	return uploadID, nil
 }
 
@@ -667,7 +665,6 @@ func (l *lfsGateway) PutObjectPart(ctx context.Context, bucket, object, uploadID
 		return partinfo, minio.ErrorRespToObjectError(err, bucket, object)
 	}
 	uploads := l.mutipart
-	log.Printf("put %v\n", l.mutipart.Pending)
 	partinfo, err = l.memofs.PutObjectPart(ctx, bucket, object, uploadID, partID, data, opts, uploads)
 	if err != nil {
 		return partinfo, minio.ErrorRespToObjectError(err, bucket, object)
@@ -676,8 +673,6 @@ func (l *lfsGateway) PutObjectPart(ctx context.Context, bucket, object, uploadID
 }
 
 func (l *lfsGateway) GetMultipartInfo(ctx context.Context, bucket, object, uploadID string, opts minio.ObjectOptions) (result minio.MultipartInfo, err error) {
-	log.Printf("get %v\n", l.mutipart.Pending)
-
 	putOpts := miniogo.PutObjectOptions{
 		UserMetadata:         opts.UserDefined,
 		ServerSideEncryption: opts.ServerSideEncryption,
