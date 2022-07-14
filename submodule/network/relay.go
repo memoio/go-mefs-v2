@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
+	"github.com/memoio/relay/circuitv2/client"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
