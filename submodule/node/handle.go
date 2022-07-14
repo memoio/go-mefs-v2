@@ -189,6 +189,13 @@ func (n *BaseNode) UpdateNetAddr() error {
 		addrs = append(addrs, maddr)
 	}
 
+	if n.Config().Net.EnableRelay {
+		maddr, err := ma.NewMultiaddr(n.Config().Net.PublicRelayAddress + "/p2p-circuit/p2p/" + pi.ID.Pretty())
+		if err == nil {
+			addrs = append(addrs, maddr)
+		}
+	}
+
 	pi.Addrs = addrs
 	data, err := pi.MarshalJSON()
 	if err != nil {
