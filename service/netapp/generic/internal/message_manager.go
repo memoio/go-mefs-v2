@@ -201,6 +201,10 @@ func (ms *peerMessageSender) prep(ctx context.Context) error {
 	// We only want to speak to peers using our primary protocols. We do not want to query any peer that only speaks
 	// one of the secondary "server" protocols that we happen to support (e.g. older nodes that we can respond to for
 	// backwards compatibility reasons).
+	conns := ms.m.host.Network().ConnsToPeer(ms.p)
+	if len(conns) > 0 && conns[0].Stat().Transient {
+		ctx = network.WithUseTransient(ctx, "relay")
+	}
 	nstr, err := ms.m.host.NewStream(ctx, ms.p, ms.m.protocols...)
 	if err != nil {
 		return err

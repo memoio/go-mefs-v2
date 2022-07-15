@@ -195,6 +195,10 @@ func (n *BaseNode) UpdateNetAddr() error {
 			continue
 		}
 
+		if strings.Contains(maddr.String(), "udp") {
+			continue
+		}
+
 		addrs = append(addrs, maddr)
 	}
 
