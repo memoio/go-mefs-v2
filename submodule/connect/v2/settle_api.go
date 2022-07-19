@@ -190,10 +190,10 @@ func (cm *ContractMgr) SettlePledge(ctx context.Context, val *big.Int) error {
 	return cm.Pledge(cm.roleID, val)
 }
 
-func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) error {
-	logger.Debugf("%d cancle pledge %d", cm.roleID, val)
+func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d pledge withdraw %d", cm.roleID, val)
 
-	err := cm.UnPledge(cm.roleID, cm.tIndex, val)
+	err := cm.proxyIns.PledgeWithdraw(cm.roleID, cm.tIndex, val)
 	if err != nil {
 		return err
 	}

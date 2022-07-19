@@ -94,7 +94,7 @@ type CommonStruct struct {
 		SettleWithdraw       func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
 		SettleCharge         func(context.Context, *big.Int) error                               `perm:"write"`
 		SettlePledge         func(context.Context, *big.Int) error                               `perm:"write"`
-		SettleCanclePledge   func(context.Context, *big.Int) error                               `perm:"write"`
+		SettlePledgeWithdraw func(context.Context, *big.Int) error                               `perm:"write"`
 		SettleAddOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
 		SettleSubOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
 
@@ -358,8 +358,8 @@ func (s *CommonStruct) SettleCharge(ctx context.Context, val *big.Int) error {
 	return s.Internal.SettleCharge(ctx, val)
 }
 
-func (s *CommonStruct) SettleCanclePledge(ctx context.Context, val *big.Int) error {
-	return s.Internal.SettleCanclePledge(ctx, val)
+func (s *CommonStruct) SettlePledgeWithdraw(ctx context.Context, val *big.Int) error {
+	return s.Internal.SettlePledgeWithdraw(ctx, val)
 }
 
 func (s *CommonStruct) SettleAddOrder(ctx context.Context, so *types.SignedOrder) error {

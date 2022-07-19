@@ -15,7 +15,7 @@ type IProxy interface {
 	AddToGroup(gi uint64) error
 
 	Pledge(i uint64, money *big.Int) error
-	Unpledge(i uint64, ti uint8, money *big.Int) error
+	PledgeWithdraw(i uint64, ti uint8, money *big.Int) error
 
 	AddOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
 	SubOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error

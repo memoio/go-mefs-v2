@@ -131,6 +131,8 @@ func (rm *RoleMgr) sync() {
 		cnt = binary.BigEndian.Uint64(val[:8])
 	}
 
+	logger.Debug("sync from settle chain at: ", rm.groupID, cnt)
+
 	for {
 		select {
 		case <-rm.ctx.Done():
@@ -196,7 +198,7 @@ func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo, save bool) {
 				key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Keeper.String())
 				data, err := rm.ds.Get(key)
 				if err != nil {
-					return
+					data = make([]byte, 0, 8)
 				}
 				buf := make([]byte, 8)
 				binary.BigEndian.PutUint64(buf, ri.RoleID)
@@ -210,7 +212,7 @@ func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo, save bool) {
 				key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
 				data, err := rm.ds.Get(key)
 				if err != nil {
-					return
+					data = make([]byte, 0, 8)
 				}
 				buf := make([]byte, 8)
 				binary.BigEndian.PutUint64(buf, ri.RoleID)

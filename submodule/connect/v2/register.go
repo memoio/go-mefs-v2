@@ -163,34 +163,3 @@ func (cm *ContractMgr) Pledge(roleID uint64, val *big.Int) error {
 
 	return nil
 }
-
-func (cm *ContractMgr) UnPledge(roleID uint64, ti uint8, val *big.Int) error {
-	// check erc20
-	bal := cm.ercIns.BalanceOf(cm.eAddr)
-	if val.Cmp(bal) > 0 {
-		return xerrors.Errorf("balance not enough, need %d, has %d", val, bal)
-	}
-
-	ppool, err := cm.getIns.GetPledgePool()
-	if err != nil {
-		return err
-	}
-
-	// check allowance
-	al := cm.ercIns.Allowance(cm.eAddr, ppool)
-	if val.Cmp(al) > 0 {
-		logger.Infof("Approve %d in pool %s", val, ppool)
-		err := cm.ercIns.Approve(ppool, val)
-		if err != nil {
-			return err
-		}
-	}
-
-	logger.Infof("UnPledge %d", val)
-	err = cm.proxyIns.Unpledge(roleID, ti, val)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}

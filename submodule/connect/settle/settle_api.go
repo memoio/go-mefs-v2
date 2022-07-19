@@ -173,7 +173,7 @@ func (cm *ContractMgr) SettleCharge(ctx context.Context, val *big.Int) error {
 	return cm.Recharge(val)
 }
 
-func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) error {
+func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d cancle pledge %d", cm.roleID, val)
 
 	err := cm.canclePledge(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, nil)

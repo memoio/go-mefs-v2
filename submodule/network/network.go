@@ -285,7 +285,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 
 				logger.Info("protois 2")
 
-				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/" + pai.ID.Pretty())
+				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/")
 				if err != nil {
 					return err
 				}

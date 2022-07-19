@@ -165,7 +165,7 @@ func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
 	return CheckTx(p.endPoint, tx, "pledge")
 }
 
-func (p *proxyImpl) Unpledge(i uint64, ti uint8, money *big.Int) error {
+func (p *proxyImpl) PledgeWithdraw(i uint64, ti uint8, money *big.Int) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
 	if err != nil {
 		return err

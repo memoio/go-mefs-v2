@@ -231,7 +231,7 @@ type ISettle interface {
 	SettleCharge(context.Context, *big.Int) error
 	SettleWithdraw(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error
 	SettlePledge(context.Context, *big.Int) error
-	SettleCanclePledge(context.Context, *big.Int) error
+	SettlePledgeWithdraw(context.Context, *big.Int) error
 }
 
 type IOrder interface {

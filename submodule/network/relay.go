@@ -20,7 +20,7 @@ func (ns *NetworkSubmodule) startRelay(sa ma.Multiaddr) {
 	}
 
 	for {
-		timer := time.NewTimer(50 * time.Minute)
+		timer := time.NewTimer(10 * time.Minute)
 		select {
 		case <-timer.C:
 			_, err := client.Reserve(ns.ctx, ns.RawHost, *sinfo)
