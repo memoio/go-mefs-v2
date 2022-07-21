@@ -42,6 +42,11 @@ var infoCmd = &cli.Command{
 			return err
 		}
 
+		pri, err = api.RoleGet(cctx.Context, pri.RoleID, true)
+		if err != nil {
+			return err
+		}
+
 		fmt.Println(ansi.Color("----------- Information -----------", "green"))
 
 		ver, err := api.Version(cctx.Context)
