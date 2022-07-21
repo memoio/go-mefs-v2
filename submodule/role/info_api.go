@@ -50,7 +50,7 @@ func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64, update bool) (*pb.Rol
 		return nil, err
 	}
 
-	rm.AddRoleInfo(pri)
+	rm.addRoleInfo(pri, true)
 	return pri, nil
 }
 

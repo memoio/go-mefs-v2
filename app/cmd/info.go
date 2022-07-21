@@ -24,6 +24,12 @@ var infoCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		selfInfoCmd,
 	},
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "update",
+			Value: false,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -42,9 +48,11 @@ var infoCmd = &cli.Command{
 			return err
 		}
 
-		pri, err = api.RoleGet(cctx.Context, pri.RoleID, true)
-		if err != nil {
-			return err
+		if cctx.Bool("update") {
+			pri, err = api.RoleGet(cctx.Context, pri.RoleID, true)
+			if err != nil {
+				return err
+			}
 		}
 
 		fmt.Println(ansi.Color("----------- Information -----------", "green"))
