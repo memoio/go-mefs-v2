@@ -79,15 +79,15 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 		Sprice: so.Price,
 	}
 
-	logger.Info("order params:")
+	logger.Info("orderParams:")
 	logger.Info("userID: ", so.UserID)
 	logger.Info("ProID: ", so.ProID)
 	logger.Info("start: ", uint64(so.Start))
 	logger.Info("end: ", uint64(so.End))
-	logger.Info("size: ", so.Size)
+	logger.Info("size in byte: ", so.Size)
 	logger.Info("nonce: ", so.Nonce)
 	logger.Info("TIndex: ", uint8(so.TokenIndex))
-	logger.Info("price: ", so.Price)
+	logger.Info("segNum * segPrice: ", so.Price)
 
 	err = cm.proxyIns.AddOrder(poi, so.Usign.Data, so.Psign.Data)
 	if err != nil {
