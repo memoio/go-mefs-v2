@@ -34,27 +34,13 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 	m.loadUnfinishedSegJobs(bucketID, nextOpID)
 
-	storedPros, delPros := m.loadLastProsPerBucket(bucketID)
-
-	pros := make([]uint64, bopt.DataCount+bopt.ParityCount)
-	for i := 0; i < int(bopt.DataCount+bopt.ParityCount); i++ {
-		pros[i] = math.MaxUint64
-	}
-
-	if len(storedPros) != 0 {
-		for i, pid := range storedPros {
-			if i >= int(bopt.DataCount+bopt.ParityCount) {
-				break
-			}
-			pros[i] = pid
-		}
-	}
+	storedPros, delPros := m.loadLastProsPerBucket(bucketID, int(bopt.DataCount+bopt.ParityCount))
 
 	lp := &lastProsPerBucket{
 		bucketID: bucketID,
 		dc:       int(bopt.DataCount),
 		pc:       int(bopt.ParityCount),
-		pros:     pros,
+		pros:     storedPros,
 		deleted:  delPros,
 	}
 
@@ -67,15 +53,20 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 	m.bucketChan <- lp
 }
 
-func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64) ([]uint64, []uint64) {
+func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64, cnt int) ([]uint64, []uint64) {
+	res := make([]uint64, cnt)
+	for i := 0; i < int(cnt); i++ {
+		res[i] = math.MaxUint64
+	}
+
+	delRes := make([]uint64, 0, 1)
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID, bucketID)
 	val, err := m.ds.Get(key)
 	if err != nil {
-		return nil, nil
+		return res, delRes
 	}
 
-	res := make([]uint64, len(val)/8)
-	for i := 0; i < len(val)/8; i++ {
+	for i := 0; i < len(val)/8 && i < cnt; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
 		if pid != math.MaxUint64 {
 			go m.newProOrder(pid)
@@ -90,15 +81,15 @@ func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64) ([]uint64, []uint64) {
 		return res, nil
 	}
 
-	delres := make([]uint64, len(val)/8)
+	delRes = make([]uint64, len(val)/8)
 	for i := 0; i < len(val)/8; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
 		if pid != math.MaxUint64 {
-			delres[i] = pid
+			delRes[i] = pid
 		}
 	}
 
-	return res, delres
+	return res, delRes
 }
 
 func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) {
@@ -109,6 +100,10 @@ func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) {
 
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID, lp.bucketID)
 	m.ds.Put(key, buf)
+
+	if len(lp.deleted) == 0 {
+		return
+	}
 
 	buf = make([]byte, 8*len(lp.deleted))
 	for i, pid := range lp.deleted {
@@ -248,7 +243,9 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 					if !or.inStop && m.ready {
 						change = true
 						lp.pros[i] = npid
-						lp.deleted = append(lp.deleted, pid)
+						if pid != math.MaxUint64 {
+							lp.deleted = append(lp.deleted, pid)
+						}
 						break
 					}
 				}
@@ -279,14 +276,22 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 					if !or.inStop && m.ready {
 						change = true
 						lp.pros[i] = npid
-						lp.deleted = append(lp.deleted, pid)
+						if pid != math.MaxUint64 {
+							lp.deleted = append(lp.deleted, pid)
+						}
 						break
 					}
 				}
 			}
 		}
 	default:
+
+		if len(cloudPros) > lp.dc {
+			personPros = append(personPros, cloudPros[lp.dc:]...)
+			cloudPros = cloudPros[:lp.dc]
+		}
 		cloudPros = append(cloudPros, personPros...)
+
 		for i := 0; i < lp.dc+lp.pc; i++ {
 			pid := lp.pros[i]
 			if pid != math.MaxUint64 {
@@ -310,7 +315,10 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 					if !or.inStop && m.ready {
 						change = true
 						lp.pros[i] = npid
-						lp.deleted = append(lp.deleted, pid)
+						if pid != math.MaxUint64 {
+							lp.deleted = append(lp.deleted, pid)
+						}
+
 						break
 					}
 				}
