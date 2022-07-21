@@ -85,8 +85,9 @@ type OrderFull struct {
 
 	ctx context.Context
 
-	localID uint64
-	fsID    []byte
+	localID  uint64
+	fsID     []byte
+	location string
 
 	pro       uint64
 	availTime int64 // last connect time
@@ -192,7 +193,12 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		jobs:    make(map[uint64]*bucketJob),
 	}
 
-	err := m.connect(id)
+	ri, err := m.RoleGet(m.ctx, id, true)
+	if err == nil {
+		op.location = string(ri.GetDesc())
+	}
+
+	err = m.connect(id)
 	if err == nil {
 		op.ready = true
 	}

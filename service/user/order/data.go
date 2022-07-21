@@ -3,6 +3,7 @@ package order
 import (
 	"encoding/binary"
 	"math"
+	"os"
 	"sync"
 	"time"
 
@@ -40,42 +41,7 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 		pros[i] = math.MaxUint64
 	}
 
-	if len(storedPros) == 0 {
-		res := make(chan uint64, len(m.pros))
-		var wg sync.WaitGroup
-		for _, pid := range m.pros {
-			if !m.RestrictHas(m.ctx, pid) {
-				continue
-			}
-
-			wg.Add(1)
-			go func(pid uint64) {
-				defer wg.Done()
-				err := m.connect(pid)
-				if err == nil {
-					res <- pid
-
-				}
-			}(pid)
-		}
-		wg.Wait()
-
-		close(res)
-
-		tmpPros := make([]uint64, 0, len(m.pros))
-		for pid := range res {
-			tmpPros = append(tmpPros, pid)
-		}
-
-		tmpPros = removeDup(tmpPros)
-
-		for i, pid := range tmpPros {
-			if i >= int(bopt.DataCount+bopt.ParityCount) {
-				break
-			}
-			pros[i] = pid
-		}
-	} else {
+	if len(storedPros) != 0 {
 		for i, pid := range storedPros {
 			if i >= int(bopt.DataCount+bopt.ParityCount) {
 				break
@@ -201,28 +167,30 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 
 	// expand providers
 
-	otherPros := make([]uint64, 0, len(m.pros))
+	cloudPros := make([]uint64, 0, len(m.pros))
+	personPros := make([]uint64, 0, len(m.pros))
 	for _, pid := range m.pros {
 		if !m.RestrictHas(m.ctx, pid) {
 			continue
 		}
 
-		has := false
+		hasDelete := false
 		for _, dpid := range lp.deleted {
 			if dpid == math.MaxUint64 {
 				continue
 			}
 			if pid == dpid {
-				has = true
+				hasDelete = true
 				break
 			}
 		}
 
-		if has {
+		if hasDelete {
 			continue
 		}
 
 		// not deleted
+		has := false
 		for _, hasPid := range lp.pros {
 			if pid == hasPid {
 				has = true
@@ -240,44 +208,111 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		m.lk.RUnlock()
 		if ok {
 			if or.ready && !or.inStop {
-				otherPros = append(otherPros, pid)
+				if or.location == "cloud" {
+					cloudPros = append(cloudPros, pid)
+				} else {
+					personPros = append(personPros, pid)
+				}
 			}
 		}
 	}
 
-	// todo:
-	// 1. skip deleted first
-	// 2. if not enough, add deleted?
-	utils.DisorderUint(otherPros)
+	utils.DisorderUint(cloudPros)
+	utils.DisorderUint(personPros)
 
 	change := false
-
 	j := 0
-	for i := 0; i < lp.dc+lp.pc; i++ {
-		pid := lp.pros[i]
-		if pid != math.MaxUint64 {
-			m.lk.RLock()
-			or, ok := m.orders[pid]
-			m.lk.RUnlock()
-			if ok {
-				if !or.inStop {
-					continue
+
+	switch os.Getenv("PRO_SELECT_POLICY") {
+	case "strict":
+		for i := 0; i < lp.dc; i++ {
+			pid := lp.pros[i]
+			if pid != math.MaxUint64 {
+				m.lk.RLock()
+				or, ok := m.orders[pid]
+				m.lk.RUnlock()
+				if ok {
+					if !or.inStop {
+						continue
+					}
+				}
+			}
+
+			for j < len(cloudPros) {
+				npid := cloudPros[j]
+				j++
+				m.lk.RLock()
+				or, ok := m.orders[npid]
+				m.lk.RUnlock()
+				if ok {
+					if !or.inStop && m.ready {
+						change = true
+						lp.pros[i] = npid
+						lp.deleted = append(lp.deleted, pid)
+						break
+					}
 				}
 			}
 		}
 
-		for j < len(otherPros) {
-			npid := otherPros[j]
-			j++
-			m.lk.RLock()
-			or, ok := m.orders[npid]
-			m.lk.RUnlock()
-			if ok {
-				if !or.inStop && m.ready {
-					change = true
-					lp.pros[i] = npid
-					lp.deleted = append(lp.deleted, pid)
-					break
+		j = 0
+		for i := lp.dc; i < lp.dc+lp.pc; i++ {
+			pid := lp.pros[i]
+			if pid != math.MaxUint64 {
+				m.lk.RLock()
+				or, ok := m.orders[pid]
+				m.lk.RUnlock()
+				if ok {
+					if !or.inStop {
+						continue
+					}
+				}
+			}
+
+			for j < len(personPros) {
+				npid := personPros[j]
+				j++
+				m.lk.RLock()
+				or, ok := m.orders[npid]
+				m.lk.RUnlock()
+				if ok {
+					if !or.inStop && m.ready {
+						change = true
+						lp.pros[i] = npid
+						lp.deleted = append(lp.deleted, pid)
+						break
+					}
+				}
+			}
+		}
+	default:
+		cloudPros = append(cloudPros, personPros...)
+		for i := 0; i < lp.dc+lp.pc; i++ {
+			pid := lp.pros[i]
+			if pid != math.MaxUint64 {
+				m.lk.RLock()
+				or, ok := m.orders[pid]
+				m.lk.RUnlock()
+				if ok {
+					if !or.inStop {
+						continue
+					}
+				}
+			}
+
+			for j < len(cloudPros) {
+				npid := cloudPros[j]
+				j++
+				m.lk.RLock()
+				or, ok := m.orders[npid]
+				m.lk.RUnlock()
+				if ok {
+					if !or.inStop && m.ready {
+						change = true
+						lp.pros[i] = npid
+						lp.deleted = append(lp.deleted, pid)
+						break
+					}
 				}
 			}
 		}
