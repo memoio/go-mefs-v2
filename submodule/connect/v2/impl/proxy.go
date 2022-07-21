@@ -140,6 +140,31 @@ func (p *proxyImpl) AddToGroup(gi uint64) error {
 	return CheckTx(p.endPoint, tx, "add to group")
 }
 
+func (p *proxyImpl) SetDesc(desc []byte) error {
+	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	proxyIns, err := proxy.NewProxy(p.proxy, client)
+	if err != nil {
+		return err
+	}
+
+	auth, err := MakeAuth(p.chainID, p.sk)
+	if err != nil {
+		return err
+	}
+
+	tx, err := proxyIns.SetDesc(auth, desc)
+	if err != nil {
+		return err
+	}
+
+	return CheckTx(p.endPoint, tx, "set desc")
+}
+
 func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
 	if err != nil {

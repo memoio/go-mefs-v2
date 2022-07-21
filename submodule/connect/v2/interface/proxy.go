@@ -13,6 +13,7 @@ type IProxy interface {
 
 	// add a user/keeper/provider to group
 	AddToGroup(gi uint64) error
+	SetDesc(desc []byte) error
 
 	Pledge(i uint64, money *big.Int) error
 	PledgeWithdraw(i uint64, ti uint8, money *big.Int) error

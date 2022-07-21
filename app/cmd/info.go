@@ -114,6 +114,13 @@ var infoCmd = &cli.Command{
 
 		fmt.Println("ID: ", pri.RoleID)
 		fmt.Println("Type: ", pri.Type.String())
+
+		switch string(pri.Desc) {
+		case "cloud":
+			fmt.Println("Location: cloud")
+		default:
+			fmt.Println("Location: personal")
+		}
 		fmt.Println("Wallet: ", common.BytesToAddress(pri.ChainVerifyKey))
 
 		bi, err := api.SettleGetBalanceInfo(cctx.Context, pri.RoleID)

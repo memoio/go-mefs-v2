@@ -247,3 +247,7 @@ func (cm *ContractMgr) SettleAddOrder(ctx context.Context, so *types.SignedOrder
 func (cm *ContractMgr) SettleSubOrder(ctx context.Context, so *types.SignedOrder) error {
 	return cm.SubOrder(so)
 }
+
+func (cm *ContractMgr) SettleSetDesc(ctx context.Context, desc []byte) error {
+	return cm.proxyIns.SetDesc(desc)
+}

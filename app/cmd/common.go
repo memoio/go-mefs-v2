@@ -22,5 +22,6 @@ func init() {
 		bootstrapCmd,
 		recoverCmd,
 		logCmd,
+		settleCmd,
 	}
 }
