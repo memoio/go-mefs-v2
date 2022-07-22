@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -109,7 +109,7 @@ var statePayCmd = &cli.Command{
 
 var stateWithdrawCmd = &cli.Command{
 	Name:  "withdraw",
-	Usage: "withdraw balance",
+	Usage: "provider receive balance by storing data",
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -153,7 +153,7 @@ var stateWithdrawCmd = &cli.Command{
 				kindex[i] = spi.Sig.Signer[i]
 			}
 
-			err = napi.SettleWithdraw(cctx.Context, spi.Value, spi.Penalty, kindex, ksign)
+			err = napi.SettleProCharge(cctx.Context, spi.Value, spi.Penalty, kindex, ksign)
 			if err != nil {
 				fmt.Println("withdraw fail", err)
 				return err
@@ -168,27 +168,7 @@ var stateWithdrawCmd = &cli.Command{
 
 			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
 		default:
-			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
-
-			err = napi.SettleWithdraw(cctx.Context, big.NewInt(1_000_000_000), big.NewInt(0), nil, nil)
-			if err != nil {
-				fmt.Println("withdraw fail", err)
-				return err
-			}
-
-			time.Sleep(10 * time.Second)
-
-			bal, err = napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
+			return xerrors.Errorf("should be provider")
 		}
 
 		return nil

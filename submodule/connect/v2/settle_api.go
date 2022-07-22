@@ -3,7 +3,6 @@ package v2
 import (
 	"context"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/xerrors"
@@ -201,38 +200,28 @@ func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) e
 	return nil
 }
 
-func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
+func (cm *ContractMgr) SettleProCharge(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
+	logger.Debugf("%d fs charge %d", cm.roleID, val)
+
+	pi := proxy.PWIn{
+		PIndex: cm.roleID,
+		TIndex: cm.tIndex,
+		Pay:    val,
+		Lost:   penalty,
+	}
+
+	err := cm.proxyIns.ProWithdraw(pi, kindex, ksigns)
+	if err != nil {
+		return xerrors.Errorf("%d fs charge fail %s", cm.roleID, err)
+	}
+
+	return nil
+}
+
+func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d withdraw %d", cm.roleID, val)
 
-	ri, err := cm.SettleGetRoleInfoAt(ctx, cm.roleID)
-	if err != nil {
-		return err
-	}
-
-	if ri.Type == pb.RoleInfo_Provider && val != nil && val.BitLen() > 0 {
-		pi := proxy.PWIn{
-			PIndex: cm.roleID,
-			TIndex: cm.tIndex,
-			Pay:    val,
-			Lost:   penalty,
-		}
-
-		err := cm.proxyIns.ProWithdraw(pi, kindex, ksigns)
-		if err != nil {
-			return xerrors.Errorf("%d pro withdraw fail %s", cm.roleID, err)
-		}
-
-		time.Sleep(10 * time.Second)
-
-		avail, _, err := cm.getIns.GetBalAt(cm.roleID, cm.tIndex)
-		if err != nil {
-			return xerrors.Errorf("%d withdraw get val fail %s", cm.roleID, err)
-		}
-
-		val.Set(avail)
-	}
-
-	err = cm.proxyIns.Withdraw(cm.roleID, cm.tIndex, val)
+	err := cm.proxyIns.Withdraw(cm.roleID, cm.tIndex, val)
 	if err != nil {
 		return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 	}

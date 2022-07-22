@@ -184,26 +184,23 @@ func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) e
 	return nil
 }
 
-func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
-	logger.Debugf("%d withdraw", cm.roleID)
+func (cm *ContractMgr) SettleProCharge(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
+	logger.Debugf("%d pro charge", cm.roleID)
 
-	ri, err := cm.SettleGetRoleInfoAt(ctx, cm.roleID)
+	err := cm.proWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, kindex, ksigns)
 	if err != nil {
-		return err
+		return xerrors.Errorf("%d pro charge fail %s", cm.roleID, err)
 	}
 
-	switch ri.Type {
-	case pb.RoleInfo_Provider:
-		err := cm.proWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, kindex, ksigns)
-		if err != nil {
-			return xerrors.Errorf("%d pro withdraw fail %s", cm.roleID, err)
-		}
+	return nil
+}
 
-	default:
-		err = cm.withdrawFromFs(cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
-		if err != nil {
-			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
-		}
+func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d withdraw", cm.roleID)
+
+	err := cm.withdrawFromFs(cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
+	if err != nil {
+		return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 	}
 
 	return nil

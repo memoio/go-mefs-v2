@@ -226,7 +226,7 @@ var settleWithdrawCmd = &cli.Command{
 
 		fmt.Printf("Withdraw: %s \n", types.FormatMemo(val))
 
-		err = api.SettleWithdraw(cctx.Context, val, big.NewInt(0), nil, nil)
+		err = api.SettleWithdraw(cctx.Context, val)
 		if err != nil {
 			return err
 		}
