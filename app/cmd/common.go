@@ -15,7 +15,6 @@ func init() {
 		stateCmd,
 		roleCmd,
 		infoCmd,
-		pledgeCmd,
 		registerCmd,
 		versionCmd,
 		backupCmd,
