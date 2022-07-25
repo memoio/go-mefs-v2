@@ -48,7 +48,7 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 	//	return nil, xerrors.Errorf("%d is banned", ri.Index)
 	//}
 
-	if ri.RType > 0 && ri.State != 3 {
+	if ri.RType > 0 && ri.GIndex > 0 && ri.State != 3 {
 		return nil, xerrors.Errorf("%d is not active", ri.Index)
 	}
 
