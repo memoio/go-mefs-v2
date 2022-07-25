@@ -230,7 +230,7 @@ type ISettle interface {
 	SettleAddOrder(context.Context, *types.SignedOrder) error
 	SettleSubOrder(context.Context, *types.SignedOrder) error
 	SettleCharge(context.Context, *big.Int) error
-	SettleProCharge(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error
+	SettleProIncome(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error
 	SettleWithdraw(context.Context, *big.Int) error
 	SettlePledge(context.Context, *big.Int) error
 	SettlePledgeWithdraw(context.Context, *big.Int) error

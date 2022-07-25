@@ -109,7 +109,7 @@ var statePayCmd = &cli.Command{
 
 var stateWithdrawCmd = &cli.Command{
 	Name:  "withdraw",
-	Usage: "provider receive balance by storing data",
+	Usage: "provider income of storing data",
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -153,7 +153,7 @@ var stateWithdrawCmd = &cli.Command{
 				kindex[i] = spi.Sig.Signer[i]
 			}
 
-			err = napi.SettleProCharge(cctx.Context, spi.Value, spi.Penalty, kindex, ksign)
+			err = napi.SettleProIncome(cctx.Context, spi.Value, spi.Penalty, kindex, ksign)
 			if err != nil {
 				fmt.Println("withdraw fail", err)
 				return err

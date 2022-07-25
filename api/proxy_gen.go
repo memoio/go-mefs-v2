@@ -91,7 +91,7 @@ type CommonStruct struct {
 		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)                 `perm:"read"`
 		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)                  `perm:"read"`
 		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error)           `perm:"read"`
-		SettleProCharge      func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
+		SettleProIncome      func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
 		SettleWithdraw       func(context.Context, *big.Int) error                               `perm:"write"`
 		SettleCharge         func(context.Context, *big.Int) error                               `perm:"write"`
 		SettlePledge         func(context.Context, *big.Int) error                               `perm:"write"`
@@ -348,8 +348,8 @@ func (s *CommonStruct) SettleGetStoreInfo(ctx context.Context, uid, pid uint64) 
 	return s.Internal.SettleGetStoreInfo(ctx, uid, pid)
 }
 
-func (s *CommonStruct) SettleProCharge(ctx context.Context, val, penlty *big.Int, kind []uint64, sig [][]byte) error {
-	return s.Internal.SettleProCharge(ctx, val, penlty, kind, sig)
+func (s *CommonStruct) SettleProIncome(ctx context.Context, val, penlty *big.Int, kind []uint64, sig [][]byte) error {
+	return s.Internal.SettleProIncome(ctx, val, penlty, kind, sig)
 }
 
 func (s *CommonStruct) SettleWithdraw(ctx context.Context, val *big.Int) error {

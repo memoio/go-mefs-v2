@@ -200,8 +200,8 @@ func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) e
 	return nil
 }
 
-func (cm *ContractMgr) SettleProCharge(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
-	logger.Debugf("%d fs charge %d", cm.roleID, val)
+func (cm *ContractMgr) SettleProIncome(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
+	logger.Debugf("%d pro income %d", cm.roleID, val)
 
 	pi := proxy.PWIn{
 		PIndex: cm.roleID,
@@ -212,7 +212,7 @@ func (cm *ContractMgr) SettleProCharge(ctx context.Context, val, penalty *big.In
 
 	err := cm.proxyIns.ProWithdraw(pi, kindex, ksigns)
 	if err != nil {
-		return xerrors.Errorf("%d fs charge fail %s", cm.roleID, err)
+		return xerrors.Errorf("%d pro income fail %s", cm.roleID, err)
 	}
 
 	return nil
