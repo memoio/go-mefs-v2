@@ -250,12 +250,12 @@ var settleQuitRoleCmd = &cli.Command{
 	Usage: "quit role",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
-			Name:  "realy-do-it",
+			Name:  "really-do-it",
 			Value: false,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Bool("realy-do-it") {
+		if !cctx.Bool("really-do-it") {
 			return xerrors.Errorf("need --really-do-it")
 		}
 
@@ -275,6 +275,8 @@ var settleQuitRoleCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+
+		fmt.Println("quit role successfully")
 
 		return nil
 	},
