@@ -20,6 +20,7 @@ var settleCmd = &cli.Command{
 		pledgeAddCmd,
 		pledgeGetCmd,
 		pledgeWithdrawCmd,
+		settleQuitRoleCmd,
 	},
 }
 
@@ -239,6 +240,41 @@ var settleWithdrawCmd = &cli.Command{
 		}
 
 		fmt.Printf("After Withdraw: %s, %s (in fs) \n", types.FormatMemo(pi.ErcValue), types.FormatMemo(pi.FsValue))
+
+		return nil
+	},
+}
+
+var settleQuitRoleCmd = &cli.Command{
+	Name:  "quitRole",
+	Usage: "quit role",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "realy-do-it",
+			Value: false,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		if !cctx.Bool("realy-do-it") {
+			return xerrors.Errorf("need --really-do-it")
+		}
+
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		err = api.SettleQuitRole(cctx.Context)
+		if err != nil {
+			return err
+		}
 
 		return nil
 	},

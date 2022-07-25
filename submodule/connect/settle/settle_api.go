@@ -217,3 +217,7 @@ func (cm *ContractMgr) SettleSubOrder(ctx context.Context, so *types.SignedOrder
 func (cm *ContractMgr) SettleSetDesc(ctx context.Context, desc []byte) error {
 	return nil
 }
+
+func (cm *ContractMgr) SettleQuitRole(ctx context.Context) error {
+	return nil
+}

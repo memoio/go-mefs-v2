@@ -10,6 +10,7 @@ type IProxy interface {
 	// register self to get index
 	ReAcc() error
 	ReRole(rtype uint8, extra []byte) error
+	QuitRole(rid uint64) error
 
 	// add a user/keeper/provider to group
 	AddToGroup(gi uint64) error

@@ -99,6 +99,7 @@ type CommonStruct struct {
 		SettleAddOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
 		SettleSubOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
 		SettleSetDesc        func(context.Context, []byte) error                                 `perm:"write"`
+		SettleQuitRole       func(context.Context) error                                         `perm:"admin"`
 
 		SyncGetInfo        func(context.Context) (*SyncInfo, error)                 `perm:"read"`
 		SyncGetTxMsgStatus func(context.Context, types.MsgID) (*tx.MsgState, error) `perm:"read"`
@@ -362,6 +363,10 @@ func (s *CommonStruct) SettlePledge(ctx context.Context, val *big.Int) error {
 
 func (s *CommonStruct) SettleSetDesc(ctx context.Context, desc []byte) error {
 	return s.Internal.SettleSetDesc(ctx, desc)
+}
+
+func (s *CommonStruct) SettleQuitRole(ctx context.Context) error {
+	return s.Internal.SettleQuitRole(ctx)
 }
 
 func (s *CommonStruct) SettleCharge(ctx context.Context, val *big.Int) error {
