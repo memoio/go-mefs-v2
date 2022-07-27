@@ -37,13 +37,16 @@ type RoleMgr struct {
 
 func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.IWallet, is api.ISettle) (*RoleMgr, error) {
 	rm := &RoleMgr{
-		IWallet: iw,
-		is:      is,
-		ctx:     ctx,
-		roleID:  roleID,
-		groupID: groupID,
-		infos:   make(map[uint64]*pb.RoleInfo),
-		ds:      ds,
+		IWallet:   iw,
+		is:        is,
+		ctx:       ctx,
+		roleID:    roleID,
+		groupID:   groupID,
+		infos:     make(map[uint64]*pb.RoleInfo),
+		ds:        ds,
+		keepers:   make([]uint64, 0, 128),
+		providers: make([]uint64, 0, 128),
+		users:     make([]uint64, 0, 128),
 	}
 
 	ri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, roleID)
@@ -62,20 +65,7 @@ func (rm *RoleMgr) API() *roleAPI {
 	return &roleAPI{rm}
 }
 
-func (rm *RoleMgr) loadpro() {
-	key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
-	val, err := rm.ds.Get(key)
-	if err != nil {
-		return
-	}
-
-	for i := 0; i < len(val)/8; i++ {
-		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-		rm.get(pid)
-	}
-}
-
-func (rm *RoleMgr) loadkeeper() {
+func (rm *RoleMgr) load() {
 	key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Keeper.String())
 	val, err := rm.ds.Get(key)
 	if err != nil {
@@ -86,13 +76,41 @@ func (rm *RoleMgr) loadkeeper() {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
 		rm.get(pid)
 	}
+
+	key = store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
+	val, err = rm.ds.Get(key)
+	if err != nil {
+		return
+	}
+
+	for i := 0; i < len(val)/8; i++ {
+		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+		rm.get(pid)
+	}
+}
+
+func (rm *RoleMgr) save() {
+	val := make([]byte, len(rm.keepers)*8)
+	for i, pid := range rm.keepers {
+		binary.BigEndian.PutUint64(val[8*i:8*(i+1)], pid)
+	}
+
+	key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Keeper.String())
+	rm.ds.Put(key, val)
+
+	val = make([]byte, len(rm.providers)*8)
+	for i, pid := range rm.providers {
+		binary.BigEndian.PutUint64(val[8*i:8*(i+1)], pid)
+	}
+
+	key = store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
+	rm.ds.Put(key, val)
 }
 
 func (rm *RoleMgr) Start() {
 	logger.Debug("start sync from remote chain")
 
-	rm.loadkeeper()
-	rm.loadpro()
+	rm.load()
 
 	go rm.sync()
 }
@@ -122,6 +140,9 @@ func (rm *RoleMgr) sync() {
 	tc := time.NewTicker(30 * time.Second)
 	defer tc.Stop()
 
+	ltc := time.NewTicker(5 * time.Minute)
+	defer ltc.Stop()
+
 	key := store.NewKey(pb.MetaType_RoleInfoKey)
 
 	cnt := uint64(0)
@@ -149,6 +170,10 @@ func (rm *RoleMgr) sync() {
 				binary.BigEndian.PutUint64(buf[:8], cnt)
 				rm.ds.Put(key, buf)
 			}
+		case <-ltc.C:
+			rm.RLock()
+			rm.save()
+			rm.RUnlock()
 		}
 	}
 }
@@ -194,32 +219,8 @@ func (rm *RoleMgr) addRoleInfo(ri *pb.RoleInfo, save bool) {
 		switch ri.Type {
 		case pb.RoleInfo_Keeper:
 			rm.keepers = append(rm.keepers, ri.RoleID)
-			if save {
-				key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Keeper.String())
-				data, err := rm.ds.Get(key)
-				if err != nil {
-					data = make([]byte, 0, 8)
-				}
-				buf := make([]byte, 8)
-				binary.BigEndian.PutUint64(buf, ri.RoleID)
-				data = append(data, buf...)
-				rm.ds.Put(key, data)
-			}
-
 		case pb.RoleInfo_Provider:
 			rm.providers = append(rm.providers, ri.RoleID)
-			if save {
-				key := store.NewKey(pb.MetaType_RoleInfoKey, rm.groupID, pb.RoleInfo_Provider.String())
-				data, err := rm.ds.Get(key)
-				if err != nil {
-					data = make([]byte, 0, 8)
-				}
-				buf := make([]byte, 8)
-				binary.BigEndian.PutUint64(buf, ri.RoleID)
-				data = append(data, buf...)
-				rm.ds.Put(key, data)
-			}
-
 		case pb.RoleInfo_User:
 			rm.users = append(rm.users, ri.RoleID)
 		default:
