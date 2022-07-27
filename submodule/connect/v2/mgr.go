@@ -158,6 +158,12 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 // register account, type and group
 func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	if cm.groupID > 0 {
+		gi, err := cm.getIns.GetGroupInfo(cm.groupID)
+		if err != nil {
+			return err
+		}
+
+		cm.level = int(gi.Level)
 		logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
 		return nil
 	}
@@ -236,6 +242,15 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 
 		if cm.groupID != gIndex {
 			return xerrors.Errorf("add to group fails")
+		}
+
+		if cm.groupID > 0 {
+			gi, err := cm.getIns.GetGroupInfo(cm.groupID)
+			if err != nil {
+				return err
+			}
+
+			cm.level = int(gi.Level)
 		}
 	}
 
