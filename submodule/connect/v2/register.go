@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	"github.com/zeebo/blake3"
@@ -17,11 +18,14 @@ import (
 
 // register account and register role
 func Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.RoleInfo_Type, gIndex uint64) (uint64, uint64, error) {
+	fmt.Println("in register, endpoint, rAddr, accSK", endPoint, rAddr, sk)
+	fmt.Println("call NewcontractMgr")
 	cm, err := NewContractMgr(ctx, endPoint, rAddr, sk)
 	if err != nil {
 		return 0, 0, err
 	}
 
+	fmt.Println("call Start")
 	err = cm.Start(typ, gIndex)
 	if err != nil {
 		return 0, 0, err

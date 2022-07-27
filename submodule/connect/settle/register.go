@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	callconts "memoc/callcontracts"
@@ -23,11 +24,19 @@ import (
 
 // register account and register role
 func Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.RoleInfo_Type, gIndex uint64) (uint64, uint64, error) {
+	fmt.Println("In Register call NewContractMgr:")
+	fmt.Println("endpoint ", endPoint)
+	fmt.Println("rAddr ", rAddr)
+	fmt.Println("sk ", sk)
+
 	cm, err := NewContractMgr(ctx, endPoint, rAddr, sk)
 	if err != nil {
 		return 0, 0, err
 	}
 
+	fmt.Println("call Start:")
+	fmt.Println("typ: ", typ)
+	fmt.Println("gIndex ", gIndex)
 	err = cm.Start(typ, gIndex)
 	if err != nil {
 		return 0, 0, err
@@ -39,11 +48,15 @@ func Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.Rol
 func (cm *ContractMgr) RegisterAcc() error {
 	logger.Debug("register an account to get an unique ID")
 
+	fmt.Println("in RegisterAcc")
+
 	// check if addr has registered
 	ri, err := cm.getRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("role id:", ri.pri.RoleID)
 
 	if ri.pri.RoleID > 0 { // has registered already
 		return nil
@@ -51,8 +64,11 @@ func (cm *ContractMgr) RegisterAcc() error {
 
 	logger.Debug("begin Register in Role contract...")
 
+	fmt.Println("begin Register in Role contract...")
+
 	client := getClient(cm.endPoint)
 	defer client.Close()
+	fmt.Println("call newRole, rAddr, client:", cm.rAddr, client)
 	roleIns, err := role.NewRole(cm.rAddr, client)
 	if err != nil {
 		return err
@@ -62,6 +78,7 @@ func (cm *ContractMgr) RegisterAcc() error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("call Register, endpoint:", cm.eAddr)
 	tx, err := roleIns.Register(auth, cm.eAddr, nil)
 	if err != nil {
 		return err

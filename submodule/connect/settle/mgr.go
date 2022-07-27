@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -45,6 +46,8 @@ type ContractMgr struct {
 func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (*ContractMgr, error) {
 	logger.Debug("create contract mgr: ", endPoint, ", ", roleAddr)
 
+	fmt.Println("in NewContractMgr, endpoint, roleAddr:", endPoint, roleAddr)
+
 	client := getClient(endPoint)
 	chainID, err := client.NetworkID(context.Background())
 	if err != nil {
@@ -65,6 +68,8 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 	}
 
 	eAddr := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	fmt.Println("acc address", eAddr)
 
 	// transfer eth
 	// todo: remove at mainnet
@@ -137,6 +142,7 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 
 func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 	logger.Debug("start contract mgr: ", typ, gIndex)
+
 	ri, err := cm.getRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
@@ -148,8 +154,10 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 
 	logger.Debug("get roleinfo: ", ri.pri, ri.isActive, ri.isBanned)
 
+	fmt.Println("role id: ", ri.pri.RoleID)
 	// register account
 	if ri.pri.RoleID == 0 {
+		fmt.Println("call cm.RegisterAcc")
 		err := cm.RegisterAcc()
 		if err != nil {
 			return err
@@ -289,6 +297,12 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 }
 
 func GetRoleTokenAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
+
+	fmt.Println("in GetRoleTokenAddr")
+	fmt.Println("endpoint", endPoint)
+	fmt.Println("rAddr", rAddr)
+	fmt.Println("accAddr", addr)
+
 	var rt common.Address
 
 	client := getClient(endPoint)
@@ -302,6 +316,7 @@ func GetRoleTokenAddr(endPoint string, rAddr, addr common.Address) (common.Addre
 	retryCount := 0
 	for {
 		retryCount++
+		fmt.Println("call role.RToken")
 		rt, err = roleIns.RToken(&bind.CallOpts{
 			From: addr,
 		})

@@ -2,15 +2,18 @@ package cmd
 
 import (
 	"fmt"
+	callconts "memoc/callcontracts"
 	"path/filepath"
 	"strconv"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
+	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
@@ -26,6 +29,16 @@ var registerCmd = &cli.Command{
 			Name:    pwKwd,
 			Aliases: []string{"pwd"},
 			Value:   "memoriae",
+		},
+		&cli.StringFlag{
+			Name:  "roleContract",
+			Usage: "address role contract",
+			Value: callconts.RoleAddr.String(),
+		},
+		&cli.IntFlag{
+			Name:  "version",
+			Usage: "contract version",
+			Value: 0,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -86,10 +99,30 @@ var registerCmd = &cli.Command{
 			typ = pb.RoleInfo_Keeper
 		}
 
-		uid, gid, err := settle.Register(cctx.Context, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, typ, gid)
-		if err != nil {
+		rAddr := common.HexToAddress(cfg.Contract.RoleContract)
+		ep := cfg.Contract.EndPoint
+		ver := int(cfg.Contract.Version)
+
+		fmt.Println("call settle.Register")
+		fmt.Println("endpoint ", cfg.Contract.EndPoint)
+		fmt.Println("role string address: ", rAddr.String())
+		fmt.Println("typ ", typ)
+		fmt.Println("gid ", gid)
+		fmt.Println("acc sk", ki.SecretKey)
+
+		var uid uint64
+		if ver == 0 {
+			uid, gid, err = settle.Register(cctx.Context, cfg.Contract.EndPoint, rAddr.String(), ki.SecretKey, typ, gid)
+			if err != nil {
+				return err
+			}
+		} else {
+			rid, gid, err := v2.Register(cctx.Context, ep, rAddr.String(), []byte(ki.SecretKey), typ, gid)
+			fmt.Println("after register, rid, gid: ", rid, gid)
 			return err
 		}
+
+		//Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.RoleInfo_Type, gIndex uint64)
 
 		fmt.Printf("register as %d in group %d", uid, gid)
 
