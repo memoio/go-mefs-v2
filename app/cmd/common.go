@@ -15,12 +15,12 @@ func init() {
 		stateCmd,
 		roleCmd,
 		infoCmd,
-		pledgeCmd,
 		registerCmd,
 		versionCmd,
 		backupCmd,
 		bootstrapCmd,
 		recoverCmd,
 		logCmd,
+		settleCmd,
 	}
 }

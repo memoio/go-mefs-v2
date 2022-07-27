@@ -71,7 +71,7 @@ type SwarmConfig struct {
 
 	EnableRelay bool `json:"enableRelay"`
 
-	PublicRelayAddress string `json:"public_relay_address,omitempty"`
+	PublicRelayAddress string `json:"publicRelayAddress,omitempty"`
 }
 
 func newDefaultSwarmConfig() SwarmConfig {

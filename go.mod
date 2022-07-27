@@ -39,6 +39,7 @@ require (
 	github.com/libp2p/go-msgio v0.1.0
 	github.com/memoio/contractsv2 v0.0.0-00010101000000-000000000000
 	github.com/memoio/minio v0.2.4
+	github.com/memoio/relay v0.0.0-00010101000000-000000000000
 	github.com/memoio/smt v0.2.1
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
@@ -58,7 +59,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.22.2
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
-	github.com/urfave/cli/v2 v2.4.0
+	github.com/urfave/cli/v2 v2.6.0
 	github.com/zeebo/blake3 v0.2.1
 	go.opencensus.io v0.23.0
 	go.uber.org/zap v1.21.0
@@ -72,5 +73,6 @@ require (
 
 replace (
 	github.com/memoio/contractsv2 => ../memov2-contractsv2
+	github.com/memoio/relay => ../relay
 	memoc => ../memo-go-contracts-v2
 )

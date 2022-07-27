@@ -42,8 +42,10 @@ func (w *kv) GetNext(key []byte, band int) (uint64, error) {
 }
 
 func (w *kv) Iter(prefix []byte, fn func(k, v []byte) error) int64 {
+	prefix = w.convertKey(prefix)
 	return w.db.Iter(prefix, fn)
 }
+
 func (w *kv) IterKeys(prefix []byte, fn func(k []byte) error) int64 {
 	prefix = w.convertKey(prefix)
 	return w.db.IterKeys(prefix, fn)
@@ -69,7 +71,7 @@ func (w *kv) convertKey(key []byte) []byte {
 	for len(key) > 0 {
 		if key[0] == '/' {
 			if len(key) == 1 {
-				return nil
+				return []byte(w.prefix)
 			}
 			key = key[1:]
 		} else {

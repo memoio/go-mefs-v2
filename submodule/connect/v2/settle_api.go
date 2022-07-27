@@ -3,7 +3,6 @@ package v2
 import (
 	"context"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/xerrors"
@@ -49,9 +48,9 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 	//	return nil, xerrors.Errorf("%d is banned", ri.Index)
 	//}
 
-	if ri.RType > 0 && ri.State != 3 {
-		return nil, xerrors.Errorf("%d is not active", ri.Index)
-	}
+	//if ri.RType > 0 && ri.GIndex > 0 && ri.State != 3 {
+	//	return nil, xerrors.Errorf("%d is not active", ri.Index)
+	//}
 
 	pri := new(pb.RoleInfo)
 
@@ -190,10 +189,10 @@ func (cm *ContractMgr) SettlePledge(ctx context.Context, val *big.Int) error {
 	return cm.Pledge(cm.roleID, val)
 }
 
-func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) error {
-	logger.Debugf("%d cancle pledge %d", cm.roleID, val)
+func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d pledge withdraw %d", cm.roleID, val)
 
-	err := cm.UnPledge(cm.roleID, cm.tIndex, val)
+	err := cm.proxyIns.PledgeWithdraw(cm.roleID, cm.tIndex, val)
 	if err != nil {
 		return err
 	}
@@ -201,38 +200,28 @@ func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) err
 	return nil
 }
 
-func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
+func (cm *ContractMgr) SettleProIncome(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
+	logger.Debugf("%d pro income %d", cm.roleID, val)
+
+	pi := proxy.PWIn{
+		PIndex: cm.roleID,
+		TIndex: cm.tIndex,
+		Pay:    val,
+		Lost:   penalty,
+	}
+
+	err := cm.proxyIns.ProWithdraw(pi, kindex, ksigns)
+	if err != nil {
+		return xerrors.Errorf("%d pro income fail %s", cm.roleID, err)
+	}
+
+	return nil
+}
+
+func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d withdraw %d", cm.roleID, val)
 
-	ri, err := cm.SettleGetRoleInfoAt(ctx, cm.roleID)
-	if err != nil {
-		return err
-	}
-
-	if ri.Type == pb.RoleInfo_Provider && val != nil && val.BitLen() > 0 {
-		pi := proxy.PWIn{
-			PIndex: cm.roleID,
-			TIndex: cm.tIndex,
-			Pay:    val,
-			Lost:   penalty,
-		}
-
-		err := cm.proxyIns.ProWithdraw(pi, kindex, ksigns)
-		if err != nil {
-			return xerrors.Errorf("%d pro withdraw fail %s", cm.roleID, err)
-		}
-
-		time.Sleep(10 * time.Second)
-
-		avail, _, err := cm.getIns.GetBalAt(cm.roleID, cm.tIndex)
-		if err != nil {
-			return xerrors.Errorf("%d withdraw get val fail %s", cm.roleID, err)
-		}
-
-		val.Set(avail)
-	}
-
-	err = cm.proxyIns.Withdraw(cm.roleID, cm.tIndex, val)
+	err := cm.proxyIns.Withdraw(cm.roleID, cm.tIndex, val)
 	if err != nil {
 		return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 	}
@@ -246,4 +235,12 @@ func (cm *ContractMgr) SettleAddOrder(ctx context.Context, so *types.SignedOrder
 
 func (cm *ContractMgr) SettleSubOrder(ctx context.Context, so *types.SignedOrder) error {
 	return cm.SubOrder(so)
+}
+
+func (cm *ContractMgr) SettleSetDesc(ctx context.Context, desc []byte) error {
+	return cm.proxyIns.SetDesc(desc)
+}
+
+func (cm *ContractMgr) SettleQuitRole(ctx context.Context) error {
+	return cm.proxyIns.QuitRole(cm.roleID)
 }

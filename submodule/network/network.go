@@ -31,6 +31,8 @@ import (
 
 // NetworkSubmodule enhances the `Node` with networking capabilities.
 type NetworkSubmodule struct { //nolint
+	ctx context.Context
+
 	NetworkName string
 
 	RawHost host.Host
@@ -71,6 +73,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	libP2pOpts = append(libP2pOpts, libp2p.BandwidthReporter(bandwidthTracker))
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
+	libP2pOpts = append(libP2pOpts, libp2p.EnableRelay())
 
 	// set up host
 	rawHost, err := libp2p.New(
@@ -80,9 +83,11 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 		return nil, err
 	}
 
+	cfg := nconfig.Repo().Config()
+
 	// setup dht
 	validator := blankValidator{}
-	bootNodes, err := net.ParseAddresses(nconfig.Repo().Config().Bootstrap.Addresses)
+	bootNodes, err := net.ParseAddresses(cfg.Bootstrap.Addresses)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +174,8 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	mds.Start()
 
 	// build the network submdule
-	return &NetworkSubmodule{
+	ns := &NetworkSubmodule{
+		ctx:         ctx,
 		NetworkName: networkName,
 		RawHost:     rawHost,
 		Host:        peerHost,
@@ -178,7 +184,18 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 		Reporter:    bandwidthTracker,
 		PeerMgr:     peerMgr,
 		Discovery:   mds,
-	}, nil
+	}
+
+	if cfg.Net.EnableRelay {
+		logger.Debug("start relay service at: ", cfg.Net.PublicRelayAddress)
+		sa, err := ma.NewMultiaddr(cfg.Net.PublicRelayAddress)
+		if err != nil {
+			return nil, err
+		}
+		go ns.startRelay(sa)
+	}
+
+	return ns, nil
 }
 
 func (ns *NetworkSubmodule) API() *networkAPI {
@@ -221,6 +238,7 @@ func (ns *NetworkSubmodule) NetConnectedness(ctx context.Context, pid peer.ID) (
 	return ns.Host.Network().Connectedness(pid), nil
 }
 
+// todo: add connect relay
 func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) error {
 	if ns.Host.Network().Connectedness(pai.ID) == network.Connected {
 		return nil
@@ -241,15 +259,63 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 	}
 
 	swrm.Backoff().Clear(pai.ID)
+
 	err := ns.Host.Connect(ctx, pai)
 	if err != nil {
-		return err
+		relay := false
+		for _, maddr := range pai.Addrs {
+			saddr := maddr.String()
+			if strings.Contains(saddr, "p2p-circuit") {
+				relay = true
+				saddrs := strings.Split(saddr, "p2p-circuit")
+				if len(saddrs) != 2 {
+					return xerrors.Errorf("wrong relay addr %d, %s", len(saddrs), saddrs[0])
+				}
+				rpai, err := peer.AddrInfoFromString(saddrs[0])
+				if err != nil {
+					return err
+				}
+
+				logger.Info("protois 1")
+
+				err = ns.Host.Connect(ctx, *rpai)
+				if err != nil {
+					return err
+				}
+
+				logger.Info("protois 2")
+
+				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/")
+				if err != nil {
+					return err
+				}
+
+				relayaddr := peer.AddrInfo{
+					ID:    pai.ID,
+					Addrs: []ma.Multiaddr{rmaddr},
+				}
+
+				logger.Info("protois 3", relayaddr.String())
+				err = ns.Host.Connect(ctx, relayaddr)
+				if err != nil {
+					return err
+				}
+				logger.Info("protois 4")
+			}
+		}
+
+		if !relay {
+			return err
+		}
+
 	}
 
 	protos, err := ns.Host.Peerstore().GetProtocols(pai.ID)
 	if err != nil {
 		return err
 	}
+
+	logger.Info("protois:", protos)
 
 	for _, pro := range protos {
 		if strings.Contains(pro, ns.NetworkName) {
@@ -315,23 +381,26 @@ func (ns *NetworkSubmodule) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 
 	for _, conn := range conns {
 		id := conn.RemotePeer()
-		protos, err := ns.Host.Peerstore().GetProtocols(id)
-		if err != nil {
-			continue
-		}
-
-		has := false
-		for _, pro := range protos {
-			if strings.Contains(pro, ns.NetworkName) {
-				has = true
-				break
+		/*
+			protos, err := ns.Host.Peerstore().GetProtocols(id)
+			if err != nil {
+				continue
 			}
-		}
 
-		if !has {
-			ns.Host.Network().ClosePeer(id)
-			continue
-		}
+
+				has := false
+				for _, pro := range protos {
+					if strings.Contains(pro, ns.NetworkName) {
+						has = true
+						break
+					}
+				}
+
+				if !has {
+					ns.Host.Network().ClosePeer(id)
+					continue
+				}
+		*/
 
 		pindex, ok := hmap[id]
 		if !ok {

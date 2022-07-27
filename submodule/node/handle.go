@@ -171,8 +171,17 @@ func (n *BaseNode) UpdateNetAddr() error {
 	opi, err := n.PushPool.StateGetNetInfo(n.ctx, n.RoleID())
 	if err == nil {
 		if pi.ID == opi.ID {
-			logger.Debug("net addr has been on chain")
-			return nil
+			if n.Config().Net.EnableRelay {
+				for _, addr := range opi.Addrs {
+					if strings.Contains(addr.String(), n.Config().Net.PublicRelayAddress) {
+						logger.Debug("net addr has been on chain")
+						return nil
+					}
+				}
+			} else {
+				logger.Debug("net addr has been on chain")
+				return nil
+			}
 		}
 	}
 
@@ -186,7 +195,18 @@ func (n *BaseNode) UpdateNetAddr() error {
 			continue
 		}
 
+		if strings.Contains(maddr.String(), "udp") {
+			continue
+		}
+
 		addrs = append(addrs, maddr)
+	}
+
+	if n.Config().Net.EnableRelay {
+		maddr, err := ma.NewMultiaddr(n.Config().Net.PublicRelayAddress + "/p2p-circuit/p2p/")
+		if err == nil {
+			addrs = append(addrs, maddr)
+		}
 	}
 
 	pi.Addrs = addrs

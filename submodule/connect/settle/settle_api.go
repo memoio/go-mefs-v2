@@ -173,7 +173,7 @@ func (cm *ContractMgr) SettleCharge(ctx context.Context, val *big.Int) error {
 	return cm.Recharge(val)
 }
 
-func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) error {
+func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d cancle pledge %d", cm.roleID, val)
 
 	err := cm.canclePledge(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
@@ -184,26 +184,23 @@ func (cm *ContractMgr) SettleCanclePledge(ctx context.Context, val *big.Int) err
 	return nil
 }
 
-func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
-	logger.Debugf("%d withdraw", cm.roleID)
+func (cm *ContractMgr) SettleProIncome(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
+	logger.Debugf("%d pro income", cm.roleID)
 
-	ri, err := cm.SettleGetRoleInfoAt(ctx, cm.roleID)
+	err := cm.proWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, kindex, ksigns)
 	if err != nil {
-		return err
+		return xerrors.Errorf("%d pro income fail %s", cm.roleID, err)
 	}
 
-	switch ri.Type {
-	case pb.RoleInfo_Provider:
-		err := cm.proWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, kindex, ksigns)
-		if err != nil {
-			return xerrors.Errorf("%d pro withdraw fail %s", cm.roleID, err)
-		}
+	return nil
+}
 
-	default:
-		err = cm.withdrawFromFs(cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
-		if err != nil {
-			return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
-		}
+func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d withdraw", cm.roleID)
+
+	err := cm.withdrawFromFs(cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
+	if err != nil {
+		return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 	}
 
 	return nil
@@ -215,4 +212,12 @@ func (cm *ContractMgr) SettleAddOrder(ctx context.Context, so *types.SignedOrder
 
 func (cm *ContractMgr) SettleSubOrder(ctx context.Context, so *types.SignedOrder) error {
 	return cm.SubOrder(so)
+}
+
+func (cm *ContractMgr) SettleSetDesc(ctx context.Context, desc []byte) error {
+	return nil
+}
+
+func (cm *ContractMgr) SettleQuitRole(ctx context.Context) error {
+	return nil
 }

@@ -35,7 +35,10 @@ func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64, update bool) (*pb.Rol
 	defer rm.Unlock()
 
 	if !update {
-		return rm.get(id)
+		ri, err := rm.get(id)
+		if err == nil {
+			return ri, nil
+		}
 	}
 
 	pri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, id)
@@ -47,7 +50,7 @@ func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64, update bool) (*pb.Rol
 		return nil, err
 	}
 
-	rm.AddRoleInfo(pri)
+	rm.addRoleInfo(pri, true)
 	return pri, nil
 }
 
@@ -235,22 +238,9 @@ func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (
 	return true, nil
 }
 
-func (rm *RoleMgr) RoleExpand(ctx context.Context, cnt uint64) error {
+func (rm *RoleMgr) RoleExpand(ctx context.Context) error {
 	acnt := rm.is.SettleGetAddrCnt(rm.ctx)
-	pnum := len(rm.providers)
-	for i := uint64(1); i <= acnt; {
-		end := i + 128
-		if end > acnt {
-			end = acnt
-		}
-		rm.syncFromChain(i, acnt)
-		npnum := len(rm.providers)
-		// found enough providers
-		if npnum >= pnum+int(cnt) {
-			return nil
-		}
-		i = end + 1
-	}
+	rm.syncFromChain(1, acnt)
 
 	return nil
 }

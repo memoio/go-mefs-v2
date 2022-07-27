@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"os"
 	"strconv"
@@ -9,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/xerrors"
 
-	"github.com/fxamacker/cbor/v2"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -84,8 +85,9 @@ type OrderFull struct {
 
 	ctx context.Context
 
-	localID uint64
-	fsID    []byte
+	localID  uint64
+	fsID     []byte
+	location string
 
 	pro       uint64
 	availTime int64 // last connect time
@@ -131,6 +133,10 @@ func filterProList(id uint64) bool {
 }
 
 func (m *OrderMgr) newProOrder(id uint64) {
+	if id == math.MaxUint64 {
+		return
+	}
+
 	if filterProList(id) {
 		return
 	}
@@ -187,7 +193,12 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		jobs:    make(map[uint64]*bucketJob),
 	}
 
-	err := m.connect(id)
+	ri, err := m.RoleGet(m.ctx, id, true)
+	if err == nil {
+		op.location = string(ri.GetDesc())
+	}
+
+	err = m.connect(id)
 	if err == nil {
 		op.ready = true
 	}

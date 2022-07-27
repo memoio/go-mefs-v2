@@ -304,8 +304,8 @@ func (d *BadgerStore) Iter(prefix []byte, fn func(k, v []byte) error) int64 {
 	var total int64
 	d.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		it := txn.NewIterator(opts)
 		opts.Prefix = prefix
+		it := txn.NewIterator(opts)
 		defer it.Close()
 		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()

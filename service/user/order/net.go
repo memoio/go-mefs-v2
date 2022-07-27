@@ -1,8 +1,11 @@
 package order
 
 import (
+	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
@@ -19,6 +22,8 @@ func (m *OrderMgr) connect(proID uint64) error {
 		}
 	}
 
+	logger.Debugf("connect pro %d fail %s", proID, err)
+
 	// otherwise get addr from declared address
 	pi, err := m.StateGetNetInfo(m.ctx, proID)
 	if err == nil {
@@ -27,17 +32,58 @@ func (m *OrderMgr) connect(proID uint64) error {
 		if err == nil {
 			m.ns.Host().Peerstore().SetAddrs(pi.ID, pi.Addrs, time.Duration(24*time.Hour))
 			m.ns.AddNode(proID, pi)
-		}
-		logger.Debugf("connect pro declared: %s %s", pi, err)
+		} else {
+			relay := false
+			for _, maddr := range pi.Addrs {
+				saddr := maddr.String()
+				if strings.Contains(saddr, "p2p-circuit") {
+					relay = true
+					saddrs := strings.Split(saddr, "p2p-circuit")
+					if len(saddrs) != 2 {
+						return xerrors.Errorf("wrong relay addr %d, %s", len(saddrs), saddrs[0])
+					}
+					rpai, err := peer.AddrInfoFromString(saddrs[0])
+					if err != nil {
+						return err
+					}
 
-		if err != nil {
-			return err
+					err = m.ns.Host().Connect(m.ctx, *rpai)
+					if err != nil {
+						return err
+					}
+
+					rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/")
+					if err != nil {
+						return err
+					}
+
+					relayaddr := peer.AddrInfo{
+						ID:    pi.ID,
+						Addrs: []ma.Multiaddr{rmaddr},
+					}
+
+					logger.Info("protois 3", relayaddr.String())
+					err = m.ns.Host().Connect(m.ctx, relayaddr)
+					if err != nil {
+						return err
+					}
+					logger.Info("protois 4")
+				}
+			}
+
+			if !relay {
+				logger.Debugf("connect pro declared: %s %s", pi, err)
+				return err
+			}
 		}
+
+		logger.Debugf("connect pro declared: %s %s", pi, err)
 	}
 
 	// test remote service is ready or not
 	resp, err = m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
+		logger.Warnf("send to pro %d %s", proID, err)
 		return err
 	}
 
@@ -53,6 +99,10 @@ func (m *OrderMgr) connect(proID uint64) error {
 }
 
 func (m *OrderMgr) update(proID uint64) {
+	if !m.RestrictHas(m.ctx, proID) {
+		return
+	}
+
 	err := m.connect(proID)
 	if err != nil {
 		logger.Debug("fail connect: ", proID, err)
@@ -120,6 +170,11 @@ func (m *OrderMgr) getSeqRemote(proID uint64) (*types.SignedOrderSeq, error) {
 
 func (m *OrderMgr) getQuotation(proID uint64) error {
 	logger.Debug("new quotation getr: ", proID)
+
+	if !m.RestrictHas(m.ctx, proID) {
+		return xerrors.Errorf("provider %d not in restrict list", proID)
+	}
+
 	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err != nil {
 		return err

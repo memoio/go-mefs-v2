@@ -41,12 +41,14 @@ type UserNode interface {
 
 	ILfsService
 	IOrder
+	IRestrict
 }
 
 type ProviderNode interface {
 	FullNode
 
 	IOrder
+	IRestrict
 }
 
 type KeeperNode interface {
@@ -113,6 +115,7 @@ type IRole interface {
 	RoleSelf(context.Context) (*pb.RoleInfo, error)
 	RoleGet(context.Context, uint64, bool) (*pb.RoleInfo, error)
 	RoleGetRelated(context.Context, pb.RoleInfo_Type) ([]uint64, error)
+	RoleExpand(context.Context) error
 
 	RoleSanityCheck(context.Context, *tx.SignedMessage) (bool, error)
 	RoleSign(context.Context, uint64, []byte, types.SigType) (types.Signature, error)
@@ -223,12 +226,15 @@ type ISettle interface {
 	SettleGetPledgeInfo(context.Context, uint64) (*PledgeInfo, error)
 	SettleGetStoreInfo(context.Context, uint64, uint64) (*StoreInfo, error)
 
+	SettleQuitRole(context.Context) error
+	SettleSetDesc(context.Context, []byte) error
 	SettleAddOrder(context.Context, *types.SignedOrder) error
 	SettleSubOrder(context.Context, *types.SignedOrder) error
 	SettleCharge(context.Context, *big.Int) error
-	SettleWithdraw(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error
+	SettleProIncome(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error
+	SettleWithdraw(context.Context, *big.Int) error
 	SettlePledge(context.Context, *big.Int) error
-	SettleCanclePledge(context.Context, *big.Int) error
+	SettlePledgeWithdraw(context.Context, *big.Int) error
 }
 
 type IOrder interface {
@@ -239,4 +245,13 @@ type IOrder interface {
 	OrderGetPayInfoAt(context.Context, uint64) (*types.OrderPayInfo, error)
 
 	OrderGetDetail(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error)
+}
+
+type IRestrict interface {
+	RestrictStat(context.Context) (bool, error)
+	RestrictEnable(context.Context, bool) error
+	RestrictAdd(context.Context, uint64) error
+	RestrictDelete(context.Context, uint64) error
+	RestrictHas(context.Context, uint64) bool
+	RestrictList(context.Context) ([]uint64, error)
 }

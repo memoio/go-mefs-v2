@@ -114,6 +114,31 @@ func (p *proxyImpl) ReRole(rtype uint8, extra []byte) error {
 	return CheckTx(p.endPoint, tx, "register role")
 }
 
+func (p *proxyImpl) QuitRole(rid uint64) error {
+	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	proxyIns, err := proxy.NewProxy(p.proxy, client)
+	if err != nil {
+		return err
+	}
+
+	auth, err := MakeAuth(p.chainID, p.sk)
+	if err != nil {
+		return err
+	}
+
+	tx, err := proxyIns.QuitRole(auth, rid)
+	if err != nil {
+		return err
+	}
+
+	return CheckTx(p.endPoint, tx, "quite role")
+}
+
 // add a user/keeper/provider to group
 func (p *proxyImpl) AddToGroup(gi uint64) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
@@ -138,6 +163,31 @@ func (p *proxyImpl) AddToGroup(gi uint64) error {
 	}
 
 	return CheckTx(p.endPoint, tx, "add to group")
+}
+
+func (p *proxyImpl) SetDesc(desc []byte) error {
+	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	proxyIns, err := proxy.NewProxy(p.proxy, client)
+	if err != nil {
+		return err
+	}
+
+	auth, err := MakeAuth(p.chainID, p.sk)
+	if err != nil {
+		return err
+	}
+
+	tx, err := proxyIns.SetDesc(auth, desc)
+	if err != nil {
+		return err
+	}
+
+	return CheckTx(p.endPoint, tx, "set desc")
 }
 
 func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
@@ -165,7 +215,7 @@ func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
 	return CheckTx(p.endPoint, tx, "pledge")
 }
 
-func (p *proxyImpl) Unpledge(i uint64, ti uint8, money *big.Int) error {
+func (p *proxyImpl) PledgeWithdraw(i uint64, ti uint8, money *big.Int) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
 	if err != nil {
 		return err

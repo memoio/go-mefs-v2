@@ -52,6 +52,7 @@ type CommonStruct struct {
 		RoleSelf        func(context.Context) (*pb.RoleInfo, error)                                   `perm:"read"`
 		RoleGet         func(context.Context, uint64, bool) (*pb.RoleInfo, error)                     `perm:"read"`
 		RoleGetRelated  func(context.Context, pb.RoleInfo_Type) ([]uint64, error)                     `perm:"read"`
+		RoleExpand      func(context.Context) error                                                   `perm:"write"`
 		RoleSign        func(context.Context, uint64, []byte, types.SigType) (types.Signature, error) `perm:"write"`
 		RoleVerify      func(context.Context, uint64, []byte, types.Signature) (bool, error)          `perm:"read"`
 		RoleVerifyMulti func(context.Context, []byte, types.MultiSignature) (bool, error)             `perm:"read"`
@@ -90,12 +91,15 @@ type CommonStruct struct {
 		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)                 `perm:"read"`
 		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)                  `perm:"read"`
 		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error)           `perm:"read"`
-		SettleWithdraw       func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
+		SettleProIncome      func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
+		SettleWithdraw       func(context.Context, *big.Int) error                               `perm:"write"`
 		SettleCharge         func(context.Context, *big.Int) error                               `perm:"write"`
 		SettlePledge         func(context.Context, *big.Int) error                               `perm:"write"`
-		SettleCanclePledge   func(context.Context, *big.Int) error                               `perm:"write"`
+		SettlePledgeWithdraw func(context.Context, *big.Int) error                               `perm:"write"`
 		SettleAddOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
 		SettleSubOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
+		SettleSetDesc        func(context.Context, []byte) error                                 `perm:"write"`
+		SettleQuitRole       func(context.Context) error                                         `perm:"admin"`
 
 		SyncGetInfo        func(context.Context) (*SyncInfo, error)                 `perm:"read"`
 		SyncGetTxMsgStatus func(context.Context, types.MsgID) (*tx.MsgState, error) `perm:"read"`
@@ -211,6 +215,10 @@ func (s *CommonStruct) RoleGet(ctx context.Context, id uint64, update bool) (*pb
 
 func (s *CommonStruct) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {
 	return s.Internal.RoleGetRelated(ctx, typ)
+}
+
+func (s *CommonStruct) RoleExpand(ctx context.Context) error {
+	return s.Internal.RoleExpand(ctx)
 }
 
 func (s *CommonStruct) RoleSign(ctx context.Context, id uint64, msg []byte, typ types.SigType) (types.Signature, error) {
@@ -341,20 +349,32 @@ func (s *CommonStruct) SettleGetStoreInfo(ctx context.Context, uid, pid uint64) 
 	return s.Internal.SettleGetStoreInfo(ctx, uid, pid)
 }
 
-func (s *CommonStruct) SettleWithdraw(ctx context.Context, val, penlty *big.Int, kind []uint64, sig [][]byte) error {
-	return s.Internal.SettleWithdraw(ctx, val, penlty, kind, sig)
+func (s *CommonStruct) SettleProIncome(ctx context.Context, val, penlty *big.Int, kind []uint64, sig [][]byte) error {
+	return s.Internal.SettleProIncome(ctx, val, penlty, kind, sig)
+}
+
+func (s *CommonStruct) SettleWithdraw(ctx context.Context, val *big.Int) error {
+	return s.Internal.SettleWithdraw(ctx, val)
 }
 
 func (s *CommonStruct) SettlePledge(ctx context.Context, val *big.Int) error {
 	return s.Internal.SettlePledge(ctx, val)
 }
 
+func (s *CommonStruct) SettleSetDesc(ctx context.Context, desc []byte) error {
+	return s.Internal.SettleSetDesc(ctx, desc)
+}
+
+func (s *CommonStruct) SettleQuitRole(ctx context.Context) error {
+	return s.Internal.SettleQuitRole(ctx)
+}
+
 func (s *CommonStruct) SettleCharge(ctx context.Context, val *big.Int) error {
 	return s.Internal.SettleCharge(ctx, val)
 }
 
-func (s *CommonStruct) SettleCanclePledge(ctx context.Context, val *big.Int) error {
-	return s.Internal.SettleCanclePledge(ctx, val)
+func (s *CommonStruct) SettlePledgeWithdraw(ctx context.Context, val *big.Int) error {
+	return s.Internal.SettlePledgeWithdraw(ctx, val)
 }
 
 func (s *CommonStruct) SettleAddOrder(ctx context.Context, so *types.SignedOrder) error {
@@ -408,6 +428,13 @@ type ProviderNodeStruct struct {
 		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
 
 		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
+
+		RestrictStat   func(context.Context) (bool, error)     `perm:"read"`
+		RestrictEnable func(context.Context, bool) error       `perm:"write"`
+		RestrictAdd    func(context.Context, uint64) error     `perm:"write"`
+		RestrictDelete func(context.Context, uint64) error     `perm:"write"`
+		RestrictHas    func(context.Context, uint64) bool      `perm:"read"`
+		RestrictList   func(context.Context) ([]uint64, error) `perm:"read"`
 	}
 }
 
@@ -433,6 +460,27 @@ func (s *ProviderNodeStruct) OrderList(ctx context.Context) ([]uint64, error) {
 
 func (s *ProviderNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
 	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
+}
+
+func (s *ProviderNodeStruct) RestrictStat(ctx context.Context) (bool, error) {
+	return s.Internal.RestrictStat(ctx)
+}
+func (s *ProviderNodeStruct) RestrictEnable(ctx context.Context, ea bool) error {
+	return s.Internal.RestrictEnable(ctx, ea)
+}
+
+func (s *ProviderNodeStruct) RestrictAdd(ctx context.Context, uid uint64) error {
+	return s.Internal.RestrictAdd(ctx, uid)
+}
+func (s *ProviderNodeStruct) RestrictDelete(ctx context.Context, uid uint64) error {
+	return s.Internal.RestrictDelete(ctx, uid)
+}
+func (s *ProviderNodeStruct) RestrictHas(ctx context.Context, uid uint64) bool {
+	return s.Internal.RestrictHas(ctx, uid)
+}
+
+func (s *ProviderNodeStruct) RestrictList(ctx context.Context) ([]uint64, error) {
+	return s.Internal.RestrictList(ctx)
 }
 
 type UserNodeStruct struct {
@@ -463,6 +511,13 @@ type UserNodeStruct struct {
 		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
 
 		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
+
+		RestrictStat   func(context.Context) (bool, error)     `perm:"read"`
+		RestrictEnable func(context.Context, bool) error       `perm:"write"`
+		RestrictAdd    func(context.Context, uint64) error     `perm:"write"`
+		RestrictDelete func(context.Context, uint64) error     `perm:"write"`
+		RestrictHas    func(context.Context, uint64) bool      `perm:"read"`
+		RestrictList   func(context.Context) ([]uint64, error) `perm:"read"`
 	}
 }
 
@@ -536,6 +591,27 @@ func (s *UserNodeStruct) OrderGetPayInfoAt(ctx context.Context, proID uint64) (*
 
 func (s *UserNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
 	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
+}
+
+func (s *UserNodeStruct) RestrictStat(ctx context.Context) (bool, error) {
+	return s.Internal.RestrictStat(ctx)
+}
+func (s *UserNodeStruct) RestrictEnable(ctx context.Context, ea bool) error {
+	return s.Internal.RestrictEnable(ctx, ea)
+}
+
+func (s *UserNodeStruct) RestrictAdd(ctx context.Context, uid uint64) error {
+	return s.Internal.RestrictAdd(ctx, uid)
+}
+func (s *UserNodeStruct) RestrictDelete(ctx context.Context, uid uint64) error {
+	return s.Internal.RestrictDelete(ctx, uid)
+}
+func (s *UserNodeStruct) RestrictHas(ctx context.Context, uid uint64) bool {
+	return s.Internal.RestrictHas(ctx, uid)
+}
+
+func (s *UserNodeStruct) RestrictList(ctx context.Context) ([]uint64, error) {
+	return s.Internal.RestrictList(ctx)
 }
 
 type KeeperNodeStruct struct {

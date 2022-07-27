@@ -24,6 +24,12 @@ var infoCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		selfInfoCmd,
 	},
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "update",
+			Value: false,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -40,6 +46,13 @@ var infoCmd = &cli.Command{
 		pri, err := api.RoleSelf(cctx.Context)
 		if err != nil {
 			return err
+		}
+
+		if cctx.Bool("update") {
+			pri, err = api.RoleGet(cctx.Context, pri.RoleID, true)
+			if err != nil {
+				return err
+			}
 		}
 
 		fmt.Println(ansi.Color("----------- Information -----------", "green"))
@@ -114,6 +127,13 @@ var infoCmd = &cli.Command{
 
 		fmt.Println("ID: ", pri.RoleID)
 		fmt.Println("Type: ", pri.Type.String())
+
+		switch string(pri.Desc) {
+		case "cloud":
+			fmt.Println("Location: cloud")
+		default:
+			fmt.Println("Location: personal")
+		}
 		fmt.Println("Wallet: ", common.BytesToAddress(pri.ChainVerifyKey))
 
 		bi, err := api.SettleGetBalanceInfo(cctx.Context, pri.RoleID)
