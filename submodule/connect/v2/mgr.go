@@ -166,6 +166,10 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			return err
 		}
 
+		if gi.State != 3 {
+			return xerrors.Errorf("group %d is not active", cm.groupID)
+		}
+
 		cm.level = int(gi.Level)
 		logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
 		return nil
@@ -251,6 +255,10 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			gi, err := cm.getIns.GetGroupInfo(cm.groupID)
 			if err != nil {
 				return err
+			}
+
+			if gi.State != 3 {
+				return xerrors.Errorf("group %d is not active", cm.groupID)
 			}
 
 			cm.level = int(gi.Level)
