@@ -3,7 +3,6 @@ package v2
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -50,8 +49,6 @@ type ContractMgr struct {
 // create and verify
 func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (*ContractMgr, error) {
 	logger.Debug("create v2 contract mgr: ", endPoint, ", ", baseAddr)
-
-	fmt.Println("in NewContractMgr")
 
 	client, err := ethclient.DialContext(context.TODO(), endPoint)
 	if err != nil {

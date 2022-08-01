@@ -133,7 +133,6 @@ var configSetCmd = &cli.Command{
 
 			fmt.Printf("set %s to %v\n", key, value)
 			fmt.Println("It will take affect at next start")
-
 		} else { // not find
 			rep, err := repo.NewFSRepo(repoDir, nil, false)
 			if err != nil {

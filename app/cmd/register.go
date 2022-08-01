@@ -103,13 +103,6 @@ var registerCmd = &cli.Command{
 		ep := cfg.Contract.EndPoint
 		ver := int(cfg.Contract.Version)
 
-		fmt.Println("call settle.Register")
-		fmt.Println("endpoint ", cfg.Contract.EndPoint)
-		fmt.Println("role string address: ", rAddr.String())
-		fmt.Println("typ ", typ)
-		fmt.Println("gid ", gid)
-		fmt.Println("acc sk", ki.SecretKey)
-
 		var uid uint64
 		if ver == 0 {
 			uid, gid, err = settle.Register(cctx.Context, cfg.Contract.EndPoint, rAddr.String(), ki.SecretKey, typ, gid)
@@ -121,8 +114,6 @@ var registerCmd = &cli.Command{
 			fmt.Println("after register, rid, gid: ", rid, gid)
 			return err
 		}
-
-		//Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.RoleInfo_Type, gIndex uint64)
 
 		fmt.Printf("register as %d in group %d", uid, gid)
 
