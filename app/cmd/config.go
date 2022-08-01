@@ -118,6 +118,7 @@ var configSetCmd = &cli.Command{
 
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		// find
 		if err == nil {
 			api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
 			if err != nil {
@@ -132,7 +133,7 @@ var configSetCmd = &cli.Command{
 
 			fmt.Printf("set %s to %v\n", key, value)
 			fmt.Println("It will take affect at next start")
-		} else {
+		} else { // not find
 			rep, err := repo.NewFSRepo(repoDir, nil, false)
 			if err != nil {
 				return err
