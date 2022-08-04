@@ -222,13 +222,6 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 		return nil, err
 	}
 
-	km, err := getIns.GetKManage(&bind.CallOpts{
-		From: g.eAddr,
-	}, gi)
-	if err != nil {
-		return nil, err
-	}
-
 	kcnt, err := getIns.GetKCnt(&bind.CallOpts{
 		From: g.eAddr,
 	}, gi)
@@ -249,7 +242,6 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 		Level:    level,
 		Kpr:      kpr,
 		Ppr:      ppr,
-		FsAddr:   km.String(),
 		KCount:   uint64(kcnt),
 		Size:     gout.Size,
 		Price:    gout.Sprice,

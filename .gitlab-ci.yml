@@ -1,0 +1,21 @@
+image: golang:latest
+
+stages:
+  - compile
+
+before_script:
+  - go env -w GOPROXY=https://goproxy.cn,direct
+
+
+compile:
+  stage: compile
+  when: always
+  script:
+    - cd $CI_PROJECT_DIR
+    - make
+  tags:
+    - "compile"
+
+
+
+

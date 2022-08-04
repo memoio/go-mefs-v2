@@ -4,9 +4,12 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/xerrors"
 
+	inst "github.com/memoio/contractsv2/go_contracts/instance"
 	"github.com/memoio/contractsv2/go_contracts/proxy"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
@@ -99,11 +102,30 @@ func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb
 }
 
 func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.GroupInfo, error) {
+	client, err := ethclient.DialContext(context.TODO(), cm.endPoint)
+	if err != nil {
+		return nil, xerrors.Errorf("get client from %s fail: %s", cm.endPoint, err)
+	}
+	defer client.Close()
+
+	insti, err := inst.NewInstance(cm.baseAddr, client)
+	if err != nil {
+		return nil, err
+	}
+
+	kmAddr, err := insti.Instances(&bind.CallOpts{
+		From: cm.eAddr,
+	}, 13)
+	if err != nil {
+		return nil, xerrors.Errorf("get getter contract fail: %s", err)
+	}
+
 	gi, err := cm.getIns.GetGroupInfo(gIndex)
 	if err != nil {
 		return nil, err
 	}
 
+	gi.FsAddr = kmAddr.String()
 	gi.EndPoint = cm.endPoint
 	gi.BaseAddr = cm.baseAddr.String()
 
