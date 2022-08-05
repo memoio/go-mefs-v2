@@ -200,6 +200,8 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		if cm.roleID == 0 {
 			return xerrors.Errorf("register account fails")
 		}
+
+		logger.Info("Register account successfully. Account ID: ", cm.roleID)
 	}
 
 	if typ == pb.RoleInfo_Unknown && gIndex > 0 {
@@ -226,6 +228,8 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		if cm.typ != typ {
 			return xerrors.Errorf("register type fails")
 		}
+
+		logger.Info("Register role successfully. Role type: ", cm.typ)
 	}
 
 	// add to group
@@ -248,6 +252,8 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			return xerrors.Errorf("add to group fails")
 		}
 
+		logger.Info("Add to group successfully. Role group id: ", ri.GIndex)
+
 		if cm.groupID > 0 {
 			gi, err := cm.getIns.GetGroupInfo(cm.groupID)
 			if err != nil {
@@ -255,7 +261,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			}
 
 			if gi.State != 3 {
-				return xerrors.Errorf("group %d is not active", cm.groupID)
+				return xerrors.Errorf("group %d is not active, you need to activate some keepers.", cm.groupID)
 			}
 
 			cm.level = int(gi.Level)
