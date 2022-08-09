@@ -276,14 +276,10 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 					return err
 				}
 
-				logger.Info("protois 1")
-
 				err = ns.Host.Connect(ctx, *rpai)
 				if err != nil {
 					return err
 				}
-
-				logger.Info("protois 2")
 
 				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/")
 				if err != nil {
@@ -295,12 +291,10 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 					Addrs: []ma.Multiaddr{rmaddr},
 				}
 
-				logger.Info("protois 3", relayaddr.String())
 				err = ns.Host.Connect(ctx, relayaddr)
 				if err != nil {
 					return err
 				}
-				logger.Info("protois 4")
 			}
 		}
 
@@ -314,8 +308,6 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 	if err != nil {
 		return err
 	}
-
-	logger.Info("protois:", protos)
 
 	for _, pro := range protos {
 		if strings.Contains(pro, ns.NetworkName) {

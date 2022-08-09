@@ -234,7 +234,12 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 
 	// add to group
 	if ri.GIndex == 0 && gIndex > 0 {
-		err := cm.AddToGroup(gIndex)
+		_, err := cm.getIns.GetGroupInfo(gIndex)
+		if err != nil {
+			return xerrors.Errorf("get groupinfo %d fail %s", gIndex, err)
+		}
+
+		err = cm.AddToGroup(gIndex)
 		if err != nil {
 			return err
 		}

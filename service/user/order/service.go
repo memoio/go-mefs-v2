@@ -286,19 +286,23 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 			m.addPros() // add providers
 
 			expand := false
-			for _, bid := range m.pros {
-				lp, ok := m.proMap[bid]
-				if ok {
-					m.updateProsForBucket(lp)
+			if len(m.pros) == 0 {
+				expand = true
+			} else {
+				for _, bid := range m.pros {
+					lp, ok := m.proMap[bid]
+					if ok {
+						m.updateProsForBucket(lp)
 
-					if expand {
-						continue
-					}
+						if expand {
+							continue
+						}
 
-					for _, pid := range lp.pros {
-						if pid == math.MaxUint64 {
-							expand = true
-							break
+						for _, pid := range lp.pros {
+							if pid == math.MaxUint64 {
+								expand = true
+								break
+							}
 						}
 					}
 				}
