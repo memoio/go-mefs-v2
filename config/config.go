@@ -170,13 +170,8 @@ func (cfg *Config) WriteFile(file string) error {
 }
 
 func ReadFile(file string) (*Config, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-
 	cfg := NewDefaultConfig()
-	rawConfig, err := ioutil.ReadAll(f)
+	rawConfig, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
