@@ -221,3 +221,7 @@ func (cm *ContractMgr) SettleSetDesc(ctx context.Context, desc []byte) error {
 func (cm *ContractMgr) SettleQuitRole(ctx context.Context) error {
 	return nil
 }
+
+func (cm *ContractMgr) SettleAlterPayee(ctx context.Context, p string) error {
+	return nil
+}

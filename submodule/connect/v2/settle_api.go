@@ -266,3 +266,11 @@ func (cm *ContractMgr) SettleSetDesc(ctx context.Context, desc []byte) error {
 func (cm *ContractMgr) SettleQuitRole(ctx context.Context) error {
 	return cm.proxyIns.QuitRole(cm.roleID)
 }
+
+func (cm *ContractMgr) SettleAlterPayee(ctx context.Context, p string) error {
+	if !common.IsHexAddress(p) {
+		return xerrors.Errorf("%s is not hex address", p)
+	}
+	np := common.HexToAddress(p)
+	return cm.proxyIns.AlterPayee(cm.roleID, np)
+}

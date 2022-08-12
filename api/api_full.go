@@ -227,6 +227,7 @@ type ISettle interface {
 	SettleGetStoreInfo(context.Context, uint64, uint64) (*StoreInfo, error)
 
 	SettleQuitRole(context.Context) error
+	SettleAlterPayee(context.Context, string) error
 	SettleSetDesc(context.Context, []byte) error
 	SettleAddOrder(context.Context, *types.SignedOrder) error
 	SettleSubOrder(context.Context, *types.SignedOrder) error

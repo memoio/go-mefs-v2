@@ -21,6 +21,7 @@ var settleCmd = &cli.Command{
 		pledgeGetCmd,
 		pledgeWithdrawCmd,
 		settleQuitRoleCmd,
+		settleAlterPayeeCmd,
 	},
 }
 
@@ -277,6 +278,49 @@ var settleQuitRoleCmd = &cli.Command{
 		}
 
 		fmt.Println("quit role successfully")
+
+		return nil
+	},
+}
+
+var settleAlterPayeeCmd = &cli.Command{
+	Name:      "alterPayee",
+	Usage:     "alter payee",
+	ArgsUsage: "[address(0x...), required]",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "really-do-it",
+			Value: false,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		if !cctx.Bool("really-do-it") {
+			return xerrors.Errorf("need --really-do-it")
+		}
+
+		if !cctx.Args().Present() {
+			return xerrors.Errorf("need payee address")
+		}
+
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		err = api.SettleAlterPayee(cctx.Context, cctx.Args().First())
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("successfully alter payee to: ", cctx.Args().First())
+		fmt.Println("next step: confirm payee using", cctx.Args().First())
 
 		return nil
 	},

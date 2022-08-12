@@ -139,6 +139,31 @@ func (p *proxyImpl) QuitRole(rid uint64) error {
 	return CheckTx(p.endPoint, tx, "quite role")
 }
 
+func (p *proxyImpl) AlterPayee(rid uint64, np common.Address) error {
+	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	proxyIns, err := proxy.NewProxy(p.proxy, client)
+	if err != nil {
+		return err
+	}
+
+	auth, err := MakeAuth(p.chainID, p.sk)
+	if err != nil {
+		return err
+	}
+
+	tx, err := proxyIns.AlterPayee(auth, rid, np)
+	if err != nil {
+		return err
+	}
+
+	return CheckTx(p.endPoint, tx, "alter payee")
+}
+
 // add a user/keeper/provider to group
 func (p *proxyImpl) AddToGroup(gi uint64) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)

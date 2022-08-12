@@ -3,6 +3,7 @@ package inter
 import (
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/memoio/contractsv2/go_contracts/proxy"
 )
 
@@ -11,6 +12,8 @@ type IProxy interface {
 	ReAcc() error
 	ReRole(rtype uint8, extra []byte) error
 	QuitRole(rid uint64) error
+
+	AlterPayee(rid uint64, p common.Address) error
 
 	// add a user/keeper/provider to group
 	AddToGroup(gi uint64) error

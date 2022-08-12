@@ -15,11 +15,15 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"golang.org/x/xerrors"
 
+	comm "github.com/memoio/contractsv2/common"
+
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/submodule/connect/v2/impl"
 )
 
 var logger = logging.Logger("settle")
+
+var PDesc comm.PDesc
 
 const (
 	EndPoint     = "http://119.147.213.220:8191"
