@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/multiformats/go-multiaddr"
@@ -35,7 +36,9 @@ func GetMemoClientInfo(repoDir string) (string, http.Header, error) {
 
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+string(tokenBytes))
-	apima, err := multiaddr.NewMultiaddr(string(rpcBytes))
+	rpcs := string(rpcBytes)
+	rpcs = strings.TrimSpace(rpcs)
+	apima, err := multiaddr.NewMultiaddr(rpcs)
 	if err != nil {
 		return "", nil, err
 	}
