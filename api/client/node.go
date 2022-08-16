@@ -1,11 +1,11 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"net/http"
 	"path"
-	"strings"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/multiformats/go-multiaddr"
@@ -27,22 +27,20 @@ func GetMemoClientInfo(repoDir string) (string, http.Header, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	tokenBytes = bytes.TrimSpace(tokenBytes)
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+string(tokenBytes))
 
 	rpcPath := path.Join(repoPath, "api")
 	rpcBytes, err := ioutil.ReadFile(rpcPath)
 	if err != nil {
 		return "", nil, err
 	}
-
-	headers := http.Header{}
-	headers.Add("Authorization", "Bearer "+string(tokenBytes))
-	rpcs := string(rpcBytes)
-	rpcs = strings.TrimSpace(rpcs)
-	apima, err := multiaddr.NewMultiaddr(rpcs)
+	rpcBytes = bytes.TrimSpace(rpcBytes)
+	apima, err := multiaddr.NewMultiaddr(string(rpcBytes))
 	if err != nil {
 		return "", nil, err
 	}
-
 	_, addr, err := manet.DialArgs(apima)
 	if err != nil {
 		return "", nil, err
