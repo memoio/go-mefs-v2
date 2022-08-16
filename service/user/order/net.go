@@ -62,12 +62,10 @@ func (m *OrderMgr) connect(proID uint64) error {
 						Addrs: []ma.Multiaddr{rmaddr},
 					}
 
-					logger.Info("protois 3", relayaddr.String())
 					err = m.ns.Host().Connect(m.ctx, relayaddr)
 					if err != nil {
 						return err
 					}
-					logger.Info("protois 4")
 				}
 			}
 
