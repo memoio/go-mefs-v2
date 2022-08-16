@@ -7,7 +7,6 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -45,7 +44,9 @@ func init() {
 
 	mLogger = logger.Sugar()
 
-	mLoglevel.SetLevel(zapcore.InfoLevel)
+	l := getLogLevel(os.Getenv("MEFS_LOG_LEVEL"))
+
+	mLoglevel.SetLevel(l)
 
 	//mLogger.Info("mefs logger init success")
 }
@@ -79,10 +80,7 @@ func getLogWriter(filename string) zapcore.WriteSyncer {
 	return zapcore.AddSync(lumberJackLogger)
 }
 
-func SetLogLevel(level string) error {
-	lk.Lock()
-	defer lk.Unlock()
-
+func getLogLevel(level string) zapcore.Level {
 	l := zapcore.InfoLevel
 	switch level {
 	case "debug", "DEBUG":
@@ -99,9 +97,17 @@ func SetLogLevel(level string) error {
 		l = zapcore.PanicLevel
 	case "fatal", "FATAL":
 		l = zapcore.FatalLevel
-	default:
-		return xerrors.Errorf("level %s is not supported", level)
+
 	}
+
+	return l
+}
+
+func SetLogLevel(level string) error {
+	l := getLogLevel(level)
+
+	lk.Lock()
+	defer lk.Unlock()
 
 	mLoglevel.SetLevel(l)
 	return nil
