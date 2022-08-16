@@ -52,7 +52,7 @@ func (m *OrderMgr) connect(proID uint64) error {
 						return err
 					}
 
-					rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/")
+					rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/" + pi.ID.Pretty())
 					if err != nil {
 						return err
 					}

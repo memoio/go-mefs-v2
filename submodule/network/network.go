@@ -187,7 +187,7 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	}
 
 	if cfg.Net.EnableRelay {
-		logger.Debug("start relay service at: ", cfg.Net.PublicRelayAddress)
+		logger.Info("start relay service at: ", cfg.Net.PublicRelayAddress)
 		sa, err := ma.NewMultiaddr(cfg.Net.PublicRelayAddress)
 		if err != nil {
 			return nil, err
@@ -281,7 +281,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 					return err
 				}
 
-				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/")
+				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/" + pai.ID.Pretty())
 				if err != nil {
 					return err
 				}
