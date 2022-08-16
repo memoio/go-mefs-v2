@@ -203,7 +203,7 @@ func (n *BaseNode) UpdateNetAddr() error {
 	}
 
 	if n.Config().Net.EnableRelay {
-		maddr, err := ma.NewMultiaddr(n.Config().Net.PublicRelayAddress + "/p2p-circuit/p2p/" + pi.ID.Pretty())
+		maddr, err := ma.NewMultiaddr(n.Config().Net.PublicRelayAddress + "/p2p-circuit/")
 		if err != nil {
 			return err
 		}

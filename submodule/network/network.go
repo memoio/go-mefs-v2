@@ -265,13 +265,10 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 		relay := false
 		for _, maddr := range pai.Addrs {
 			saddr := maddr.String()
-			if strings.Contains(saddr, "p2p-circuit") {
+			if strings.HasSuffix(saddr, "p2p-circuit") {
 				relay = true
-				saddrs := strings.Split(saddr, "p2p-circuit")
-				if len(saddrs) != 2 {
-					return xerrors.Errorf("wrong relay addr %d, %s", len(saddrs), saddrs[0])
-				}
-				rpai, err := peer.AddrInfoFromString(saddrs[0])
+				saddr = strings.TrimSuffix(saddr, "p2p-circuit")
+				rpai, err := peer.AddrInfoFromString(saddr)
 				if err != nil {
 					return err
 				}
@@ -281,7 +278,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 					return err
 				}
 
-				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/" + pai.ID.Pretty())
+				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit" + "/p2p/" + pai.ID.Pretty())
 				if err != nil {
 					return err
 				}
@@ -301,7 +298,6 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 		if !relay {
 			return err
 		}
-
 	}
 
 	protos, err := ns.Host.Peerstore().GetProtocols(pai.ID)

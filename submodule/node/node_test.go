@@ -5,14 +5,38 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	ma "github.com/multiformats/go-multiaddr"
 )
+
+func TestMaddr(t *testing.T) {
+	maddr, err := ma.NewMultiaddr("/ip4/124.221.166.102/tcp/4001/p2p/12D3KooWG98oNm1c6MGxRMN2tLxpGApj6G79vRsxFbdYE5FsTGc2" + "/p2p-circuit/")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	saddr := maddr.String()
+
+	if strings.HasSuffix(saddr, "p2p-circuit") {
+		saddr = strings.TrimSuffix(saddr, "p2p-circuit")
+		t.Log(saddr)
+		rpai, err := peer.AddrInfoFromString(saddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log(rpai.String())
+	}
+
+	t.Fatal(maddr.String())
+}
 
 func TestBaseNode(t *testing.T) {
 	ctx := context.Background()

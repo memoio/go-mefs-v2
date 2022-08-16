@@ -36,13 +36,10 @@ func (m *OrderMgr) connect(proID uint64) error {
 			relay := false
 			for _, maddr := range pi.Addrs {
 				saddr := maddr.String()
-				if strings.Contains(saddr, "p2p-circuit") {
+				if strings.HasSuffix(saddr, "p2p-circuit") {
 					relay = true
-					saddrs := strings.Split(saddr, "p2p-circuit")
-					if len(saddrs) != 2 {
-						return xerrors.Errorf("wrong relay addr %d, %s", len(saddrs), saddrs[0])
-					}
-					rpai, err := peer.AddrInfoFromString(saddrs[0])
+					saddr = strings.TrimSuffix(saddr, "p2p-circuit")
+					rpai, err := peer.AddrInfoFromString(saddr)
 					if err != nil {
 						return err
 					}
@@ -52,7 +49,7 @@ func (m *OrderMgr) connect(proID uint64) error {
 						return err
 					}
 
-					rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit/p2p/" + pi.ID.Pretty())
+					rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit" + "/p2p/" + pi.ID.Pretty())
 					if err != nil {
 						return err
 					}
