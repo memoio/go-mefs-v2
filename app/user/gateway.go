@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -25,8 +26,10 @@ import (
 	"golang.org/x/xerrors"
 
 	mclient "github.com/memoio/go-mefs-v2/api/client"
+	"github.com/memoio/go-mefs-v2/app/user/mutipart"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	metag "github.com/memoio/go-mefs-v2/lib/utils/etag"
+	miniogo "github.com/minio/minio-go/v7"
 )
 
 var GatewayCmd = &cli2.Command{
@@ -208,8 +211,10 @@ func (g *Mefs) Name() string {
 
 // NewGatewayLayer implements Gateway interface and returns LFS ObjectLayer.
 func (g *Mefs) NewGatewayLayer(creds madmin.Credentials) (minio.ObjectLayer, error) {
+	uploads := mutipart.NewMultipartUploads()
 	gw := &lfsGateway{
-		polices: make(map[string]*policy.Policy),
+		polices:  make(map[string]*policy.Policy),
+		mutipart: uploads,
 	}
 
 	return gw, nil
@@ -223,8 +228,9 @@ func (g *Mefs) Production() bool {
 // lfsGateway implements gateway.
 type lfsGateway struct {
 	minio.GatewayUnsupported
-	memofs  *MemoFs
-	polices map[string]*policy.Policy
+	mutipart *mutipart.MultipartUploads
+	memofs   *MemoFs
+	polices  map[string]*policy.Policy
 }
 
 // Shutdown saves any gateway metadata to disk
@@ -551,15 +557,28 @@ func (l *lfsGateway) CopyObject(ctx context.Context, srcBucket, srcObject, dstBu
 
 // DeleteObject deletes a blob in bucket.
 func (l *lfsGateway) DeleteObject(ctx context.Context, bucket, object string, opts minio.ObjectOptions) (minio.ObjectInfo, error) {
-	return minio.ObjectInfo{}, minio.NotImplemented{}
+	err := l.getMemofs()
+	if err != nil {
+		return minio.ObjectInfo{}, err
+	}
+	err = l.memofs.DeleteObject(ctx, bucket, object)
+	if err != nil {
+		return minio.ObjectInfo{}, err
+	}
+
+	return minio.ObjectInfo{Bucket: bucket, Name: object}, nil
 }
 
 func (l *lfsGateway) DeleteObjects(ctx context.Context, bucket string, objects []minio.ObjectToDelete, opts minio.ObjectOptions) ([]minio.DeletedObject, []error) {
 	errs := make([]error, len(objects))
 	dobjects := make([]minio.DeletedObject, len(objects))
-	for idx := range objects {
-		errs[idx] = minio.NotImplemented{}
-
+	for idx, object := range objects {
+		_, errs[idx] = l.DeleteObject(ctx, bucket, object.ObjectName, opts)
+		if errs[idx] == nil {
+			dobjects[idx] = minio.DeletedObject{
+				ObjectName: object.ObjectName,
+			}
+		}
 	}
 
 	return dobjects, errs
@@ -573,4 +592,128 @@ func (l *lfsGateway) IsCompressionSupported() bool {
 func (l *lfsGateway) StatObject(ctx context.Context, bucket, object string, opts minio.ObjectOptions) (minio.ObjectInfo, error) {
 	//log.Println("state object info: ", bucket, object)
 	return minio.ObjectInfo{}, minio.NotImplemented{}
+}
+
+// Multipart operations.
+func (l *lfsGateway) ListMultipartUploads(ctx context.Context, bucket, prefix, keyMarker, uploadIDMarker, delimiter string, maxUploads int) (result minio.ListMultipartsInfo, err error) {
+	return result, minio.NotImplemented{}
+}
+
+func (l *lfsGateway) NewMultipartUpload(ctx context.Context, bucket string, object string, o minio.ObjectOptions) (uploadID string, err error) {
+	err = l.getMemofs()
+	if err != nil {
+		return uploadID, minio.ErrorRespToObjectError(err, bucket, object)
+	}
+	uploads := l.mutipart
+	uploadID, err = l.memofs.NewMultipartUpload(ctx, bucket, object, o.UserDefined, uploads)
+	if err != nil {
+		return uploadID, minio.ErrorRespToObjectError(err, bucket, object)
+	}
+	return uploadID, nil
+}
+
+func (l *lfsGateway) CopyObjectPart(ctx context.Context, srcBucket, srcObject, destBucket, destObject string, uploadID string, partID int,
+	startOffset int64, length int64, srcInfo minio.ObjectInfo, srcOpts, dstOpts minio.ObjectOptions) (info minio.PartInfo, err error) {
+	return info, minio.NotImplemented{}
+}
+
+func (l *lfsGateway) PutObjectPart(ctx context.Context, bucket, object, uploadID string, partID int, data *minio.PutObjReader, opts minio.ObjectOptions) (partinfo minio.PartInfo, err error) {
+	err = l.getMemofs()
+	if err != nil {
+		return partinfo, minio.ErrorRespToObjectError(err, bucket, object)
+	}
+	uploads := l.mutipart
+	partinfo, err = l.memofs.PutObjectPart(ctx, bucket, object, uploadID, partID, data, opts, uploads)
+	if err != nil {
+		return partinfo, minio.ErrorRespToObjectError(err, bucket, object)
+	}
+	return partinfo, nil
+}
+
+func (l *lfsGateway) GetMultipartInfo(ctx context.Context, bucket, object, uploadID string, opts minio.ObjectOptions) (result minio.MultipartInfo, err error) {
+	putOpts := miniogo.PutObjectOptions{
+		UserMetadata:         opts.UserDefined,
+		ServerSideEncryption: opts.ServerSideEncryption,
+		SendContentMd5:       true,
+	}
+	contentType := putOpts.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	if opts.UserDefined != nil {
+		opts.UserDefined["Content-Type"] = contentType
+	}
+	result.Bucket = bucket
+	result.Object = object
+	result.UploadID = uploadID
+	for k, v := range opts.UserDefined {
+		result.UserDefined[k] = v
+	}
+	return result, nil
+}
+
+func (l *lfsGateway) ListObjectParts(ctx context.Context, bucket, object, uploadID string, partNumberMarker int, maxParts int, opts minio.ObjectOptions) (result minio.ListPartsInfo, err error) {
+	uploads := l.mutipart
+	upload, err := uploads.Get(bucket, object, uploadID)
+	if err != nil {
+		return result, minio.ErrorRespToObjectError(err, bucket, object)
+	}
+	result.Bucket = bucket
+	result.Object = object
+	result.UploadID = uploadID
+	result.MaxParts = maxParts
+	result.PartNumberMarker = partNumberMarker
+	result.Parts = upload.GetCompletedParts()
+
+	sort.Slice(result.Parts, func(i, j int) bool {
+		return result.Parts[i].PartNumber < result.Parts[j].PartNumber
+	})
+
+	var first int
+	for i, p := range result.Parts {
+		first = i
+		if partNumberMarker <= p.PartNumber {
+			break
+		}
+	}
+
+	result.Parts = result.Parts[first:]
+	if len(result.Parts) > maxParts {
+		result.NextPartNumberMarker = result.Parts[maxParts].PartNumber
+		result.Parts = result.Parts[:maxParts]
+		result.IsTruncated = true
+	}
+
+	return result, nil
+}
+
+func (l *lfsGateway) AbortMultipartUpload(ctx context.Context, bucket, object, uploadID string, opts minio.ObjectOptions) error {
+	uploads := l.mutipart
+	upload, err := uploads.Remove(bucket, object, uploadID)
+	if err != nil {
+		return minio.ErrorRespToObjectError(err, bucket, object)
+	}
+
+	upload.Cancel()
+	upload.Stream.Abort(errAbort)
+	r := <-upload.Done
+	if r.Error != errAbort {
+		return r.Error
+	}
+
+	return nil
+}
+
+func (l *lfsGateway) CompleteMultipartUpload(ctx context.Context, bucket, object, uploadID string, uploadedParts []minio.CompletePart, opts minio.ObjectOptions) (objInfo minio.ObjectInfo, err error) {
+	uploads := l.mutipart
+	upload, err := uploads.Remove(bucket, object, uploadID)
+	if err != nil {
+		return objInfo, minio.ErrorRespToObjectError(err, bucket, object)
+	}
+
+	upload.Stream.Close()
+
+	result := <-upload.Done
+
+	return result.Info, nil
 }
