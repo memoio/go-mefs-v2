@@ -113,7 +113,7 @@ func (k *KeeperNode) Start(perm bool) error {
 
 		err := k.Register()
 		if err != nil {
-			return
+			panic(err)
 		}
 
 		go k.updateChalEpoch()

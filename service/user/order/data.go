@@ -218,7 +218,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	change := false
 	j := 0
 
-	switch os.Getenv("PRO_SELECT_POLICY") {
+	switch os.Getenv("MEFS_PRO_SELECT_POLICY") {
 	case "strict":
 		for i := 0; i < lp.dc; i++ {
 			pid := lp.pros[i]

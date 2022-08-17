@@ -22,11 +22,10 @@ import (
 )
 
 const (
-	apiAddrKwd    = "api"
-	swarmPortKwd  = "swarm-port"
-	pwKwd         = "password"
-	groupKwd      = "group"
-	MEMO_PASSWORD = "MEMO_PASSWORD"
+	apiAddrKwd   = "api"
+	swarmPortKwd = "swarm-port"
+	pwKwd        = "password"
+	groupKwd     = "group"
 )
 
 var daemonCmd = &cli.Command{
@@ -119,8 +118,8 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	defer rep.Close()
 
 	pwd := cctx.String(pwKwd)
-	if os.Getenv(MEMO_PASSWORD) != "" {
-		pwd = os.Getenv(MEMO_PASSWORD)
+	if os.Getenv("MEFS_PASSWORD") != "" {
+		pwd = os.Getenv("MEFS_PASSWORD")
 	}
 
 	sk := cctx.String("sk")

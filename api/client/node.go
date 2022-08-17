@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"net/http"
@@ -26,20 +27,20 @@ func GetMemoClientInfo(repoDir string) (string, http.Header, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	tokenBytes = bytes.TrimSpace(tokenBytes)
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+string(tokenBytes))
 
 	rpcPath := path.Join(repoPath, "api")
 	rpcBytes, err := ioutil.ReadFile(rpcPath)
 	if err != nil {
 		return "", nil, err
 	}
-
-	headers := http.Header{}
-	headers.Add("Authorization", "Bearer "+string(tokenBytes))
+	rpcBytes = bytes.TrimSpace(rpcBytes)
 	apima, err := multiaddr.NewMultiaddr(string(rpcBytes))
 	if err != nil {
 		return "", nil, err
 	}
-
 	_, addr, err := manet.DialArgs(apima)
 	if err != nil {
 		return "", nil, err

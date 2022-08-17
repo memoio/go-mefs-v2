@@ -147,7 +147,7 @@ func (u *UserNode) Start(perm bool) error {
 		// wait for register
 		err := u.Register()
 		if err != nil {
-			return
+			panic(err)
 		}
 
 		u.ready = true

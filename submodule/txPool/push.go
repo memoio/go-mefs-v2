@@ -196,7 +196,7 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 	lp.nonce++
 	pp.lk.Unlock()
 
-	logger.Debug("add tx message to push pool: ", pp.ready, mes.From, mes.Nonce, mes.Method)
+	logger.Info("add tx message to push pool: ", pp.ready, mes.From, mes.To, mes.Nonce, mes.Method)
 
 	mid := mes.Hash()
 	// sign

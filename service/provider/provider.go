@@ -137,12 +137,12 @@ func (p *ProviderNode) Start(perm bool) error {
 		// wait for register
 		err := p.Register()
 		if err != nil {
-			return
+			panic(err)
 		}
 
 		err = p.UpdateNetAddr()
 		if err != nil {
-			return
+			panic(err)
 		}
 
 		// start order manager
