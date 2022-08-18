@@ -46,8 +46,6 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 	m.updateProsForBucket(lp)
 
-	m.saveLastProsPerBucket(lp)
-
 	logger.Info("order bucket: ", lp.bucketID, lp.pros)
 
 	m.bucketChan <- lp
@@ -131,8 +129,6 @@ func removeDup(a []uint64) []uint64 {
 }
 
 func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
-	lp.lk.Lock()
-	defer lp.lk.Unlock()
 
 	cnt := 0
 	for _, pid := range lp.pros {
@@ -154,11 +150,11 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		}
 	}
 
+	logger.Debugf("order bucket %d expected %d, got %d", lp.bucketID, lp.dc+lp.pc, cnt)
+
 	if cnt >= lp.dc+lp.pc {
 		return
 	}
-
-	logger.Debugf("order bucket %d expected %d, got %d", lp.bucketID, lp.dc+lp.pc, cnt)
 
 	// expand providers
 
@@ -214,6 +210,9 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 
 	utils.DisorderUint(cloudPros)
 	utils.DisorderUint(personPros)
+
+	lp.lk.Lock()
+	defer lp.lk.Unlock()
 
 	change := false
 	j := 0
@@ -628,7 +627,6 @@ func (m *OrderMgr) dispatch() {
 			logger.Debug("fail dispatch for bucket: ", seg.BucketID)
 			continue
 		}
-		m.updateProsForBucket(lp)
 
 		lp.lk.RLock()
 		pros := make([]uint64, 0, len(lp.pros))
