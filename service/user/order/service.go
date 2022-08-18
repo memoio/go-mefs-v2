@@ -130,7 +130,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 		proChan:    make(chan *OrderFull, 8),
 		bucketChan: make(chan *lastProsPerBucket),
 
-		updateChan: make(chan uint64, 16),
+		updateChan: make(chan uint64, 128),
 
 		quoChan:       make(chan *types.Quotation, 128),
 		orderChan:     make(chan *types.SignedOrder, 128),
@@ -268,12 +268,14 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 				go m.update(of.pro)
 			}
 		case lp := <-m.bucketChan:
+			logger.Debug("add bucket: ", lp.bucketID)
 			_, ok := m.proMap[lp.bucketID]
 			if !ok {
 				m.buckets = append(m.buckets, lp.bucketID)
 				m.proMap[lp.bucketID] = lp
 			}
 		case pid := <-m.updateChan:
+			logger.Debug("update pro time: ", pid)
 			m.lk.RLock()
 			of, ok := m.orders[pid]
 			m.lk.RUnlock()
@@ -283,26 +285,27 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 				go m.newProOrder(pid)
 			}
 		case <-lt.C:
+			logger.Debug("update pros in bucket")
 			m.addPros() // add providers
 
 			expand := false
 			if len(m.pros) == 0 {
 				expand = true
-			} else {
-				for _, bid := range m.pros {
-					lp, ok := m.proMap[bid]
-					if ok {
-						m.updateProsForBucket(lp)
+			}
 
-						if expand {
-							continue
-						}
+			for _, bid := range m.buckets {
+				lp, ok := m.proMap[bid]
+				if ok {
+					m.updateProsForBucket(lp)
 
-						for _, pid := range lp.pros {
-							if pid == math.MaxUint64 {
-								expand = true
-								break
-							}
+					if expand {
+						continue
+					}
+
+					for _, pid := range lp.pros {
+						if pid == math.MaxUint64 {
+							expand = true
+							break
 						}
 					}
 				}
@@ -320,7 +323,7 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 }
 
 func (m *OrderMgr) runSched(proc goprocess.Process) {
-	st := time.NewTicker(60 * time.Second)
+	st := time.NewTicker(59 * time.Second)
 	defer st.Stop()
 
 	for {

@@ -14,6 +14,7 @@ import (
 )
 
 func (m *OrderMgr) connect(proID uint64) error {
+	logger.Debug("try connect pro: ", proID)
 	// test remote service is ready or not
 	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_AskPrice, nil, nil)
 	if err == nil {
@@ -22,7 +23,7 @@ func (m *OrderMgr) connect(proID uint64) error {
 		}
 	}
 
-	logger.Debugf("connect pro %d fail %s", proID, err)
+	logger.Debugf("try connect pro %d fail %s", proID, err)
 
 	// otherwise get addr from declared address
 	pi, err := m.StateGetNetInfo(m.ctx, proID)
@@ -67,12 +68,12 @@ func (m *OrderMgr) connect(proID uint64) error {
 			}
 
 			if !relay {
-				logger.Debugf("connect pro declared: %s %s", pi, err)
+				logger.Debugf("try connect pro declared: %s %s", pi, err)
 				return err
 			}
 		}
 
-		logger.Debugf("connect pro declared: %s %s", pi, err)
+		logger.Debugf("try connect pro: %s %s", pi, err)
 	}
 
 	// test remote service is ready or not

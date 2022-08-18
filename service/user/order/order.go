@@ -298,7 +298,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 func (m *OrderMgr) check(o *OrderFull) {
 	nt := time.Now().Unix()
 
-	if nt-o.availTime < 60 {
+	if nt-o.availTime < 180 {
 		o.ready = true
 	} else {
 		if nt-o.availTime > 300 {
