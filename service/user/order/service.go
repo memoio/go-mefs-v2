@@ -293,6 +293,10 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 				expand = true
 			}
 
+			for _, pid := range m.pros {
+				go m.RoleGet(m.ctx, pid, true)
+			}
+
 			for _, bid := range m.buckets {
 				lp, ok := m.proMap[bid]
 				if ok {
@@ -387,6 +391,11 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				of := m.orders[pid]
 				m.lk.RUnlock()
 				m.check(of)
+
+				ri, err := m.RoleGet(m.ctx, pid, true)
+				if err == nil {
+					of.location = string(ri.GetDesc())
+				}
 			}
 		case <-proc.Closing():
 			return

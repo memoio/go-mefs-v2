@@ -219,14 +219,14 @@ var settleWithdrawCmd = &cli.Command{
 
 		val := new(big.Int).Set(pi.FsValue)
 
-		if cctx.Args().Get(1) != "" {
-			val, err = types.ParsetValue(cctx.Args().Get(1))
+		if cctx.Args().First() != "" {
+			val, err = types.ParsetValue(cctx.Args().First())
 			if err != nil {
 				return xerrors.Errorf("parsing 'amount' argument: %w", err)
 			}
 		}
 
-		fmt.Printf("Withdraw: %s \n", types.FormatMemo(val))
+		fmt.Println("Withdraw: ", types.FormatMemo(val))
 
 		err = api.SettleWithdraw(cctx.Context, val)
 		if err != nil {
