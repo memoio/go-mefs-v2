@@ -161,7 +161,7 @@ func (p *ProviderNode) Start(perm bool) error {
 }
 
 func (p *ProviderNode) Ready(ctx context.Context) bool {
-	return p.ready
+	return p.orderService && p.ready
 }
 
 func (p *ProviderNode) check() {
@@ -186,6 +186,11 @@ func (p *ProviderNode) check() {
 			if ds.Free < utils.GiB {
 				logger.Debug("order stop due to low space")
 				p.orderService = false
+			}
+
+			if ds.Free > 2*utils.GiB {
+				logger.Debug("order start due to avail space")
+				p.orderService = true
 			}
 		}
 	}
