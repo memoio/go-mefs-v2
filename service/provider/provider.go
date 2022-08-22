@@ -161,7 +161,7 @@ func (p *ProviderNode) Start(perm bool) error {
 }
 
 func (p *ProviderNode) Ready(ctx context.Context) bool {
-	return p.ready
+	return p.orderService && p.ready
 }
 
 func (p *ProviderNode) check() {
