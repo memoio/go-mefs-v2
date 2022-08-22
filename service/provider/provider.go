@@ -187,6 +187,11 @@ func (p *ProviderNode) check() {
 				logger.Debug("order stop due to low space")
 				p.orderService = false
 			}
+
+			if ds.Free > 2*utils.GiB {
+				logger.Debug("order start due to avail space")
+				p.orderService = true
+			}
 		}
 	}
 }
