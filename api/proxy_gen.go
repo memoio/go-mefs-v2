@@ -431,6 +431,7 @@ type ProviderNodeStruct struct {
 		OrderGetJobInfoAt func(ctx context.Context, proID uint64) (*OrderJobInfo, error) `perm:"read"`
 		OrderGetPayInfo   func(context.Context) ([]*types.OrderPayInfo, error)           `perm:"read"`
 		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
+		OrderGetProsAt    func(context.Context, uint64) ([]uint64, error)                `perm:"read"`
 
 		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
 
@@ -457,6 +458,10 @@ func (s *ProviderNodeStruct) OrderGetPayInfo(ctx context.Context) ([]*types.Orde
 
 func (s *ProviderNodeStruct) OrderGetPayInfoAt(ctx context.Context, proID uint64) (*types.OrderPayInfo, error) {
 	return s.Internal.OrderGetPayInfoAt(ctx, proID)
+}
+
+func (s *ProviderNodeStruct) OrderGetProsAt(ctx context.Context, bID uint64) ([]uint64, error) {
+	return s.Internal.OrderGetProsAt(ctx, bID)
 }
 
 func (s *ProviderNodeStruct) OrderList(ctx context.Context) ([]uint64, error) {
@@ -514,6 +519,7 @@ type UserNodeStruct struct {
 		OrderGetJobInfoAt func(ctx context.Context, proID uint64) (*OrderJobInfo, error) `perm:"read"`
 		OrderGetPayInfo   func(context.Context) ([]*types.OrderPayInfo, error)           `perm:"read"`
 		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
+		OrderGetProsAt    func(context.Context, uint64) ([]uint64, error)                `perm:"read"`
 
 		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
 
@@ -592,6 +598,10 @@ func (s *UserNodeStruct) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPay
 
 func (s *UserNodeStruct) OrderGetPayInfoAt(ctx context.Context, proID uint64) (*types.OrderPayInfo, error) {
 	return s.Internal.OrderGetPayInfoAt(ctx, proID)
+}
+
+func (s *UserNodeStruct) OrderGetProsAt(ctx context.Context, proID uint64) ([]uint64, error) {
+	return s.Internal.OrderGetProsAt(ctx, proID)
 }
 
 func (s *UserNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {

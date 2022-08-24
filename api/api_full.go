@@ -244,6 +244,7 @@ type IOrder interface {
 	OrderGetJobInfoAt(context.Context, uint64) (*OrderJobInfo, error)
 	OrderGetPayInfo(context.Context) ([]*types.OrderPayInfo, error)
 	OrderGetPayInfoAt(context.Context, uint64) (*types.OrderPayInfo, error)
+	OrderGetProsAt(context.Context, uint64) ([]uint64, error)
 
 	OrderGetDetail(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error)
 }
