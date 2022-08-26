@@ -131,3 +131,8 @@ func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, 
 
 	return res, nil
 }
+
+func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) ([]uint64, error) {
+
+	return nil, xerrors.Errorf("unimplemented")
+}

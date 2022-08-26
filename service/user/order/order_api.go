@@ -148,3 +148,16 @@ func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, 
 
 	return res, nil
 }
+
+func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) ([]uint64, error) {
+	lp, ok := m.proMap[bid]
+	if ok {
+		lp.lk.RLock()
+		defer lp.lk.RUnlock()
+		res := make([]uint64, 0, len(lp.pros))
+		res = append(res, lp.pros...)
+		return lp.pros, nil
+	}
+
+	return nil, xerrors.Errorf("no such bucket")
+}
