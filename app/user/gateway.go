@@ -549,7 +549,9 @@ func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *mi
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	opts.UserDefined["Content-Type"] = contentType
+	if opts.UserDefined != nil {
+		opts.UserDefined["Content-Type"] = contentType
+	}
 	moi, err := l.memofs.PutObject(ctx, bucket, object, r, opts.UserDefined)
 	if err != nil {
 		return objInfo, err
@@ -611,9 +613,27 @@ func (l *lfsGateway) IsCompressionSupported() bool {
 	return false
 }
 
-func (l *lfsGateway) StatObject(ctx context.Context, bucket, object string, opts minio.ObjectOptions) (minio.ObjectInfo, error) {
-	//log.Println("state object info: ", bucket, object)
-	return minio.ObjectInfo{}, minio.NotImplemented{}
+func (l *lfsGateway) StatObject(ctx context.Context, bucket, object string, opts minio.ObjectOptions) (objInfo minio.ObjectInfo, err error) {
+	err = l.getMemofs()
+	if err != nil {
+		return objInfo, minio.ErrorRespToObjectError(err, bucket, object)
+	}
+	moi, err := l.memofs.StatObject(ctx, bucket, object)
+	if err != nil {
+		return objInfo, minio.ErrorRespToObjectError(err, bucket, object)
+	}
+	etag, _ := metag.ToString(moi.ETag)
+	objInfo = minio.ObjectInfo{
+		Bucket:  bucket,
+		Name:    moi.Name,
+		ModTime: time.Unix(moi.GetTime(), 0),
+		Size:    int64(moi.Size),
+		ETag:    etag,
+		IsDir:   false,
+	}
+
+	return objInfo, nil
+
 }
 
 // Multipart operations.
