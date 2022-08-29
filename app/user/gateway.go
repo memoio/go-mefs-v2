@@ -163,7 +163,7 @@ func kill(pid string) error {
 	case "linux":
 		return exec.Command("kill", "-15", pid).Run()
 	case "windows":
-		return exec.Command("kill", "/F", "/T", "/PID", pid).Run()
+		return exec.Command("taskkill", "/F", "/T", "/PID", pid).Run()
 	default:
 		return fmt.Errorf("unsupported platform %s", runtime.GOOS)
 	}
