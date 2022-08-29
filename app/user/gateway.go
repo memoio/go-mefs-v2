@@ -8,8 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +23,7 @@ import (
 	"github.com/minio/madmin-go"
 	"github.com/minio/pkg/bucket/policy"
 	"github.com/minio/pkg/bucket/policy/condition"
+	"github.com/minio/pkg/mimedb"
 	"github.com/mitchellh/go-homedir"
 	cli2 "github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -125,17 +128,11 @@ var gatewayStopCmd = &cli2.Command{
 		}
 
 		pd, _ := ioutil.ReadFile(path.Join(pidpath, "pid"))
-		pid, err := strconv.Atoi(string(pd))
+
+		err = kill(string(pd))
 		if err != nil {
 			return err
 		}
-
-		p, err := os.FindProcess(pid)
-		if err != nil {
-			return err
-		}
-
-		p.Signal(syscall.SIGTERM)
 		log.Println("gateway gracefully exit...")
 
 		return nil
@@ -159,6 +156,18 @@ func BestKnownPath() (string, error) {
 		}
 	}
 	return mefsPath, nil
+}
+
+func kill(pid string) error {
+	switch runtime.GOOS {
+	case "linux":
+		return exec.Command("kill", "-15", pid).Run()
+	case "windows":
+		return exec.Command("kill", "/F", "/T", "/PID", pid).Run()
+	default:
+		return fmt.Errorf("unsupported platform %s", runtime.GOOS)
+	}
+
 }
 
 // Start gateway
@@ -442,7 +451,9 @@ func (l *lfsGateway) GetObjectNInfo(ctx context.Context, bucket, object string, 
 	if err != nil {
 		return nil, minio.ErrorRespToObjectError(err, bucket, object)
 	}
-
+	if objInfo.UserDefined["content-type"] == "" {
+		objInfo.UserDefined["content-type"] = mimedb.TypeByExtension(path.Ext(object))
+	}
 	fn, off, length, err := minio.NewGetObjectReader(rs, objInfo, opts)
 	if err != nil {
 		return nil, minio.ErrorRespToObjectError(err, bucket, object)
@@ -518,6 +529,12 @@ func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *mi
 	if err != nil {
 		return objInfo, err
 	}
+	putOpts := miniogo.PutObjectOptions{
+		UserMetadata:         opts.UserDefined,
+		ServerSideEncryption: opts.ServerSideEncryption,
+		SendContentMd5:       true,
+	}
+
 	_, err = l.memofs.GetObjectInfo(ctx, bucket, object)
 	if err == nil {
 		mtime := time.Now().Format("20060102T150405")
@@ -528,6 +545,11 @@ func (l *lfsGateway) PutObject(ctx context.Context, bucket, object string, r *mi
 			object = object + "-" + mtime
 		}
 	}
+	contentType := putOpts.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	opts.UserDefined["Content-Type"] = contentType
 	moi, err := l.memofs.PutObject(ctx, bucket, object, r, opts.UserDefined)
 	if err != nil {
 		return objInfo, err
