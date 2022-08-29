@@ -2,6 +2,7 @@ package lfscmd
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api/client"
@@ -110,6 +111,7 @@ var LfsCmd = &cli.Command{
 		delObjectCmd,
 		downloadObjectCmd,
 		showStorageCmd,
+		orderGetProsCmd,
 	},
 }
 
@@ -291,4 +293,40 @@ func ReliabilityLevel(dataCount uint32, parityCount uint32) string {
 	}
 
 	return reLevel
+}
+
+var orderGetProsCmd = &cli.Command{
+	Name:      "getPros",
+	Usage:     "get pros of bucket",
+	ArgsUsage: "[bucket id required]",
+	Action: func(cctx *cli.Context) error {
+		if !cctx.Args().Present() {
+			return xerrors.Errorf("need bucket id")
+		}
+		bid, err := strconv.ParseUint(cctx.Args().First(), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'bucketID' argument: %w", err)
+		}
+
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		pros, err := api.OrderGetProsAt(cctx.Context, bid)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("bucket", bid, "select providers: ", pros)
+
+		return nil
+	},
 }
