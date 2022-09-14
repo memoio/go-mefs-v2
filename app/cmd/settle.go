@@ -248,7 +248,7 @@ var settleWithdrawCmd = &cli.Command{
 
 var settleQuitRoleCmd = &cli.Command{
 	Name:  "quitRole",
-	Usage: "quit role",
+	Usage: "change its state to inactive, this op is invocatable and daemon will fail at next start",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "really-do-it",
@@ -257,7 +257,7 @@ var settleQuitRoleCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Bool("really-do-it") {
-			return xerrors.Errorf("need --really-do-it")
+			return xerrors.Errorf("need --really-do-it, this op is invocatable and daemon will fail at next start, make sure before you do this")
 		}
 
 		repoDir := cctx.String(FlagNodeRepo)

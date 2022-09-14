@@ -140,8 +140,14 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, sk []byte) (
 	switch ri.RType {
 	case 1:
 		cm.typ = pb.RoleInfo_User
+		if ri.GIndex > 0 && ri.State != 3 {
+			return nil, xerrors.Errorf("user %d is not active in group %d", cm.roleID, cm.groupID)
+		}
 	case 2:
 		cm.typ = pb.RoleInfo_Provider
+		if ri.GIndex > 0 && ri.State != 3 {
+			return nil, xerrors.Errorf("provider %d is not active in group %d", cm.roleID, cm.groupID)
+		}
 	case 3:
 		cm.typ = pb.RoleInfo_Keeper
 		if ri.GIndex > 0 && ri.State != 3 {
