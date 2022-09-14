@@ -236,6 +236,10 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 		return nil, err
 	}
 
+	if level < (kcnt+1)*2/3 {
+		level = (kcnt + 1) * 2 / 3
+	}
+
 	ginfo := &api.GroupInfo{
 		EndPoint: g.endPoint,
 		State:    state,

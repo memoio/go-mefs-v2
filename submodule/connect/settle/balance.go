@@ -173,7 +173,7 @@ func (cm *ContractMgr) proWithdraw(roleAddr, rTokenAddr common.Address, pIndex u
 	if err != nil {
 		return err
 	}
-	l := int(gkNum * 2 / 3)
+	l := int(gkNum+1) * 2 / 3
 	le := len(ksigns)
 	if le < l {
 		logger.Debug("ksigns length", le, " shouldn't be less than", l)
