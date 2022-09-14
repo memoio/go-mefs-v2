@@ -8,6 +8,7 @@ import (
 	"go.opencensus.io/stats"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -52,6 +53,7 @@ func NewInPool(ctx context.Context, localID uint64, sp *SyncPool) *InPool {
 
 func (mp *InPool) Start() {
 	go mp.sync()
+	go mp.broadcast()
 
 	// load latest block and publish if exist
 	// due to exit at not applying latest block
@@ -81,6 +83,39 @@ func (mp *InPool) Start() {
 
 	// enable inprocess callback
 	mp.SyncPool.inProcess = true
+}
+
+func (mp *InPool) broadcast() {
+	// rebroadcast lastest block
+	tc := time.NewTicker(300 * time.Second)
+	defer tc.Stop()
+
+	si, err := mp.SyncGetInfo(mp.ctx)
+	if err != nil {
+		si = &api.SyncInfo{}
+	}
+
+	for {
+		select {
+		case <-mp.ctx.Done():
+			return
+		case <-tc.C:
+			nsi, err := mp.SyncGetInfo(mp.ctx)
+			if err == nil {
+				if nsi.RemoteHeight == nsi.SyncedHeight && nsi.SyncedHeight == si.SyncedHeight && si.SyncedHeight > 0 {
+					bid, err := mp.GetTxBlockByHeight(si.SyncedHeight - 1)
+					if err == nil {
+						sb, err := mp.GetTxBlock(bid)
+						if err == nil {
+							mp.INetService.PublishTxBlock(mp.ctx, sb)
+						}
+					}
+				} else {
+					si = nsi
+				}
+			}
+		}
+	}
 }
 
 func (mp *InPool) sync() {
