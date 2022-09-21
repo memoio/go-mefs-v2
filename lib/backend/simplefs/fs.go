@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -17,6 +18,7 @@ var logger = logging.Logger("simplefs")
 var _ store.FileStore = (*SimpleFs)(nil)
 
 type SimpleFs struct {
+	sync.RWMutex
 	size    int64
 	basedir string
 }
@@ -27,10 +29,12 @@ func NewSimpleFs(dir string) (*SimpleFs, error) {
 		return nil, err
 	}
 
-	sf := &SimpleFs{0, dir}
+	sf := &SimpleFs{
+		basedir: dir,
+	}
 	sf.walk(dir)
 
-	logger.Info("create simplefs at:", dir)
+	logger.Info("create simplefs at:", dir, sf.size)
 
 	return sf, nil
 }
@@ -69,7 +73,9 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 			return err
 		}
 
+		sf.Lock()
 		sf.size -= info.Size()
+		sf.Unlock()
 	}
 
 	// write then rename
@@ -83,7 +89,9 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 		return err
 	}
 
+	sf.Lock()
 	sf.size += int64(len(val))
+	sf.Unlock()
 
 	return nil
 }
@@ -137,7 +145,9 @@ func (sf *SimpleFs) Delete(key []byte) error {
 	}
 
 	if !fi.IsDir() {
+		sf.Lock()
 		sf.size -= fi.Size()
+		sf.Unlock()
 	}
 
 	return nil
@@ -146,7 +156,9 @@ func (sf *SimpleFs) Delete(key []byte) error {
 func (sf *SimpleFs) Size() store.DiskStats {
 	ds, _ := utils.GetDiskStatus(sf.basedir)
 	if sf.size > 0 {
+		sf.RLock()
 		ds.Used = uint64(sf.size)
+		sf.RUnlock()
 	} else {
 		ds.Used = 0
 	}
