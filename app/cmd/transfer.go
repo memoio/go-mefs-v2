@@ -193,8 +193,8 @@ var transferErcCmd = &cli.Command{
 			Value: callconts.EndPoint,
 		},
 		&cli.StringFlag{
-			Name:  "roleContract",
-			Usage: "address role contract",
+			Name:  "instanceAddr",
+			Usage: "instance contract address",
 			Value: callconts.RoleAddr.String(),
 		},
 		&cli.IntFlag{
@@ -228,7 +228,7 @@ var transferErcCmd = &cli.Command{
 		}
 
 		ep := cctx.String("endPoint")
-		rAddr := common.HexToAddress(cctx.String("roleContract"))
+		rAddr := common.HexToAddress(cctx.String("instanceAddr"))
 		sk := cctx.String("sk")
 		ver := cctx.Int("version")
 
