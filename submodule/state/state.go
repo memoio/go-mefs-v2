@@ -250,7 +250,12 @@ func (s *StateMgr) load() {
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
-			s.keepers = append(s.keepers, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+			kid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+			key := store.NewKey(pb.MetaType_ST_RoleBaseKey, kid)
+			ok, err := s.has(key)
+			if err == nil && ok {
+				s.keepers = append(s.keepers, kid)
+			}
 		}
 	}
 
@@ -259,7 +264,12 @@ func (s *StateMgr) load() {
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
-			s.pros = append(s.pros, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+			kid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+			key := store.NewKey(pb.MetaType_ST_RoleBaseKey, kid)
+			ok, err := s.has(key)
+			if err == nil && ok {
+				s.pros = append(s.pros, kid)
+			}
 		}
 	}
 
@@ -268,7 +278,12 @@ func (s *StateMgr) load() {
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
-			s.users = append(s.users, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+			kid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+			key := store.NewKey(pb.MetaType_ST_RoleBaseKey, kid)
+			ok, err := s.has(key)
+			if err == nil && ok {
+				s.users = append(s.users, kid)
+			}
 		}
 	}
 
@@ -410,7 +425,11 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		if blk.Height > 0 && s.version >= build.SMTVersion {
 			key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 			buf := make([]byte, 8)
-			binary.BigEndian.PutUint64(buf[:8], blk.Height-1)
+			newH := blk.Height - 1
+			if blk.Height > 1 {
+				newH = blk.Height - 2
+			}
+			binary.BigEndian.PutUint64(buf[:8], newH)
 			err := s.ds.Put(key, buf)
 			if err != nil {
 				return s.root, err
@@ -427,7 +446,11 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 		if blk.Height > 0 && s.version >= build.SMTVersion {
 			key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 			buf := make([]byte, 8)
-			binary.BigEndian.PutUint64(buf[:8], blk.Height-1)
+			newH := blk.Height - 1
+			if blk.Height > 1 {
+				newH = blk.Height - 2
+			}
+			binary.BigEndian.PutUint64(buf[:8], newH)
 			err := s.ds.Put(key, buf)
 			if err != nil {
 				return s.root, err
