@@ -418,7 +418,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 }
 
 func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
-	logger.Debugf("create block OnViewDone at height %d", tb.Height)
+	logger.Infof("create block OnViewDone at height %d %s", tb.Height, tb.Hash().String())
 
 	// add to local first
 	err := mp.SyncPool.AddTxBlock(tb)
@@ -429,7 +429,7 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 	stats.Record(mp.ctx, metrics.TxBlockPublished.M(1))
 
 	if tb.MinerID == mp.minerID {
-		logger.Debugf("create new block at height: %d, slot: %d, now: %s, prev: %s, state: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.ParentRoot.String(), len(tb.Msgs))
+		logger.Infof("create new block at height: %d, slot: %d, now: %s, prev: %s, state: %s, has message: %d", tb.Height, tb.Slot, tb.Hash().String(), tb.PrevID.String(), tb.ParentRoot.String(), len(tb.Msgs))
 	}
 
 	return mp.INetService.PublishTxBlock(mp.ctx, tb)
