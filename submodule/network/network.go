@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/routing"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	rcmgr "github.com/libp2p/go-libp2p-resource-manager"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
@@ -74,6 +75,19 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
 	libP2pOpts = append(libP2pOpts, libp2p.EnableRelay())
+
+	slimit := rcmgr.DefaultLimits
+	slimit.SystemMemory.MinMemory = 512 << 20
+	slimit.SystemMemory.MaxMemory = 4 << 30
+	limiter := rcmgr.NewStaticLimiter(slimit)
+	libp2p.SetDefaultServiceLimits(limiter)
+
+	rmgr, err := rcmgr.NewResourceManager(limiter)
+	if err != nil {
+		return nil, err
+	}
+
+	libP2pOpts = append(libP2pOpts, libp2p.ResourceManager(rmgr))
 
 	// set up host
 	rawHost, err := libp2p.New(
