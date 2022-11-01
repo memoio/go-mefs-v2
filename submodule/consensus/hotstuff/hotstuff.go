@@ -184,6 +184,10 @@ func (hsm *HotstuffManager) checkView(msg *hs.HotstuffMessage) error {
 
 	// verify multisign
 	if pType != hs.PhaseDecide {
+		if msg.Quorum.Len() < hsm.app.GetQuorumSize() {
+			return xerrors.Errorf("quorum size is not enough: expect %d get %d", hsm.app.GetQuorumSize(), msg.Quorum.Len())
+		}
+
 		proposal := tx.RawBlock{
 			RawHeader: msg.Data.RawHeader,
 			MsgSet:    tx.MsgSet{},
@@ -251,7 +255,7 @@ func (hsm *HotstuffManager) newView() error {
 
 	// handle last one;
 	if hsm.curView.header.Slot < hsm.curView.slot {
-		if hsm.curView.phase != hs.PhaseFinal && hsm.curView.commitQuorum.Len() > hsm.app.GetQuorumSize() {
+		if hsm.curView.phase != hs.PhaseFinal && hsm.curView.commitQuorum.Len() >= hsm.app.GetQuorumSize() {
 			sb := &tx.SignedBlock{
 				RawBlock: tx.RawBlock{
 					RawHeader: hsm.curView.header,
