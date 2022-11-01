@@ -9,7 +9,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
@@ -183,7 +182,7 @@ func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
 	return nil
 }
 
-func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
+func (mp *InPool) CreateBlockHeader(slot uint64) (tx.RawHeader, error) {
 	nrh := tx.RawHeader{
 		GroupID: mp.groupID,
 	}
@@ -208,8 +207,6 @@ func (mp *InPool) CreateBlockHeader() (tx.RawHeader, error) {
 		return nrh, xerrors.Errorf("create block state height is not equal")
 	}
 
-	nt := time.Now().Unix()
-	slot := uint64(nt-build.BaseTime) / build.SlotDuration
 	if sgi.Slot >= slot {
 		return nrh, xerrors.Errorf("create new block time is not up, skipped, now: %d, expected large than %d", slot, sgi.Slot)
 	}

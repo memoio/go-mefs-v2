@@ -2,6 +2,7 @@ package hotstuff
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -21,6 +22,9 @@ import (
 var logger = logging.Logger("hotstuff")
 
 type view struct {
+	slot   uint64
+	leader uint64
+	start  time.Time
 	header tx.RawHeader
 	txs    tx.MsgSet
 	phase  hs.PhaseState
@@ -68,7 +72,7 @@ func NewHotstuffManager(ctx context.Context, localID uint64, ir api.IRole, in ap
 }
 
 func (hsm *HotstuffManager) MineBlock() {
-	tc := time.NewTicker(1 * time.Second)
+	tc := time.NewTicker(700 * time.Millisecond)
 	defer tc.Stop()
 
 	for {
@@ -136,10 +140,10 @@ func (hsm *HotstuffManager) checkView(msg *hs.HotstuffMessage) error {
 		return xerrors.Errorf("checkView msg is nil")
 	}
 
-	slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
-	if msg.Data.Slot < slot {
-		return xerrors.Errorf("checkView msg from past views, expected %d, got %d", slot, msg.Data.Slot)
-	}
+	//slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
+	//if msg.Data.Slot < slot {
+	//	return xerrors.Errorf("checkView msg from past views, expected %d, got %d", slot, msg.Data.Slot)
+	//}
 
 	// update view
 	if !hsm.curView.header.Hash().Equal(msg.Data.RawHeader.Hash()) {
@@ -239,9 +243,14 @@ func (hsm *HotstuffManager) checkView(msg *hs.HotstuffMessage) error {
 
 func (hsm *HotstuffManager) newView() error {
 	slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
+	if hsm.curView.slot == slot {
+		return nil
+	}
+	hsm.curView.slot = slot
+	hsm.curView.start = time.Now()
 
 	// handle last one;
-	if hsm.curView.header.Slot < slot {
+	if hsm.curView.header.Slot < hsm.curView.slot {
 		if hsm.curView.phase != hs.PhaseFinal && hsm.curView.commitQuorum.Len() > hsm.app.GetQuorumSize() {
 			sb := &tx.SignedBlock{
 				RawBlock: tx.RawBlock{
@@ -258,11 +267,60 @@ func (hsm *HotstuffManager) newView() error {
 			}
 			hsm.curView.phase = hs.PhaseFinal
 		}
-	} else if hsm.curView.header.Slot == slot {
+	} else if hsm.curView.header.Slot == hsm.curView.slot {
 		return nil
 	} else {
 		// time not syncd?
 		return xerrors.Errorf("something badly happens, may be not syned")
+	}
+
+	// get newest state: block height, leader, parent
+	rh, err := hsm.app.CreateBlockHeader(hsm.curView.slot)
+	if err != nil {
+		return err
+	}
+
+	hsm.curView.leader = rh.MinerID
+
+	// last one on commit
+	if hsm.curView.header.Height >= rh.Height && hsm.curView.phase == hs.PhaseCommit {
+		logger.Info("re-consensus at: ", hsm.curView.header.Height, hsm.curView.header.Slot, hsm.curView.slot)
+		hsm.curView.commitQuorum = types.NewMultiSignature(types.SigBLS)
+		hsm.curView.phase = hs.PhaseCommit
+
+		sp := tx.RawBlock{
+			RawHeader: hsm.curView.header,
+			MsgSet:    hsm.curView.txs,
+		}
+
+		sig, err := hsm.RoleSign(context.TODO(), hsm.localID, hs.CalcHash(sp.Hash().Bytes(), hsm.curView.phase), types.SigBLS)
+		if err != nil {
+			return err
+		}
+
+		if hsm.curView.leader == hsm.localID {
+			hsm.curView.commitQuorum.Add(hsm.localID, sig)
+		} else {
+			msg := &hs.HotstuffMessage{
+				From:   hsm.localID,
+				Type:   hs.MsgVoteCommit,
+				Data:   sp,
+				Sig:    sig,
+				Quorum: types.NewMultiSignature(types.SigBLS),
+			}
+
+			// in case msg is same, and cannot distribute in network
+			msg.Quorum.Add(rand.Uint64(), sig)
+
+			time.Sleep(700 * time.Millisecond)
+
+			err = hsm.PublishHsMsg(hsm.ctx, msg)
+			if err != nil {
+				logger.Debugf("publish msg err %s", err)
+			}
+		}
+
+		return nil
 	}
 
 	// reset
@@ -274,12 +332,6 @@ func (hsm *HotstuffManager) newView() error {
 	hsm.curView.txs = tx.MsgSet{}
 
 	hsm.curView.createdAt = time.Now()
-
-	// get newest state: block height, leader, parent
-	rh, err := hsm.app.CreateBlockHeader()
-	if err != nil {
-		return err
-	}
 
 	hsm.curView.header = rh
 	hsm.curView.members = hsm.app.GetMembers()
@@ -311,6 +363,10 @@ func (hsm *HotstuffManager) NewView() error {
 	err := hsm.newView()
 	if err != nil {
 		return err
+	}
+
+	if hsm.curView.phase == hs.PhaseCommit {
+		return nil
 	}
 
 	if hsm.curView.phase != hs.PhaseInit {
@@ -370,7 +426,7 @@ func (hsm *HotstuffManager) NewView() error {
 		return err
 	}
 
-	if hsm.curView.header.MinerID == hsm.localID {
+	if hsm.curView.leader == hsm.localID {
 		logger.Debug("leader new view: ", hsm.curView.header.Slot, hsm.curView.header.Height)
 		err = hsm.curView.highQuorum.Add(hsm.localID, sig)
 		if err != nil {
@@ -384,6 +440,9 @@ func (hsm *HotstuffManager) NewView() error {
 			Data: sp,
 			Sig:  sig,
 		}
+
+		// in case leader is not start
+		time.Sleep(700 * time.Millisecond)
 
 		// send hm message out
 		err = hsm.PublishHsMsg(hsm.ctx, hm)
@@ -399,7 +458,7 @@ func (hsm *HotstuffManager) NewView() error {
 func (hsm *HotstuffManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage) error {
 
 	// not handle it
-	if hsm.localID != msg.Data.MinerID {
+	if hsm.curView.leader != hsm.localID {
 		return nil
 	}
 
@@ -444,7 +503,12 @@ func (hsm *HotstuffManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage) error 
 
 	logger.Debugf("leader %d get new quorum %d, %d, %d", hsm.curView.header.Slot, hsm.curView.highQuorum.Len(), hsm.localID, hsm.curView.header.Height)
 
-	if hsm.curView.highQuorum.Len() >= hsm.app.GetQuorumSize() {
+	// in case leader disconnect at tryDecide; then commitQuorum just miss one
+	if hsm.curView.highQuorum.Len() >= hsm.app.GetQuorumSize()+1 {
+		return hsm.tryPropose()
+	}
+
+	if hsm.curView.highQuorum.Len() >= hsm.app.GetQuorumSize() && time.Now().Sub(hsm.curView.start) > 3*time.Second {
 		return hsm.tryPropose()
 	}
 
@@ -458,6 +522,8 @@ func (hsm *HotstuffManager) tryPropose() error {
 	}
 
 	logger.Debugf("leader enter into propose %d, %d, %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
+
+	hsm.curView.start = time.Now()
 
 	hsm.curView.phase = hs.PhasePrepare
 
@@ -502,7 +568,7 @@ func (hsm *HotstuffManager) tryPropose() error {
 // replica response prepare msg
 func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 	// leader not handle it
-	if hsm.localID == msg.Data.MinerID {
+	if hsm.curView.leader == hsm.localID {
 		return nil
 	}
 
@@ -511,7 +577,7 @@ func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 		return err
 	}
 
-	if hsm.curView.header.MinerID != msg.From {
+	if hsm.curView.leader != msg.From {
 		return nil
 	}
 
@@ -560,7 +626,7 @@ func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 // leader handle prepare response
 // leader send precommit
 func (hsm *HotstuffManager) handlePrepareVoteMsg(msg *hs.HotstuffMessage) error {
-	if hsm.localID != msg.Data.MinerID {
+	if hsm.curView.leader != hsm.localID {
 		return nil
 	}
 
@@ -580,7 +646,11 @@ func (hsm *HotstuffManager) handlePrepareVoteMsg(msg *hs.HotstuffMessage) error 
 
 	logger.Debugf("leader %d get prepare quorum %d, %d, %d", hsm.curView.header.Slot, hsm.curView.prepareQuorum.Len(), hsm.localID, hsm.curView.header.Height)
 
-	if hsm.curView.prepareQuorum.Len() >= hsm.app.GetQuorumSize() {
+	if hsm.curView.prepareQuorum.Len() >= hsm.app.GetQuorumSize()+1 {
+		return hsm.tryPreCommit()
+	}
+
+	if hsm.curView.prepareQuorum.Len() >= hsm.app.GetQuorumSize() && time.Now().Sub(hsm.curView.start) > 15*time.Second {
 		return hsm.tryPreCommit()
 	}
 
@@ -595,6 +665,7 @@ func (hsm *HotstuffManager) tryPreCommit() error {
 
 	logger.Debugf("leader enter into precommit %d %d %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
 
+	hsm.curView.start = time.Now()
 	hsm.curView.phase = hs.PhasePreCommit
 
 	sp := tx.RawBlock{
@@ -627,7 +698,7 @@ func (hsm *HotstuffManager) tryPreCommit() error {
 
 // replica handle precommit message
 func (hsm *HotstuffManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
-	if hsm.localID == msg.Data.MinerID {
+	if hsm.curView.leader == hsm.localID {
 		return nil
 	}
 
@@ -636,7 +707,7 @@ func (hsm *HotstuffManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
 		return err
 	}
 
-	if hsm.curView.header.MinerID != msg.From {
+	if hsm.curView.leader != msg.From {
 		return nil
 	}
 
@@ -668,7 +739,7 @@ func (hsm *HotstuffManager) handlePreCommitMsg(msg *hs.HotstuffMessage) error {
 
 // leader handle precommit response
 func (hsm *HotstuffManager) handlePreCommitVoteMsg(msg *hs.HotstuffMessage) error {
-	if hsm.localID != msg.Data.MinerID {
+	if hsm.curView.leader != hsm.localID {
 		return nil
 	}
 
@@ -688,9 +759,14 @@ func (hsm *HotstuffManager) handlePreCommitVoteMsg(msg *hs.HotstuffMessage) erro
 
 	logger.Debugf("leader %d get precommit quorum %d, %d, %d", hsm.curView.header.Slot, hsm.curView.preCommitQuorum.Len(), hsm.localID, hsm.curView.header.Height)
 
-	if hsm.curView.preCommitQuorum.Len() >= hsm.app.GetQuorumSize() {
+	if hsm.curView.preCommitQuorum.Len() >= hsm.app.GetQuorumSize()+1 {
 		return hsm.tryCommit()
 	}
+
+	if hsm.curView.preCommitQuorum.Len() >= hsm.app.GetQuorumSize() && time.Now().Sub(hsm.curView.start) > 3*time.Second {
+		return hsm.tryCommit()
+	}
+
 	return nil
 }
 
@@ -702,6 +778,7 @@ func (hsm *HotstuffManager) tryCommit() error {
 
 	logger.Debugf("leader enter into commit %d %d %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
 
+	hsm.curView.start = time.Now()
 	hsm.curView.phase = hs.PhaseCommit
 
 	sp := tx.RawBlock{
@@ -734,13 +811,17 @@ func (hsm *HotstuffManager) tryCommit() error {
 
 // replica handle commit message
 func (hsm *HotstuffManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
-	if hsm.localID == msg.Data.MinerID {
+	if hsm.curView.leader == hsm.localID {
 		return nil
 	}
 
 	err := hsm.checkView(msg)
 	if err != nil {
 		return err
+	}
+
+	if hsm.curView.leader != msg.From {
+		return nil
 	}
 
 	if hsm.curView.phase != hs.PhasePreCommit {
@@ -770,7 +851,7 @@ func (hsm *HotstuffManager) handleCommitMsg(msg *hs.HotstuffMessage) error {
 
 // leader handle commit response
 func (hsm *HotstuffManager) handleCommitVoteMsg(msg *hs.HotstuffMessage) error {
-	if hsm.localID != msg.Data.MinerID {
+	if hsm.curView.leader != hsm.localID {
 		return nil
 	}
 
@@ -790,7 +871,11 @@ func (hsm *HotstuffManager) handleCommitVoteMsg(msg *hs.HotstuffMessage) error {
 
 	logger.Debugf("leader %d get commit quorum %d, %d, %d", hsm.curView.header.Slot, hsm.curView.commitQuorum.Len(), hsm.localID, hsm.curView.header.Height)
 
-	if hsm.curView.commitQuorum.Len() >= hsm.app.GetQuorumSize() {
+	if hsm.curView.commitQuorum.Len() >= hsm.app.GetQuorumSize()+1 {
+		return hsm.tryDecide()
+	}
+
+	if hsm.curView.commitQuorum.Len() >= hsm.app.GetQuorumSize() && time.Now().Sub(hsm.curView.start) > 3*time.Second {
 		return hsm.tryDecide()
 	}
 	return nil
@@ -850,13 +935,17 @@ func (hsm *HotstuffManager) tryDecide() error {
 
 // replica handle decide message
 func (hsm *HotstuffManager) handleDecideMsg(msg *hs.HotstuffMessage) error {
-	if hsm.localID == msg.Data.MinerID {
+	if hsm.curView.leader == hsm.localID {
 		return nil
 	}
 
 	err := hsm.checkView(msg)
 	if err != nil {
 		return err
+	}
+
+	if hsm.curView.leader != msg.From {
+		return nil
 	}
 
 	if hsm.curView.phase != hs.PhaseCommit {

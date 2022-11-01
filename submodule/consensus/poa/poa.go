@@ -51,7 +51,7 @@ func (m *PoAManager) MineBlock() {
 			logger.Debug("mine block done")
 			return
 		case <-tc.C:
-			trh, err := m.app.CreateBlockHeader()
+			trh, err := m.app.CreateBlockHeader(0)
 			if err != nil {
 				logger.Debug("create block header: ", err)
 				continue

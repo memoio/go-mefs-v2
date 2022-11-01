@@ -35,6 +35,7 @@ require (
 	github.com/libp2p/go-libp2p-discovery v0.6.0
 	github.com/libp2p/go-libp2p-kad-dht v0.16.0
 	github.com/libp2p/go-libp2p-pubsub v0.6.1
+	github.com/libp2p/go-libp2p-resource-manager v0.1.5
 	github.com/libp2p/go-libp2p-swarm v0.10.2
 	github.com/libp2p/go-msgio v0.2.0
 	github.com/memoio/contractsv2 v0.0.0-00010101000000-000000000000
