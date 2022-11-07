@@ -143,7 +143,7 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 	}
 
 	go func(mid types.MsgID) {
-		ctx, cancle := context.WithTimeout(m.ctx, 10*time.Minute)
+		ctx, cancle := context.WithTimeout(m.ctx, 30*time.Minute)
 		defer cancle()
 		for {
 			select {
