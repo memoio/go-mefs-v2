@@ -387,7 +387,10 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob
 
 		if add && cnt > 0 && seg.confirmBits.Count() != cnt {
 			m.segLock.Lock()
-			m.segs[jk] = seg
+			_, ok := m.segs[jk]
+			if !ok {
+				m.segs[jk] = seg
+			}
 			m.segLock.Unlock()
 		}
 
