@@ -387,8 +387,16 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob
 
 		if add && cnt > 0 && seg.confirmBits.Count() != cnt {
 			m.segLock.Lock()
-			m.segs[jk] = seg
-			m.segLock.Unlock()
+			// in case of replace ole one
+			oldseg, ok := m.segs[jk]
+			if !ok {
+				m.segs[jk] = seg
+				m.segLock.Unlock()
+			} else {
+				m.segLock.Unlock()
+				cnt = uint(oldseg.Length) * uint(oldseg.ChunkID)
+				return oldseg, cnt, nil
+			}
 		}
 
 		logger.Debug("load seg: ", bucketID, opID, cnt, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count())

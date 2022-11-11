@@ -285,6 +285,7 @@ func (s *StateMgr) canAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 
 	cm := s.getStripeBitMap(binfo, userID, bucketID, proID)
 	// check whether has it already
+
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
 		if cm.Test(uint(i)) {
 			return xerrors.Errorf("add duplicated chunk %d_%d_%d", bucketID, i, chunkID)
