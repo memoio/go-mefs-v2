@@ -201,7 +201,8 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	// check whether has it already
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
 		if cm.Test(uint(i)) {
-			return xerrors.Errorf("add duplicated chunk %d_%d_%d", bucketID, i, chunkID)
+			//return xerrors.Errorf("add duplicated chunk %d_%d_%d", bucketID, i, chunkID)
+			logger.Warnf("add duplicated chunk %d_%d_%d", bucketID, i, chunkID)
 		}
 	}
 
@@ -285,11 +286,13 @@ func (s *StateMgr) canAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 
 	cm := s.getStripeBitMap(binfo, userID, bucketID, proID)
 	// check whether has it already
-	for i := stripeStart; i < stripeStart+stripeLength; i++ {
-		if cm.Test(uint(i)) {
-			return xerrors.Errorf("add duplicated chunk %d_%d_%d", bucketID, i, chunkID)
+	/*
+		for i := stripeStart; i < stripeStart+stripeLength; i++ {
+			if cm.Test(uint(i)) {
+				return xerrors.Errorf("add duplicated chunk %d_%d_%d", bucketID, i, chunkID)
+			}
 		}
-	}
+	*/
 
 	cinfo := binfo.chunks[chunkID]
 	if cinfo != nil && cinfo.ProID == proID && cinfo.Order == nonce && cinfo.Start+cinfo.Length == stripeStart {
