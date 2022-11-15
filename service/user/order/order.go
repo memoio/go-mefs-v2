@@ -298,14 +298,15 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 func (m *OrderMgr) check(o *OrderFull) {
 	nt := time.Now().Unix()
 
-	if nt-o.availTime < 180 {
+	if nt-o.availTime < 300 {
 		o.ready = true
 	} else {
-		if nt-o.availTime > 300 {
+		// not connect if pro is inStop
+		if nt-o.availTime > 1800 && !o.inStop {
 			go m.update(o.pro)
 		}
 
-		if nt-o.availTime > 600 {
+		if nt-o.availTime > 3600 {
 			o.ready = false
 		}
 
