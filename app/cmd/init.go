@@ -1,14 +1,19 @@
 package cmd
 
 import (
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
+	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var logger = logging.Logger("cmd")
@@ -118,6 +123,19 @@ var initCmd = &cli.Command{
 			logger.Errorf("fail initializing node %s", err)
 			return err
 		}
+
+		// show wallet address
+		w := rep.Config().Wallet
+		addr, err := address.NewFromString(w.DefaultAddress)
+		if err != nil {
+			return xerrors.Errorf("failed to parse addr %s %w", w.DefaultAddress, err)
+		}
+		ethAddress := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
+
+		fmt.Println()
+		fmt.Printf("wallet address: %s\n", ethAddress)
+		fmt.Println()
+
 		return nil
 	},
 }
