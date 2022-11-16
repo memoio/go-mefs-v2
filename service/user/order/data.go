@@ -332,13 +332,11 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 }
 
 // disptach, done, total
-func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob, uint, error) {
+func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob, error) {
 	jk := jobKey{
 		bucketID: bucketID,
 		jobID:    opID,
 	}
-
-	cnt := uint(0)
 
 	m.segLock.RLock()
 	seg, ok := m.segs[jk]
@@ -348,15 +346,15 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob
 		key := store.NewKey(pb.MetaType_LFS_OpJobsKey, m.localID, bucketID, opID)
 		data, err := m.ds.Get(key)
 		if err != nil {
-			return nil, cnt, err
+			return nil, err
 		}
 
 		err = sj.Deserialize(data)
 		if err != nil {
-			return nil, cnt, err
+			return nil, err
 		}
 
-		cnt = uint(sj.Length) * uint(sj.ChunkID)
+		cnt := uint(sj.Length) * uint(sj.ChunkID)
 
 		seg = new(segJob)
 		key = store.NewKey(pb.MetaType_LFS_OpStateKey, m.localID, bucketID, opID)
@@ -389,20 +387,18 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob
 			m.segLock.Lock()
 			// in case of replace ole one
 			oldseg, ok := m.segs[jk]
-			if !ok {
-				m.segs[jk] = seg
+			if ok {
 				m.segLock.Unlock()
-			} else {
-				m.segLock.Unlock()
-				cnt = uint(oldseg.Length) * uint(oldseg.ChunkID)
-				return oldseg, cnt, nil
+				return oldseg, nil
 			}
+			m.segs[jk] = seg
+			m.segLock.Unlock()
 		}
 
 		logger.Debug("load seg: ", bucketID, opID, cnt, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count())
 	}
 
-	return seg, cnt, nil
+	return seg, nil
 }
 
 func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int, int) {
@@ -425,7 +421,7 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (int, int, int, int) {
 
 	cnt := uint(sj.Length) * uint(sj.ChunkID)
 
-	seg, _, err := m.getSegJob(bucketID, opID, false, false)
+	seg, err := m.getSegJob(bucketID, opID, false, false)
 	if err != nil {
 		return totalcnt, discnt, donecnt, confirmCnt
 	}
@@ -462,14 +458,14 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 	logger.Debug("load unfinished job from: ", bucketID, opDoneCount, opID)
 
 	for i := opDoneCount + 1; i < opID; i++ {
-		seg, cnt, err := m.getSegJob(bucketID, i, true, true)
+		seg, err := m.getSegJob(bucketID, i, true, true)
 		if err != nil {
 			continue
 		}
 
-		if seg.confirmBits.Count() != cnt {
+		if seg.confirmBits.Count() != uint(seg.Length)*uint(seg.ChunkID) {
 			seg.dispatchBits = bitset.From(seg.doneBits.Bytes())
-			logger.Debug("load unfinished job: ", bucketID, i, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count(), cnt)
+			logger.Debug("load unfinished job: ", bucketID, i, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count(), uint(seg.Length)*uint(seg.ChunkID))
 		}
 	}
 }
@@ -477,7 +473,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 	logger.Debug("add seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, false, true)
+	seg, err := m.getSegJob(sj.BucketID, sj.JobID, false, true)
 	if err != nil {
 		logger.Debug("fail to add seg: ", sj.BucketID, sj.JobID, seg.Start, seg.Length, sj.Start, err)
 		return
@@ -502,7 +498,7 @@ func (m *OrderMgr) addSegJob(sj *types.SegJob) {
 func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 	logger.Debug("finish seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
+	seg, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
 		logger.Debug("fail to finish seg: ", seg.Start, seg.Length, sj.Start, err)
 		return
@@ -528,7 +524,7 @@ func (m *OrderMgr) finishSegJob(sj *types.SegJob) {
 func (m *OrderMgr) confirmSegJob(sj *types.SegJob) {
 	logger.Debug("confirm seg: ", sj.BucketID, sj.JobID, sj.Start, sj.Length, sj.ChunkID)
 
-	seg, _, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
+	seg, err := m.getSegJob(sj.BucketID, sj.JobID, true, true)
 	if err != nil {
 		logger.Debug("fail to confirm seg: ", seg.Start, seg.Length, sj.Start, err)
 		return
