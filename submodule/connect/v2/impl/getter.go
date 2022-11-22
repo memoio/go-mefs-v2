@@ -240,6 +240,13 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 		level = (kcnt + 1) * 2 / 3
 	}
 
+	kpB, ppB, err := getIns.GetPlePerB(&bind.CallOpts{
+		From: g.eAddr,
+	}, gi)
+	if err != nil {
+		return nil, err
+	}
+
 	ginfo := &api.GroupInfo{
 		EndPoint: g.endPoint,
 		State:    state,
@@ -249,6 +256,8 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 		KCount:   uint64(kcnt),
 		Size:     gout.Size,
 		Price:    gout.Sprice,
+		KpB:      kpB,
+		PpB:      ppB,
 	}
 
 	return ginfo, nil
@@ -411,38 +420,38 @@ func (g *getImpl) GetFsPool() (common.Address, error) {
 	}
 }
 
-func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int, error) {
-	res := new(big.Int)
+func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int, *big.Int, error) {
+	fsBalance := new(big.Int)
 	lock := new(big.Int)
 	penalty := new(big.Int)
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return res, lock, err
+		return fsBalance, lock, penalty, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return res, lock, err
+		return fsBalance, lock, penalty, err
 	}
 
 	retryCount := 0
 	for {
 		retryCount++
-		res, lock, penalty, err = getIns.FsBalanceOf(&bind.CallOpts{
+		fsBalance, lock, penalty, err = getIns.FsBalanceOf(&bind.CallOpts{
 			From: g.eAddr,
 		}, i, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return res, lock, err
+				return fsBalance, lock, penalty, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		res.Sub(res, penalty)
+		//res.Sub(res, penalty)
 
-		return res, lock, err
+		return fsBalance, lock, penalty, err
 	}
 }
 
@@ -563,5 +572,36 @@ func (g *getImpl) GetGInfo(gi uint64, ti uint8) (*getter.GroupOut, error) {
 		}
 
 		return &res, nil
+	}
+}
+
+// get pledge reward info: accu, last, pledge, rs
+func (g *getImpl) GetPleRewardInfo(index uint64, ti uint8) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
+	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	defer client.Close()
+
+	getIns, err := getter.NewGetter(g.getAddr, client)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	retryCount := 0
+	for {
+		retryCount++
+		accu, last, pledge, rs, err := getIns.Rewards(&bind.CallOpts{
+			From: g.eAddr,
+		}, index, ti)
+		if err != nil {
+			if retryCount > 3 {
+				return nil, nil, nil, nil, err
+			}
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		return accu, last, pledge, rs, nil
 	}
 }
