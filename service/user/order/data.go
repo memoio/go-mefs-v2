@@ -381,6 +381,13 @@ func (m *OrderMgr) getSegJob(bucketID, opID uint64, all bool, add bool) (*segJob
 			if all {
 				seg.SegJob = *sj
 			}
+
+			data, err := seg.Serialize()
+			if err != nil {
+				return nil, err
+			}
+
+			m.ds.Put(key, data)
 		}
 
 		if add && cnt > 0 && seg.confirmBits.Count() != cnt {
@@ -464,7 +471,8 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 		}
 
 		if seg.confirmBits.Count() != uint(seg.Length)*uint(seg.ChunkID) {
-			seg.dispatchBits = bitset.From(seg.doneBits.Bytes())
+			// clone from doneBits
+			seg.dispatchBits = seg.doneBits.Clone()
 			logger.Debug("load unfinished job: ", bucketID, i, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count(), uint(seg.Length)*uint(seg.ChunkID))
 		}
 	}
@@ -818,6 +826,8 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					o.Unlock()
 					m.segDoneChan <- sj
 				}
+
+				time.Sleep(10 * time.Second)
 
 				continue
 			}

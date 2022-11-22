@@ -89,8 +89,9 @@ type OrderFull struct {
 	fsID     []byte
 	location string
 
-	pro       uint64
-	availTime int64 // last connect time
+	pro        uint64
+	availTime  int64 // last connect time
+	updateTime int64
 
 	nonce   uint64 // next nonce
 	seqNum  uint32 // next seq
@@ -302,7 +303,9 @@ func (m *OrderMgr) check(o *OrderFull) {
 		o.ready = true
 	} else {
 		// not connect if pro is inStop
-		if nt-o.availTime > 1800 && !o.inStop {
+		// connect pro every 10 miniute
+		if nt-o.updateTime > 600 && !o.inStop {
+			o.updateTime = nt
 			go m.update(o.pro)
 		}
 
@@ -654,7 +657,7 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 		logger.Debug("should not close empty order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 		if o.base.End > time.Now().Unix() {
 			// not close order when data is empty
-			o.orderTime += m.orderLast
+			o.orderTime = time.Now().Unix()
 			err := saveOrderState(o, m.ds)
 			if err != nil {
 				return err

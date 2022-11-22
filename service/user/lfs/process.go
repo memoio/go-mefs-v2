@@ -212,7 +212,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		stripeCount++
 		sendCount++
 		// send some to order; 4MB*(bucket.DataCount + bucket.ParityCount)
-		if sendCount >= 16 || stripeCount >= 512 || breakFlag {
+		if sendCount >= 16 || breakFlag {
 			ok, err := dp.dv.Result()
 			if !ok || err != nil {
 				return xerrors.New("encode data is wrong")
@@ -251,10 +251,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			// update
 			dp.dv.Reset()
-		}
 
-		// more, change opID; 128MB*(bucket.DataCount + bucket.ParityCount)
-		if stripeCount >= 512 || breakFlag {
 			etagb := h.Sum(nil)
 			if opts.UserDefined != nil {
 				val, ok := opts.UserDefined["etag"]
