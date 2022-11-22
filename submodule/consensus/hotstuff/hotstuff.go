@@ -83,6 +83,28 @@ func (hsm *HotstuffManager) MineBlock() {
 		case <-tc.C:
 			slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
 			if hsm.curView.header.Slot == slot {
+				if hsm.curView.leader == hsm.localID {
+					hsm.lw.Lock()
+					switch hsm.curView.phase {
+					case hs.PhaseNew:
+						if hsm.curView.highQuorum.Len() >= hsm.app.GetQuorumSize() && time.Since(hsm.curView.start) > 3*time.Second {
+							hsm.tryPropose()
+						}
+					case hs.PhasePrepare:
+						if hsm.curView.prepareQuorum.Len() >= hsm.app.GetQuorumSize() && time.Since(hsm.curView.start) > 15*time.Second {
+							hsm.tryPreCommit()
+						}
+					case hs.PhasePreCommit:
+						if hsm.curView.preCommitQuorum.Len() >= hsm.app.GetQuorumSize() && time.Since(hsm.curView.start) > 18*time.Second {
+							hsm.tryCommit()
+						}
+					case hs.PhaseCommit:
+						if hsm.curView.commitQuorum.Len() >= hsm.app.GetQuorumSize() && time.Since(hsm.curView.start) > 20*time.Second {
+							hsm.tryDecide()
+						}
+					}
+					hsm.lw.Unlock()
+				}
 				continue
 			}
 
@@ -512,10 +534,6 @@ func (hsm *HotstuffManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage) error 
 		return hsm.tryPropose()
 	}
 
-	if hsm.curView.highQuorum.Len() >= hsm.app.GetQuorumSize() && time.Now().Sub(hsm.curView.start) > 3*time.Second {
-		return hsm.tryPropose()
-	}
-
 	return nil
 }
 
@@ -526,8 +544,6 @@ func (hsm *HotstuffManager) tryPropose() error {
 	}
 
 	logger.Debugf("leader enter into propose %d, %d, %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
-
-	hsm.curView.start = time.Now()
 
 	hsm.curView.phase = hs.PhasePrepare
 
@@ -654,10 +670,6 @@ func (hsm *HotstuffManager) handlePrepareVoteMsg(msg *hs.HotstuffMessage) error 
 		return hsm.tryPreCommit()
 	}
 
-	if hsm.curView.prepareQuorum.Len() >= hsm.app.GetQuorumSize() && time.Now().Sub(hsm.curView.start) > 15*time.Second {
-		return hsm.tryPreCommit()
-	}
-
 	return nil
 }
 
@@ -669,7 +681,6 @@ func (hsm *HotstuffManager) tryPreCommit() error {
 
 	logger.Debugf("leader enter into precommit %d %d %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
 
-	hsm.curView.start = time.Now()
 	hsm.curView.phase = hs.PhasePreCommit
 
 	sp := tx.RawBlock{
@@ -767,10 +778,6 @@ func (hsm *HotstuffManager) handlePreCommitVoteMsg(msg *hs.HotstuffMessage) erro
 		return hsm.tryCommit()
 	}
 
-	if hsm.curView.preCommitQuorum.Len() >= hsm.app.GetQuorumSize() && time.Now().Sub(hsm.curView.start) > 3*time.Second {
-		return hsm.tryCommit()
-	}
-
 	return nil
 }
 
@@ -782,7 +789,6 @@ func (hsm *HotstuffManager) tryCommit() error {
 
 	logger.Debugf("leader enter into commit %d %d %d", hsm.curView.header.Slot, hsm.localID, hsm.curView.header.Height)
 
-	hsm.curView.start = time.Now()
 	hsm.curView.phase = hs.PhaseCommit
 
 	sp := tx.RawBlock{
@@ -879,9 +885,6 @@ func (hsm *HotstuffManager) handleCommitVoteMsg(msg *hs.HotstuffMessage) error {
 		return hsm.tryDecide()
 	}
 
-	if hsm.curView.commitQuorum.Len() >= hsm.app.GetQuorumSize() && time.Now().Sub(hsm.curView.start) > 3*time.Second {
-		return hsm.tryDecide()
-	}
 	return nil
 }
 
