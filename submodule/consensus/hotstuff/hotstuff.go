@@ -83,8 +83,8 @@ func (hsm *HotstuffManager) MineBlock() {
 		case <-tc.C:
 			slot := uint64(time.Now().Unix()-build.BaseTime) / build.SlotDuration
 			if hsm.curView.header.Slot == slot {
+				hsm.lw.Lock()
 				if hsm.curView.leader == hsm.localID {
-					hsm.lw.Lock()
 					switch hsm.curView.phase {
 					case hs.PhaseNew:
 						if hsm.curView.highQuorum.Len() >= hsm.app.GetQuorumSize() && time.Since(hsm.curView.start) > 3*time.Second {
@@ -103,8 +103,8 @@ func (hsm *HotstuffManager) MineBlock() {
 							hsm.tryDecide()
 						}
 					}
-					hsm.lw.Unlock()
 				}
+				hsm.lw.Unlock()
 				continue
 			}
 
