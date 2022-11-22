@@ -23,6 +23,8 @@ type GroupInfo struct {
 	PCount   uint64
 	UCount   uint64
 	FsAddr   string
+	KpB      *big.Int
+	PpB      *big.Int
 }
 
 type ExtendedPeerInfo struct {
@@ -92,12 +94,18 @@ type BalanceInfo struct {
 	Value    *big.Int
 	FsValue  *big.Int
 	ErcValue *big.Int // should be map?
+
+	LockValue    *big.Int
+	PenaltyValue *big.Int
 }
 
 type PledgeInfo struct {
 	Value    *big.Int
 	ErcTotal *big.Int
 	Total    *big.Int
+
+	LocalPledge *big.Int
+	LocalReward *big.Int
 }
 
 type StoreInfo struct {

@@ -148,11 +148,20 @@ func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (
 		return nil, err
 	}
 
-	pi := &api.PledgeInfo{
-		Value:    pv,
-		ErcTotal: ep,
-		Total:    tp,
+	// get node pledge and node reward
+	_, _, lp, lr, err := cm.getIns.GetPleRewardInfo(roleID, 0)
+	if err != nil {
+		return nil, err
 	}
+
+	pi := &api.PledgeInfo{
+		Value:       pv,
+		ErcTotal:    ep,
+		Total:       tp,
+		LocalPledge: lp,
+		LocalReward: lr,
+	}
+
 	return pi, nil
 }
 
@@ -162,16 +171,18 @@ func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) 
 		return nil, err
 	}
 
-	avil, lock, err := cm.getIns.GetBalAt(roleID, cm.tIndex)
+	avail, lock, penalty, err := cm.getIns.GetBalAt(roleID, cm.tIndex)
 	if err != nil {
 		return nil, err
 	}
-	avil.Add(avil, lock)
+	//avil.Add(avil, lock)
 
 	bi := &api.BalanceInfo{
-		Value:    GetTxBalance(cm.endPoint, gotAddr),
-		ErcValue: cm.ercIns.BalanceOf(gotAddr),
-		FsValue:  avil,
+		Value:        GetTxBalance(cm.endPoint, gotAddr),
+		ErcValue:     cm.ercIns.BalanceOf(gotAddr),
+		FsValue:      avail,
+		LockValue:    lock,
+		PenaltyValue: penalty,
 	}
 
 	return bi, nil

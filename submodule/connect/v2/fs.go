@@ -54,7 +54,7 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 	// todo: check uIndex,pIndex,gIndex,tIndex
 
 	// check balance
-	avail, lock, err := cm.getIns.GetBalAt(so.UserID, uint8(so.TokenIndex))
+	avail, lock, _, err := cm.getIns.GetBalAt(so.UserID, uint8(so.TokenIndex))
 	if err != nil {
 		return err
 	}
