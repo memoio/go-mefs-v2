@@ -366,6 +366,8 @@ func (s *SegMgr) challenge(userID uint64) {
 							})
 							continue
 						}
+						// backgroup read limit
+						time.Sleep(10 * time.Millisecond)
 
 						segData, _ := segm.Content()
 						segTag, _ := segm.Tags()
@@ -481,6 +483,9 @@ func (s *SegMgr) challenge(userID uint64) {
 							})
 							continue
 						}
+
+						// backgroup read limit
+						time.Sleep(10 * time.Millisecond)
 
 						segData, err := segm.Content()
 						if err != nil {
