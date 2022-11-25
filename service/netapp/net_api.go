@@ -65,7 +65,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 				}
 			}
 			c.lk.Unlock()
-			return nil, xerrors.Errorf("send net request fail: %s", err)
+			return nil, err
 		}
 
 		c.lk.RLock()

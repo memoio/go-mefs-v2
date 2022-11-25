@@ -194,7 +194,7 @@ func (c *NetServiceImpl) FindPeerID(ctx context.Context, id uint64) error {
 }
 
 func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
