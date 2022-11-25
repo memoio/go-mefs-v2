@@ -31,6 +31,10 @@ const (
 )
 
 // version 3
+const (
+	UpdateHeight3 = 103_000
+	ChalDuration3 = 2880 * 7 // per week
+)
 
 var (
 	// contract version
