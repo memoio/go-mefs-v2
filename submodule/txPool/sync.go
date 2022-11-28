@@ -165,46 +165,48 @@ func (sp *SyncPool) handleBlock() {
 		logger.Debug("regular process block get: ", sp.nextHeight, sp.remoteHeight)
 		// sync all block from end -> begin
 		// use prevID to find
-		for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
-			sp.lk.RLock()
-			bid, ok := sp.blks[i]
-			sp.lk.RUnlock()
-			if !ok {
-				// sync block from remote
-				nbid, err := sp.GetTxBlockByHeight(i)
-				if err != nil {
-					logger.Debug("get block height fail: ", i, err)
-					time.Sleep(5 * time.Second)
-					break
-				}
-				bid = nbid
-			} else {
-				if i > 0 && i > sp.nextHeight {
-					// previous one exist, skip get?
-					sp.lk.RLock()
-					_, ok = sp.blks[i-1]
-					sp.lk.RUnlock()
-					if ok {
-						continue
+		if sp.remoteHeight-sp.nextHeight <= 128 {
+			for i := sp.remoteHeight - 1; i >= sp.nextHeight && i < math.MaxUint64; i-- {
+				sp.lk.RLock()
+				bid, ok := sp.blks[i]
+				sp.lk.RUnlock()
+				if !ok {
+					// sync block from remote
+					nbid, err := sp.GetTxBlockByHeight(i)
+					if err != nil {
+						logger.Debug("get block height fail: ", i, err)
+						time.Sleep(5 * time.Second)
+						break
+					}
+					bid = nbid
+				} else {
+					if i > 0 && i > sp.nextHeight {
+						// previous one exist, skip get?
+						sp.lk.RLock()
+						_, ok = sp.blks[i-1]
+						sp.lk.RUnlock()
+						if ok {
+							continue
+						}
 					}
 				}
-			}
 
-			blk, err := sp.GetTxBlock(bid)
-			if err != nil {
-				_, err := sp.getTxBlockRemote(bid)
+				blk, err := sp.GetTxBlock(bid)
 				if err != nil {
-					logger.Debug("get block remote fail: ", i, bid, err)
+					_, err := sp.getTxBlockRemote(bid)
+					if err != nil {
+						logger.Debug("get block remote fail: ", i, bid, err)
+					}
+					continue
 				}
-				continue
-			}
 
-			sp.lk.Lock()
-			sp.blks[blk.Height] = bid
-			if blk.Height > 0 {
-				sp.blks[blk.Height-1] = blk.PrevID
+				sp.lk.Lock()
+				sp.blks[blk.Height] = bid
+				if blk.Height > 0 {
+					sp.blks[blk.Height-1] = blk.PrevID
+				}
+				sp.lk.Unlock()
 			}
-			sp.lk.Unlock()
 		}
 		logger.Debug("regular process block: ", sp.nextHeight, sp.remoteHeight)
 
@@ -215,7 +217,14 @@ func (sp *SyncPool) handleBlock() {
 			sp.lk.RUnlock()
 			if !ok {
 				logger.Debug("before process block, not have")
-				break
+				nbid, err := sp.GetTxBlockByHeight(i)
+				if err != nil {
+					break
+				}
+				bid = nbid
+				sp.lk.Lock()
+				sp.blks[i] = bid
+				sp.lk.Unlock()
 			}
 
 			sb, err := sp.GetTxBlock(bid)
