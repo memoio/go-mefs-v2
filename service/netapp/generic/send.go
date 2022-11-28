@@ -5,6 +5,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/network"
 	peer "github.com/libp2p/go-libp2p-core/peer"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
@@ -33,5 +34,9 @@ func (gs *GenericService) SendNetRequest(ctx context.Context, p peer.ID, id uint
 		},
 	}
 
-	return gs.msgSender.SendRequest(ctx, p, nm)
+	res, err := gs.msgSender.SendRequest(ctx, p, nm)
+	if err != nil {
+		return nil, xerrors.Errorf("send net request %s fail: %s", typ, err)
+	}
+	return res, nil
 }
