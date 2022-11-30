@@ -19,16 +19,18 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	"github.com/memoio/go-mefs-v2/submodule/control"
-	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 type OrderMgr struct {
 	api.IRole
 	api.IDataService
 	api.IRestrict
-	*txPool.PushPool
+	api.IChainPush
+	api.INetService
 
 	is api.ISettle
+
+	// todo: remove
 	ns *netapp.NetServiceImpl
 	ds store.KVStore // save order info
 
@@ -81,7 +83,7 @@ type OrderMgr struct {
 	inCheck bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDuration, orderLast uint64, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is api.ISettle) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDuration, orderLast uint64, ds store.KVStore, pp api.IChainPush, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is api.ISettle) *OrderMgr {
 	if orderLast < 600 {
 		logger.Debug("order last is set to 12 hours")
 		orderLast = 12 * 3600
@@ -95,7 +97,8 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 	om := &OrderMgr{
 		IRole:        ir,
 		IDataService: id,
-		PushPool:     pp,
+		IChainPush:   pp,
+		INetService:  ns,
 		IRestrict:    control.New(ds),
 
 		ds: ds,

@@ -7,6 +7,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
 
+// todo
 func (s *SegMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 	if srp.ProID != s.localID {
 		return

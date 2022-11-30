@@ -147,7 +147,7 @@ func (l *LfsService) Start() error {
 	}
 
 	// load bucket
-	l.sb.bucketVerify = l.OrderMgr.GetBucket(l.ctx, l.userID)
+	l.sb.bucketVerify = l.OrderMgr.StateGetBucketAt(l.ctx, l.userID)
 
 	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
 		if uint64(len(l.sb.buckets)) > bid {

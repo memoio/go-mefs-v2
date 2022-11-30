@@ -51,8 +51,8 @@ func NewInPool(ctx context.Context, localID uint64, sp *SyncPool) *InPool {
 }
 
 func (mp *InPool) Start() {
-	go mp.sync()
-	go mp.broadcast()
+	go mp.process()
+	go mp.rebroadcast()
 
 	// load latest block and publish if exist
 	// due to exit at not applying latest block
@@ -80,12 +80,32 @@ func (mp *InPool) Start() {
 		}
 	}
 
+	retry := 0
+	for {
+		time.Sleep(11 * time.Second)
+		retry++
+		si, err := mp.SyncGetInfo(mp.ctx)
+		if err != nil {
+			continue
+		}
+
+		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+		if si.SyncedHeight == si.RemoteHeight && si.Status {
+			logger.Info("sync complete; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+			break
+		}
+
+		if retry > 6 {
+			break
+		}
+	}
+
 	// enable inprocess callback
 	mp.SyncPool.inProcess = true
 }
 
-func (mp *InPool) broadcast() {
-	// rebroadcast lastest block
+func (mp *InPool) rebroadcast() {
+	// rebroadcast lastest block if stuck
 	tc := time.NewTicker(300 * time.Second)
 	defer tc.Stop()
 
@@ -117,11 +137,11 @@ func (mp *InPool) broadcast() {
 	}
 }
 
-func (mp *InPool) sync() {
+func (mp *InPool) process() {
 	for {
 		select {
 		case <-mp.ctx.Done():
-			logger.Debug("process block done")
+			logger.Debug("process block exit")
 			return
 		case m := <-mp.msgChan:
 			id := m.Hash()
@@ -166,10 +186,10 @@ func (mp *InPool) sync() {
 	}
 }
 
-func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
+func (mp *InPool) SyncAddTxMessage(ctx context.Context, m *tx.SignedMessage) error {
 	stats.Record(ctx, metrics.TxMessageReceived.M(1))
 
-	err := mp.SyncPool.AddTxMsg(mp.ctx, m)
+	err := mp.SyncPool.SyncAddTxMessage(mp.ctx, m)
 	if err != nil {
 		stats.Record(ctx, metrics.TxMessageFailure.M(1))
 		logger.Debug("add tx msg fails: ", err)
@@ -418,7 +438,7 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 	logger.Infof("create block OnViewDone at height %d %s", tb.Height, tb.Hash().String())
 
 	// add to local first
-	err := mp.SyncPool.AddTxBlock(tb)
+	err := mp.SyncPool.SyncAddTxBlock(mp.ctx, tb)
 	if err != nil {
 		return err
 	}
@@ -447,5 +467,5 @@ func (mp *InPool) GetLeader(slot uint64) uint64 {
 
 // quorum size
 func (mp *InPool) GetQuorumSize() int {
-	return mp.GetThreshold(mp.ctx)
+	return mp.StateGetThreshold(mp.ctx)
 }

@@ -318,11 +318,6 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		return err
 	}
 
-	// keeper handle callback income
-	if s.handleAddPay != nil {
-		s.handleAddPay(okey.userID, okey.proID, scp.Epoch, oinfo.income.Value, oinfo.income.Penalty)
-	}
-
 	return nil
 }
 

@@ -99,12 +99,6 @@ func (s *StateMgr) GetBlockID(ctx context.Context) types.MsgID {
 	return s.blkID
 }
 
-func (s *StateMgr) GetChalEpoch(ctx context.Context) uint64 {
-	s.lk.RLock()
-	defer s.lk.RUnlock()
-	return s.ceInfo.epoch
-}
-
 func (s *StateMgr) GetBlockIDAt(ctx context.Context, ht uint64) (types.MsgID, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
@@ -136,7 +130,7 @@ func (s *StateMgr) StateGetNonce(ctx context.Context, roleID uint64) uint64 {
 	return rv.Nonce
 }
 
-func (s *StateMgr) GetRoleBaseInfo(userID uint64) (*pb.RoleInfo, error) {
+func (s *StateMgr) StateGetRoleInfo(ctx context.Context, userID uint64) (*pb.RoleInfo, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -169,7 +163,7 @@ func (s *StateMgr) StateGetNetInfo(ctx context.Context, roleID uint64) (peer.Add
 	return *res, err
 }
 
-func (s *StateMgr) GetThreshold(ctx context.Context) int {
+func (s *StateMgr) StateGetThreshold(ctx context.Context) int {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -255,7 +249,7 @@ func (s *StateMgr) StateGetAllProviders(ctx context.Context) []uint64 {
 	return res
 }
 
-func (s *StateMgr) GetBucket(ctx context.Context, userID uint64) uint64 {
+func (s *StateMgr) StateGetBucketAt(ctx context.Context, userID uint64) uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -365,40 +359,25 @@ func (s *StateMgr) StateGetAccPostIncome(ctx context.Context, proID uint64) (*ty
 	return nil, xerrors.Errorf("not found")
 }
 
-func (s *StateMgr) StateGetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
+func (s *StateMgr) StateGetOrderNonce(ctx context.Context, userID, proID uint64, epoch uint64) *types.NonceSeq {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
 	ns := new(types.NonceSeq)
+
+	if epoch != math.MaxUint64 {
+		key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID, epoch)
+		data, err := s.get(key)
+		if err == nil {
+			err = ns.Deserialize(data)
+			if err == nil {
+				return ns
+			}
+		}
+	}
+
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID)
 	data, err := s.get(key)
-	if err == nil {
-		err = ns.Deserialize(data)
-		if err == nil {
-			return ns
-		}
-	}
-
-	return ns
-}
-
-func (s *StateMgr) GetOrderStateAt(userID, proID, epoch uint64) *types.NonceSeq {
-	s.lk.RLock()
-	defer s.lk.RUnlock()
-
-	ns := new(types.NonceSeq)
-	key := store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID, epoch)
-	data, err := s.get(key)
-	if err == nil {
-		err = ns.Deserialize(data)
-		if err == nil {
-			return ns
-		}
-	}
-
-	// load current
-	key = store.NewKey(pb.MetaType_ST_OrderStateKey, userID, proID)
-	data, err = s.get(key)
 	if err == nil {
 		err = ns.Deserialize(data)
 		if err == nil {

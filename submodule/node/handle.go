@@ -23,7 +23,7 @@ func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) erro
 
 func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.SignedBlock) error {
 	logger.Debug("received pub block: ", blk.MinerID, blk.Height)
-	return n.SyncPool.AddTxBlock(blk)
+	return n.SyncAddTxBlock(ctx, blk)
 }
 
 func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
@@ -109,7 +109,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 }
 
 func (n *BaseNode) Register() error {
-	_, err := n.PushPool.GetRoleBaseInfo(n.RoleID())
+	_, err := n.StateGetRoleInfo(n.ctx, n.RoleID())
 	if err != nil {
 		ri, err := n.RoleSelf(n.ctx)
 		if err != nil {
@@ -129,16 +129,16 @@ func (n *BaseNode) Register() error {
 		}
 
 		for {
-			mid, err := n.PushPool.PushMessage(n.ctx, msg)
+			mid, err := n.PushMessage(n.ctx, msg)
 			if err != nil {
 				time.Sleep(30 * time.Second)
 				continue
 			}
 
 			for {
-				st, err := n.PushPool.SyncGetTxMsgStatus(n.ctx, mid)
+				st, err := n.SyncGetTxMsgStatus(n.ctx, mid)
 				if err != nil {
-					_, err := n.PushPool.GetRoleBaseInfo(n.RoleID())
+					_, err := n.StateGetRoleInfo(n.ctx, n.RoleID())
 					if err == nil {
 						return nil
 					}
@@ -168,7 +168,7 @@ func (n *BaseNode) UpdateNetAddr() error {
 		return err
 	}
 
-	opi, err := n.PushPool.StateGetNetInfo(n.ctx, n.RoleID())
+	opi, err := n.StateGetNetInfo(n.ctx, n.RoleID())
 	if err == nil {
 		if pi.ID == opi.ID {
 			if n.Config().Net.EnableRelay {
@@ -227,16 +227,16 @@ func (n *BaseNode) UpdateNetAddr() error {
 	}
 
 	for {
-		mid, err := n.PushPool.PushMessage(n.ctx, msg)
+		mid, err := n.PushMessage(n.ctx, msg)
 		if err != nil {
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
 		for {
-			st, err := n.PushPool.SyncGetTxMsgStatus(n.ctx, mid)
+			st, err := n.SyncGetTxMsgStatus(n.ctx, mid)
 			if err != nil {
-				_, err := n.PushPool.StateGetNetInfo(n.ctx, n.RoleID())
+				_, err := n.StateGetNetInfo(n.ctx, n.RoleID())
 				if err == nil {
 					return nil
 				}

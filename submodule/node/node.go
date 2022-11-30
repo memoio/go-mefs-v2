@@ -48,8 +48,9 @@ type BaseNode struct {
 	*role.RoleMgr
 
 	*jsonrpc.RPCServer
+	jsonrpc.ClientCloser
 
-	*txPool.PushPool
+	api.IChainPush
 
 	api.ISettle
 
@@ -59,6 +60,7 @@ type BaseNode struct {
 
 	ctx context.Context
 
+	PP         *txPool.PushPool
 	HttpHandle *mux.Router
 
 	roleID  uint64
@@ -93,6 +95,8 @@ func (n *BaseNode) Start(perm bool) error {
 		n.RoleMgr.Start()
 	}
 
+	n.IChainPush = n.PP
+
 	n.TxMsgHandle.Register(n.TxMsgHandler)
 	n.BlockHandle.Register(n.TxBlockHandler)
 
@@ -108,22 +112,28 @@ func (n *BaseNode) Start(perm bool) error {
 		n.RPCServer.Register("Memoriae", metrics.MetricedFullAPI(n))
 	}
 
-	go func() {
-		// wait for sync
-		n.PushPool.Start()
-		for {
-			if n.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				time.Sleep(5 * time.Second)
-			}
-		}
-	}()
+	n.WaitForSync()
 
 	logger.Info("start base node: ", n.roleID)
 
 	return nil
+}
+
+func (n *BaseNode) WaitForSync() {
+	for {
+		time.Sleep(10 * time.Second)
+
+		si, err := n.SyncGetInfo(n.ctx)
+		if err != nil {
+			continue
+		}
+
+		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+		if si.SyncedHeight == si.RemoteHeight && si.Status {
+			logger.Info("sync complete; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+			break
+		}
+	}
 }
 
 func (n *BaseNode) Ready(ctx context.Context) bool {
@@ -143,6 +153,10 @@ func (n *BaseNode) Stop(ctx context.Context) error {
 	err := n.Repo.Close()
 	if err != nil {
 		logger.Errorf("error closing repo: %s", err)
+	}
+
+	if n.ClientCloser != nil {
+		n.ClientCloser()
 	}
 
 	logger.Info("stopping memoriae node :(")

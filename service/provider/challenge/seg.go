@@ -3,6 +3,7 @@ package challenge
 import (
 	"context"
 	"encoding/binary"
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -18,13 +19,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 type SegMgr struct {
 	sync.RWMutex
 
-	*txPool.PushPool
+	api.IChainPush
 
 	api.IDataService
 
@@ -45,9 +45,9 @@ type SegMgr struct {
 	inRemove bool
 }
 
-func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDataService, pp *txPool.PushPool) *SegMgr {
+func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDataService, pp api.IChainPush) *SegMgr {
 	s := &SegMgr{
-		PushPool:     pp,
+		IChainPush:   pp,
 		IDataService: is,
 		ctx:          ctx,
 		localID:      localID,
@@ -61,10 +61,27 @@ func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDa
 	return s
 }
 
-func (s *SegMgr) Start() {
+func (s *SegMgr) Start() error {
 	s.load()
+
+	si, err := s.StateGetInfo(s.ctx)
+	if err != nil {
+		return err
+	}
+
+	s.epoch = si.Epoch
+
+	se, err := s.StateGetChalEpochInfo(s.ctx)
+	if err != nil {
+		return err
+	}
+
+	s.eInfo = se
+
 	go s.regularChallenge()
 	go s.regularRemove()
+
+	return nil
 }
 
 // load from state
@@ -75,16 +92,7 @@ func (s *SegMgr) load() {
 	}
 }
 
-func (s *SegMgr) AddUP(userID, proID uint64) {
-	if proID != s.localID {
-		return
-	}
-
-	logger.Debugf("add user %d for pro %d", userID, proID)
-
-	go s.loadFs(userID)
-}
-
+// todo
 func (s *SegMgr) loadFs(userID uint64) *segInfo {
 	si, ok := s.sInfo[userID]
 	if !ok {
@@ -112,9 +120,6 @@ func (s *SegMgr) regularChallenge() {
 	tc := time.NewTicker(time.Minute)
 	defer tc.Stop()
 
-	s.epoch = s.GetChalEpoch(s.ctx)
-	s.eInfo, _ = s.StateGetChalEpochInfo(s.ctx)
-
 	i := 0
 	for {
 		select {
@@ -132,8 +137,19 @@ func (s *SegMgr) regularChallenge() {
 			si.wait = false
 			si.nextChal++
 		case <-tc.C:
-			s.epoch = s.GetChalEpoch(s.ctx)
-			s.eInfo, _ = s.StateGetChalEpochInfo(s.ctx)
+			si, err := s.StateGetInfo(s.ctx)
+			if err != nil {
+				continue
+			}
+
+			s.epoch = si.Epoch
+
+			se, err := s.StateGetChalEpochInfo(s.ctx)
+			if err != nil {
+				continue
+			}
+
+			s.eInfo = se
 			logger.Debug("challenge update epoch: ", s.eInfo.Epoch, s.epoch)
 		default:
 			if len(s.users) == 0 {
@@ -186,7 +202,7 @@ func (s *SegMgr) removeExpiredChunk() {
 			subNonce = binary.BigEndian.Uint64(val)
 		}
 
-		ns := s.StateGetOrderState(s.ctx, userID, s.localID)
+		ns := s.StateGetOrderNonce(s.ctx, userID, s.localID, math.MaxUint64)
 
 		for i := subNonce; i < ns.SubNonce; i++ {
 			s.removeSegInExpiredOrder(userID, i)
@@ -218,10 +234,13 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	if s.GetProof(userID, s.localID, si.nextChal) {
-		logger.Debug("challenge has done: ", userID, si.nextChal)
-		return
-	}
+	// todo
+	/*
+		if s.GetProof(userID, s.localID, si.nextChal) {
+			logger.Debug("challenge has done: ", userID, si.nextChal)
+			return
+		}
+	*/
 
 	err := s.subDataOrder(userID)
 	if err != nil {
@@ -263,7 +282,7 @@ func (s *SegMgr) challenge(userID uint64) {
 	cnt := uint64(0)
 
 	// challenge routine
-	ns := s.GetOrderStateAt(userID, s.localID, si.nextChal)
+	ns := s.StateGetOrderNonce(s.ctx, userID, s.localID, si.nextChal)
 	if ns.Nonce == 0 && ns.SeqNum == 0 {
 		logger.Debug("challenge on empty data at epoch: ", userID, si.nextChal)
 		si.nextChal++

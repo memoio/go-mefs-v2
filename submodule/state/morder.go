@@ -249,10 +249,6 @@ func (s *StateMgr) createOrder(msg *tx.Message) error {
 			return err
 		}
 
-		// callback for user-pro relation
-		if s.handleAddUP != nil {
-			s.handleAddUP(okey.userID, okey.proID)
-		}
 	}
 
 	return nil
@@ -533,11 +529,6 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 	err = s.put(key, data)
 	if err != nil {
 		return err
-	}
-
-	// callback for add segmap and delete data in user
-	if s.handleAddSeq != nil {
-		s.handleAddSeq(so.OrderSeq)
 	}
 
 	return nil
@@ -843,10 +834,6 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		return err
 	}
 
-	if s.handleDelSeg != nil {
-		s.handleDelSeg(so)
-	}
-
 	return nil
 }
 
@@ -942,7 +929,6 @@ func (s *StateMgr) commitOrder(msg *tx.Message) error {
 	oinfo.ns.Nonce++
 	oinfo.ns.SeqNum = 0
 	oinfo.accFr = bls.ZERO
-	tmp := *oinfo.base
 	oinfo.base = nil
 
 	// save state
@@ -960,10 +946,6 @@ func (s *StateMgr) commitOrder(msg *tx.Message) error {
 	err = s.put(key, data)
 	if err != nil {
 		return err
-	}
-
-	if s.handleCommitOrder != nil {
-		s.handleCommitOrder(tmp)
 	}
 
 	return nil

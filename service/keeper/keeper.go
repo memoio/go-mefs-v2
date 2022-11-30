@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -42,7 +41,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		return nil, err
 	}
 
-	inp := txPool.NewInPool(ctx, bn.RoleID(), bn.PushPool.SyncPool)
+	inp := txPool.NewInPool(ctx, bn.RoleID(), bn.PP.SyncPool)
 
 	kn := &KeeperNode{
 		BaseNode: bn,
@@ -50,10 +49,10 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		inp:      inp,
 	}
 
-	if bn.GetThreshold(ctx) == 1 {
-		kn.bc = poa.NewPoAManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
+	if bn.StateGetThreshold(ctx) == 1 {
+		kn.bc = poa.NewPoAManager(ctx, bn.RoleID(), bn.RoleMgr, bn.NetServiceImpl, inp)
 	} else {
-		hm := hotstuff.NewHotstuffManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
+		hm := hotstuff.NewHotstuffManager(ctx, bn.RoleID(), bn.RoleMgr, bn.NetServiceImpl, inp)
 
 		kn.bc = hm
 		kn.HsMsgHandle.Register(hm.HandleMessage)
@@ -72,6 +71,9 @@ func (k *KeeperNode) Start(perm bool) error {
 		k.RoleMgr.Start()
 	}
 
+	k.IChainPush = k.PP
+	k.PP.Start()
+
 	// register net msg handle
 	k.GenericService.Register(pb.NetMessage_SayHello, k.DefaultHandler)
 	k.GenericService.Register(pb.NetMessage_Get, k.HandleGet)
@@ -81,32 +83,12 @@ func (k *KeeperNode) Start(perm bool) error {
 
 	k.EventHandle.Register(pb.EventMessage_LfsMeta, k.putLfsMetaHandler)
 
-	k.StateMgr.RegisterAddUserFunc(k.AddUsers)
-	k.StateMgr.RegisterAddUPFunc(k.AddUP)
-
 	k.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
 	k.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
 
 	go func() {
-		// wait for sync
-		k.PushPool.Start()
-		retry := 0
-		for {
-			if k.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				retry++
-				if retry > 12 {
-					// no more new block, set to ready
-					k.SyncPool.SetReady()
-				}
-				time.Sleep(5 * time.Second)
-			}
-		}
-
 		k.inp.Start()
 
 		go k.bc.MineBlock()

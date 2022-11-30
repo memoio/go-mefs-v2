@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -21,7 +22,7 @@ func (s *SegMgr) subDataOrder(userID uint64) error {
 
 	target := build.BaseTime + int64(pce.Slot*build.SlotDuration)
 
-	ns := s.StateGetOrderState(s.ctx, userID, s.localID)
+	ns := s.StateGetOrderNonce(s.ctx, userID, s.localID, math.MaxUint64)
 	for i := ns.SubNonce; i <= ns.Nonce; i++ {
 		of, err := s.StateGetOrder(s.ctx, userID, s.localID, i)
 		if err != nil {
