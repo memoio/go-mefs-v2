@@ -11,6 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/api/httpio"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/address"
@@ -299,7 +300,22 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	sp := txPool.NewSyncPool(ctx, b.groupID, nd.SettleGetThreshold(ctx), stDB, txs, cs)
 
 	// push pool
-	nd.PushPool = txPool.NewPushPool(ctx, sp)
+	nd.PP = txPool.NewPushPool(ctx, sp)
+
+	if nd.Config().Sync.API != "" && nd.Config().Sync.Token != "" {
+		addr, header, err := client.CreateMemoClientInfo(nd.Config().Sync.API, nd.Config().Sync.Token)
+		if err != nil {
+			return nd, err
+		}
+
+		nodeapi, closer, err := client.NewGenericNode(nd.ctx, addr, header)
+		if err != nil {
+			return nd, err
+		}
+
+		nd.IChainPush = nodeapi
+		nd.ClientCloser = closer
+	}
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
 

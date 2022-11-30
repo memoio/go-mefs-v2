@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"encoding/binary"
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -58,7 +59,7 @@ func (m *OrderMgr) checkBalance() {
 	needPay := big.NewInt(0)
 	pros := m.StateGetProsAt(m.ctx, m.localID)
 	for _, proID := range pros {
-		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
+		ns := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
 		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("fail to get order info in chain", m.localID, proID, err)
@@ -221,13 +222,13 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 }
 
 func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
-	ns := m.StateGetOrderState(m.ctx, of.localID, of.pro)
+	ns := m.StateGetOrderNonce(m.ctx, of.localID, of.pro, math.MaxUint64)
 	logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
 
 	for ns.Nonce < of.nonce {
 		// add order base
 		if ns.SeqNum == 0 {
-			_, err := m.StateMgr.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce)
+			_, err := m.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce)
 			if err != nil {
 				key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
 				data, err := m.ds.Get(key)
@@ -369,6 +370,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	return nil
 }
 
+// todo
 func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
 	// filter other
 	if seq.UserID != m.localID {
@@ -394,6 +396,7 @@ func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
 	}
 }
 
+// todo
 func (m *OrderMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 	if srp.UserID != m.localID {
 		return
@@ -420,7 +423,7 @@ func (m *OrderMgr) submitOrders() error {
 	var wg sync.WaitGroup
 	// for each provider, do AddOrder
 	for _, proID := range pros {
-		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
+		ns := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
 		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)

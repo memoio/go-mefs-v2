@@ -117,10 +117,6 @@ func (s *StateMgr) addUser(msg *tx.Message) error {
 		return err
 	}
 
-	if s.handleAddUser != nil {
-		s.handleAddUser(msg.From)
-	}
-
 	return nil
 }
 

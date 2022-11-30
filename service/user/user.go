@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/gorilla/mux"
@@ -87,7 +86,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	oc := bn.Repo.Config().Order
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn.PushPool, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ISettle)
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn.IChainPush, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ISettle)
 
 	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {
@@ -101,9 +100,6 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		ctx:          ctx,
 	}
 
-	un.RegisterAddSeqFunc(om.AddOrderSeq)
-	un.RegisterDelSegFunc(om.RemoveSeg)
-
 	return un, nil
 }
 
@@ -115,6 +111,9 @@ func (u *UserNode) Start(perm bool) error {
 	} else {
 		u.RoleMgr.Start()
 	}
+
+	u.IChainPush = u.PP
+	u.PP.Start()
 
 	// register net msg handle
 	u.GenericService.Register(pb.NetMessage_SayHello, u.DefaultHandler)
@@ -135,15 +134,7 @@ func (u *UserNode) Start(perm bool) error {
 
 	go func() {
 		// wait for sync
-		u.PushPool.Start()
-		for {
-			if u.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				time.Sleep(5 * time.Second)
-			}
-		}
+		u.BaseNode.WaitForSync()
 
 		// wait for register
 		err := u.Register()

@@ -187,6 +187,9 @@ type IChainSync interface {
 	IChainState
 	SyncGetInfo(context.Context) (*SyncInfo, error)
 	SyncGetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
+
+	SyncAddTxBlock(context.Context, *tx.SignedBlock) error
+	SyncAddTxMessage(context.Context, *tx.SignedMessage) error
 }
 
 type IChainState interface {
@@ -194,6 +197,7 @@ type IChainState interface {
 	StateGetChalEpochInfo(context.Context) (*types.ChalEpoch, error)
 	StateGetChalEpochInfoAt(context.Context, uint64) (*types.ChalEpoch, error)
 
+	StateGetThreshold(context.Context) int
 	StateGetNonce(context.Context, uint64) uint64
 	StateGetNetInfo(context.Context, uint64) (peer.AddrInfo, error)
 
@@ -203,9 +207,11 @@ type IChainState interface {
 	StateGetUsersAt(context.Context, uint64) []uint64
 	StateGetProsAt(context.Context, uint64) []uint64
 
+	StateGetRoleInfo(context.Context, uint64) (*pb.RoleInfo, error)
 	StateGetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
+	StateGetBucketAt(context.Context, uint64) uint64
 
-	StateGetOrderState(context.Context, uint64, uint64) *types.NonceSeq
+	StateGetOrderNonce(context.Context, uint64, uint64, uint64) *types.NonceSeq
 	StateGetOrder(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)
 	StateGetOrderSeq(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error)
 	StateGetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)

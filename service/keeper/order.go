@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"math"
 	"math/rand"
 	"time"
 )
@@ -65,7 +66,7 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		ns := k.StateGetOrderState(k.ctx, userID, proID)
+		ns := k.StateGetOrderNonce(k.ctx, userID, proID, math.MaxUint64)
 		logger.Debugf("subOrder user %d pro %d has order %d %d %d", userID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 
 		if si.SubNonce >= ns.Nonce {

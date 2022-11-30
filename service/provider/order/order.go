@@ -1,6 +1,7 @@
 package order
 
 import (
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -125,7 +126,7 @@ func (m *OrderMgr) check() error {
 			continue
 		}
 
-		ns := m.ics.StateGetOrderState(m.ctx, uid, m.localID)
+		ns := m.ics.StateGetOrderNonce(m.ctx, uid, m.localID, math.MaxUint64)
 
 		// load size from
 		for of.di.ConfirmedNonce < ns.Nonce {
@@ -275,7 +276,7 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.di.Received = op.di.ConfirmSize
 	}
 
-	dns := m.ics.StateGetOrderState(m.ctx, userID, m.localID)
+	dns := m.ics.StateGetOrderNonce(m.ctx, userID, m.localID, math.MaxUint64)
 
 	ns := new(NonceState)
 	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)

@@ -59,14 +59,9 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 }
 
 func (pp *PushPool) Start() {
-	pp.SyncPool.Start()
-
+	pp.SyncPool.start()
 	logger.Debug("start push pool")
 	go pp.syncPush()
-}
-
-func (pp *PushPool) Ready() bool {
-	return pp.ready
 }
 
 func (pp *PushPool) syncPush() {
@@ -74,17 +69,18 @@ func (pp *PushPool) syncPush() {
 	defer tc.Stop()
 
 	for {
-		ok := pp.GetSyncStatus(pp.ctx)
-		if ok {
-			break
-		}
+		time.Sleep(10 * time.Second)
 
 		si, err := pp.SyncGetInfo(pp.ctx)
 		if err != nil {
 			continue
 		}
-		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, pp.SyncPool.ready)
-		time.Sleep(5 * time.Second)
+
+		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+		if si.SyncedHeight == si.RemoteHeight && si.Status {
+			logger.Info("sync complete; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+			break
+		}
 	}
 
 	// need load pending msgs?
@@ -92,7 +88,7 @@ func (pp *PushPool) syncPush() {
 	pp.ready = true
 	pp.inPush = true
 
-	logger.Debug("pool is ready")
+	logger.Debug("push pool is ready")
 
 	for {
 		select {

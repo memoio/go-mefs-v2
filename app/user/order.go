@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -272,7 +273,7 @@ var orderGetCmd = &cli.Command{
 			return err
 		}
 
-		ns := api.StateGetOrderState(cctx.Context, api.SettleGetRoleID(cctx.Context), pid)
+		ns := api.StateGetOrderNonce(cctx.Context, api.SettleGetRoleID(cctx.Context), pid, math.MaxUint64)
 
 		si, err := api.SettleGetStoreInfo(cctx.Context, api.SettleGetRoleID(cctx.Context), pid)
 		if err != nil {
