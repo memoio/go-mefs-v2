@@ -10,7 +10,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -208,7 +207,7 @@ type IChainState interface {
 	StateGetProsAt(context.Context, uint64) []uint64
 
 	StateGetRoleInfo(context.Context, uint64) (*pb.RoleInfo, error)
-	StateGetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
+	StateGetPDPPublicKey(context.Context, uint64) ([]byte, error)
 	StateGetBucketAt(context.Context, uint64) uint64
 
 	StateGetOrderNonce(context.Context, uint64, uint64, uint64) *types.NonceSeq

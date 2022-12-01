@@ -9,7 +9,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/address"
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -73,8 +72,8 @@ type CommonStruct struct {
 		StateGetUsersAt      func(context.Context, uint64) []uint64 `perm:"read"`
 		StateGetProsAt       func(context.Context, uint64) []uint64 `perm:"read"`
 
-		StateGetPDPPublicKey func(context.Context, uint64) (pdpcommon.PublicKey, error) `perm:"read"`
-		StateGetBucketAt     func(context.Context, uint64) uint64                       `perm:"read"`
+		StateGetPDPPublicKey func(context.Context, uint64) ([]byte, error) `perm:"read"`
+		StateGetBucketAt     func(context.Context, uint64) uint64          `perm:"read"`
 
 		StateGetOrderNonce      func(context.Context, uint64, uint64, uint64) *types.NonceSeq                 `perm:"read"`
 		StateGetOrder           func(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)       `perm:"read"`
@@ -298,7 +297,7 @@ func (s *CommonStruct) StateGetAllKeepers(ctx context.Context) []uint64 {
 	return s.Internal.StateGetAllKeepers(ctx)
 }
 
-func (s *CommonStruct) StateGetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
+func (s *CommonStruct) StateGetPDPPublicKey(ctx context.Context, userID uint64) ([]byte, error) {
 	return s.Internal.StateGetPDPPublicKey(ctx, userID)
 }
 
