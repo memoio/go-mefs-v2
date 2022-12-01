@@ -212,8 +212,7 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 						m.sizelk.Unlock()
 					}
 
-					m.RemoveSeg(seq.OrderSeq)
-
+					m.ReplaceSegWithLoc(seq.OrderSeq)
 				default:
 				}
 			} else {
@@ -376,7 +375,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 
 // remove segment from local when commit
 // todo: re-handle at boot
-func (m *OrderMgr) RemoveSeg(seq types.OrderSeq) {
+func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
 	// filter other
 	if seq.UserID != m.localID {
 		return
