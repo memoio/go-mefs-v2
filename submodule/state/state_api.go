@@ -262,11 +262,10 @@ func (s *StateMgr) StateGetBucketAt(ctx context.Context, userID uint64) uint64 {
 	return 0
 }
 
-func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
+func (s *StateMgr) StateGetProofEpoch(ctx context.Context, userID, proID uint64) uint64 {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
-	proved := false
 	okey := orderKey{
 		userID: userID,
 		proID:  proID,
@@ -274,21 +273,16 @@ func (s *StateMgr) GetProof(userID, proID, epoch uint64) bool {
 
 	oinfo, ok := s.oInfo[okey]
 	if ok {
-		if oinfo.prove > epoch {
-			proved = true
-		}
-		return proved
+		return oinfo.prove
 	}
 
 	key := store.NewKey(pb.MetaType_ST_SegProofKey, userID, proID)
 	data, err := s.get(key)
 	if err == nil && len(data) >= 8 {
-		if binary.BigEndian.Uint64(data[:8]) > epoch {
-			proved = true
-		}
+		return binary.BigEndian.Uint64(data[:8])
 	}
 
-	return proved
+	return 0
 }
 
 func (s *StateMgr) StateGetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {

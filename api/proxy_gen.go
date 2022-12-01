@@ -80,6 +80,7 @@ type CommonStruct struct {
 		StateGetOrder           func(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)       `perm:"read"`
 		StateGetOrderSeq        func(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error) `perm:"read"`
 		StateGetPostIncome      func(context.Context, uint64, uint64) (*types.PostIncome, error)              `perm:"read"`
+		StateGetProofEpoch      func(context.Context, uint64, uint64) uint64                                  `perm:"read"`
 		StateGetPostIncomeAt    func(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)      `perm:"read"`
 		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)             `perm:"read"`
 		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)           `perm:"read"`
@@ -315,6 +316,10 @@ func (s *CommonStruct) StateGetOrderSeq(ctx context.Context, userID, proID, nonc
 
 func (s *CommonStruct) StateGetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {
 	return s.Internal.StateGetPostIncome(ctx, userID, proID)
+}
+
+func (s *CommonStruct) StateGetProofEpoch(ctx context.Context, userID, proID uint64) uint64 {
+	return s.Internal.StateGetProofEpoch(ctx, userID, proID)
 }
 
 func (s *CommonStruct) StateGetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.PostIncome, error) {

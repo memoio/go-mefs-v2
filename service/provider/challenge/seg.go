@@ -234,13 +234,11 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	// todo
-	/*
-		if s.GetProof(userID, s.localID, si.nextChal) {
-			logger.Debug("challenge has done: ", userID, si.nextChal)
-			return
-		}
-	*/
+	proved := s.StateGetProofEpoch(s.ctx, userID, s.localID)
+	if proved > si.nextChal {
+		logger.Debug("challenge has done: ", userID, si.nextChal)
+		return
+	}
 
 	err := s.subDataOrder(userID)
 	if err != nil {
