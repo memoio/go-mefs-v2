@@ -62,7 +62,7 @@ func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDa
 }
 
 func (s *SegMgr) Start() error {
-	s.load()
+	go s.load()
 
 	si, err := s.StateGetInfo(s.ctx)
 	if err != nil {
@@ -84,17 +84,33 @@ func (s *SegMgr) Start() error {
 	return nil
 }
 
-// load from state
+// load from state per hour
 func (s *SegMgr) load() {
 	users := s.StateGetUsersAt(s.ctx, s.localID)
 	for _, pid := range users {
 		s.loadFs(pid)
 	}
+
+	tc := time.NewTicker(60 * time.Minute)
+	defer tc.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-tc.C:
+			users := s.StateGetUsersAt(s.ctx, s.localID)
+			for _, pid := range users {
+				s.loadFs(pid)
+			}
+		}
+	}
 }
 
-// todo
 func (s *SegMgr) loadFs(userID uint64) *segInfo {
+	s.RLock()
 	si, ok := s.sInfo[userID]
+	s.RUnlock()
 	if !ok {
 		pk, err := s.StateGetPDPPublicKey(s.ctx, userID)
 		if err != nil {
@@ -109,8 +125,13 @@ func (s *SegMgr) loadFs(userID uint64) *segInfo {
 			fsID: pk.VerifyKey().Hash(),
 		}
 
-		s.users = append(s.users, userID)
-		s.sInfo[userID] = si
+		s.Lock()
+		_, ok := s.sInfo[userID]
+		if !ok {
+			s.users = append(s.users, userID)
+			s.sInfo[userID] = si
+		}
+		s.Unlock()
 	}
 
 	return si
