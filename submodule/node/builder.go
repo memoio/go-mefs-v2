@@ -316,6 +316,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		nd.isProxy = true
 		nd.IChainSync = nodeapi
 		nd.ClientCloser = closer
+		nd.rcp = nodeapi
 	} else {
 		nd.IChainSync = nd.LPP
 	}
