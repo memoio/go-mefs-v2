@@ -252,7 +252,6 @@ func (ns *NetworkSubmodule) NetConnectedness(ctx context.Context, pid peer.ID) (
 	return ns.Host.Network().Connectedness(pid), nil
 }
 
-// todo: add connect relay
 func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) error {
 	if ns.Host.Network().Connectedness(pai.ID) == network.Connected {
 		return nil

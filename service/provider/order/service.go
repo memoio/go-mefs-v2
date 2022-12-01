@@ -196,7 +196,6 @@ func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
 	return data, nil
 }
 
-// todo: verify nonce in data&settle chain
 func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	ob := new(types.SignedOrder)
 	err := ob.Deserialize(b)
@@ -459,7 +458,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			if !rHash.Equal(lHash) {
 				logger.Debug("handle seq md5: ", lHash.String(), " and ", rHash.String())
 
-				// todo: load missing or reget
+				// TODO: load missing or reget
 				if !or.seq.Segments.Equal(os.Segments) {
 					logger.Debug("handle seqIn local: ", or.seq.Segments.Len(), or.seq)
 					logger.Debug("handle seqIn remote: ", os.Segments.Len(), os)

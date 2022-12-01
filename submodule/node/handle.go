@@ -14,7 +14,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 )
 
-// todo: remove it
+// for test
 func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
 	logger.Debug("received pub message: ", mes.From, mes.Nonce, mes.Method)
 	//return n.SyncPool.AddTxMsg(ctx, mes)

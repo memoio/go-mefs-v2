@@ -20,7 +20,7 @@ type keyRepo struct {
 }
 
 // create a repo to store keyfile
-// todo: create a file for verifing password before reopen
+// TODO: create a file for verifing password before reopen
 func NewKeyRepo(path string) (types.KeyStore, error) {
 	err := os.MkdirAll(path, 0755)
 	if err != nil {

@@ -17,7 +17,7 @@ import (
 
 type LocalWallet struct {
 	lw       sync.Mutex
-	password string // used for decrypt; todo plaintext is not good
+	password string // used for decrypt; TODO plaintext is not good
 	accounts map[address.Address]sig_common.PrivKey
 	keystore types.KeyStore // store
 }

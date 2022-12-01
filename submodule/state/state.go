@@ -355,7 +355,6 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	defer s.lk.Unlock()
 
 	if blk == nil {
-		// todo: commmit for apply all changes
 		return s.root, nil
 	}
 

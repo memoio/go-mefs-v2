@@ -274,7 +274,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	mp.lk.RLock()
 	defer mp.lk.RUnlock()
 
-	// todo: block 0 is special
+	// block 0 is special
 	if sb.Height == 0 {
 		cnt := 0
 		for from, ms := range mp.pending {
@@ -410,7 +410,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		// validate message
 		newRoot, err = mp.ValidateMsg(&sm.Message)
 		if err != nil {
-			// should not; todo
+			// should not;
 			if sb.Receipts[i].Err == 0 {
 				logger.Debug("fail to validate message, shoule be right: ", newRoot, err)
 				return xerrors.Errorf("fail to validate message, shoule be right")
@@ -423,7 +423,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		}
 	}
 
-	// todo: should handle this
+	// should handle this
 	if !newRoot.Equal(sb.Root) {
 		logger.Debugf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 		return xerrors.Errorf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)

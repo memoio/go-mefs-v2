@@ -127,7 +127,7 @@ type INetService interface {
 	// send/handle msg directly over network
 	SendMetaRequest(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val, sig []byte) (*pb.NetMessage, error)
 
-	// todo: should be swap network
+	// TODO: should be swap network
 	Fetch(ctx context.Context, key []byte) ([]byte, error)
 	GetPeerIDAt(ctx context.Context, id uint64) (peer.ID, error)
 
