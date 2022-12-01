@@ -33,6 +33,8 @@ func (n *BaseNode) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgI
 		Signature: sig,
 	}
 
+	logger.Info("push message remote: ", mes.From, mes.Nonce, mes.Method)
+
 	return n.rcp.PushSignedMessage(ctx, sm)
 }
 

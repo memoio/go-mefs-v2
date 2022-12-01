@@ -78,13 +78,12 @@ func NewSyncPool(ctx context.Context, groupID uint64, thre int, st *state.StateM
 		blkDone: make(chan *blkDigest, 64),
 	}
 
-	sp.load()
-
 	return sp
 }
 
 func (sp *SyncPool) start() {
 	logger.Debug("start sync pool")
+	sp.load()
 	go sp.receiveBlock()
 	go sp.handleBlock()
 }

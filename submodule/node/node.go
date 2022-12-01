@@ -115,7 +115,9 @@ func (n *BaseNode) Start(perm bool) error {
 		n.RPCServer.Register("Memoriae", metrics.MetricedFullAPI(n))
 	}
 
-	n.WaitForSync()
+	n.StartLocal()
+
+	go n.WaitForSync()
 
 	logger.Info("start base node: ", n.roleID)
 
