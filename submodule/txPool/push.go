@@ -35,6 +35,7 @@ type PushPool struct {
 
 	ctx context.Context
 
+	localID uint64
 	locals  []uint64
 	pending map[uint64]*pendingMsg
 
@@ -53,6 +54,11 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 
 		msgDone: sp.msgDone,
 		ready:   false,
+	}
+
+	pri, err := sp.RoleSelf(ctx)
+	if err == nil {
+		pp.localID = pri.RoleID
 	}
 
 	return pp
@@ -131,6 +137,14 @@ func (pp *PushPool) syncPush() {
 							delete(lpending.msgto, nc)
 							continue
 						}
+
+						// not re-pub mes
+						if nc != pp.localID {
+							pp.INetService.PublishTxMsg(pp.ctx, pmsg.msg)
+							pmsg.mtime = time.Now()
+							continue
+						}
+
 						if time.Since(pmsg.mtime) > 10*time.Minute {
 							origID := pmsg.msgID
 
