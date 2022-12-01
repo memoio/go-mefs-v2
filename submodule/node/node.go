@@ -6,6 +6,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -50,7 +51,7 @@ type BaseNode struct {
 	*jsonrpc.RPCServer
 	jsonrpc.ClientCloser
 
-	api.IChainPush
+	api.IChainSync
 
 	api.ISettle
 
@@ -60,7 +61,11 @@ type BaseNode struct {
 
 	ctx context.Context
 
-	PP         *txPool.PushPool
+	lk      sync.Mutex
+	isProxy bool
+	LPP     *txPool.PushPool
+	rcp     api.IChainPush
+
 	HttpHandle *mux.Router
 
 	roleID  uint64
@@ -94,8 +99,6 @@ func (n *BaseNode) Start(perm bool) error {
 	} else {
 		n.RoleMgr.Start()
 	}
-
-	n.IChainPush = n.PP
 
 	n.TxMsgHandle.Register(n.TxMsgHandler)
 	n.BlockHandle.Register(n.TxBlockHandler)
@@ -155,7 +158,7 @@ func (n *BaseNode) Stop(ctx context.Context) error {
 		logger.Errorf("error closing repo: %s", err)
 	}
 
-	if n.ClientCloser != nil {
+	if n.isProxy && n.ClientCloser != nil {
 		n.ClientCloser()
 	}
 

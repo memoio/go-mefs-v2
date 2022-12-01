@@ -1,0 +1,59 @@
+package node
+
+import (
+	"context"
+
+	"golang.org/x/xerrors"
+
+	"github.com/memoio/go-mefs-v2/lib/tx"
+	"github.com/memoio/go-mefs-v2/lib/types"
+)
+
+func (n *BaseNode) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgID, error) {
+	if !n.isProxy {
+		logger.Info("push message local")
+		return n.LPP.PushMessage(ctx, mes)
+	}
+
+	n.lk.Lock()
+	defer n.lk.Unlock()
+
+	nonce := n.rcp.PushGetPendingNonce(ctx, mes.From)
+	mes.Nonce = nonce
+
+	mid := mes.Hash()
+	// sign
+	sig, err := n.RoleSign(ctx, mes.From, mid.Bytes(), types.SigSecp256k1)
+	if err != nil {
+		return mid, xerrors.Errorf("add tx message to push pool sign fail %s", err)
+	}
+
+	sm := &tx.SignedMessage{
+		Message:   *mes,
+		Signature: sig,
+	}
+
+	return n.rcp.PushSignedMessage(ctx, sm)
+}
+
+func (n *BaseNode) PushGetPendingNonce(ctx context.Context, id uint64) uint64 {
+	if n.isProxy {
+		return n.rcp.PushGetPendingNonce(ctx, id)
+	}
+
+	return n.LPP.PushGetPendingNonce(ctx, id)
+}
+
+func (n *BaseNode) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage) (types.MsgID, error) {
+	if n.isProxy {
+		return n.rcp.PushSignedMessage(ctx, sm)
+	}
+
+	return n.LPP.PushSignedMessage(ctx, sm)
+}
+
+func (n *BaseNode) StartLocal() {
+	if !n.isProxy {
+		n.LPP.Start()
+	}
+}
