@@ -30,7 +30,7 @@ type OrderMgr struct {
 
 	is api.ISettle
 
-	// todo: remove
+	// TODO: remove
 	ns *netapp.NetServiceImpl
 	ds store.KVStore // save order info
 

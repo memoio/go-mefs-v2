@@ -26,8 +26,8 @@ type lastProsPerBucket struct {
 	deleted  []uint64 // add del pro here
 }
 
-// todo: change pro when quotation price is too high
-// todo: fix order duplicated due to pro change
+// TODO: change pro when quotation price is too high
+// TODO: fix order duplicated due to pro change
 
 func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
 	logger.Info("register order for bucket: ", bucketID, nextOpID)
@@ -454,7 +454,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 
 	time.Sleep(30 * time.Second)
 
-	// todo
+	// TODO: from begin
 	opckey := store.NewKey(pb.MetaType_LFS_OpCountKey, m.localID, bucketID)
 	opDoneCount := uint64(0)
 	val, err := m.ds.Get(opckey)
@@ -744,7 +744,6 @@ func (o *OrderFull) addSeg(sj *types.SegJob) error {
 	return nil
 }
 
-// todo: add parallel control here; goprocess
 func (m *OrderMgr) sendData(o *OrderFull) {
 	i := 0
 	for {

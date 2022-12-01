@@ -89,7 +89,6 @@ func (sp *SyncPool) start() {
 }
 
 func (sp *SyncPool) load() {
-	// todo: handle case if msglen > 0
 	ht := sp.GetHeight(sp.ctx)
 	sp.nextHeight = ht
 	sp.remoteHeight = ht
@@ -512,7 +511,7 @@ func (sp *SyncPool) SyncAddTxMessage(ctx context.Context, msg *tx.SignedMessage)
 		// todo: verify message use state
 		ok, err := sp.RoleVerify(ctx, msg.From, mid.Bytes(), msg.Signature)
 		if err != nil {
-			return xerrors.Errorf("%d %d tx msg %s sign verify err", msg.From, msg.Nonce, mid, err)
+			return xerrors.Errorf("%d %d tx msg %s sign verify err %s", msg.From, msg.Nonce, mid, err)
 		}
 
 		if !ok {

@@ -66,7 +66,6 @@ func (ss *SeqState) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, ss)
 }
 
-// todo: check order
 type OrderFull struct {
 	lw        sync.Mutex
 	localID   uint64
@@ -224,8 +223,8 @@ func (m *OrderMgr) createOrder(op *OrderFull) {
 	op.ready = true
 }
 
-// todo: load from data chain
-// todo: fix missing if provider has fault
+// TODO: load from data chain
+// TODO: fix missing if provider has fault
 func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	m.lk.Lock()
 	op, ok := m.orders[userID]

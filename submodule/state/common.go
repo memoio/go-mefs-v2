@@ -26,7 +26,7 @@ type HandleAddSeqFunc func(types.OrderSeq)
 type HandleDelSegFunc func(*tx.SegRemoveParas)
 type HandleCommitOrderFunc func(types.SignedOrder)
 
-// todo: add msg fee here
+// TODO: add msg fee here
 type roleInfo struct {
 	base *pb.RoleInfo
 	val  *roleValue

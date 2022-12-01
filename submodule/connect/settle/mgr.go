@@ -67,7 +67,7 @@ func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (
 	eAddr := crypto.PubkeyToAddress(*publicKeyECDSA)
 
 	// transfer eth
-	// todo: remove at mainnet
+	// TODO: remove at mainnet
 	val := getBalance(endPoint, eAddr)
 	logger.Debugf("%s has val %d", eAddr, val)
 	if val.BitLen() == 0 {

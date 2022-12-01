@@ -113,7 +113,7 @@ type OrderFull struct {
 	buckets  []uint64
 	jobs     map[uint64]*bucketJob // buf and persist?
 
-	failCnt int // todo: retry > 10; change pro?
+	failCnt int // TODO: retry > 10; change pro?
 
 	ready  bool // ready for service; network is ok
 	inStop bool // stop receiving data; duo to high price
@@ -204,7 +204,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		op.ready = true
 	}
 
-	// todo: add getOrderRemote, getSeqRemote if local has missing
+	// TODO: add getOrderRemote, getSeqRemote if local has missing
 	if false {
 		m.getOrderRemote(id)
 		m.getSeqRemote(id)
@@ -551,7 +551,6 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		o.seqNum = 0
 		o.seqState = OrderSeq_Init
 
-		// save signed order base; todo
 		err = saveOrderBase(o, m.ds)
 		if err != nil {
 			return err
@@ -610,7 +609,6 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 	o.orderTime = time.Now().Unix()
 	o.base.Psign = ob.Psign
 
-	// save signed order base; todo
 	err = saveOrderBase(o, m.ds)
 	if err != nil {
 		return err
@@ -622,7 +620,6 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 		return err
 	}
 
-	// push out; todo
 	data, err := o.base.Serialize()
 	if err != nil {
 		return err
@@ -794,7 +791,7 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 
 	// add redo current seq
 	if o.sjq != nil {
-		// should not, todo: fix
+		// should not, TODO: fix
 		sLen := o.sjq.Len()
 		ss := *o.sjq
 

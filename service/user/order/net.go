@@ -28,7 +28,7 @@ func (m *OrderMgr) connect(proID uint64) error {
 	// otherwise get addr from declared address
 	pi, err := m.StateGetNetInfo(m.ctx, proID)
 	if err == nil {
-		// todo: fix this
+		// TODO: fix this
 		err := m.ns.Host().Connect(m.ctx, pi)
 		if err == nil {
 			m.ns.Host().Peerstore().SetAddrs(pi.ID, pi.Addrs, time.Duration(24*time.Hour))
