@@ -35,7 +35,13 @@ func (n *BaseNode) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgI
 
 	logger.Info("push message remote: ", mes.From, mes.Nonce, mes.Method)
 
-	return n.rcp.PushSignedMessage(ctx, sm)
+	nmid, err := n.rcp.PushSignedMessage(ctx, sm)
+	if err != nil {
+		logger.Warn("push message remote: ", mes.From, mes.Nonce, mes.Method, err)
+		return mid, err
+	}
+
+	return nmid, nil
 }
 
 func (n *BaseNode) PushGetPendingNonce(ctx context.Context, id uint64) uint64 {

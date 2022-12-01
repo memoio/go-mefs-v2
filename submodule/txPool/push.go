@@ -285,13 +285,23 @@ func (pp *PushPool) ReplaceMsg(mes *tx.Message) error {
 }
 
 func (pp *PushPool) PushGetPendingNonce(ctx context.Context, id uint64) uint64 {
-	pp.lk.RLock()
-	defer pp.lk.RUnlock()
+	pp.lk.Lock()
+	defer pp.lk.Unlock()
 	lp, ok := pp.pending[id]
 	if ok {
 		return lp.nonce
 	}
-	return 0
+
+	cNonce := pp.StateGetNonce(pp.ctx, id)
+	lp = &pendingMsg{
+		chainNonce: cNonce,
+		nonce:      cNonce,
+		msgto:      make(map[uint64]*msgTo),
+	}
+	pp.locals = append(pp.locals, id)
+	pp.pending[id] = lp
+
+	return cNonce
 }
 
 func (pp *PushPool) GetPendingMsg(ctx context.Context, id uint64) []types.MsgID {
