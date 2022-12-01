@@ -212,6 +212,7 @@ type IChainState interface {
 	StateGetBucketAt(context.Context, uint64) uint64
 
 	StateGetOrderNonce(context.Context, uint64, uint64, uint64) *types.NonceSeq
+	StateGetProofEpoch(ctx context.Context, userID, proID uint64) uint64
 	StateGetOrder(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)
 	StateGetOrderSeq(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error)
 	StateGetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)
