@@ -186,7 +186,6 @@ func (m *OrderMgr) load() error {
 	}
 
 	m.opi.OnChainSize = 0
-	m.opi.Paid.SetInt64(0)
 	pros := m.StateGetProsAt(context.TODO(), m.localID)
 	for _, pid := range pros {
 		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, pid)
@@ -194,25 +193,23 @@ func (m *OrderMgr) load() error {
 			continue
 		}
 		m.opi.OnChainSize += si.Size
-		m.opi.Paid.Add(m.opi.Paid, si.Price)
 	}
 
 	key = store.NewKey(pb.MetaType_OrderProsKey, m.localID)
 	val, err = m.ds.Get(key)
 	if err == nil {
-		res := make([]uint64, len(val)/8)
 		for i := 0; i < len(val)/8; i++ {
 			pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-			res[i] = pid
+			pros = append(pros, pid)
 		}
-
-		res = removeDup(res)
-
-		for _, pid := range res {
-			go m.newProOrder(pid)
-		}
-		logger.Info("load pros: ", len(res), len(pros))
 	}
+
+	pros = removeDup(pros)
+
+	for _, pid := range pros {
+		go m.newProOrder(pid)
+	}
+	logger.Info("load pros: ", len(pros))
 
 	return nil
 }
