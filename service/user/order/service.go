@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	"golang.org/x/sync/semaphore"
@@ -185,6 +186,18 @@ func (m *OrderMgr) load() error {
 		m.opi.Deserialize(val)
 	}
 
+	m.opi.OnChainSize = 0
+	m.opi.Paid.SetInt64(0)
+	pros := m.StateGetProsAt(context.TODO(), m.localID)
+	for _, pid := range pros {
+		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, pid)
+		if err != nil {
+			continue
+		}
+		m.opi.OnChainSize += si.Size
+		m.opi.Paid.Add(m.opi.Paid, si.Price)
+	}
+
 	key = store.NewKey(pb.MetaType_OrderProsKey, m.localID)
 	val, err = m.ds.Get(key)
 	if err == nil {
@@ -196,17 +209,10 @@ func (m *OrderMgr) load() error {
 
 		res = removeDup(res)
 
-		m.opi.OnChainSize = 0
-		m.opi.Paid.SetInt64(0)
 		for _, pid := range res {
 			go m.newProOrder(pid)
-			si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, pid)
-			if err != nil {
-				continue
-			}
-			m.opi.OnChainSize += si.Size
-			m.opi.Paid.Add(m.opi.Paid, si.Price)
 		}
+		log.Info("load pros: ", len(res), len(pros))
 	}
 
 	return nil
