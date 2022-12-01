@@ -300,7 +300,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	sp := txPool.NewSyncPool(ctx, b.groupID, nd.SettleGetThreshold(ctx), stDB, txs, cs)
 
 	// push pool
-	nd.PP = txPool.NewPushPool(ctx, sp)
+	nd.LPP = txPool.NewPushPool(ctx, sp)
 
 	if nd.Config().Sync.API != "" && nd.Config().Sync.Token != "" {
 		addr, header, err := client.CreateMemoClientInfo(nd.Config().Sync.API, nd.Config().Sync.Token)
@@ -313,8 +313,11 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 			return nd, err
 		}
 
-		nd.IChainPush = nodeapi
+		nd.isProxy = true
+		nd.IChainSync = nodeapi
 		nd.ClientCloser = closer
+	} else {
+		nd.IChainSync = nd.LPP
 	}
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()

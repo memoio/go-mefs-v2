@@ -70,11 +70,11 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl, bn.RoleMgr, sp)
 
-	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, ids, bn.IChainPush)
+	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, ids, bn)
 
 	oc := bn.Repo.Config().Order
 
-	por := porder.NewOrderMgr(ctx, bn.RoleID(), oc.Price, ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.IChainPush, bn.ISettle)
+	por := porder.NewOrderMgr(ctx, bn.RoleID(), oc.Price, ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn, bn.ISettle)
 
 	rp := readpay.NewReceivePay(localAddr, ds)
 
@@ -99,9 +99,6 @@ func (p *ProviderNode) Start(perm bool) error {
 		p.RoleMgr.Start()
 	}
 
-	p.IChainPush = p.PP
-	p.PP.Start()
-
 	// register net msg handle
 	p.GenericService.Register(pb.NetMessage_SayHello, p.DefaultHandler)
 	p.GenericService.Register(pb.NetMessage_Get, p.HandleGet)
@@ -121,6 +118,8 @@ func (p *ProviderNode) Start(perm bool) error {
 	p.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(metrics.MetricedProviderAPI(p)))
+
+	p.BaseNode.StartLocal()
 
 	go func() {
 		p.BaseNode.WaitForSync()

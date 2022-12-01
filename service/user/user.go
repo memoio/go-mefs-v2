@@ -86,7 +86,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	oc := bn.Repo.Config().Order
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn.IChainPush, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ISettle)
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ISettle)
 
 	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {
@@ -112,9 +112,6 @@ func (u *UserNode) Start(perm bool) error {
 		u.RoleMgr.Start()
 	}
 
-	u.IChainPush = u.PP
-	u.PP.Start()
-
 	// register net msg handle
 	u.GenericService.Register(pb.NetMessage_SayHello, u.DefaultHandler)
 	u.GenericService.Register(pb.NetMessage_Get, u.HandleGet)
@@ -131,6 +128,8 @@ func (u *UserNode) Start(perm bool) error {
 	} else {
 		u.RPCServer.Register("Memoriae", metrics.MetricedUserAPI(u))
 	}
+
+	u.BaseNode.StartLocal()
 
 	go func() {
 		// wait for sync

@@ -238,7 +238,13 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 
 	// verify nonce
 	if sm.Nonce < lp.chainNonce {
-		return mid, xerrors.Errorf("%d nonce should be no less than %d, got %d", sm.From, lp.chainNonce, sm.Nonce)
+		return mid, xerrors.Errorf("%d nonce should be no less than chain nonde %d, got %d", sm.From, lp.chainNonce, sm.Nonce)
+	}
+
+	if sm.Nonce == lp.nonce {
+		lp.nonce++
+	} else if sm.Nonce > lp.nonce {
+		return mid, xerrors.Errorf("%d nonce should be no larger than %d, got %d", sm.From, lp.nonce, sm.Nonce)
 	}
 
 	// replace it; if exist

@@ -41,7 +41,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		return nil, err
 	}
 
-	inp := txPool.NewInPool(ctx, bn.RoleID(), bn.PP.SyncPool)
+	inp := txPool.NewInPool(ctx, bn.RoleID(), bn.LPP.SyncPool)
 
 	kn := &KeeperNode{
 		BaseNode: bn,
@@ -71,9 +71,6 @@ func (k *KeeperNode) Start(perm bool) error {
 		k.RoleMgr.Start()
 	}
 
-	k.IChainPush = k.PP
-	k.PP.Start()
-
 	// register net msg handle
 	k.GenericService.Register(pb.NetMessage_SayHello, k.DefaultHandler)
 	k.GenericService.Register(pb.NetMessage_Get, k.HandleGet)
@@ -87,6 +84,8 @@ func (k *KeeperNode) Start(perm bool) error {
 	k.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
+
+	k.BaseNode.StartLocal()
 
 	go func() {
 		k.inp.Start()
