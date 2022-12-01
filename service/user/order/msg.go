@@ -160,9 +160,9 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 
 			if st.Status.Err == 0 {
 				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
-				if msg.Method == tx.AddDataOrder {
+				switch msg.Method {
+				case tx.AddDataOrder:
 					// confirm
-
 					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To)
 
 					seq := new(types.SignedOrderSeq)
@@ -211,6 +211,10 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 						}
 						m.sizelk.Unlock()
 					}
+
+					m.RemoveSeg(seq.OrderSeq)
+
+				default:
 				}
 			} else {
 				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
@@ -370,8 +374,9 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	return nil
 }
 
-// todo
-func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
+// remove segment from local when commit
+// todo: re-handle at boot
+func (m *OrderMgr) RemoveSeg(seq types.OrderSeq) {
 	// filter other
 	if seq.UserID != m.localID {
 		return
@@ -397,7 +402,7 @@ func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
 }
 
 // todo
-func (m *OrderMgr) RemoveSeg(srp *tx.SegRemoveParas) {
+func (m *OrderMgr) RemoveSegLocation(srp *tx.SegRemoveParas) {
 	if srp.UserID != m.localID {
 		return
 	}
