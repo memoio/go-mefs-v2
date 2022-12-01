@@ -206,9 +206,14 @@ func (m *OrderMgr) check() error {
 }
 
 func (m *OrderMgr) createOrder(op *OrderFull) {
-	pk, err := m.ics.StateGetPDPPublicKey(m.ctx, op.userID)
+	pkData, err := m.ics.StateGetPDPPublicKey(m.ctx, op.userID)
 	if err != nil {
 		logger.Warnf("create order for user %d bls pk fail %s", op.userID, err)
+		return
+	}
+
+	pk, err := pdp.DeserializePublicKey(pkData)
+	if err != nil {
 		return
 	}
 
@@ -251,8 +256,12 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	m.orders[userID] = op
 	m.lk.Unlock()
 
-	pk, err := m.ics.StateGetPDPPublicKey(m.ctx, userID)
+	pkData, err := m.ics.StateGetPDPPublicKey(m.ctx, userID)
 	if err == nil {
+		pk, err := pdp.DeserializePublicKey(pkData)
+		if err != nil {
+			return op
+		}
 		op.dv, err = pdp.NewDataVerifier(pk, nil)
 		if err != nil {
 			return op

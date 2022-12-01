@@ -10,8 +10,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
@@ -180,7 +178,7 @@ func (s *StateMgr) StateGetAllKeepers(ctx context.Context) []uint64 {
 	return res
 }
 
-func (s *StateMgr) StateGetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
+func (s *StateMgr) StateGetPDPPublicKey(ctx context.Context, userID uint64) ([]byte, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
 
@@ -190,7 +188,7 @@ func (s *StateMgr) StateGetPDPPublicKey(ctx context.Context, userID uint64) (pdp
 		return nil, err
 	}
 
-	return pdp.DeserializePublicKey(data)
+	return data, nil
 }
 
 func (s *StateMgr) StateGetProsAt(ctx context.Context, userID uint64) []uint64 {

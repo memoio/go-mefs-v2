@@ -112,9 +112,14 @@ func (s *SegMgr) loadFs(userID uint64) *segInfo {
 	si, ok := s.sInfo[userID]
 	s.RUnlock()
 	if !ok {
-		pk, err := s.StateGetPDPPublicKey(s.ctx, userID)
+		data, err := s.StateGetPDPPublicKey(s.ctx, userID)
 		if err != nil {
 			logger.Debug("challenge not get fs")
+			return nil
+		}
+
+		pk, err := pdp.DeserializePublicKey(data)
+		if err != nil {
 			return nil
 		}
 
@@ -274,9 +279,14 @@ func (s *SegMgr) challenge(userID uint64) {
 	copy(buf[8:], s.eInfo.Seed.Bytes())
 	bh := blake3.Sum256(buf)
 
-	pk, err := s.StateGetPDPPublicKey(s.ctx, userID)
+	pkData, err := s.StateGetPDPPublicKey(s.ctx, userID)
 	if err != nil {
 		logger.Debug("challenge not get fs")
+		return
+	}
+
+	pk, err := pdp.DeserializePublicKey(pkData)
+	if err != nil {
 		return
 	}
 
