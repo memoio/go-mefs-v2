@@ -76,7 +76,7 @@ func (k *KeeperNode) Start(perm bool) error {
 	k.GenericService.Register(pb.NetMessage_Get, k.HandleGet)
 
 	k.TxMsgHandle.Register(k.txMsgHandler)
-	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
+	//k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
 	k.EventHandle.Register(pb.EventMessage_LfsMeta, k.putLfsMetaHandler)
 
