@@ -111,8 +111,8 @@ func (p *ProviderNode) Start(perm bool) error {
 	p.GenericService.Register(pb.NetMessage_PutSegment, p.handleSegData)
 	p.GenericService.Register(pb.NetMessage_GetSegment, p.handleGetSeg)
 
-	p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
-	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
+	//p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
+	//p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
 
 	p.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
 	p.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)

@@ -100,8 +100,8 @@ func (n *BaseNode) Start(perm bool) error {
 		n.RoleMgr.Start()
 	}
 
-	n.TxMsgHandle.Register(n.TxMsgHandler)
-	n.BlockHandle.Register(n.TxBlockHandler)
+	//n.TxMsgHandle.Register(n.TxMsgHandler)
+	//n.BlockHandle.Register(n.TxBlockHandler)
 
 	n.GenericService.Register(pb.NetMessage_SayHello, n.DefaultHandler)
 	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
