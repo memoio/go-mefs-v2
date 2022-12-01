@@ -196,8 +196,16 @@ func (m *OrderMgr) load() error {
 
 		res = removeDup(res)
 
+		m.opi.OnChainSize = 0
+		m.opi.Paid.SetInt64(0)
 		for _, pid := range res {
 			go m.newProOrder(pid)
+			si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, pid)
+			if err != nil {
+				continue
+			}
+			m.opi.OnChainSize += si.Size
+			m.opi.Paid.Add(m.opi.Paid, si.Price)
 		}
 	}
 
