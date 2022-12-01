@@ -15,6 +15,7 @@ import (
 )
 
 type msgTo struct {
+	ctime time.Time
 	mtime time.Time
 	msgID types.MsgID
 	msg   *tx.SignedMessage
@@ -133,6 +134,12 @@ func (pp *PushPool) syncPush() {
 						}
 
 						if pmsg.msg.Nonce < lpending.chainNonce {
+							// remove it
+							delete(lpending.msgto, nc)
+							continue
+						}
+
+						if time.Since(pmsg.ctime) > time.Hour {
 							// remove it
 							delete(lpending.msgto, nc)
 							continue
@@ -264,6 +271,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	// replace it; if exist
 	// TODO compare GasPrice?
 	lp.msgto[sm.Nonce] = &msgTo{
+		ctime: time.Now(),
 		mtime: time.Now(),
 		msg:   sm,
 		msgID: mid,
