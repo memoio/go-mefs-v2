@@ -402,6 +402,7 @@ func (s *SegMgr) challenge(userID uint64) {
 								Length:   1,
 								ChunkID:  seg.ChunkID,
 							})
+							s.DeleteSegment(s.ctx, sid)
 							continue
 						}
 						// backgroup read limit
