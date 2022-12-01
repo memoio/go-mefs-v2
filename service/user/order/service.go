@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/jbenet/goprocess"
 	goprocessctx "github.com/jbenet/goprocess/context"
 	"golang.org/x/sync/semaphore"
@@ -212,7 +211,7 @@ func (m *OrderMgr) load() error {
 		for _, pid := range res {
 			go m.newProOrder(pid)
 		}
-		log.Info("load pros: ", len(res), len(pros))
+		logger.Info("load pros: ", len(res), len(pros))
 	}
 
 	return nil
