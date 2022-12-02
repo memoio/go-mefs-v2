@@ -59,10 +59,3 @@ func (n *BaseNode) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage) 
 
 	return n.LPP.PushSignedMessage(ctx, sm)
 }
-
-func (n *BaseNode) StartLocal() {
-	if !n.isProxy {
-		n.BlockHandle.Register(n.TxBlockHandler)
-		n.LPP.Start()
-	}
-}

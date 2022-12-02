@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"net/http"
 	"sync"
 	"time"
 
@@ -93,16 +92,10 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 // start service related
 func (p *ProviderNode) Start(perm bool) error {
 	p.Perm = perm
-	if p.Repo.Config().Net.Name == "test" {
-		go p.OpenTest()
-	} else {
-		p.RoleMgr.Start()
-	}
+
+	p.BaseNode.StartLocal()
 
 	// register net msg handle
-	p.GenericService.Register(pb.NetMessage_SayHello, p.DefaultHandler)
-	p.GenericService.Register(pb.NetMessage_Get, p.HandleGet)
-
 	p.GenericService.Register(pb.NetMessage_AskPrice, p.handleQuotation)
 	p.GenericService.Register(pb.NetMessage_CreateOrder, p.handleCreateOrder)
 	p.GenericService.Register(pb.NetMessage_CreateSeq, p.handleCreateSeq)
@@ -111,15 +104,11 @@ func (p *ProviderNode) Start(perm bool) error {
 	p.GenericService.Register(pb.NetMessage_PutSegment, p.handleSegData)
 	p.GenericService.Register(pb.NetMessage_GetSegment, p.handleGetSeg)
 
-	//p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
-	//p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
-
-	p.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
-	p.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
-
-	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(metrics.MetricedProviderAPI(p)))
-
-	p.BaseNode.StartLocal()
+	if p.Perm {
+		p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(metrics.MetricedProviderAPI(p)))
+	} else {
+		p.RPCServer.Register("Memoriae", metrics.MetricedProviderAPI(p))
+	}
 
 	go func() {
 		p.BaseNode.WaitForSync()
