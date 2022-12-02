@@ -94,20 +94,8 @@ func (n *BaseNode) Version(_ context.Context) (string, error) {
 // Start boots up the node.
 func (n *BaseNode) Start(perm bool) error {
 	n.Perm = perm
-	if n.Repo.Config().Net.Name == "test" {
-		go n.OpenTest()
-	} else {
-		n.RoleMgr.Start()
-	}
 
-	//n.TxMsgHandle.Register(n.TxMsgHandler)
-	//n.BlockHandle.Register(n.TxBlockHandler)
-
-	n.GenericService.Register(pb.NetMessage_SayHello, n.DefaultHandler)
-	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
-
-	n.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
-	n.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
+	n.StartLocal()
 
 	if n.Perm {
 		n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedFullAPI(n)))
@@ -115,13 +103,32 @@ func (n *BaseNode) Start(perm bool) error {
 		n.RPCServer.Register("Memoriae", metrics.MetricedFullAPI(n))
 	}
 
-	n.StartLocal()
-
 	go n.WaitForSync()
 
 	logger.Info("start base node: ", n.roleID)
 
 	return nil
+}
+
+func (n *BaseNode) StartLocal() {
+	if n.Repo.Config().Net.Name == "test" {
+		go n.OpenTest()
+	} else {
+		n.RoleMgr.Start()
+	}
+
+	if !n.isProxy {
+		// handle received tx message
+		n.BlockHandle.Register(n.TxBlockHandler)
+		// start local push pool
+		n.LPP.Start()
+	}
+
+	n.GenericService.Register(pb.NetMessage_SayHello, n.DefaultHandler)
+	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
+
+	n.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
+	n.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 }
 
 func (n *BaseNode) WaitForSync() {

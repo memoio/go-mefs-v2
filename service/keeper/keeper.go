@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"net/http"
 	"sync"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -65,27 +64,21 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 func (k *KeeperNode) Start(perm bool) error {
 	k.Perm = perm
 
-	if k.Repo.Config().Net.Name == "test" {
-		go k.OpenTest()
-	} else {
-		k.RoleMgr.Start()
-	}
+	k.BaseNode.StartLocal()
 
 	// register net msg handle
-	k.GenericService.Register(pb.NetMessage_SayHello, k.DefaultHandler)
-	k.GenericService.Register(pb.NetMessage_Get, k.HandleGet)
 
+	// handle received tx message
 	k.TxMsgHandle.Register(k.txMsgHandler)
-	//k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
+	// handle event message; later
 	k.EventHandle.Register(pb.EventMessage_LfsMeta, k.putLfsMetaHandler)
 
-	k.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
-	k.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
-
-	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
-
-	k.BaseNode.StartLocal()
+	if k.Perm {
+		k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
+	} else {
+		k.RPCServer.Register("Memoriae", metrics.MetricedKeeperAPI(k))
+	}
 
 	go func() {
 		k.inp.Start()
