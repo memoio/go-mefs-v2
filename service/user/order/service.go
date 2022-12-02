@@ -172,9 +172,10 @@ func (m *OrderMgr) Start() {
 }
 
 func (m *OrderMgr) Stop() {
+	logger.Info("stop order manager")
 	m.lk.Lock()
-	defer m.lk.Unlock()
 	m.ready = false
+	m.lk.Unlock()
 	m.proc.Close()
 }
 
@@ -246,6 +247,7 @@ func (m *OrderMgr) runSegSched(proc goprocess.Process) {
 		// handle data
 		select {
 		case <-proc.Closing():
+			logger.Info("exit runSegSched process")
 			return
 		case sj := <-m.segAddChan:
 			m.addSegJob(sj)
@@ -334,6 +336,7 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 
 			m.save()
 		case <-proc.Closing():
+			logger.Info("exit runProSched process")
 			return
 		}
 	}
@@ -411,6 +414,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 				}
 			}
 		case <-proc.Closing():
+			logger.Info("exit runSched process")
 			return
 		}
 	}

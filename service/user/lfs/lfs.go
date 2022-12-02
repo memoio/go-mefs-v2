@@ -255,6 +255,7 @@ func (l *LfsService) Start() error {
 }
 
 func (l *LfsService) Stop() error {
+	logger.Info("stop lfs service...")
 	l.sb.write = false
 	l.OrderMgr.Stop()
 	return nil

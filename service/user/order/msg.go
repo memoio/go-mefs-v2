@@ -23,6 +23,7 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 	for {
 		select {
 		case <-proc.Closing():
+			logger.Info("exit runPush process")
 			return
 		case msg := <-m.msgChan:
 			m.pushMessage(msg)
@@ -40,6 +41,7 @@ func (m *OrderMgr) runCheck(proc goprocess.Process) {
 	for {
 		select {
 		case <-proc.Closing():
+			logger.Info("exit runCheck process")
 			return
 		case <-ticker.C:
 			go m.checkBalance()
