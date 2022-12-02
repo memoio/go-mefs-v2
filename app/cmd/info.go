@@ -282,6 +282,12 @@ var infoCmd = &cli.Command{
 			fmt.Println("OnChain Size:", types.FormatBytes(pi.OnChainSize))
 			fmt.Println("Need Pay:", types.FormatMemo(pi.NeedPay))
 			fmt.Println("Paid:", types.FormatMemo(pi.Paid))
+
+			fsbal := new(big.Int).Add(bi.LockValue, bi.FsValue) // fs中可用余额
+			fsbal.Add(fsbal, bi.ErcValue)                     // 加上账户可充值到fs中的余额
+			if pi.NeedPay.Cmp(fsbal) > 0 {
+				fmt.Println(ansi.Color("Memo balance is not enough to pay and at least "+ types.FormatMemo(fsbal.Sub(pi.NeedPay, fsbal)) + " is still required", "red"))
+			}
 		case pb.RoleInfo_Provider:
 			papi, closer, err := client.NewProviderNode(cctx.Context, addr, headers)
 			if err != nil {
