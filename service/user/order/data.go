@@ -749,6 +749,7 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 	for {
 		select {
 		case <-m.ctx.Done():
+			logger.Info("exit send data")
 			return
 		default:
 			if o.inStop {
