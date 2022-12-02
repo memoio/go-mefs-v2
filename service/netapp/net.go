@@ -136,6 +136,7 @@ func (c *NetServiceImpl) API() *netServiceAPI {
 }
 
 func (c *NetServiceImpl) Stop() error {
+	logger.Info("stop net service handler")
 	// stop handle
 	c.MsgHandle.Close()
 	// close all topic

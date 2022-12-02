@@ -146,6 +146,10 @@ func (n *BaseNode) Ready(ctx context.Context) bool {
 }
 
 func (n *BaseNode) Stop(ctx context.Context) error {
+	if n.isProxy && n.ClientCloser != nil {
+		n.ClientCloser()
+	}
+
 	// stop handle msg
 	n.NetServiceImpl.Stop()
 
@@ -158,10 +162,6 @@ func (n *BaseNode) Stop(ctx context.Context) error {
 	err := n.Repo.Close()
 	if err != nil {
 		logger.Errorf("error closing repo: %s", err)
-	}
-
-	if n.isProxy && n.ClientCloser != nil {
-		n.ClientCloser()
 	}
 
 	logger.Info("stopping memoriae node :(")
