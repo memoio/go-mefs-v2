@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jbenet/goprocess"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/code"
@@ -19,11 +18,10 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (m *OrderMgr) runPush(proc goprocess.Process) {
+func (m *OrderMgr) runPush() {
 	for {
 		select {
-		case <-proc.Closing():
-			logger.Info("exit runPush process")
+		case <-m.ctx.Done():
 			return
 		case msg := <-m.msgChan:
 			m.pushMessage(msg)
@@ -31,7 +29,7 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 	}
 }
 
-func (m *OrderMgr) runCheck(proc goprocess.Process) {
+func (m *OrderMgr) runCheck() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -40,8 +38,7 @@ func (m *OrderMgr) runCheck(proc goprocess.Process) {
 
 	for {
 		select {
-		case <-proc.Closing():
-			logger.Info("exit runCheck process")
+		case <-m.ctx.Done():
 			return
 		case <-ticker.C:
 			go m.checkBalance()

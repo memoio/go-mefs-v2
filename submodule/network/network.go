@@ -217,6 +217,7 @@ func (ns *NetworkSubmodule) API() *networkAPI {
 }
 
 func (ns *NetworkSubmodule) Stop(ctx context.Context) {
+	logger.Info("stop network...")
 	err := ns.Host.Close()
 	if err != nil {
 		logger.Errorf("error closing host: %s", err)

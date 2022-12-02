@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jbenet/goprocess"
-	goprocessctx "github.com/jbenet/goprocess/context"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -36,7 +34,6 @@ type OrderMgr struct {
 
 	lk      sync.RWMutex
 	ctx     context.Context
-	proc    goprocess.Process
 	sendCtr *semaphore.Weighted
 
 	localID uint64
@@ -95,6 +92,8 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 	}
 
 	om := &OrderMgr{
+		ctx: ctx,
+
 		IRole:        ir,
 		IDataService: id,
 		IChainPush:   pp,
@@ -148,9 +147,6 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 		msgChan: make(chan *tx.Message, 128),
 	}
 
-	om.proc = goprocessctx.WithContext(ctx)
-	om.ctx = goprocessctx.WithProcessClosing(ctx, om.proc)
-
 	logger.Info("create order manager")
 
 	return om
@@ -161,12 +157,12 @@ func (m *OrderMgr) Start() {
 
 	m.ready = true
 
-	m.proc.Go(m.runProSched)
-	m.proc.Go(m.runSegSched)
-	m.proc.Go(m.runSched)
+	go m.runProSched()
+	go m.runSegSched()
+	go m.runSched()
 
-	m.proc.Go(m.runPush)
-	m.proc.Go(m.runCheck)
+	go m.runPush()
+	go m.runCheck()
 
 	go m.dispatch()
 }
@@ -174,9 +170,8 @@ func (m *OrderMgr) Start() {
 func (m *OrderMgr) Stop() {
 	logger.Info("stop order manager")
 	m.lk.Lock()
+	defer m.lk.Unlock()
 	m.ready = false
-	m.lk.Unlock()
-	m.proc.Close()
 }
 
 func (m *OrderMgr) load() error {
@@ -242,12 +237,11 @@ func (m *OrderMgr) addPros() {
 	}
 }
 
-func (m *OrderMgr) runSegSched(proc goprocess.Process) {
+func (m *OrderMgr) runSegSched() {
 	for {
 		// handle data
 		select {
-		case <-proc.Closing():
-			logger.Info("exit runSegSched process")
+		case <-m.ctx.Done():
 			return
 		case sj := <-m.segAddChan:
 			m.addSegJob(sj)
@@ -264,7 +258,7 @@ func (m *OrderMgr) runSegSched(proc goprocess.Process) {
 }
 
 // add and update pro
-func (m *OrderMgr) runProSched(proc goprocess.Process) {
+func (m *OrderMgr) runProSched() {
 	lt := time.NewTicker(5 * time.Minute)
 	defer lt.Stop()
 
@@ -335,14 +329,13 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 			}
 
 			m.save()
-		case <-proc.Closing():
-			logger.Info("exit runProSched process")
+		case <-m.ctx.Done():
 			return
 		}
 	}
 }
 
-func (m *OrderMgr) runSched(proc goprocess.Process) {
+func (m *OrderMgr) runSched() {
 	st := time.NewTicker(59 * time.Second)
 	defer st.Stop()
 
@@ -413,8 +406,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 					of.location = string(ri.GetDesc())
 				}
 			}
-		case <-proc.Closing():
-			logger.Info("exit runSched process")
+		case <-m.ctx.Done():
 			return
 		}
 	}
