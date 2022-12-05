@@ -6,7 +6,7 @@ var CurrentCommit string
 const ApiVersion = 2
 
 // BuildVersion is the local build version, set by build system
-const BuildVersion = "2.5.10.1002"
+const BuildVersion = "2.5.11"
 
 func UserVersion() string {
 	return BuildVersion + CurrentCommit
