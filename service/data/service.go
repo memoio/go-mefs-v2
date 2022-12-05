@@ -103,7 +103,8 @@ func (d *dataService) SendSegmentByID(ctx context.Context, sid segment.SegmentID
 	// load segment from local
 	seg, err := d.GetSegmentFromLocal(ctx, sid)
 	if err != nil {
-		return err
+		// only no such or all err?
+		return xerrors.Errorf("missing chunk %s", err)
 	}
 
 	return d.SendSegment(ctx, seg, to)

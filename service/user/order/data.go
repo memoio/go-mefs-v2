@@ -811,6 +811,17 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				m.sendCtr.Release(1)
 				logger.Debug("send segment fail: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
 
+				// local has no such block, so skip it
+				if strings.Contains(err.Error(), "missing chunk") {
+					o.Lock()
+					bjob = o.jobs[bid]
+					bjob.jobs = bjob.jobs[1:]
+					o.inflight = false
+					o.Unlock()
+
+					continue
+				}
+
 				if strings.Contains(err.Error(), "already has seg") {
 					o.Lock()
 					bjob = o.jobs[bid]
