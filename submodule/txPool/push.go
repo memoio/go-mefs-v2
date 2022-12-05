@@ -15,6 +15,7 @@ import (
 )
 
 type msgTo struct {
+	ctime time.Time
 	mtime time.Time
 	msgID types.MsgID
 	msg   *tx.SignedMessage
@@ -35,6 +36,7 @@ type PushPool struct {
 
 	ctx context.Context
 
+	localID uint64
 	locals  []uint64
 	pending map[uint64]*pendingMsg
 
@@ -55,18 +57,18 @@ func NewPushPool(ctx context.Context, sp *SyncPool) *PushPool {
 		ready:   false,
 	}
 
+	pri, err := sp.RoleSelf(ctx)
+	if err == nil {
+		pp.localID = pri.RoleID
+	}
+
 	return pp
 }
 
 func (pp *PushPool) Start() {
-	pp.SyncPool.Start()
-
+	pp.SyncPool.start()
 	logger.Debug("start push pool")
 	go pp.syncPush()
-}
-
-func (pp *PushPool) Ready() bool {
-	return pp.ready
 }
 
 func (pp *PushPool) syncPush() {
@@ -74,17 +76,18 @@ func (pp *PushPool) syncPush() {
 	defer tc.Stop()
 
 	for {
-		ok := pp.GetSyncStatus(pp.ctx)
-		if ok {
-			break
-		}
+		time.Sleep(10 * time.Second)
 
 		si, err := pp.SyncGetInfo(pp.ctx)
 		if err != nil {
 			continue
 		}
-		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, pp.SyncPool.ready)
-		time.Sleep(5 * time.Second)
+
+		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+		if si.SyncedHeight == si.RemoteHeight && si.Status {
+			logger.Info("sync complete; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+			break
+		}
 	}
 
 	// need load pending msgs?
@@ -92,7 +95,7 @@ func (pp *PushPool) syncPush() {
 	pp.ready = true
 	pp.inPush = true
 
-	logger.Debug("pool is ready")
+	logger.Debug("push pool is ready")
 
 	for {
 		select {
@@ -135,6 +138,20 @@ func (pp *PushPool) syncPush() {
 							delete(lpending.msgto, nc)
 							continue
 						}
+
+						if time.Since(pmsg.ctime) > time.Hour {
+							// remove it
+							delete(lpending.msgto, nc)
+							continue
+						}
+
+						// not re-pub mes
+						if nc != pp.localID {
+							pp.INetService.PublishTxMsg(pp.ctx, pmsg.msg)
+							pmsg.mtime = time.Now()
+							continue
+						}
+
 						if time.Since(pmsg.mtime) > 10*time.Minute {
 							origID := pmsg.msgID
 
@@ -181,7 +198,11 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 
 	lp, ok := pp.pending[mes.From]
 	if !ok {
-		cNonce := pp.StateGetNonce(pp.ctx, mes.From)
+		cNonce, err := pp.StateGetNonce(pp.ctx, mes.From)
+		if err != nil {
+			pp.lk.Unlock()
+			return types.MsgID{}, err
+		}
 		lp = &pendingMsg{
 			chainNonce: cNonce,
 			nonce:      cNonce,
@@ -231,7 +252,11 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	pp.lk.Lock()
 	lp, ok := pp.pending[sm.From]
 	if !ok {
-		cNonce := pp.StateGetNonce(pp.ctx, sm.From)
+		cNonce, err := pp.StateGetNonce(pp.ctx, sm.From)
+		if err != nil {
+			pp.lk.Unlock()
+			return mid, err
+		}
 		lp = &pendingMsg{
 			chainNonce: cNonce,
 			nonce:      cNonce,
@@ -242,12 +267,19 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 
 	// verify nonce
 	if sm.Nonce < lp.chainNonce {
-		return mid, xerrors.Errorf("%d nonce should be no less than %d, got %d", sm.From, lp.chainNonce, sm.Nonce)
+		return mid, xerrors.Errorf("%d nonce should be no less than chain nonde %d, got %d", sm.From, lp.chainNonce, sm.Nonce)
+	}
+
+	if sm.Nonce == lp.nonce {
+		lp.nonce++
+	} else if sm.Nonce > lp.nonce {
+		return mid, xerrors.Errorf("%d nonce should be no larger than %d, got %d", sm.From, lp.nonce, sm.Nonce)
 	}
 
 	// replace it; if exist
-	// todo: compare GasPrice?
+	// TODO compare GasPrice?
 	lp.msgto[sm.Nonce] = &msgTo{
+		ctime: time.Now(),
 		mtime: time.Now(),
 		msg:   sm,
 		msgID: mid,
@@ -282,14 +314,27 @@ func (pp *PushPool) ReplaceMsg(mes *tx.Message) error {
 	return nil
 }
 
-func (pp *PushPool) PushGetPendingNonce(ctx context.Context, id uint64) uint64 {
-	pp.lk.RLock()
-	defer pp.lk.RUnlock()
+func (pp *PushPool) PushGetPendingNonce(ctx context.Context, id uint64) (uint64, error) {
+	pp.lk.Lock()
+	defer pp.lk.Unlock()
 	lp, ok := pp.pending[id]
 	if ok {
-		return lp.nonce
+		return lp.nonce, nil
 	}
-	return 0
+
+	cNonce, err := pp.StateGetNonce(pp.ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	lp = &pendingMsg{
+		chainNonce: cNonce,
+		nonce:      cNonce,
+		msgto:      make(map[uint64]*msgTo),
+	}
+	pp.locals = append(pp.locals, id)
+	pp.pending[id] = lp
+
+	return cNonce, nil
 }
 
 func (pp *PushPool) GetPendingMsg(ctx context.Context, id uint64) []types.MsgID {

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -45,7 +46,7 @@ type SyncPool struct {
 
 	blks map[uint64]types.MsgID // key: height
 
-	ready bool
+	ready bool // whether received new block
 
 	msgDone chan *blkDigest
 	inPush  bool
@@ -78,34 +79,26 @@ func NewSyncPool(ctx context.Context, groupID uint64, thre int, st *state.StateM
 		blkDone: make(chan *blkDigest, 64),
 	}
 
-	sp.load()
-
 	return sp
 }
 
-func (sp *SyncPool) Start() {
+func (sp *SyncPool) start() {
 	logger.Debug("start sync pool")
-	go sp.syncBlock()
+	sp.load()
+	go sp.receiveBlock()
 	go sp.handleBlock()
 }
 
-func (sp *SyncPool) SetReady() {
-	sp.lk.Lock()
-	sp.ready = true
-	sp.lk.Unlock()
-}
-
 func (sp *SyncPool) load() {
-	// todo: handle case if msglen > 0
 	ht := sp.GetHeight(sp.ctx)
 	sp.nextHeight = ht
 	sp.remoteHeight = ht
 
-	logger.Debug("block synced to: ", sp.nextHeight)
+	logger.Info("block synced to: ", ht)
 }
 
 // far behind
-func (sp *SyncPool) syncBlock() {
+func (sp *SyncPool) receiveBlock() {
 	tc := time.NewTicker(10 * time.Second)
 	defer tc.Stop()
 
@@ -329,20 +322,12 @@ func (sp *SyncPool) processTxBlock(sb *tx.SignedBlock) error {
 	return nil
 }
 
-func (sp *SyncPool) GetSyncStatus(ctx context.Context) bool {
-	sp.lk.RLock()
-	defer sp.lk.RUnlock()
-	if sp.nextHeight == sp.remoteHeight && sp.ready {
-		return true
-	}
-	return false
-}
-
 func (sp *SyncPool) SyncGetInfo(ctx context.Context) (*api.SyncInfo, error) {
 	sp.lk.RLock()
 	defer sp.lk.RUnlock()
 	si := &api.SyncInfo{
 		Status:       sp.ready,
+		Version:      build.ApiVersion,
 		SyncedHeight: sp.nextHeight,
 		RemoteHeight: sp.remoteHeight,
 	}
@@ -354,13 +339,15 @@ func (sp *SyncPool) SyncGetTxMsgStatus(ctx context.Context, mid types.MsgID) (*t
 	return sp.Store.GetTxMsgState(mid)
 }
 
-func (sp *SyncPool) AddTxBlock(tb *tx.SignedBlock) error {
+func (sp *SyncPool) SyncAddTxBlock(ctx context.Context, tb *tx.SignedBlock) error {
 	logger.Debug("add block: ", tb.Height, sp.nextHeight, sp.remoteHeight)
 	if tb.Height < sp.nextHeight {
 		return xerrors.Errorf("height expected %d, got %d", sp.nextHeight, tb.Height)
 	}
 
-	sp.SetReady()
+	if tb.Height >= sp.remoteHeight {
+		sp.ready = true
+	}
 
 	bid := tb.Hash()
 	has, _ := sp.HasTxBlock(bid)
@@ -471,7 +458,7 @@ func (sp *SyncPool) getTxBlockRemote(bid types.MsgID) (*tx.SignedBlock, error) {
 
 	logger.Debugf("get block id %s at height %d remote", bid, tb.Height)
 
-	return tb, sp.AddTxBlock(tb)
+	return tb, sp.SyncAddTxBlock(sp.ctx, tb)
 }
 
 func (sp *SyncPool) getTxBlockByHeight(ht uint64) {
@@ -504,8 +491,11 @@ func (sp *SyncPool) getTxBlockByHeight(ht uint64) {
 	}
 }
 
-func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
-	nonce := sp.StateGetNonce(sp.ctx, msg.From)
+func (sp *SyncPool) SyncAddTxMessage(ctx context.Context, msg *tx.SignedMessage) error {
+	nonce, err := sp.StateGetNonce(sp.ctx, msg.From)
+	if err != nil {
+		return err
+	}
 	if msg.Nonce < nonce {
 		return xerrors.Errorf("%d nonce expected no less than %d, got %d", msg.From, nonce, msg.Nonce)
 	}
@@ -523,10 +513,10 @@ func (sp *SyncPool) AddTxMsg(ctx context.Context, msg *tx.SignedMessage) error {
 			return xerrors.Errorf("msg is invalid")
 		}
 
+		// TODO: verify message use state, need?
 		ok, err := sp.RoleVerify(ctx, msg.From, mid.Bytes(), msg.Signature)
 		if err != nil {
-			logger.Debug("add tx msg: ", msg.From, mid, err)
-			return err
+			return xerrors.Errorf("%d %d tx msg %s sign verify err %s", msg.From, msg.Nonce, mid, err)
 		}
 
 		if !ok {

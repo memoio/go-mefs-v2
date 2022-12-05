@@ -285,7 +285,6 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 				Payload: payload,
 			}
 
-			// todo: add used bytes
 			bucket.Length += uint64(dp.stripeSize * stripeCount)
 			bucket.UsedBytes += usedBytes
 
@@ -323,7 +322,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 
 	sizeReceived := 0
 
-	// todo: parallel download stripe
+	// TODO: parallel download stripe
 	breakFlag := false
 	for !breakFlag {
 		select {

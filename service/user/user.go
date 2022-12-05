@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/gorilla/mux"
@@ -15,7 +14,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/service/data"
@@ -87,7 +85,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	oc := bn.Repo.Config().Order
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn.PushPool, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ISettle)
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ISettle)
 
 	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
 	if err != nil {
@@ -101,31 +99,23 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		ctx:          ctx,
 	}
 
-	un.RegisterAddSeqFunc(om.AddOrderSeq)
-	un.RegisterDelSegFunc(om.RemoveSeg)
-
 	return un, nil
 }
 
 // start service related
 func (u *UserNode) Start(perm bool) error {
 	u.Perm = perm
-	if u.Repo.Config().Net.Name == "test" {
-		go u.OpenTest()
-	} else {
-		u.RoleMgr.Start()
+
+	u.RoleType = "user"
+
+	u.HttpHandle.PathPrefix("/gateway").HandlerFunc(u.ServeRemote())
+
+	err := u.BaseNode.StartLocal()
+	if err != nil {
+		return err
 	}
 
 	// register net msg handle
-	u.GenericService.Register(pb.NetMessage_SayHello, u.DefaultHandler)
-	u.GenericService.Register(pb.NetMessage_Get, u.HandleGet)
-
-	u.TxMsgHandle.Register(u.BaseNode.TxMsgHandler)
-	u.BlockHandle.Register(u.BaseNode.TxBlockHandler)
-
-	u.HttpHandle.PathPrefix("/gateway").HandlerFunc(u.ServeRemote(u.Perm))
-	u.HttpHandle.Handle("/debug/metrics", metrics.NewExporter())
-	u.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	if u.Perm {
 		u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))
@@ -135,15 +125,7 @@ func (u *UserNode) Start(perm bool) error {
 
 	go func() {
 		// wait for sync
-		u.PushPool.Start()
-		for {
-			if u.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				time.Sleep(5 * time.Second)
-			}
-		}
+		u.BaseNode.WaitForSync()
 
 		// wait for register
 		err := u.Register()
@@ -170,9 +152,9 @@ func (u *UserNode) Ready(ctx context.Context) bool {
 	return u.ready
 }
 
-func (u *UserNode) ServeRemote(perm bool) func(w http.ResponseWriter, r *http.Request) {
+func (u *UserNode) ServeRemote() func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if perm {
+		if u.Perm {
 			if !auth.HasPerm(r.Context(), nil, api.PermAdmin) {
 				w.WriteHeader(401)
 				_ = json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})

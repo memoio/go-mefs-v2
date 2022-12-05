@@ -217,6 +217,7 @@ func (ns *NetworkSubmodule) API() *networkAPI {
 }
 
 func (ns *NetworkSubmodule) Stop(ctx context.Context) {
+	logger.Info("stop network...")
 	err := ns.Host.Close()
 	if err != nil {
 		logger.Errorf("error closing host: %s", err)
@@ -252,7 +253,6 @@ func (ns *NetworkSubmodule) NetConnectedness(ctx context.Context, pid peer.ID) (
 	return ns.Host.Network().Connectedness(pid), nil
 }
 
-// todo: add connect relay
 func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) error {
 	if ns.Host.Network().Connectedness(pai.ID) == network.Connected {
 		return nil

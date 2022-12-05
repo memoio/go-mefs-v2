@@ -11,6 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/api/httpio"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/address"
@@ -45,7 +46,7 @@ type Builder struct {
 }
 
 // construct build ops from repo
-// todo: move some ops here
+// TODO: move some ops here
 func OptionsFromRepo(r repo.Repo) ([]BuilderOpt, error) {
 	_, sk, err := network.GetSelfNetKey(r.KeyStore())
 	if err != nil {
@@ -299,7 +300,35 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	sp := txPool.NewSyncPool(ctx, b.groupID, nd.SettleGetThreshold(ctx), stDB, txs, cs)
 
 	// push pool
-	nd.PushPool = txPool.NewPushPool(ctx, sp)
+	nd.LPP = txPool.NewPushPool(ctx, sp)
+
+	if nd.Config().Sync.API != "" && nd.Config().Sync.Token != "" {
+		addr, header, err := client.CreateMemoClientInfo(nd.Config().Sync.API, nd.Config().Sync.Token)
+		if err != nil {
+			return nd, err
+		}
+
+		nodeapi, closer, err := client.NewGenericNode(nd.ctx, addr, header)
+		if err != nil {
+			return nd, err
+		}
+
+		si, err := nodeapi.SyncGetInfo(nd.ctx)
+		if err != nil {
+			return nd, err
+		}
+
+		if si.Version != build.ApiVersion {
+			return nil, xerrors.Errorf("api version not equal, need %d, got %d", build.ApiVersion, si.Version)
+		}
+
+		nd.isProxy = true
+		nd.IChainSync = nodeapi
+		nd.ClientCloser = closer
+		nd.rcp = nodeapi
+	} else {
+		nd.IChainSync = nd.LPP
+	}
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
 

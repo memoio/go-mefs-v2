@@ -17,7 +17,7 @@ const (
 	MsgIDHashLen  = 20
 	MsgLen        = 22
 
-	// todo add type for content
+	// TODO add type for content
 )
 
 func init() {

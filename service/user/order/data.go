@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,8 +27,8 @@ type lastProsPerBucket struct {
 	deleted  []uint64 // add del pro here
 }
 
-// todo: change pro when quotation price is too high
-// todo: fix order duplicated due to pro change
+// TODO: change pro when quotation price is too high
+// TODO: fix order duplicated due to pro change
 
 func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
 	logger.Info("register order for bucket: ", bucketID, nextOpID)
@@ -454,7 +455,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 
 	time.Sleep(30 * time.Second)
 
-	// todo
+	// TODO: from begin
 	opckey := store.NewKey(pb.MetaType_LFS_OpCountKey, m.localID, bucketID)
 	opDoneCount := uint64(0)
 	val, err := m.ds.Get(opckey)
@@ -744,12 +745,12 @@ func (o *OrderFull) addSeg(sj *types.SegJob) error {
 	return nil
 }
 
-// todo: add parallel control here; goprocess
 func (m *OrderMgr) sendData(o *OrderFull) {
 	i := 0
 	for {
 		select {
 		case <-m.ctx.Done():
+			logger.Info("exit send data")
 			return
 		default:
 			if o.inStop {
@@ -810,13 +811,35 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				m.sendCtr.Release(1)
 				logger.Debug("send segment fail: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
 
+				// local has no such block, so skip it
+				if strings.Contains(err.Error(), "missing chunk") {
+					o.Lock()
+					bjob = o.jobs[bid]
+					bjob.jobs = bjob.jobs[1:]
+					o.inflight = false
+					o.Unlock()
+
+					continue
+				}
+
+				if strings.Contains(err.Error(), "already has seg") {
+					o.Lock()
+					bjob = o.jobs[bid]
+					bjob.jobs = bjob.jobs[1:]
+					o.inflight = false
+					o.Unlock()
+
+					continue
+				}
+
 				// weather has been sent
-				key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
-				has, err := m.ds.Has(key)
-				if err != nil || !has {
+				_, err := o.GetSegmentLocation(o.ctx, sid)
+				if err != nil {
 					o.Lock()
 					o.inflight = false
 					o.Unlock()
+
+					time.Sleep(10 * time.Second)
 				} else {
 					// has sent
 					o.Lock()
@@ -826,8 +849,6 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					o.Unlock()
 					m.segDoneChan <- sj
 				}
-
-				time.Sleep(10 * time.Second)
 
 				continue
 			}

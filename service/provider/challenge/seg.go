@@ -3,6 +3,7 @@ package challenge
 import (
 	"context"
 	"encoding/binary"
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -18,13 +19,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 type SegMgr struct {
 	sync.RWMutex
 
-	*txPool.PushPool
+	api.IChainPush
 
 	api.IDataService
 
@@ -45,9 +45,9 @@ type SegMgr struct {
 	inRemove bool
 }
 
-func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDataService, pp *txPool.PushPool) *SegMgr {
+func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDataService, pp api.IChainPush) *SegMgr {
 	s := &SegMgr{
-		PushPool:     pp,
+		IChainPush:   pp,
 		IDataService: is,
 		ctx:          ctx,
 		localID:      localID,
@@ -61,36 +61,70 @@ func NewSegMgr(ctx context.Context, localID uint64, ds store.KVStore, is api.IDa
 	return s
 }
 
-func (s *SegMgr) Start() {
-	s.load()
+func (s *SegMgr) Start() error {
+	go s.load()
+
+	si, err := s.StateGetInfo(s.ctx)
+	if err != nil {
+		return err
+	}
+
+	s.epoch = si.Epoch
+
+	se, err := s.StateGetChalEpochInfo(s.ctx)
+	if err != nil {
+		return err
+	}
+
+	s.eInfo = se
+
 	go s.regularChallenge()
 	go s.regularRemove()
+
+	return nil
 }
 
-// load from state
+// load from state per hour
 func (s *SegMgr) load() {
-	users := s.StateGetUsersAt(s.ctx, s.localID)
-	for _, pid := range users {
-		s.loadFs(pid)
-	}
-}
-
-func (s *SegMgr) AddUP(userID, proID uint64) {
-	if proID != s.localID {
-		return
+	users, err := s.StateGetUsersAt(s.ctx, s.localID)
+	if err == nil {
+		for _, pid := range users {
+			s.loadFs(pid)
+		}
 	}
 
-	logger.Debugf("add user %d for pro %d", userID, proID)
+	tc := time.NewTicker(60 * time.Minute)
+	defer tc.Stop()
 
-	go s.loadFs(userID)
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-tc.C:
+			users, err := s.StateGetUsersAt(s.ctx, s.localID)
+			if err != nil {
+				continue
+			}
+			for _, pid := range users {
+				s.loadFs(pid)
+			}
+		}
+	}
 }
 
 func (s *SegMgr) loadFs(userID uint64) *segInfo {
+	s.RLock()
 	si, ok := s.sInfo[userID]
+	s.RUnlock()
 	if !ok {
-		pk, err := s.StateGetPDPPublicKey(s.ctx, userID)
+		data, err := s.StateGetPDPPublicKey(s.ctx, userID)
 		if err != nil {
 			logger.Debug("challenge not get fs")
+			return nil
+		}
+
+		pk, err := pdp.DeserializePublicKey(data)
+		if err != nil {
 			return nil
 		}
 
@@ -101,8 +135,13 @@ func (s *SegMgr) loadFs(userID uint64) *segInfo {
 			fsID: pk.VerifyKey().Hash(),
 		}
 
-		s.users = append(s.users, userID)
-		s.sInfo[userID] = si
+		s.Lock()
+		_, ok := s.sInfo[userID]
+		if !ok {
+			s.users = append(s.users, userID)
+			s.sInfo[userID] = si
+		}
+		s.Unlock()
 	}
 
 	return si
@@ -111,9 +150,6 @@ func (s *SegMgr) loadFs(userID uint64) *segInfo {
 func (s *SegMgr) regularChallenge() {
 	tc := time.NewTicker(time.Minute)
 	defer tc.Stop()
-
-	s.epoch = s.GetChalEpoch(s.ctx)
-	s.eInfo, _ = s.StateGetChalEpochInfo(s.ctx)
 
 	i := 0
 	for {
@@ -132,8 +168,19 @@ func (s *SegMgr) regularChallenge() {
 			si.wait = false
 			si.nextChal++
 		case <-tc.C:
-			s.epoch = s.GetChalEpoch(s.ctx)
-			s.eInfo, _ = s.StateGetChalEpochInfo(s.ctx)
+			si, err := s.StateGetInfo(s.ctx)
+			if err != nil {
+				continue
+			}
+
+			s.epoch = si.Epoch
+
+			se, err := s.StateGetChalEpochInfo(s.ctx)
+			if err != nil {
+				continue
+			}
+
+			s.eInfo = se
 			logger.Debug("challenge update epoch: ", s.eInfo.Epoch, s.epoch)
 		default:
 			if len(s.users) == 0 {
@@ -177,7 +224,10 @@ func (s *SegMgr) removeExpiredChunk() {
 		s.inRemove = false
 	}()
 
-	users := s.StateGetUsersAt(s.ctx, s.localID)
+	users, err := s.StateGetUsersAt(s.ctx, s.localID)
+	if err != nil {
+		return
+	}
 	for _, userID := range users {
 		subNonce := uint64(0)
 		key := store.NewKey(pb.MetaType_OrderExpiredKey, userID, s.localID)
@@ -186,16 +236,18 @@ func (s *SegMgr) removeExpiredChunk() {
 			subNonce = binary.BigEndian.Uint64(val)
 		}
 
-		ns := s.StateGetOrderState(s.ctx, userID, s.localID)
-
+		ns, err := s.StateGetOrderNonce(s.ctx, userID, s.localID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 		for i := subNonce; i < ns.SubNonce; i++ {
 			s.removeSegInExpiredOrder(userID, i)
 		}
 	}
 }
 
-// todo: add repair after check before challenge
-// todo: should cancle when epoch passed
+// TODO: add repair after check before challenge
+// TODO: should cancle when epoch passed
 func (s *SegMgr) challenge(userID uint64) {
 	logger.Debug("challenge for user: ", userID)
 	if s.epoch < 2 {
@@ -218,12 +270,16 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	if s.GetProof(userID, s.localID, si.nextChal) {
+	proved, err := s.StateGetProofEpoch(s.ctx, userID, s.localID)
+	if err != nil {
+		return
+	}
+	if proved > si.nextChal {
 		logger.Debug("challenge has done: ", userID, si.nextChal)
 		return
 	}
 
-	err := s.subDataOrder(userID)
+	err = s.subDataOrder(userID)
 	if err != nil {
 		logger.Debug("challenge sub order fails", err)
 	}
@@ -236,9 +292,14 @@ func (s *SegMgr) challenge(userID uint64) {
 	copy(buf[8:], s.eInfo.Seed.Bytes())
 	bh := blake3.Sum256(buf)
 
-	pk, err := s.StateGetPDPPublicKey(s.ctx, userID)
+	pkData, err := s.StateGetPDPPublicKey(s.ctx, userID)
 	if err != nil {
 		logger.Debug("challenge not get fs")
+		return
+	}
+
+	pk, err := pdp.DeserializePublicKey(pkData)
+	if err != nil {
 		return
 	}
 
@@ -263,7 +324,10 @@ func (s *SegMgr) challenge(userID uint64) {
 	cnt := uint64(0)
 
 	// challenge routine
-	ns := s.GetOrderStateAt(userID, s.localID, si.nextChal)
+	ns, err := s.StateGetOrderNonce(s.ctx, userID, s.localID, si.nextChal)
+	if err != nil {
+		return
+	}
 	if ns.Nonce == 0 && ns.SeqNum == 0 {
 		logger.Debug("challenge on empty data at epoch: ", userID, si.nextChal)
 		si.nextChal++
@@ -364,6 +428,7 @@ func (s *SegMgr) challenge(userID uint64) {
 								Length:   1,
 								ChunkID:  seg.ChunkID,
 							})
+							s.DeleteSegment(s.ctx, sid)
 							continue
 						}
 						// backgroup read limit
@@ -415,7 +480,7 @@ func (s *SegMgr) challenge(userID uint64) {
 	}
 
 	if ns.Nonce > 0 {
-		// todo: choose some from [0, ns.Nonce)
+		// TODO: choose some from [0, ns.Nonce)
 		for i := ns.SubNonce; i < ns.Nonce; i++ {
 			so, err := s.StateGetOrder(s.ctx, userID, s.localID, i)
 			if err != nil {

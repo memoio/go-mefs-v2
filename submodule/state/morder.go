@@ -31,7 +31,6 @@ import (
 // for chal pay
 // key: pb.MetaType_ST_OrderDuration/userID/proID; val: order durations;
 
-// todo: add commit order
 // key: pb.MetaType_ST_OrderCommit/userID/proID; val: order nonce;
 
 func (s *StateMgr) loadOrder(userID, proID uint64) *orderInfo {
@@ -129,7 +128,6 @@ func (s *StateMgr) createOrder(msg *tx.Message) error {
 		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
 	}
 
-	// todo: verify sign
 	uri, ok := s.rInfo[or.UserID]
 	if !ok {
 		uri = s.loadRole(or.UserID)
@@ -249,10 +247,6 @@ func (s *StateMgr) createOrder(msg *tx.Message) error {
 			return err
 		}
 
-		// callback for user-pro relation
-		if s.handleAddUP != nil {
-			s.handleAddUP(okey.userID, okey.proID)
-		}
 	}
 
 	return nil
@@ -282,7 +276,6 @@ func (s *StateMgr) canCreateOrder(msg *tx.Message) error {
 		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, or.UserID)
 	}
 
-	// todo: verify sign
 	uri, ok := s.validateRInfo[or.UserID]
 	if !ok {
 		uri = s.loadRole(or.UserID)
@@ -362,7 +355,6 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 
 	sHash := so.Hash()
 
-	// todo: verify sign
 	uri, ok := s.rInfo[so.UserID]
 	if !ok {
 		uri = s.loadRole(so.UserID)
@@ -535,11 +527,6 @@ func (s *StateMgr) addSeq(msg *tx.Message) error {
 		return err
 	}
 
-	// callback for add segmap and delete data in user
-	if s.handleAddSeq != nil {
-		s.handleAddSeq(so.OrderSeq)
-	}
-
 	return nil
 }
 
@@ -558,10 +545,8 @@ func (s *StateMgr) canAddSeq(msg *tx.Message) error {
 		return xerrors.Errorf("wrong user expected %d, got %d", msg.From, so.UserID)
 	}
 
-	// todo: verify sign
 	sHash := so.Hash()
 
-	// todo: verify sign
 	uri, ok := s.validateRInfo[so.UserID]
 	if !ok {
 		uri = s.loadRole(so.UserID)
@@ -843,10 +828,6 @@ func (s *StateMgr) removeSeg(msg *tx.Message) error {
 		return err
 	}
 
-	if s.handleDelSeg != nil {
-		s.handleDelSeg(so)
-	}
-
 	return nil
 }
 
@@ -942,7 +923,6 @@ func (s *StateMgr) commitOrder(msg *tx.Message) error {
 	oinfo.ns.Nonce++
 	oinfo.ns.SeqNum = 0
 	oinfo.accFr = bls.ZERO
-	tmp := *oinfo.base
 	oinfo.base = nil
 
 	// save state
@@ -960,10 +940,6 @@ func (s *StateMgr) commitOrder(msg *tx.Message) error {
 	err = s.put(key, data)
 	if err != nil {
 		return err
-	}
-
-	if s.handleCommitOrder != nil {
-		s.handleCommitOrder(tmp)
 	}
 
 	return nil
@@ -1010,7 +986,6 @@ func (s *StateMgr) canCommitOrder(msg *tx.Message) error {
 	return nil
 }
 
-// todo: add subOrder when order is expired
 func (s *StateMgr) subOrder(msg *tx.Message) error {
 	osp := new(tx.OrderSubParas)
 	err := osp.Deserialize(msg.Params)

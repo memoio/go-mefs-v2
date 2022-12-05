@@ -12,21 +12,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 var logger = logging.Logger("data-state")
 
-type HanderAddRoleFunc func(roleID uint64, typ pb.RoleInfo_Type)
-type HandleAddUserFunc func(userID uint64)
-type HandleAddUPFunc func(userID, proID uint64)
-type HandleAddPayFunc func(userID, proID, epoch uint64, pay, penaly *big.Int)
-type HandleAddSeqFunc func(types.OrderSeq)
-type HandleDelSegFunc func(*tx.SegRemoveParas)
-type HandleCommitOrderFunc func(types.SignedOrder)
-
-// todo: add msg fee here
+// TODO: add msg fee here
 type roleInfo struct {
 	base *pb.RoleInfo
 	val  *roleValue
