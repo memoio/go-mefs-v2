@@ -94,7 +94,7 @@ type OrderFull struct {
 }
 
 func (m *OrderMgr) runCheck() {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
 	m.check()

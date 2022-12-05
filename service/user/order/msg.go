@@ -178,8 +178,8 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 
 					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To, seq.Nonce, seq.SeqNum)
 
-					m.updateSize(seq.OrderSeq)
 					m.ReplaceSegWithLoc(seq.OrderSeq)
+					m.updateSize(seq.OrderSeq)
 				default:
 				}
 			} else {
@@ -197,6 +197,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 		return err
 	}
 
+	logger.Debug("re-confirm jobs: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
 	key := store.NewKey(pb.MetaType_OrderSeqJobKey, of.localID, of.pro)
 	nData, err := m.ds.Get(key)
 	if err == nil {
@@ -211,13 +212,14 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 				}
 				seq := new(types.SignedOrderSeq)
 				err = seq.Deserialize(data)
-				if err == nil {
+				if err != nil {
 					return err
 				}
 
-				logger.Debug("confirm jobs in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
-				m.updateSize(seq.OrderSeq)
+				logger.Debug("re-confirm jobs in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+
 				m.ReplaceSegWithLoc(seq.OrderSeq)
+				m.updateSize(seq.OrderSeq)
 			}
 		}
 	}
@@ -425,6 +427,18 @@ func (m *OrderMgr) updateSize(seq types.OrderSeq) {
 	}
 	m.sizelk.Unlock()
 
+	key = store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID)
+	nData, err := m.ds.Get(key)
+	if err == nil {
+		nval := new(types.NonceSeq)
+		err = nval.Deserialize(nData)
+		if err == nil {
+			if seq.Nonce == nval.Nonce && seq.SeqNum == nval.SeqNum {
+				m.ds.Delete(key)
+			}
+		}
+	}
+
 	logger.Debug("confirm jobs: updateSize done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 }
 
@@ -449,18 +463,6 @@ func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
 			m.ds.Put(key, val)
 			// delete from local
 			m.DeleteSegment(m.ctx, sid)
-		}
-	}
-
-	key := store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID)
-	nData, err := m.ds.Get(key)
-	if err == nil {
-		nval := new(types.NonceSeq)
-		err = nval.Deserialize(nData)
-		if err == nil {
-			if seq.Nonce == nval.Nonce && seq.SeqNum == nval.SeqNum {
-				m.ds.Delete(key)
-			}
 		}
 	}
 
