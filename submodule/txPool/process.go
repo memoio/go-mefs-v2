@@ -2,6 +2,7 @@ package txPool
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -51,8 +52,8 @@ func NewInPool(ctx context.Context, localID uint64, sp *SyncPool) *InPool {
 }
 
 func (mp *InPool) Start() {
-	go mp.sync()
-	go mp.broadcast()
+	go mp.process()
+	go mp.rebroadcast()
 
 	// load latest block and publish if exist
 	// due to exit at not applying latest block
@@ -80,12 +81,33 @@ func (mp *InPool) Start() {
 		}
 	}
 
+	retry := 0
+	for {
+		time.Sleep(11 * time.Second)
+		retry++
+		si, err := mp.SyncGetInfo(mp.ctx)
+		if err != nil {
+			continue
+		}
+
+		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+		if si.SyncedHeight == si.RemoteHeight && si.Status {
+			logger.Info("sync complete; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+			break
+		}
+
+		if retry > 10 {
+			mp.ready = true // not receive for long time
+			break
+		}
+	}
+
 	// enable inprocess callback
 	mp.SyncPool.inProcess = true
 }
 
-func (mp *InPool) broadcast() {
-	// rebroadcast lastest block
+func (mp *InPool) rebroadcast() {
+	// rebroadcast lastest block if stuck
 	tc := time.NewTicker(300 * time.Second)
 	defer tc.Stop()
 
@@ -117,11 +139,11 @@ func (mp *InPool) broadcast() {
 	}
 }
 
-func (mp *InPool) sync() {
+func (mp *InPool) process() {
 	for {
 		select {
 		case <-mp.ctx.Done():
-			logger.Debug("process block done")
+			logger.Debug("process block exit")
 			return
 		case m := <-mp.msgChan:
 			id := m.Hash()
@@ -130,8 +152,13 @@ func (mp *InPool) sync() {
 			mp.lk.Lock()
 			ms, ok := mp.pending[m.From]
 			if !ok {
+				cNonce, err := mp.StateGetNonce(mp.ctx, m.From)
+				if err != nil {
+					mp.lk.Unlock()
+					continue
+				}
 				ms = &msgSet{
-					nextDelete: mp.StateGetNonce(mp.ctx, m.From),
+					nextDelete: cNonce,
 					info:       make(map[uint64]*tx.SignedMessage),
 				}
 
@@ -166,10 +193,10 @@ func (mp *InPool) sync() {
 	}
 }
 
-func (mp *InPool) AddTxMsg(ctx context.Context, m *tx.SignedMessage) error {
+func (mp *InPool) SyncAddTxMessage(ctx context.Context, m *tx.SignedMessage) error {
 	stats.Record(ctx, metrics.TxMessageReceived.M(1))
 
-	err := mp.SyncPool.AddTxMsg(mp.ctx, m)
+	err := mp.SyncPool.SyncAddTxMessage(mp.ctx, m)
 	if err != nil {
 		stats.Record(ctx, metrics.TxMessageFailure.M(1))
 		logger.Debug("add tx msg fails: ", err)
@@ -254,11 +281,14 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	mp.lk.RLock()
 	defer mp.lk.RUnlock()
 
-	// todo: block 0 is special
+	// block 0 is special
 	if sb.Height == 0 {
 		cnt := 0
 		for from, ms := range mp.pending {
-			nc := mp.StateGetNonce(mp.ctx, from)
+			nc, err := mp.StateGetNonce(mp.ctx, from)
+			if err != nil {
+				continue
+			}
 			for i := nc; ; i++ {
 				m, ok := ms.info[i]
 				if ok {
@@ -308,7 +338,10 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	rLen := 0
 	for from, ms := range mp.pending {
 		// should load from memory?
-		nc := mp.StateGetNonce(mp.ctx, from)
+		nc, err := mp.StateGetNonce(mp.ctx, from)
+		if err != nil {
+			continue
+		}
 		for i := nc; ; i++ {
 			m, ok := ms.info[i]
 			if ok {
@@ -390,7 +423,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		// validate message
 		newRoot, err = mp.ValidateMsg(&sm.Message)
 		if err != nil {
-			// should not; todo
+			// should not;
 			if sb.Receipts[i].Err == 0 {
 				logger.Debug("fail to validate message, shoule be right: ", newRoot, err)
 				return xerrors.Errorf("fail to validate message, shoule be right")
@@ -403,7 +436,7 @@ func (mp *InPool) OnPropose(sb *tx.SignedBlock) error {
 		}
 	}
 
-	// todo: should handle this
+	// should handle this
 	if !newRoot.Equal(sb.Root) {
 		logger.Debugf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
 		return xerrors.Errorf("OnPropose has wrong state at height %d, got: %s, expected: %s", sb.Height, newRoot, sb.Root)
@@ -418,7 +451,7 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 	logger.Infof("create block OnViewDone at height %d %s", tb.Height, tb.Hash().String())
 
 	// add to local first
-	err := mp.SyncPool.AddTxBlock(tb)
+	err := mp.SyncPool.SyncAddTxBlock(mp.ctx, tb)
 	if err != nil {
 		return err
 	}
@@ -433,19 +466,29 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 }
 
 func (mp *InPool) GetMembers() []uint64 {
-	return mp.StateGetAllKeepers(mp.ctx)
+	kps, err := mp.StateGetAllKeepers(mp.ctx)
+	if err != nil {
+		kps = make([]uint64, 0, 1)
+	}
+
+	return kps
 }
 
 func (mp *InPool) GetLeader(slot uint64) uint64 {
-	mems := mp.StateGetAllKeepers(mp.ctx)
+	lid := mp.minerID
+	mems := mp.GetMembers()
 	if len(mems) > 0 {
-		return mems[slot%uint64(len(mems))]
-	} else {
-		return mp.minerID
+		lid = mems[slot%uint64(len(mems))]
 	}
+
+	return lid
 }
 
 // quorum size
 func (mp *InPool) GetQuorumSize() int {
-	return mp.GetThreshold(mp.ctx)
+	thr, err := mp.StateGetThreshold(mp.ctx)
+	if err != nil {
+		thr = math.MaxInt
+	}
+	return thr
 }

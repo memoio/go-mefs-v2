@@ -64,7 +64,7 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 			oi.SeqNum = of.seq.SeqNum
 		}
 
-		pid, err := m.GetPeerIDAt(m.ctx, proID)
+		pid, err := m.ns.GetPeerIDAt(m.ctx, proID)
 		if err == nil {
 			oi.PeerID = pid.Pretty()
 		}

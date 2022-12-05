@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jbenet/goprocess"
-	goprocessctx "github.com/jbenet/goprocess/context"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/memoio/go-mefs-v2/api"
@@ -19,22 +17,23 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/service/netapp"
 	"github.com/memoio/go-mefs-v2/submodule/control"
-	"github.com/memoio/go-mefs-v2/submodule/txPool"
 )
 
 type OrderMgr struct {
 	api.IRole
 	api.IDataService
 	api.IRestrict
-	*txPool.PushPool
+	api.IChainPush
+	api.INetService
 
 	is api.ISettle
+
+	// TODO: remove
 	ns *netapp.NetServiceImpl
 	ds store.KVStore // save order info
 
 	lk      sync.RWMutex
 	ctx     context.Context
-	proc    goprocess.Process
 	sendCtr *semaphore.Weighted
 
 	localID uint64
@@ -81,7 +80,7 @@ type OrderMgr struct {
 	inCheck bool
 }
 
-func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDuration, orderLast uint64, ds store.KVStore, pp *txPool.PushPool, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is api.ISettle) *OrderMgr {
+func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDuration, orderLast uint64, ds store.KVStore, pp api.IChainPush, ir api.IRole, id api.IDataService, ns *netapp.NetServiceImpl, is api.ISettle) *OrderMgr {
 	if orderLast < 600 {
 		logger.Debug("order last is set to 12 hours")
 		orderLast = 12 * 3600
@@ -93,9 +92,12 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 	}
 
 	om := &OrderMgr{
+		ctx: ctx,
+
 		IRole:        ir,
 		IDataService: id,
-		PushPool:     pp,
+		IChainPush:   pp,
+		INetService:  ns,
 		IRestrict:    control.New(ds),
 
 		ds: ds,
@@ -145,9 +147,6 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 		msgChan: make(chan *tx.Message, 128),
 	}
 
-	om.proc = goprocessctx.WithContext(ctx)
-	om.ctx = goprocessctx.WithProcessClosing(ctx, om.proc)
-
 	logger.Info("create order manager")
 
 	return om
@@ -158,21 +157,21 @@ func (m *OrderMgr) Start() {
 
 	m.ready = true
 
-	m.proc.Go(m.runProSched)
-	m.proc.Go(m.runSegSched)
-	m.proc.Go(m.runSched)
+	go m.runProSched()
+	go m.runSegSched()
+	go m.runSched()
 
-	m.proc.Go(m.runPush)
-	m.proc.Go(m.runCheck)
+	go m.runPush()
+	go m.runCheck()
 
 	go m.dispatch()
 }
 
 func (m *OrderMgr) Stop() {
+	logger.Info("stop order manager")
 	m.lk.Lock()
 	defer m.lk.Unlock()
 	m.ready = false
-	m.proc.Close()
 }
 
 func (m *OrderMgr) load() error {
@@ -182,21 +181,34 @@ func (m *OrderMgr) load() error {
 		m.opi.Deserialize(val)
 	}
 
+	size := uint64(0)
+	pros, err := m.StateGetProsAt(context.TODO(), m.localID)
+	if err == nil {
+		for _, pid := range pros {
+			si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, pid)
+			if err != nil {
+				continue
+			}
+			size += si.Size
+		}
+		m.opi.OnChainSize = size
+	}
+
 	key = store.NewKey(pb.MetaType_OrderProsKey, m.localID)
 	val, err = m.ds.Get(key)
 	if err == nil {
-		res := make([]uint64, len(val)/8)
 		for i := 0; i < len(val)/8; i++ {
 			pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
-			res[i] = pid
-		}
-
-		res = removeDup(res)
-
-		for _, pid := range res {
-			go m.newProOrder(pid)
+			pros = append(pros, pid)
 		}
 	}
+
+	pros = removeDup(pros)
+
+	for _, pid := range pros {
+		go m.newProOrder(pid)
+	}
+	logger.Info("load pros: ", len(pros))
 
 	return nil
 }
@@ -228,11 +240,11 @@ func (m *OrderMgr) addPros() {
 	}
 }
 
-func (m *OrderMgr) runSegSched(proc goprocess.Process) {
+func (m *OrderMgr) runSegSched() {
 	for {
 		// handle data
 		select {
-		case <-proc.Closing():
+		case <-m.ctx.Done():
 			return
 		case sj := <-m.segAddChan:
 			m.addSegJob(sj)
@@ -242,14 +254,12 @@ func (m *OrderMgr) runSegSched(proc goprocess.Process) {
 			m.finishSegJob(sj)
 		case sj := <-m.segConfirmChan:
 			m.confirmSegJob(sj)
-		default:
-			time.Sleep(3 * time.Second)
 		}
 	}
 }
 
 // add and update pro
-func (m *OrderMgr) runProSched(proc goprocess.Process) {
+func (m *OrderMgr) runProSched() {
 	lt := time.NewTicker(5 * time.Minute)
 	defer lt.Stop()
 
@@ -320,13 +330,13 @@ func (m *OrderMgr) runProSched(proc goprocess.Process) {
 			}
 
 			m.save()
-		case <-proc.Closing():
+		case <-m.ctx.Done():
 			return
 		}
 	}
 }
 
-func (m *OrderMgr) runSched(proc goprocess.Process) {
+func (m *OrderMgr) runSched() {
 	st := time.NewTicker(59 * time.Second)
 	defer st.Stop()
 
@@ -397,7 +407,7 @@ func (m *OrderMgr) runSched(proc goprocess.Process) {
 					of.location = string(ri.GetDesc())
 				}
 			}
-		case <-proc.Closing():
+		case <-m.ctx.Done():
 			return
 		}
 	}

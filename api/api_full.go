@@ -10,7 +10,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -127,7 +126,7 @@ type INetService interface {
 	// send/handle msg directly over network
 	SendMetaRequest(ctx context.Context, to uint64, mes_typ pb.NetMessage_MsgType, val, sig []byte) (*pb.NetMessage, error)
 
-	// todo: should be swap network
+	// TODO: should be swap network
 	Fetch(ctx context.Context, key []byte) ([]byte, error)
 	GetPeerIDAt(ctx context.Context, id uint64) (peer.ID, error)
 
@@ -177,7 +176,7 @@ type ILfsService interface {
 type IChainPush interface {
 	IChainSync
 
-	PushGetPendingNonce(context.Context, uint64) uint64
+	PushGetPendingNonce(context.Context, uint64) (uint64, error)
 	PushMessage(context.Context, *tx.Message) (types.MsgID, error)
 	PushSignedMessage(context.Context, *tx.SignedMessage) (types.MsgID, error)
 }
@@ -187,6 +186,9 @@ type IChainSync interface {
 	IChainState
 	SyncGetInfo(context.Context) (*SyncInfo, error)
 	SyncGetTxMsgStatus(context.Context, types.MsgID) (*tx.MsgState, error)
+
+	SyncAddTxBlock(context.Context, *tx.SignedBlock) error
+	SyncAddTxMessage(context.Context, *tx.SignedMessage) error
 }
 
 type IChainState interface {
@@ -194,18 +196,22 @@ type IChainState interface {
 	StateGetChalEpochInfo(context.Context) (*types.ChalEpoch, error)
 	StateGetChalEpochInfoAt(context.Context, uint64) (*types.ChalEpoch, error)
 
-	StateGetNonce(context.Context, uint64) uint64
+	StateGetThreshold(context.Context) (int, error)
+	StateGetNonce(context.Context, uint64) (uint64, error)
 	StateGetNetInfo(context.Context, uint64) (peer.AddrInfo, error)
 
-	StateGetAllKeepers(context.Context) []uint64
-	StateGetAllUsers(context.Context) []uint64
-	StateGetAllProviders(context.Context) []uint64
-	StateGetUsersAt(context.Context, uint64) []uint64
-	StateGetProsAt(context.Context, uint64) []uint64
+	StateGetAllKeepers(context.Context) ([]uint64, error)
+	StateGetAllUsers(context.Context) ([]uint64, error)
+	StateGetAllProviders(context.Context) ([]uint64, error)
+	StateGetUsersAt(context.Context, uint64) ([]uint64, error)
+	StateGetProsAt(context.Context, uint64) ([]uint64, error)
 
-	StateGetPDPPublicKey(context.Context, uint64) (pdpcommon.PublicKey, error)
+	StateGetRoleInfo(context.Context, uint64) (*pb.RoleInfo, error)
+	StateGetPDPPublicKey(context.Context, uint64) ([]byte, error)
+	StateGetBucketAt(context.Context, uint64) (uint64, error)
 
-	StateGetOrderState(context.Context, uint64, uint64) *types.NonceSeq
+	StateGetOrderNonce(context.Context, uint64, uint64, uint64) (*types.NonceSeq, error)
+	StateGetProofEpoch(ctx context.Context, userID, proID uint64) (uint64, error)
 	StateGetOrder(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)
 	StateGetOrderSeq(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error)
 	StateGetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)

@@ -117,10 +117,6 @@ func (s *StateMgr) addUser(msg *tx.Message) error {
 		return err
 	}
 
-	if s.handleAddUser != nil {
-		s.handleAddUser(msg.From)
-	}
-
 	return nil
 }
 
@@ -132,7 +128,13 @@ func (s *StateMgr) canAddUser(msg *tx.Message) error {
 
 	_, ok := s.validateSInfo[msg.From]
 	if ok {
-		return nil
+		return xerrors.Errorf("%d has create fs already", msg.From)
+	}
+
+	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, msg.From)
+	has, err := s.has(key)
+	if err == nil && has {
+		return xerrors.Errorf("%d has create fs already", msg.From)
 	}
 
 	ri, ok := s.validateRInfo[msg.From]

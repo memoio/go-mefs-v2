@@ -65,14 +65,6 @@ type StateMgr struct {
 	validateOInfo   map[orderKey]*orderInfo
 	validateSInfo   map[uint64]*segPerUser
 	validateRInfo   map[uint64]*roleInfo
-
-	handleAddRole     HanderAddRoleFunc
-	handleAddUser     HandleAddUserFunc
-	handleAddUP       HandleAddUPFunc
-	handleAddPay      HandleAddPayFunc
-	handleAddSeq      HandleAddSeqFunc
-	handleDelSeg      HandleDelSegFunc
-	handleCommitOrder HandleCommitOrderFunc
 }
 
 // base is role contract address
@@ -118,48 +110,6 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 	logger.Debug("start state mgr")
 
 	return s
-}
-
-func (s *StateMgr) RegisterAddRoleFunc(h HanderAddRoleFunc) {
-	s.lk.Lock()
-	s.handleAddRole = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterAddUserFunc(h HandleAddUserFunc) {
-	s.lk.Lock()
-	s.handleAddUser = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterAddUPFunc(h HandleAddUPFunc) {
-	s.lk.Lock()
-	s.handleAddUP = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterAddSeqFunc(h HandleAddSeqFunc) {
-	s.lk.Lock()
-	s.handleAddSeq = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterDelSegFunc(h HandleDelSegFunc) {
-	s.lk.Lock()
-	s.handleDelSeg = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterAddPayFunc(h HandleAddPayFunc) {
-	s.lk.Lock()
-	s.handleAddPay = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterCommitOrderFunc(h HandleCommitOrderFunc) {
-	s.lk.Lock()
-	s.handleCommitOrder = h
-	s.lk.Unlock()
 }
 
 func (s *StateMgr) API() *stateAPI {
@@ -405,7 +355,6 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	defer s.lk.Unlock()
 
 	if blk == nil {
-		// todo: commmit for apply all changes
 		return s.root, nil
 	}
 

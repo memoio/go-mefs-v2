@@ -96,7 +96,7 @@ func (l *LfsService) Start() error {
 	_, err := l.OrderMgr.StateGetPDPPublicKey(l.ctx, l.userID)
 	if err != nil {
 		time.Sleep(15 * time.Second)
-		logger.Debug("push create fs message for: ", l.userID)
+		logger.Info("create fs message for: ", l.userID)
 
 		msg := &tx.Message{
 			Version: 0,
@@ -146,8 +146,13 @@ func (l *LfsService) Start() error {
 		has = true
 	}
 
+	bun, err := l.OrderMgr.StateGetBucketAt(l.ctx, l.userID)
+	if err != nil {
+		return err
+	}
+
 	// load bucket
-	l.sb.bucketVerify = l.OrderMgr.GetBucket(l.ctx, l.userID)
+	l.sb.bucketVerify = bun
 
 	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
 		if uint64(len(l.sb.buckets)) > bid {
@@ -255,6 +260,7 @@ func (l *LfsService) Start() error {
 }
 
 func (l *LfsService) Stop() error {
+	logger.Info("stop lfs service...")
 	l.sb.write = false
 	l.OrderMgr.Stop()
 	return nil

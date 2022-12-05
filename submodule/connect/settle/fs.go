@@ -130,7 +130,7 @@ func (cm *ContractMgr) recharge(rTokenAddr common.Address, uIndex uint64, tIndex
 		return xerrors.Errorf("invalid user")
 	}
 
-	// todo: check tindex
+	// TODO: check tindex
 
 	// check allowance
 	allo, err := cm.getAllowance(addr, cm.fsAddr)
@@ -222,7 +222,7 @@ func (cm *ContractMgr) addOrder(roleAddr, rTokenAddr common.Address, uIndex, pIn
 	if end%types.Day != 0 {
 		return nil, xerrors.Errorf("end %d should be aligned to 86400(one day)", end)
 	}
-	// todo: check uIndex,pIndex,gIndex,tIndex
+	// TODO: check uIndex,pIndex,gIndex,tIndex
 
 	// check balance
 

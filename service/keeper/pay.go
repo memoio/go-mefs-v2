@@ -15,7 +15,11 @@ func (k *KeeperNode) updatePay() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	latest := k.PushPool.GetChalEpoch(k.ctx)
+	latest := uint64(0)
+	si, err := k.StateGetInfo(k.ctx)
+	if err != nil {
+		latest = si.Epoch
+	}
 
 	key := store.NewKey(pb.MetaType_ConfirmPayKey)
 	val, err := k.MetaStore().Get(key)
@@ -31,12 +35,16 @@ func (k *KeeperNode) updatePay() {
 			logger.Warn("pay context done ", k.ctx.Err())
 			return
 		case <-ticker.C:
-			cur := k.PushPool.GetChalEpoch(k.ctx)
-			if cur <= latest {
+			si, err := k.StateGetInfo(k.ctx)
+			if err != nil {
 				continue
 			}
 
-			latest = cur
+			if si.Epoch <= latest {
+				continue
+			}
+
+			latest = si.Epoch
 
 			if latest < 2 {
 				continue
@@ -46,16 +54,22 @@ func (k *KeeperNode) updatePay() {
 
 			logger.Debugf("pay at epoch %d", payEpoch)
 
-			pros := k.StateGetAllProviders(k.ctx)
+			pros, err := k.StateGetAllProviders(k.ctx)
+			if err != nil {
+				continue
+			}
 			for _, pid := range pros {
 				logger.Debugf("pay for %d at epoch %d", pid, payEpoch)
-				users := k.StateGetUsersAt(k.ctx, pid)
+				users, err := k.StateGetUsersAt(k.ctx, pid)
+				if err != nil {
+					continue
+				}
 				if len(users) == 0 {
 					logger.Debugf("pay for %d at epoch %d, not have users", pid, payEpoch)
 					continue
 				}
 
-				spi, err := k.PushPool.StateGetAccPostIncomeAt(k.ctx, pid, payEpoch)
+				spi, err := k.StateGetAccPostIncomeAt(k.ctx, pid, payEpoch)
 				if err != nil {
 					logger.Debugf("pay for %d at epoch %d, not have challenge or declare fault", pid, payEpoch)
 					continue

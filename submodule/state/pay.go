@@ -19,8 +19,6 @@ func (s *StateMgr) addPay(msg *tx.Message) error {
 		return xerrors.Errorf("add post income epoch, expected %d, got %d", s.ceInfo.previous.Epoch, pip.Epoch)
 	}
 
-	// todo: verify proID
-
 	kri, ok := s.rInfo[msg.From]
 	if !ok {
 		kri = s.loadRole(msg.From)

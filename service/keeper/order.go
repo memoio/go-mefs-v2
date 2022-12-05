@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"math"
 	"math/rand"
 	"time"
 )
@@ -35,7 +36,10 @@ func (k *KeeperNode) subOrderAll() {
 		defer func() {
 			k.inProcess = false
 		}()
-		users := k.StateGetAllUsers(k.ctx)
+		users, err := k.StateGetAllUsers(k.ctx)
+		if err != nil {
+			return
+		}
 		for _, uid := range users {
 			k.subOrder(uid)
 		}
@@ -45,9 +49,16 @@ func (k *KeeperNode) subOrderAll() {
 func (k *KeeperNode) subOrder(userID uint64) error {
 	logger.Debug("subOrder for user: ", userID)
 
-	pros := k.StateGetProsAt(k.ctx, userID)
+	pros, err := k.StateGetProsAt(k.ctx, userID)
+	if err != nil {
+		return err
+	}
 	for _, proID := range pros {
-		keepers := k.StateGetAllKeepers(k.ctx)
+		keepers, err := k.StateGetAllKeepers(k.ctx)
+		if err != nil {
+			return err
+		}
+
 		nt := time.Now().Unix() / (600)
 		// only one do this
 		kindex := (int(userID+proID) + int(nt)) % len(keepers)
@@ -65,7 +76,10 @@ func (k *KeeperNode) subOrder(userID uint64) error {
 			continue
 		}
 
-		ns := k.StateGetOrderState(k.ctx, userID, proID)
+		ns, err := k.StateGetOrderNonce(k.ctx, userID, proID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 		logger.Debugf("subOrder user %d pro %d has order %d %d %d", userID, proID, si.Nonce, si.SubNonce, ns.Nonce)
 
 		if si.SubNonce >= ns.Nonce {

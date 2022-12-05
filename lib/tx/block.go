@@ -42,7 +42,7 @@ type MsgSet struct {
 	Msgs     []SignedMessage
 	Receipts []Receipt
 
-	// todo: add agg signs of all tx
+	// TODO: add agg signs of all tx
 
 	// state root
 	ParentRoot types.MsgID

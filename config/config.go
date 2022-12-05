@@ -28,6 +28,7 @@ type Config struct {
 	Data      StorePathConfig `json:"data"`
 	Contract  ContractConfig  `json:"contract"`
 	Order     OrderConfig     `json:"order"`
+	Sync      SyncConfig      `json:"sync"`
 }
 
 type ContractConfig struct {
@@ -41,6 +42,15 @@ func newDefaultContractConfig() ContractConfig {
 		EndPoint:     settle.EndPoint,
 		RoleContract: settle.RoleContract,
 	}
+}
+
+type SyncConfig struct {
+	API   string `json:"api,omitempty"`
+	Token string `json:"token,omitempty"`
+}
+
+func newDefaultSyncConfig() SyncConfig {
+	return SyncConfig{}
 }
 
 type GenesisConfig struct {
@@ -150,6 +160,7 @@ func NewDefaultConfig() *Config {
 		Data:      newDefaultStorePathConfig(),
 		Net:       newDefaultSwarmConfig(),
 		Order:     newDefaultOrderConfig(),
+		Sync:      newDefaultSyncConfig(),
 	}
 }
 

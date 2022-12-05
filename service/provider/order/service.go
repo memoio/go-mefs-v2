@@ -87,9 +87,11 @@ func (m *OrderMgr) Start() {
 		m.di.Deserialize(val)
 	}
 	// load some
-	users := m.ics.StateGetUsersAt(m.ctx, m.localID)
-	for _, uid := range users {
-		m.getOrder(uid)
+	users, err := m.ics.StateGetUsersAt(m.ctx, m.localID)
+	if err == nil {
+		for _, uid := range users {
+			m.getOrder(uid)
+		}
 	}
 
 	go m.runCheck()
@@ -128,12 +130,13 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
 		if or.seq.Segments.Has(seg.SegmentID().GetBucketID(), seg.SegmentID().GetStripeID(), seg.SegmentID().GetChunkID()) {
 			logger.Debug("handle add data already sat: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
+			return xerrors.Errorf("already has seg %s", seg.SegmentID())
 		}
 
 		has, _ := m.ids.HasSegment(m.ctx, seg.SegmentID())
 		if has {
 			logger.Debug("handle add data already sat: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
-			return nil
+			return xerrors.Errorf("already has seg %s in local", seg.SegmentID())
 		}
 
 		// put to local when received
@@ -196,7 +199,6 @@ func (m *OrderMgr) HandleQuotation(userID uint64) ([]byte, error) {
 	return data, nil
 }
 
-// todo: verify nonce in data&settle chain
 func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	ob := new(types.SignedOrder)
 	err := ob.Deserialize(b)
@@ -459,7 +461,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			if !rHash.Equal(lHash) {
 				logger.Debug("handle seq md5: ", lHash.String(), " and ", rHash.String())
 
-				// todo: load missing or reget
+				// TODO: load missing or reget
 				if !or.seq.Segments.Equal(os.Segments) {
 					logger.Debug("handle seqIn local: ", or.seq.Segments.Len(), or.seq)
 					logger.Debug("handle seqIn remote: ", os.Segments.Len(), os)

@@ -9,7 +9,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/address"
-	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -62,21 +61,25 @@ type CommonStruct struct {
 		StateGetChalEpochInfo   func(context.Context) (*types.ChalEpoch, error)         `perm:"read"`
 		StateGetChalEpochInfoAt func(context.Context, uint64) (*types.ChalEpoch, error) `perm:"read"`
 
-		StateGetNonce   func(context.Context, uint64) uint64                 `perm:"read"`
-		StateGetNetInfo func(context.Context, uint64) (peer.AddrInfo, error) `perm:"read"`
+		StateGetNonce    func(context.Context, uint64) (uint64, error)        `perm:"read"`
+		StateGetNetInfo  func(context.Context, uint64) (peer.AddrInfo, error) `perm:"read"`
+		StateGetRoleInfo func(context.Context, uint64) (*pb.RoleInfo, error)  `perm:"read"`
 
-		StateGetAllKeepers   func(context.Context) []uint64         `perm:"read"`
-		StateGetAllUsers     func(context.Context) []uint64         `perm:"read"`
-		StateGetAllProviders func(context.Context) []uint64         `perm:"read"`
-		StateGetUsersAt      func(context.Context, uint64) []uint64 `perm:"read"`
-		StateGetProsAt       func(context.Context, uint64) []uint64 `perm:"read"`
+		StateGetThreshold    func(context.Context) (int, error)              `perm:"read"`
+		StateGetAllKeepers   func(context.Context) ([]uint64, error)         `perm:"read"`
+		StateGetAllUsers     func(context.Context) ([]uint64, error)         `perm:"read"`
+		StateGetAllProviders func(context.Context) ([]uint64, error)         `perm:"read"`
+		StateGetUsersAt      func(context.Context, uint64) ([]uint64, error) `perm:"read"`
+		StateGetProsAt       func(context.Context, uint64) ([]uint64, error) `perm:"read"`
 
-		StateGetPDPPublicKey func(context.Context, uint64) (pdpcommon.PublicKey, error) `perm:"read"`
+		StateGetPDPPublicKey func(context.Context, uint64) ([]byte, error) `perm:"read"`
+		StateGetBucketAt     func(context.Context, uint64) (uint64, error) `perm:"read"`
 
-		StateGetOrderState      func(context.Context, uint64, uint64) *types.NonceSeq                         `perm:"read"`
+		StateGetOrderNonce      func(context.Context, uint64, uint64, uint64) (*types.NonceSeq, error)        `perm:"read"`
 		StateGetOrder           func(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)       `perm:"read"`
 		StateGetOrderSeq        func(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error) `perm:"read"`
 		StateGetPostIncome      func(context.Context, uint64, uint64) (*types.PostIncome, error)              `perm:"read"`
+		StateGetProofEpoch      func(context.Context, uint64, uint64) (uint64, error)                         `perm:"read"`
 		StateGetPostIncomeAt    func(context.Context, uint64, uint64, uint64) (*types.PostIncome, error)      `perm:"read"`
 		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)             `perm:"read"`
 		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)           `perm:"read"`
@@ -102,10 +105,14 @@ type CommonStruct struct {
 		SettleQuitRole       func(context.Context) error                                         `perm:"admin"`
 		SettleAlterPayee     func(context.Context, string) error                                 `perm:"admin"`
 
-		SyncGetInfo        func(context.Context) (*SyncInfo, error)                 `perm:"read"`
+		SyncGetInfo func(context.Context) (*SyncInfo, error) `perm:"read"`
+
+		SyncAddTxBlock   func(context.Context, *tx.SignedBlock) error   `perm:"write"`
+		SyncAddTxMessage func(context.Context, *tx.SignedMessage) error `perm:"write"`
+
 		SyncGetTxMsgStatus func(context.Context, types.MsgID) (*tx.MsgState, error) `perm:"read"`
 
-		PushGetPendingNonce func(context.Context, uint64) uint64                          `perm:"read"`
+		PushGetPendingNonce func(context.Context, uint64) (uint64, error)                 `perm:"read"`
 		PushMessage         func(context.Context, *tx.Message) (types.MsgID, error)       `perm:"write"`
 		PushSignedMessage   func(context.Context, *tx.SignedMessage) (types.MsgID, error) `perm:"write"`
 
@@ -250,40 +257,52 @@ func (s *CommonStruct) StateGetChalEpochInfoAt(ctx context.Context, epoch uint64
 	return s.Internal.StateGetChalEpochInfoAt(ctx, epoch)
 }
 
-func (s *CommonStruct) StateGetNonce(ctx context.Context, roleID uint64) uint64 {
+func (s *CommonStruct) StateGetNonce(ctx context.Context, roleID uint64) (uint64, error) {
 	return s.Internal.StateGetNonce(ctx, roleID)
+}
+
+func (s *CommonStruct) StateGetBucketAt(ctx context.Context, roleID uint64) (uint64, error) {
+	return s.Internal.StateGetBucketAt(ctx, roleID)
 }
 
 func (s *CommonStruct) StateGetNetInfo(ctx context.Context, roleID uint64) (peer.AddrInfo, error) {
 	return s.Internal.StateGetNetInfo(ctx, roleID)
 }
 
-func (s *CommonStruct) StateGetUsersAt(ctx context.Context, proID uint64) []uint64 {
+func (s *CommonStruct) StateGetRoleInfo(ctx context.Context, roleID uint64) (*pb.RoleInfo, error) {
+	return s.Internal.StateGetRoleInfo(ctx, roleID)
+}
+
+func (s *CommonStruct) StateGetThreshold(ctx context.Context) (int, error) {
+	return s.Internal.StateGetThreshold(ctx)
+}
+
+func (s *CommonStruct) StateGetUsersAt(ctx context.Context, proID uint64) ([]uint64, error) {
 	return s.Internal.StateGetUsersAt(ctx, proID)
 }
 
-func (s *CommonStruct) StateGetProsAt(ctx context.Context, userID uint64) []uint64 {
+func (s *CommonStruct) StateGetProsAt(ctx context.Context, userID uint64) ([]uint64, error) {
 	return s.Internal.StateGetProsAt(ctx, userID)
 }
 
-func (s *CommonStruct) StateGetAllUsers(ctx context.Context) []uint64 {
+func (s *CommonStruct) StateGetAllUsers(ctx context.Context) ([]uint64, error) {
 	return s.Internal.StateGetAllUsers(ctx)
 }
 
-func (s *CommonStruct) StateGetAllProviders(ctx context.Context) []uint64 {
+func (s *CommonStruct) StateGetAllProviders(ctx context.Context) ([]uint64, error) {
 	return s.Internal.StateGetAllProviders(ctx)
 }
 
-func (s *CommonStruct) StateGetAllKeepers(ctx context.Context) []uint64 {
+func (s *CommonStruct) StateGetAllKeepers(ctx context.Context) ([]uint64, error) {
 	return s.Internal.StateGetAllKeepers(ctx)
 }
 
-func (s *CommonStruct) StateGetPDPPublicKey(ctx context.Context, userID uint64) (pdpcommon.PublicKey, error) {
+func (s *CommonStruct) StateGetPDPPublicKey(ctx context.Context, userID uint64) ([]byte, error) {
 	return s.Internal.StateGetPDPPublicKey(ctx, userID)
 }
 
-func (s *CommonStruct) StateGetOrderState(ctx context.Context, userID, proID uint64) *types.NonceSeq {
-	return s.Internal.StateGetOrderState(ctx, userID, proID)
+func (s *CommonStruct) StateGetOrderNonce(ctx context.Context, userID, proID, epoch uint64) (*types.NonceSeq, error) {
+	return s.Internal.StateGetOrderNonce(ctx, userID, proID, epoch)
 }
 
 func (s *CommonStruct) StateGetOrder(ctx context.Context, userID, proID, nonce uint64) (*types.OrderFull, error) {
@@ -296,6 +315,10 @@ func (s *CommonStruct) StateGetOrderSeq(ctx context.Context, userID, proID, nonc
 
 func (s *CommonStruct) StateGetPostIncome(ctx context.Context, userID, proID uint64) (*types.PostIncome, error) {
 	return s.Internal.StateGetPostIncome(ctx, userID, proID)
+}
+
+func (s *CommonStruct) StateGetProofEpoch(ctx context.Context, userID, proID uint64) (uint64, error) {
+	return s.Internal.StateGetProofEpoch(ctx, userID, proID)
 }
 
 func (s *CommonStruct) StateGetPostIncomeAt(ctx context.Context, userID, proID, epoch uint64) (*types.PostIncome, error) {
@@ -394,11 +417,18 @@ func (s *CommonStruct) SyncGetInfo(ctx context.Context) (*SyncInfo, error) {
 	return s.Internal.SyncGetInfo(ctx)
 }
 
+func (s *CommonStruct) SyncAddTxBlock(ctx context.Context, tsb *tx.SignedBlock) error {
+	return s.Internal.SyncAddTxBlock(ctx, tsb)
+}
+func (s *CommonStruct) SyncAddTxMessage(ctx context.Context, tmes *tx.SignedMessage) error {
+	return s.Internal.SyncAddTxMessage(ctx, tmes)
+}
+
 func (s *CommonStruct) SyncGetTxMsgStatus(ctx context.Context, mid types.MsgID) (*tx.MsgState, error) {
 	return s.Internal.SyncGetTxMsgStatus(ctx, mid)
 }
 
-func (s *CommonStruct) PushGetPendingNonce(ctx context.Context, rid uint64) uint64 {
+func (s *CommonStruct) PushGetPendingNonce(ctx context.Context, rid uint64) (uint64, error) {
 	return s.Internal.PushGetPendingNonce(ctx, rid)
 }
 

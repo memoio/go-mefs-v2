@@ -1,6 +1,7 @@
 package order
 
 import (
+	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -65,7 +66,6 @@ func (ss *SeqState) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, ss)
 }
 
-// todo: check order
 type OrderFull struct {
 	lw        sync.Mutex
 	localID   uint64
@@ -94,7 +94,7 @@ type OrderFull struct {
 }
 
 func (m *OrderMgr) runCheck() {
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
 	m.check()
@@ -125,7 +125,10 @@ func (m *OrderMgr) check() error {
 			continue
 		}
 
-		ns := m.ics.StateGetOrderState(m.ctx, uid, m.localID)
+		ns, err := m.ics.StateGetOrderNonce(m.ctx, uid, m.localID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 
 		// load size from
 		for of.di.ConfirmedNonce < ns.Nonce {
@@ -206,9 +209,14 @@ func (m *OrderMgr) check() error {
 }
 
 func (m *OrderMgr) createOrder(op *OrderFull) {
-	pk, err := m.ics.StateGetPDPPublicKey(m.ctx, op.userID)
+	pkData, err := m.ics.StateGetPDPPublicKey(m.ctx, op.userID)
 	if err != nil {
 		logger.Warnf("create order for user %d bls pk fail %s", op.userID, err)
+		return
+	}
+
+	pk, err := pdp.DeserializePublicKey(pkData)
+	if err != nil {
 		return
 	}
 
@@ -223,8 +231,8 @@ func (m *OrderMgr) createOrder(op *OrderFull) {
 	op.ready = true
 }
 
-// todo: load from data chain
-// todo: fix missing if provider has fault
+// TODO: load from data chain
+// TODO: fix missing if provider has fault
 func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	m.lk.Lock()
 	op, ok := m.orders[userID]
@@ -251,8 +259,12 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	m.orders[userID] = op
 	m.lk.Unlock()
 
-	pk, err := m.ics.StateGetPDPPublicKey(m.ctx, userID)
+	pkData, err := m.ics.StateGetPDPPublicKey(m.ctx, userID)
 	if err == nil {
+		pk, err := pdp.DeserializePublicKey(pkData)
+		if err != nil {
+			return op
+		}
 		op.dv, err = pdp.NewDataVerifier(pk, nil)
 		if err != nil {
 			return op
@@ -275,7 +287,10 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.di.Received = op.di.ConfirmSize
 	}
 
-	dns := m.ics.StateGetOrderState(m.ctx, userID, m.localID)
+	dns, err := m.ics.StateGetOrderNonce(m.ctx, userID, m.localID, math.MaxUint64)
+	if err != nil {
+		return op
+	}
 
 	ns := new(NonceState)
 	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)

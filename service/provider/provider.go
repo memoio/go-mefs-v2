@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"net/http"
 	"sync"
 	"time"
 
@@ -70,11 +69,11 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl, bn.RoleMgr, sp)
 
-	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, ids, bn.PushPool)
+	sm := pchal.NewSegMgr(ctx, bn.RoleID(), ds, ids, bn)
 
 	oc := bn.Repo.Config().Order
 
-	por := porder.NewOrderMgr(ctx, bn.RoleID(), oc.Price, ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn.PushPool, bn.ISettle)
+	por := porder.NewOrderMgr(ctx, bn.RoleID(), oc.Price, ds, bn.RoleMgr, bn.NetServiceImpl, ids, bn, bn.ISettle)
 
 	rp := readpay.NewReceivePay(localAddr, ds)
 
@@ -93,16 +92,14 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 // start service related
 func (p *ProviderNode) Start(perm bool) error {
 	p.Perm = perm
-	if p.Repo.Config().Net.Name == "test" {
-		go p.OpenTest()
-	} else {
-		p.RoleMgr.Start()
+
+	p.RoleType = "provider"
+	err := p.BaseNode.StartLocal()
+	if err != nil {
+		return err
 	}
 
 	// register net msg handle
-	p.GenericService.Register(pb.NetMessage_SayHello, p.DefaultHandler)
-	p.GenericService.Register(pb.NetMessage_Get, p.HandleGet)
-
 	p.GenericService.Register(pb.NetMessage_AskPrice, p.handleQuotation)
 	p.GenericService.Register(pb.NetMessage_CreateOrder, p.handleCreateOrder)
 	p.GenericService.Register(pb.NetMessage_CreateSeq, p.handleCreateSeq)
@@ -111,28 +108,14 @@ func (p *ProviderNode) Start(perm bool) error {
 	p.GenericService.Register(pb.NetMessage_PutSegment, p.handleSegData)
 	p.GenericService.Register(pb.NetMessage_GetSegment, p.handleGetSeg)
 
-	p.TxMsgHandle.Register(p.BaseNode.TxMsgHandler)
-	p.BlockHandle.Register(p.BaseNode.TxBlockHandler)
-
-	p.PushPool.RegisterAddUPFunc(p.chalSeg.AddUP)
-	p.PushPool.RegisterDelSegFunc(p.chalSeg.RemoveSeg)
-
-	p.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
-	p.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
-
-	p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(metrics.MetricedProviderAPI(p)))
+	if p.Perm {
+		p.RPCServer.Register("Memoriae", api.PermissionedProviderAPI(metrics.MetricedProviderAPI(p)))
+	} else {
+		p.RPCServer.Register("Memoriae", metrics.MetricedProviderAPI(p))
+	}
 
 	go func() {
-		// wait for sync
-		p.PushPool.Start()
-		for {
-			if p.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				time.Sleep(5 * time.Second)
-			}
-		}
+		p.BaseNode.WaitForSync()
 
 		// wait for register
 		err := p.Register()

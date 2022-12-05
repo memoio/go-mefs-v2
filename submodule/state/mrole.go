@@ -130,10 +130,6 @@ func (s *StateMgr) addRole(msg *tx.Message) error {
 		}
 	}
 
-	if s.handleAddRole != nil {
-		s.handleAddRole(pri.RoleID, pri.Type)
-	}
-
 	return nil
 }
 

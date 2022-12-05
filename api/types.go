@@ -147,6 +147,7 @@ type OrderJobInfo struct {
 
 type SyncInfo struct {
 	Status       bool
+	Version      int
 	SyncedHeight uint64
 	RemoteHeight uint64
 }

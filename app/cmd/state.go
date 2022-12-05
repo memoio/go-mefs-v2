@@ -43,7 +43,10 @@ var statePostIncomeCmd = &cli.Command{
 			return err
 		}
 
-		users := napi.StateGetUsersAt(cctx.Context, nid.RoleID)
+		users, err := napi.StateGetUsersAt(cctx.Context, nid.RoleID)
+		if err != nil {
+			return err
+		}
 		fmt.Println("post income: ", nid.RoleID, users)
 
 		for _, uid := range users {

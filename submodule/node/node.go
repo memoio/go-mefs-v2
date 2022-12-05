@@ -6,6 +6,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -48,8 +50,9 @@ type BaseNode struct {
 	*role.RoleMgr
 
 	*jsonrpc.RPCServer
+	jsonrpc.ClientCloser
 
-	*txPool.PushPool
+	api.IChainSync
 
 	api.ISettle
 
@@ -59,12 +62,18 @@ type BaseNode struct {
 
 	ctx context.Context
 
+	lk      sync.Mutex
+	isProxy bool
+	LPP     *txPool.PushPool
+	rcp     api.IChainPush
+
 	HttpHandle *mux.Router
 
-	roleID  uint64
-	groupID uint64
-	pw      string
-	version string
+	RoleType string
+	roleID   uint64
+	groupID  uint64
+	pw       string
+	version  string
 
 	isOnline bool
 	Perm     bool
@@ -87,20 +96,12 @@ func (n *BaseNode) Version(_ context.Context) (string, error) {
 // Start boots up the node.
 func (n *BaseNode) Start(perm bool) error {
 	n.Perm = perm
-	if n.Repo.Config().Net.Name == "test" {
-		go n.OpenTest()
-	} else {
-		n.RoleMgr.Start()
+	n.RoleType = "mefs"
+
+	err := n.StartLocal()
+	if err != nil {
+		return err
 	}
-
-	n.TxMsgHandle.Register(n.TxMsgHandler)
-	n.BlockHandle.Register(n.TxBlockHandler)
-
-	n.GenericService.Register(pb.NetMessage_SayHello, n.DefaultHandler)
-	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
-
-	n.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
-	n.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	if n.Perm {
 		n.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedFullAPI(n)))
@@ -108,22 +109,53 @@ func (n *BaseNode) Start(perm bool) error {
 		n.RPCServer.Register("Memoriae", metrics.MetricedFullAPI(n))
 	}
 
-	go func() {
-		// wait for sync
-		n.PushPool.Start()
-		for {
-			if n.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				time.Sleep(5 * time.Second)
-			}
-		}
-	}()
+	go n.WaitForSync()
 
 	logger.Info("start base node: ", n.roleID)
 
 	return nil
+}
+
+func (n *BaseNode) StartLocal() error {
+	if n.Repo.Config().Net.Name == "test" {
+		go n.OpenTest()
+	} else {
+		n.RoleMgr.Start()
+	}
+
+	if !n.isProxy {
+		if n.RoleType == "keeper" {
+			return xerrors.Errorf("not use sync mode for keeper, clear sync api and token in config")
+		}
+		// handle received tx message
+		n.BlockHandle.Register(n.TxBlockHandler)
+		// start local push pool
+		n.LPP.Start()
+	}
+
+	n.GenericService.Register(pb.NetMessage_SayHello, n.DefaultHandler)
+	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
+
+	n.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
+	n.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
+	return nil
+}
+
+func (n *BaseNode) WaitForSync() {
+	for {
+		time.Sleep(10 * time.Second)
+
+		si, err := n.SyncGetInfo(n.ctx)
+		if err != nil {
+			continue
+		}
+
+		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+		if si.SyncedHeight == si.RemoteHeight && si.Status {
+			logger.Info("sync complete; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+			break
+		}
+	}
 }
 
 func (n *BaseNode) Ready(ctx context.Context) bool {
@@ -131,6 +163,10 @@ func (n *BaseNode) Ready(ctx context.Context) bool {
 }
 
 func (n *BaseNode) Stop(ctx context.Context) error {
+	if n.isProxy && n.ClientCloser != nil {
+		n.ClientCloser()
+	}
+
 	// stop handle msg
 	n.NetServiceImpl.Stop()
 

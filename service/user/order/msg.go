@@ -3,11 +3,11 @@ package order
 import (
 	"context"
 	"encoding/binary"
+	"math"
 	"math/big"
 	"sync"
 	"time"
 
-	"github.com/jbenet/goprocess"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/code"
@@ -18,10 +18,10 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (m *OrderMgr) runPush(proc goprocess.Process) {
+func (m *OrderMgr) runPush() {
 	for {
 		select {
-		case <-proc.Closing():
+		case <-m.ctx.Done():
 			return
 		case msg := <-m.msgChan:
 			m.pushMessage(msg)
@@ -29,7 +29,7 @@ func (m *OrderMgr) runPush(proc goprocess.Process) {
 	}
 }
 
-func (m *OrderMgr) runCheck(proc goprocess.Process) {
+func (m *OrderMgr) runCheck() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -38,7 +38,7 @@ func (m *OrderMgr) runCheck(proc goprocess.Process) {
 
 	for {
 		select {
-		case <-proc.Closing():
+		case <-m.ctx.Done():
 			return
 		case <-ticker.C:
 			go m.checkBalance()
@@ -56,9 +56,15 @@ func (m *OrderMgr) checkBalance() {
 	}()
 
 	needPay := big.NewInt(0)
-	pros := m.StateGetProsAt(m.ctx, m.localID)
+	pros, err := m.StateGetProsAt(m.ctx, m.localID)
+	if err != nil {
+		return
+	}
 	for _, proID := range pros {
-		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
+		ns, err := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("fail to get order info in chain", m.localID, proID, err)
@@ -159,9 +165,9 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 
 			if st.Status.Err == 0 {
 				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
-				if msg.Method == tx.AddDataOrder {
+				switch msg.Method {
+				case tx.AddDataOrder:
 					// confirm
-
 					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To)
 
 					seq := new(types.SignedOrderSeq)
@@ -172,44 +178,9 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 
 					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To, seq.Nonce, seq.SeqNum)
 
-					key := store.NewKey(pb.MetaType_OrderSeqJobKey, msg.From, msg.To, seq.Nonce, seq.SeqNum)
-					val, err := m.ds.Get(key)
-					if err != nil {
-						return
-					}
-
-					sjq := new(types.SegJobsQueue)
-					err = sjq.Deserialize(val)
-					if err == nil {
-						ss := *sjq
-						sLen := sjq.Len()
-						size := uint64(0)
-						for i := 0; i < sLen; i++ {
-							m.segConfirmChan <- ss[i]
-							size += ss[i].Length * code.DefaultSegSize
-						}
-
-						logger.Debug("confirm jobs in order seq: ", msg.From, msg.To, seq.Nonce, seq.SeqNum, size)
-
-						// update size
-						m.sizelk.Lock()
-						m.opi.ConfirmSize += size
-
-						key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
-						val, _ = m.opi.Serialize()
-						m.ds.Put(key, val)
-
-						m.lk.RLock()
-						of, ok := m.orders[msg.To]
-						m.lk.RUnlock()
-						if ok {
-							of.opi.ConfirmSize += size
-							key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, msg.To)
-							val, _ = of.opi.Serialize()
-							m.ds.Put(key, val)
-						}
-						m.sizelk.Unlock()
-					}
+					m.ReplaceSegWithLoc(seq.OrderSeq)
+					m.updateSize(seq.OrderSeq)
+				default:
 				}
 			} else {
 				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
@@ -221,13 +192,44 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 }
 
 func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
-	ns := m.StateGetOrderState(m.ctx, of.localID, of.pro)
+	ns, err := m.StateGetOrderNonce(m.ctx, of.localID, of.pro, math.MaxUint64)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("re-confirm jobs: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
+	key := store.NewKey(pb.MetaType_OrderSeqJobKey, of.localID, of.pro)
+	nData, err := m.ds.Get(key)
+	if err == nil {
+		nval := new(types.NonceSeq)
+		err = nval.Deserialize(nData)
+		if err == nil {
+			if ns.Nonce > nval.Nonce || (ns.Nonce == nval.Nonce && ns.SeqNum > nval.SeqNum) {
+				key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, nval.Nonce, nval.SeqNum)
+				data, err := m.ds.Get(key)
+				if err != nil {
+					return xerrors.Errorf("found %s error %d", string(key), err)
+				}
+				seq := new(types.SignedOrderSeq)
+				err = seq.Deserialize(data)
+				if err != nil {
+					return err
+				}
+
+				logger.Debug("re-confirm jobs in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+
+				m.ReplaceSegWithLoc(seq.OrderSeq)
+				m.updateSize(seq.OrderSeq)
+			}
+		}
+	}
+
 	logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
 
 	for ns.Nonce < of.nonce {
 		// add order base
 		if ns.SeqNum == 0 {
-			_, err := m.StateMgr.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce)
+			_, err := m.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce)
 			if err != nil {
 				key := store.NewKey(pb.MetaType_OrderBaseKey, of.localID, of.pro, ns.Nonce)
 				data, err := m.ds.Get(key)
@@ -315,6 +317,17 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 
 			m.msgChan <- msg
 
+			key = store.NewKey(pb.MetaType_OrderSeqJobKey, msg.From, msg.To)
+			nval := &types.NonceSeq{
+				Nonce:  ns.Nonce,
+				SeqNum: i,
+			}
+
+			nData, err := nval.Serialize()
+			if err == nil {
+				m.ds.Put(key, nData)
+			}
+
 			nextSeq = i + 1
 
 			logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, i)
@@ -369,11 +382,71 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	return nil
 }
 
-func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
-	// filter other
-	if seq.UserID != m.localID {
+func (m *OrderMgr) updateSize(seq types.OrderSeq) {
+	logger.Debug("confirm jobs: updateSize in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+
+	key := store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+	val, err := m.ds.Get(key)
+	if err != nil {
 		return
 	}
+
+	sjq := new(types.SegJobsQueue)
+	err = sjq.Deserialize(val)
+	if err != nil {
+		return
+	}
+	ss := *sjq
+	sLen := sjq.Len()
+	size := uint64(0)
+	for i := 0; i < sLen; i++ {
+		m.segConfirmChan <- ss[i]
+		size += ss[i].Length * code.DefaultSegSize
+	}
+
+	// update size
+	m.sizelk.Lock()
+	m.opi.ConfirmSize += size
+
+	key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+	val, err = m.opi.Serialize()
+	if err == nil {
+		m.ds.Put(key, val)
+	}
+
+	m.lk.RLock()
+	of, ok := m.orders[seq.UserID]
+	m.lk.RUnlock()
+	if ok {
+		of.opi.ConfirmSize += size
+		key := store.NewKey(pb.MetaType_OrderPayInfoKey, seq.UserID, seq.ProID)
+		val, err = of.opi.Serialize()
+		if err == nil {
+			m.ds.Put(key, val)
+		}
+	}
+	m.sizelk.Unlock()
+
+	key = store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID)
+	nData, err := m.ds.Get(key)
+	if err == nil {
+		nval := new(types.NonceSeq)
+		err = nval.Deserialize(nData)
+		if err == nil {
+			if seq.Nonce == nval.Nonce && seq.SeqNum == nval.SeqNum {
+				m.ds.Delete(key)
+			}
+		}
+	}
+
+	logger.Debug("confirm jobs: updateSize done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+}
+
+// remove segment from local when commit
+// todo: re-handle at boot
+func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
+	logger.Debug("confirm jobs: ReplaceSegWithLoc in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+
 	sid, err := segment.NewSegmentID(m.fsID, 0, 0, 0)
 	if err != nil {
 		return
@@ -392,9 +465,12 @@ func (m *OrderMgr) AddOrderSeq(seq types.OrderSeq) {
 			m.DeleteSegment(m.ctx, sid)
 		}
 	}
+
+	logger.Debug("confirm jobs: ReplaceSegWithLoc done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 }
 
-func (m *OrderMgr) RemoveSeg(srp *tx.SegRemoveParas) {
+// todo
+func (m *OrderMgr) RemoveSegLocation(srp *tx.SegRemoveParas) {
 	if srp.UserID != m.localID {
 		return
 	}
@@ -415,12 +491,17 @@ func (m *OrderMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 func (m *OrderMgr) submitOrders() error {
 	logger.Debug("addOrder for user: ", m.localID)
 
-	pros := m.StateGetProsAt(m.ctx, m.localID)
-
+	pros, err := m.StateGetProsAt(m.ctx, m.localID)
+	if err != nil {
+		return err
+	}
 	var wg sync.WaitGroup
 	// for each provider, do AddOrder
 	for _, proID := range pros {
-		ns := m.StateGetOrderState(m.ctx, m.localID, proID)
+		ns, err := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)
