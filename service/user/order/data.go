@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -810,13 +811,24 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				m.sendCtr.Release(1)
 				logger.Debug("send segment fail: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
 
+				if strings.Contains(err.Error(), "already has seg") {
+					o.Lock()
+					bjob = o.jobs[bid]
+					bjob.jobs = bjob.jobs[1:]
+					o.inflight = false
+					o.Unlock()
+
+					continue
+				}
+
 				// weather has been sent
-				key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
-				has, err := m.ds.Has(key)
-				if err != nil || !has {
+				_, err := o.GetSegmentLocation(o.ctx, sid)
+				if err != nil {
 					o.Lock()
 					o.inflight = false
 					o.Unlock()
+
+					time.Sleep(10 * time.Second)
 				} else {
 					// has sent
 					o.Lock()
@@ -826,8 +838,6 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					o.Unlock()
 					m.segDoneChan <- sj
 				}
-
-				time.Sleep(10 * time.Second)
 
 				continue
 			}
