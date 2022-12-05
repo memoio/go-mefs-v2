@@ -237,7 +237,6 @@ var infoCmd = &cli.Command{
 
 			fmt.Println("EndPoint: ", gi.EndPoint)
 			fmt.Println("Contract Address: ", gi.BaseAddr)
-			fmt.Println("Fs Address: ", gi.FsAddr)
 			fmt.Println("Group ID: ", gid)
 			fmt.Println("Security Level: ", gi.Level)
 			fmt.Println("Size: ", types.FormatBytes(gi.Size))
