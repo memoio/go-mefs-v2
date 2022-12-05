@@ -93,7 +93,11 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*ProviderNode, error) {
 func (p *ProviderNode) Start(perm bool) error {
 	p.Perm = perm
 
-	p.BaseNode.StartLocal()
+	p.RoleType = "provider"
+	err := p.BaseNode.StartLocal()
+	if err != nil {
+		return err
+	}
 
 	// register net msg handle
 	p.GenericService.Register(pb.NetMessage_AskPrice, p.handleQuotation)

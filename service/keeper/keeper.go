@@ -67,8 +67,12 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 // start service related
 func (k *KeeperNode) Start(perm bool) error {
 	k.Perm = perm
+	k.RoleType = "keeper"
 
-	k.BaseNode.StartLocal()
+	err := k.BaseNode.StartLocal()
+	if err != nil {
+		return err
+	}
 
 	// register net msg handle
 
