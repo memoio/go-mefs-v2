@@ -48,6 +48,12 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 	}
 
 	if bytes.HasPrefix(key, []byte("tx")) {
+		if n.isProxy {
+			resp.Header.Type = pb.NetMessage_Err
+			resp.Data.MsgInfo = []byte("no state")
+			return resp, nil
+		}
+
 		val, err := n.StateStore().Get(key)
 		if err != nil {
 			resp.Header.Type = pb.NetMessage_Err
