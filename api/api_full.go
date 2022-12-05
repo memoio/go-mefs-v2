@@ -220,7 +220,7 @@ type ISettle interface {
 	SettleGetGroupID(context.Context) uint64
 	SettleGetThreshold(context.Context) int
 	SettleGetBaseAddr(ctx context.Context) []byte
-	SettleGetRoleInfoAt(context.Context, uint64) (*pb.RoleInfo, error)
+	SettleGetRoleInfoAt(context.Context, uint64) (*RoleInfo, error)
 	SettleGetGroupInfoAt(context.Context, uint64) (*GroupInfo, error)
 	SettleGetBalanceInfo(context.Context, uint64) (*BalanceInfo, error)
 	SettleGetPledgeInfo(context.Context, uint64) (*PledgeInfo, error)

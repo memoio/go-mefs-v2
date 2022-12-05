@@ -18,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
 var logger = logging.Logger("settle")
@@ -41,12 +40,6 @@ const (
 	DefaultGasLimit = uint64(5000000) // as small as possible
 	DefaultGasPrice = 200
 )
-
-type roleInfo struct {
-	pri      *pb.RoleInfo
-	isActive bool
-	isBanned bool
-}
 
 func getClient(endPoint string) *ethclient.Client {
 	client, err := rpc.Dial(endPoint)

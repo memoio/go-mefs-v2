@@ -142,14 +142,14 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return err
 	}
 
-	if gIndex == 0 && ri.pri.GroupID == 0 {
+	if gIndex == 0 && ri.GroupID == 0 {
 		return xerrors.Errorf("group should be larger than zero")
 	}
 
-	logger.Debug("get roleinfo: ", ri.pri, ri.isActive, ri.isBanned)
+	logger.Debug("get roleinfo: ", ri)
 
 	// register account
-	if ri.pri.RoleID == 0 {
+	if ri.RoleID == 0 {
 		err := cm.RegisterAcc()
 		if err != nil {
 			return err
@@ -163,16 +163,16 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return err
 	}
 
-	logger.Debug("get roleinfo after register account: ", ri.pri, ri.isActive, ri.isBanned)
+	logger.Debug("get roleinfo after register account: ", ri)
 
-	if ri.pri.RoleID == 0 {
+	if ri.RoleID == 0 {
 		return xerrors.Errorf("register fails")
 	}
 
-	cm.roleID = ri.pri.RoleID
+	cm.roleID = ri.RoleID
 
 	// register role
-	if ri.pri.Type == pb.RoleInfo_Unknown {
+	if ri.Type == pb.RoleInfo_Unknown {
 		switch typ {
 		case pb.RoleInfo_Keeper:
 			err = cm.RegisterKeeper()
@@ -205,16 +205,16 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return err
 	}
 
-	logger.Debug("get roleinfo after register role: ", ri.pri, ri.isActive, ri.isBanned)
+	logger.Debug("get roleinfo after register role: ", ri)
 
 	switch typ {
 	case pb.RoleInfo_Keeper:
-		if ri.pri.Type != typ {
-			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_Keeper, ri.pri.Type)
+		if ri.Type != typ {
+			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_Keeper, ri.Type)
 		}
 
-		if ri.pri.GroupID == 0 && gIndex > 0 {
-			return xerrors.Errorf("need grant to add keeper %d to group %d", ri.pri.RoleID, gIndex)
+		if ri.GroupID == 0 && gIndex > 0 {
+			return xerrors.Errorf("need grant to add keeper %d to group %d", ri.RoleID, gIndex)
 			/*
 				err = AddKeeperToGroup(cm.roleID, gIndex)
 				if err != nil {
@@ -235,11 +235,11 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 
 	case pb.RoleInfo_Provider:
-		if ri.pri.Type != typ {
-			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_Provider, ri.pri.Type)
+		if ri.Type != typ {
+			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_Provider, ri.Type)
 		}
 
-		if ri.pri.GroupID == 0 && gIndex > 0 {
+		if ri.GroupID == 0 && gIndex > 0 {
 			err = cm.AddProviderToGroup(gIndex)
 			if err != nil {
 				return err
@@ -252,28 +252,28 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 				return err
 			}
 
-			if ri.pri.GroupID != gIndex {
-				return xerrors.Errorf("group add wrong, expected %d, got %d", gIndex, ri.pri.GroupID)
+			if ri.GroupID != gIndex {
+				return xerrors.Errorf("group add wrong, expected %d, got %d", gIndex, ri.GroupID)
 			}
 		}
 	case pb.RoleInfo_User:
-		if ri.pri.Type != typ {
-			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_User, ri.pri.Type)
+		if ri.Type != typ {
+			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_User, ri.Type)
 		}
 	default:
 	}
 
-	cm.roleID = ri.pri.RoleID
+	cm.roleID = ri.RoleID
 
-	if ri.pri.GroupID == 0 {
+	if ri.GroupID == 0 {
 		cm.groupID = gIndex
 	} else {
-		cm.groupID = ri.pri.GroupID
+		cm.groupID = ri.GroupID
 	}
 
 	if cm.groupID > 0 {
 		if cm.groupID != gIndex && gIndex > 0 {
-			return xerrors.Errorf("group is wrong, expected %d, got %d", ri.pri.GroupID, gIndex)
+			return xerrors.Errorf("group is wrong, expected %d, got %d", ri.GroupID, gIndex)
 		}
 
 		gi, err := cm.SettleGetGroupInfoAt(cm.ctx, cm.groupID)

@@ -164,12 +164,12 @@ func (cm *ContractMgr) proWithdraw(roleAddr, rTokenAddr common.Address, pIndex u
 	if err != nil {
 		return err
 	}
-	if !ri.isActive || ri.isBanned || ri.pri.Type != pb.RoleInfo_Provider {
+	if !ri.IsActive || ri.IsBanned || ri.Type != pb.RoleInfo_Provider {
 		return xerrors.Errorf("%d should be active, not be banned, roleType should be provider", pIndex)
 	}
 
 	// check ksigns's length
-	gkNum, err := cm.getKNumAtGroup(ri.pri.GroupID)
+	gkNum, err := cm.getKNumAtGroup(ri.GroupID)
 	if err != nil {
 		return err
 	}

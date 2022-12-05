@@ -143,6 +143,12 @@ var infoCmd = &cli.Command{
 			fmt.Println("Location: Personal")
 		}
 		fmt.Println("Wallet: ", common.BytesToAddress(pri.ChainVerifyKey))
+		ri, err := api.SettleGetRoleInfoAt(cctx.Context, pri.RoleID)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Owner: ", ri.Owner)
 		fmt.Println()
 
 		// GET FS BALANCE INFO
@@ -283,9 +289,9 @@ var infoCmd = &cli.Command{
 			fmt.Println("Paid:", types.FormatMemo(pi.Paid))
 
 			fsbal := new(big.Int).Add(bi.LockValue, bi.FsValue) // fs中可用余额
-			fsbal.Add(fsbal, bi.ErcValue)                     // 加上账户可充值到fs中的余额
+			fsbal.Add(fsbal, bi.ErcValue)                       // 加上账户可充值到fs中的余额
 			if pi.NeedPay.Cmp(fsbal) > 0 {
-				fmt.Println(ansi.Color("Memo balance is not enough to pay and at least "+ types.FormatMemo(fsbal.Sub(pi.NeedPay, fsbal)) + " is still required", "red"))
+				fmt.Println(ansi.Color("Memo balance is not enough to pay and at least "+types.FormatMemo(fsbal.Sub(pi.NeedPay, fsbal))+" is still required", "red"))
 			}
 		case pb.RoleInfo_Provider:
 			papi, closer, err := client.NewProviderNode(cctx.Context, addr, headers)

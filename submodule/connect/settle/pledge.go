@@ -171,7 +171,7 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 		return err
 	}
 
-	if ri.isBanned {
+	if ri.IsBanned {
 		return xerrors.Errorf("%d is banned", cm.roleID)
 	}
 
@@ -199,7 +199,7 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 		}
 	}
 
-	logger.Debugf("%d begin Pledge %d in PledgePool contract", ri.pri.RoleID, val)
+	logger.Debugf("%d begin Pledge %d in PledgePool contract", ri.RoleID, val)
 
 	ppIns, err := pledgepool.NewPledgePool(cm.ppAddr, client)
 	if err != nil {
@@ -209,7 +209,7 @@ func (cm *ContractMgr) pledge(val *big.Int) error {
 	if err != nil {
 		return err
 	}
-	tx, err := ppIns.Pledge(auth, ri.pri.RoleID, val, nil)
+	tx, err := ppIns.Pledge(auth, ri.RoleID, val, nil)
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func (cm *ContractMgr) canclePledge(roleAddr, rTokenAddr common.Address, rindex 
 		return err
 	}
 
-	if ri.isBanned {
+	if ri.IsBanned {
 		return xerrors.Errorf("%d is banned", cm.roleID)
 	}
 

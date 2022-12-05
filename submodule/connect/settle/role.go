@@ -10,6 +10,7 @@ import (
 	callconts "memoc/callcontracts"
 	"memoc/contracts/role"
 
+	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
@@ -85,7 +86,7 @@ func (cm *ContractMgr) getAddrAt(rIndex uint64) (common.Address, error) {
 	}
 }
 
-func (cm *ContractMgr) getRoleInfo(addr common.Address) (*roleInfo, error) {
+func (cm *ContractMgr) getRoleInfo(addr common.Address) (*api.RoleInfo, error) {
 	client := getClient(cm.endPoint)
 	defer client.Close()
 
@@ -94,9 +95,7 @@ func (cm *ContractMgr) getRoleInfo(addr common.Address) (*roleInfo, error) {
 		return nil, err
 	}
 
-	ri := &roleInfo{
-		pri: new(pb.RoleInfo),
-	}
+	ri := new(api.RoleInfo)
 
 	retryCount := 0
 	for {
@@ -112,23 +111,23 @@ func (cm *ContractMgr) getRoleInfo(addr common.Address) (*roleInfo, error) {
 			continue
 		}
 
-		ri.isActive = isActive
-		ri.isBanned = isBanned
-		ri.pri.RoleID = rid
-		ri.pri.GroupID = gid
-		ri.pri.ChainVerifyKey = addr.Bytes()
+		ri.IsActive = isActive
+		ri.IsBanned = isBanned
+		ri.RoleID = rid
+		ri.GroupID = gid
+		ri.ChainVerifyKey = addr.Bytes()
 
 		switch rType {
 		case callconts.UserRoleType:
-			ri.pri.Type = pb.RoleInfo_User
-			ri.pri.Extra = extra
+			ri.Type = pb.RoleInfo_User
+			ri.Extra = extra
 		case callconts.ProviderRoleType:
-			ri.pri.Type = pb.RoleInfo_Provider
+			ri.Type = pb.RoleInfo_Provider
 		case callconts.KeeperRoleType:
-			ri.pri.Type = pb.RoleInfo_Keeper
-			ri.pri.BlsVerifyKey = extra
+			ri.Type = pb.RoleInfo_Keeper
+			ri.BlsVerifyKey = extra
 		default:
-			ri.pri.Type = pb.RoleInfo_Unknown
+			ri.Type = pb.RoleInfo_Unknown
 		}
 
 		return ri, nil

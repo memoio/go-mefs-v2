@@ -86,7 +86,7 @@ type CommonStruct struct {
 		SettleGetGroupID     func(context.Context) uint64                                        `perm:"read"`
 		SettleGetBaseAddr    func(context.Context) []byte                                        `perm:"read"`
 		SettleGetThreshold   func(context.Context) int                                           `perm:"read"`
-		SettleGetRoleInfoAt  func(context.Context, uint64) (*pb.RoleInfo, error)                 `perm:"read"`
+		SettleGetRoleInfoAt  func(context.Context, uint64) (*RoleInfo, error)                    `perm:"read"`
 		SettleGetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)                   `perm:"read"`
 		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)                 `perm:"read"`
 		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)                  `perm:"read"`
@@ -330,7 +330,7 @@ func (s *CommonStruct) SettleGetThreshold(ctx context.Context) int {
 	return s.Internal.SettleGetThreshold(ctx)
 }
 
-func (s *CommonStruct) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
+func (s *CommonStruct) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*RoleInfo, error) {
 	return s.Internal.SettleGetRoleInfoAt(ctx, rid)
 }
 
