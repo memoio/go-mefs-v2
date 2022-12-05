@@ -48,7 +48,11 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		inp:      inp,
 	}
 
-	if bn.StateGetThreshold(ctx) == 1 {
+	thr, err := bn.StateGetThreshold(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if thr == 1 {
 		kn.bc = poa.NewPoAManager(ctx, bn.RoleID(), bn.RoleMgr, bn.NetServiceImpl, inp)
 	} else {
 		hm := hotstuff.NewHotstuffManager(ctx, bn.RoleID(), bn.RoleMgr, bn.NetServiceImpl, inp)

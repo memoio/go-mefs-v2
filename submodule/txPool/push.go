@@ -198,7 +198,11 @@ func (pp *PushPool) PushMessage(ctx context.Context, mes *tx.Message) (types.Msg
 
 	lp, ok := pp.pending[mes.From]
 	if !ok {
-		cNonce := pp.StateGetNonce(pp.ctx, mes.From)
+		cNonce, err := pp.StateGetNonce(pp.ctx, mes.From)
+		if err != nil {
+			pp.lk.Unlock()
+			return types.MsgID{}, err
+		}
 		lp = &pendingMsg{
 			chainNonce: cNonce,
 			nonce:      cNonce,
@@ -248,7 +252,11 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	pp.lk.Lock()
 	lp, ok := pp.pending[sm.From]
 	if !ok {
-		cNonce := pp.StateGetNonce(pp.ctx, sm.From)
+		cNonce, err := pp.StateGetNonce(pp.ctx, sm.From)
+		if err != nil {
+			pp.lk.Unlock()
+			return mid, err
+		}
 		lp = &pendingMsg{
 			chainNonce: cNonce,
 			nonce:      cNonce,
@@ -306,15 +314,18 @@ func (pp *PushPool) ReplaceMsg(mes *tx.Message) error {
 	return nil
 }
 
-func (pp *PushPool) PushGetPendingNonce(ctx context.Context, id uint64) uint64 {
+func (pp *PushPool) PushGetPendingNonce(ctx context.Context, id uint64) (uint64, error) {
 	pp.lk.Lock()
 	defer pp.lk.Unlock()
 	lp, ok := pp.pending[id]
 	if ok {
-		return lp.nonce
+		return lp.nonce, nil
 	}
 
-	cNonce := pp.StateGetNonce(pp.ctx, id)
+	cNonce, err := pp.StateGetNonce(pp.ctx, id)
+	if err != nil {
+		return 0, err
+	}
 	lp = &pendingMsg{
 		chainNonce: cNonce,
 		nonce:      cNonce,
@@ -323,7 +334,7 @@ func (pp *PushPool) PushGetPendingNonce(ctx context.Context, id uint64) uint64 {
 	pp.locals = append(pp.locals, id)
 	pp.pending[id] = lp
 
-	return cNonce
+	return cNonce, nil
 }
 
 func (pp *PushPool) GetPendingMsg(ctx context.Context, id uint64) []types.MsgID {

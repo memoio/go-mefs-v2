@@ -18,7 +18,10 @@ func (n *BaseNode) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgI
 	n.lk.Lock()
 	defer n.lk.Unlock()
 
-	nonce := n.rcp.PushGetPendingNonce(ctx, mes.From)
+	nonce, err := n.rcp.PushGetPendingNonce(ctx, mes.From)
+	if err != nil {
+		return types.MsgID{}, err
+	}
 	mes.Nonce = nonce
 
 	mid := mes.Hash()
@@ -44,7 +47,7 @@ func (n *BaseNode) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgI
 	return nmid, nil
 }
 
-func (n *BaseNode) PushGetPendingNonce(ctx context.Context, id uint64) uint64 {
+func (n *BaseNode) PushGetPendingNonce(ctx context.Context, id uint64) (uint64, error) {
 	if n.isProxy {
 		return n.rcp.PushGetPendingNonce(ctx, id)
 	}

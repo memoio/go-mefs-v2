@@ -2,6 +2,7 @@ package txPool
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -150,8 +151,13 @@ func (mp *InPool) process() {
 			mp.lk.Lock()
 			ms, ok := mp.pending[m.From]
 			if !ok {
+				cNonce, err := mp.StateGetNonce(mp.ctx, m.From)
+				if err != nil {
+					mp.lk.Unlock()
+					continue
+				}
 				ms = &msgSet{
-					nextDelete: mp.StateGetNonce(mp.ctx, m.From),
+					nextDelete: cNonce,
 					info:       make(map[uint64]*tx.SignedMessage),
 				}
 
@@ -278,7 +284,10 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	if sb.Height == 0 {
 		cnt := 0
 		for from, ms := range mp.pending {
-			nc := mp.StateGetNonce(mp.ctx, from)
+			nc, err := mp.StateGetNonce(mp.ctx, from)
+			if err != nil {
+				continue
+			}
 			for i := nc; ; i++ {
 				m, ok := ms.info[i]
 				if ok {
@@ -328,7 +337,10 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 	rLen := 0
 	for from, ms := range mp.pending {
 		// should load from memory?
-		nc := mp.StateGetNonce(mp.ctx, from)
+		nc, err := mp.StateGetNonce(mp.ctx, from)
+		if err != nil {
+			continue
+		}
 		for i := nc; ; i++ {
 			m, ok := ms.info[i]
 			if ok {
@@ -453,11 +465,16 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 }
 
 func (mp *InPool) GetMembers() []uint64 {
-	return mp.StateGetAllKeepers(mp.ctx)
+	kps, err := mp.StateGetAllKeepers(mp.ctx)
+	if err != nil {
+		return kps
+	}
+	res := make([]uint64, 0, 1)
+	return res
 }
 
 func (mp *InPool) GetLeader(slot uint64) uint64 {
-	mems := mp.StateGetAllKeepers(mp.ctx)
+	mems := mp.GetMembers()
 	if len(mems) > 0 {
 		return mems[slot%uint64(len(mems))]
 	} else {
@@ -467,5 +484,9 @@ func (mp *InPool) GetLeader(slot uint64) uint64 {
 
 // quorum size
 func (mp *InPool) GetQuorumSize() int {
-	return mp.StateGetThreshold(mp.ctx)
+	thr, err := mp.StateGetThreshold(mp.ctx)
+	if err != nil {
+		return thr
+	}
+	return math.MaxInt
 }

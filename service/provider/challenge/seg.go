@@ -86,9 +86,11 @@ func (s *SegMgr) Start() error {
 
 // load from state per hour
 func (s *SegMgr) load() {
-	users := s.StateGetUsersAt(s.ctx, s.localID)
-	for _, pid := range users {
-		s.loadFs(pid)
+	users, err := s.StateGetUsersAt(s.ctx, s.localID)
+	if err == nil {
+		for _, pid := range users {
+			s.loadFs(pid)
+		}
 	}
 
 	tc := time.NewTicker(60 * time.Minute)
@@ -99,7 +101,10 @@ func (s *SegMgr) load() {
 		case <-s.ctx.Done():
 			return
 		case <-tc.C:
-			users := s.StateGetUsersAt(s.ctx, s.localID)
+			users, err := s.StateGetUsersAt(s.ctx, s.localID)
+			if err != nil {
+				continue
+			}
 			for _, pid := range users {
 				s.loadFs(pid)
 			}
@@ -219,7 +224,10 @@ func (s *SegMgr) removeExpiredChunk() {
 		s.inRemove = false
 	}()
 
-	users := s.StateGetUsersAt(s.ctx, s.localID)
+	users, err := s.StateGetUsersAt(s.ctx, s.localID)
+	if err != nil {
+		return
+	}
 	for _, userID := range users {
 		subNonce := uint64(0)
 		key := store.NewKey(pb.MetaType_OrderExpiredKey, userID, s.localID)
@@ -228,8 +236,10 @@ func (s *SegMgr) removeExpiredChunk() {
 			subNonce = binary.BigEndian.Uint64(val)
 		}
 
-		ns := s.StateGetOrderNonce(s.ctx, userID, s.localID, math.MaxUint64)
-
+		ns, err := s.StateGetOrderNonce(s.ctx, userID, s.localID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 		for i := subNonce; i < ns.SubNonce; i++ {
 			s.removeSegInExpiredOrder(userID, i)
 		}
@@ -260,13 +270,16 @@ func (s *SegMgr) challenge(userID uint64) {
 		return
 	}
 
-	proved := s.StateGetProofEpoch(s.ctx, userID, s.localID)
+	proved, err := s.StateGetProofEpoch(s.ctx, userID, s.localID)
+	if err != nil {
+		return
+	}
 	if proved > si.nextChal {
 		logger.Debug("challenge has done: ", userID, si.nextChal)
 		return
 	}
 
-	err := s.subDataOrder(userID)
+	err = s.subDataOrder(userID)
 	if err != nil {
 		logger.Debug("challenge sub order fails", err)
 	}
@@ -311,7 +324,10 @@ func (s *SegMgr) challenge(userID uint64) {
 	cnt := uint64(0)
 
 	// challenge routine
-	ns := s.StateGetOrderNonce(s.ctx, userID, s.localID, si.nextChal)
+	ns, err := s.StateGetOrderNonce(s.ctx, userID, s.localID, si.nextChal)
+	if err != nil {
+		return
+	}
 	if ns.Nonce == 0 && ns.SeqNum == 0 {
 		logger.Debug("challenge on empty data at epoch: ", userID, si.nextChal)
 		si.nextChal++

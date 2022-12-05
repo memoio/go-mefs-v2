@@ -182,7 +182,10 @@ func (m *OrderMgr) load() error {
 	}
 
 	m.opi.OnChainSize = 0
-	pros := m.StateGetProsAt(context.TODO(), m.localID)
+	pros, err := m.StateGetProsAt(context.TODO(), m.localID)
+	if err != nil {
+		return err
+	}
 	for _, pid := range pros {
 		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, pid)
 		if err != nil {
