@@ -106,9 +106,14 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 func (u *UserNode) Start(perm bool) error {
 	u.Perm = perm
 
+	u.RoleType = "user"
+
 	u.HttpHandle.PathPrefix("/gateway").HandlerFunc(u.ServeRemote())
 
-	u.BaseNode.StartLocal()
+	err := u.BaseNode.StartLocal()
+	if err != nil {
+		return err
+	}
 
 	// register net msg handle
 
