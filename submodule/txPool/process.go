@@ -96,7 +96,8 @@ func (mp *InPool) Start() {
 			break
 		}
 
-		if retry > 6 {
+		if retry > 10 {
+			mp.ready = true // not receive for long time
 			break
 		}
 	}
@@ -467,26 +468,27 @@ func (mp *InPool) OnViewDone(tb *tx.SignedBlock) error {
 func (mp *InPool) GetMembers() []uint64 {
 	kps, err := mp.StateGetAllKeepers(mp.ctx)
 	if err != nil {
-		return kps
+		kps = make([]uint64, 0, 1)
 	}
-	res := make([]uint64, 0, 1)
-	return res
+
+	return kps
 }
 
 func (mp *InPool) GetLeader(slot uint64) uint64 {
+	lid := mp.minerID
 	mems := mp.GetMembers()
 	if len(mems) > 0 {
-		return mems[slot%uint64(len(mems))]
-	} else {
-		return mp.minerID
+		lid = mems[slot%uint64(len(mems))]
 	}
+
+	return lid
 }
 
 // quorum size
 func (mp *InPool) GetQuorumSize() int {
 	thr, err := mp.StateGetThreshold(mp.ctx)
 	if err != nil {
-		return thr
+		thr = math.MaxInt
 	}
-	return math.MaxInt
+	return thr
 }
