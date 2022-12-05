@@ -9,7 +9,6 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
@@ -37,17 +36,17 @@ func (cm *ContractMgr) SettleGetAddrCnt(ctx context.Context) uint64 {
 }
 
 // get info
-func (cm *ContractMgr) SettleGetRoleInfo(addr address.Address) (*pb.RoleInfo, error) {
+func (cm *ContractMgr) SettleGetRoleInfo(addr address.Address) (*api.RoleInfo, error) {
 	eAddr := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
 	ri, err := cm.getRoleInfo(eAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	return ri.pri, nil
+	return ri, nil
 }
 
-func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
+func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*api.RoleInfo, error) {
 	gotAddr, err := cm.getAddrAt(rid)
 	if err != nil {
 		return nil, err
@@ -57,7 +56,7 @@ func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb
 	if err != nil {
 		return nil, err
 	}
-	return ri.pri, nil
+	return ri, nil
 }
 
 func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.GroupInfo, error) {

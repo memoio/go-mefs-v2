@@ -50,8 +50,8 @@ func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64, update bool) (*pb.Rol
 		return nil, err
 	}
 
-	rm.addRoleInfo(pri, true)
-	return pri, nil
+	rm.addRoleInfo(&pri.RoleInfo, true)
+	return &pri.RoleInfo, nil
 }
 
 func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {

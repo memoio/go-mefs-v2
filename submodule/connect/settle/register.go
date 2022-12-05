@@ -45,7 +45,7 @@ func (cm *ContractMgr) RegisterAcc() error {
 		return err
 	}
 
-	if ri.pri.RoleID > 0 { // has registered already
+	if ri.RoleID > 0 { // has registered already
 		return nil
 	}
 
@@ -82,7 +82,7 @@ func (cm *ContractMgr) RegisterKeeper() error {
 	if err != nil {
 		return err
 	}
-	if ri.pri.Type != pb.RoleInfo_Unknown {
+	if ri.Type != pb.RoleInfo_Unknown {
 		return nil
 	}
 
@@ -172,7 +172,7 @@ func (cm *ContractMgr) RegisterProvider() error {
 	if err != nil {
 		return err
 	}
-	if ri.pri.Type != pb.RoleInfo_Unknown {
+	if ri.Type != pb.RoleInfo_Unknown {
 		return nil
 	}
 
@@ -221,7 +221,7 @@ func (cm *ContractMgr) RegisterUser(gIndex uint64) error {
 	if err != nil {
 		return err
 	}
-	if ri.pri.Type != pb.RoleInfo_Unknown {
+	if ri.Type != pb.RoleInfo_Unknown {
 		return nil
 	}
 

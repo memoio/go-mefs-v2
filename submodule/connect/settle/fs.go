@@ -126,7 +126,7 @@ func (cm *ContractMgr) recharge(rTokenAddr common.Address, uIndex uint64, tIndex
 	if err != nil {
 		return err
 	}
-	if ri.isBanned || ri.pri.Type != pb.RoleInfo_User {
+	if ri.IsBanned || ri.Type != pb.RoleInfo_User {
 		return xerrors.Errorf("invalid user")
 	}
 

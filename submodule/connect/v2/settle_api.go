@@ -41,7 +41,7 @@ func (cm *ContractMgr) SettleGetAddrCnt(ctx context.Context) uint64 {
 
 // get info
 
-func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
+func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*api.RoleInfo, error) {
 	ri, err := cm.getIns.GetRoleInfo(eAddr)
 	if err != nil {
 		return nil, err
@@ -55,20 +55,23 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 	//	return nil, xerrors.Errorf("%d is not active", ri.Index)
 	//}
 
-	pri := new(pb.RoleInfo)
+	pri := new(api.RoleInfo)
 
 	pri.RoleID = ri.Index
 	pri.GroupID = ri.GIndex
 	pri.ChainVerifyKey = eAddr.Bytes()
 	pri.Desc = ri.Desc
+	pri.Owner = ri.Owner.String()
 
 	switch ri.State {
 	case 1:
 		pri.State = "banned"
+		pri.IsBanned = true
 	case 2:
 		pri.State = "inactive"
 	case 3:
 		pri.State = "active"
+		pri.IsActive = true
 	}
 
 	switch ri.RType {
@@ -87,12 +90,12 @@ func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*pb.RoleInfo, error) {
 	return pri, nil
 }
 
-func (cm *ContractMgr) SettleGetRoleInfo(addr address.Address) (*pb.RoleInfo, error) {
+func (cm *ContractMgr) SettleGetRoleInfo(addr address.Address) (*api.RoleInfo, error) {
 	eAddr := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
 	return cm.getRoleInfo(eAddr)
 }
 
-func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*pb.RoleInfo, error) {
+func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*api.RoleInfo, error) {
 	eAddr, err := cm.getIns.GetAddrAt(rid)
 	if err != nil {
 		return nil, err

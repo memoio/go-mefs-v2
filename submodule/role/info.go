@@ -56,7 +56,7 @@ func New(ctx context.Context, roleID, groupID uint64, ds store.KVStore, iw api.I
 
 	ri.GroupID = rm.groupID
 
-	rm.addRoleInfo(ri, true)
+	rm.addRoleInfo(&ri.RoleInfo, true)
 
 	return rm, nil
 }
@@ -129,7 +129,7 @@ func (rm *RoleMgr) syncFromChain(cnt, acnt uint64) uint64 {
 			continue
 		}
 
-		rm.AddRoleInfo(pri)
+		rm.AddRoleInfo(&pri.RoleInfo)
 	}
 
 	return i
@@ -195,15 +195,17 @@ func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
 		}
 	}
 
-	ri, err = rm.is.SettleGetRoleInfoAt(rm.ctx, roleID)
+	pri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
 
-	if ri.GroupID != rm.groupID {
+	if pri.GroupID != rm.groupID {
 		logger.Debugf("%d group wrong %d, need %d", roleID, ri.GroupID, rm.groupID)
 		return nil, xerrors.Errorf("not my group")
 	}
+
+	ri = &pri.RoleInfo
 
 	rm.addRoleInfo(ri, true)
 
