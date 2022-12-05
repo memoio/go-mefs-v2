@@ -128,12 +128,13 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 	if or.orderState == Order_Ack && or.seqState == OrderSeq_Ack {
 		if or.seq.Segments.Has(seg.SegmentID().GetBucketID(), seg.SegmentID().GetStripeID(), seg.SegmentID().GetChunkID()) {
 			logger.Debug("handle add data already sat: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
+			return xerrors.Errorf("already has seg %s", seg.SegmentID())
 		}
 
 		has, _ := m.ids.HasSegment(m.ctx, seg.SegmentID())
 		if has {
 			logger.Debug("handle add data already sat: ", userID, or.nonce, or.seqNum, or.orderState, or.seqState, seg.SegmentID())
-			return nil
+			return xerrors.Errorf("already has seg %s in local", seg.SegmentID())
 		}
 
 		// put to local when received

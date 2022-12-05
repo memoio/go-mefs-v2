@@ -251,8 +251,6 @@ func (m *OrderMgr) runSegSched() {
 			m.finishSegJob(sj)
 		case sj := <-m.segConfirmChan:
 			m.confirmSegJob(sj)
-		default:
-			time.Sleep(3 * time.Second)
 		}
 	}
 }

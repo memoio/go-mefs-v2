@@ -1069,6 +1069,17 @@ func (m *OrderMgr) finishSeq(o *OrderFull, s *types.SignedOrderSeq) error {
 
 	m.msgChan <- msg
 
+	key := store.NewKey(pb.MetaType_OrderSeqJobKey, msg.From, msg.To)
+	nval := &types.NonceSeq{
+		Nonce:  o.seq.Nonce,
+		SeqNum: o.seq.SeqNum,
+	}
+
+	nData, err := nval.Serialize()
+	if err == nil {
+		m.ds.Put(key, nData)
+	}
+
 	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, o.base.Nonce, o.seq.Nonce, o.seq.SeqNum, o.seq.Size)
 
 	// reset
