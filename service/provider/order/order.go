@@ -125,7 +125,10 @@ func (m *OrderMgr) check() error {
 			continue
 		}
 
-		ns := m.ics.StateGetOrderNonce(m.ctx, uid, m.localID, math.MaxUint64)
+		ns, err := m.ics.StateGetOrderNonce(m.ctx, uid, m.localID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 
 		// load size from
 		for of.di.ConfirmedNonce < ns.Nonce {
@@ -284,7 +287,10 @@ func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 		op.di.Received = op.di.ConfirmSize
 	}
 
-	dns := m.ics.StateGetOrderNonce(m.ctx, userID, m.localID, math.MaxUint64)
+	dns, err := m.ics.StateGetOrderNonce(m.ctx, userID, m.localID, math.MaxUint64)
+	if err != nil {
+		return op
+	}
 
 	ns := new(NonceState)
 	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, userID)

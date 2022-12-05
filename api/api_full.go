@@ -176,7 +176,7 @@ type ILfsService interface {
 type IChainPush interface {
 	IChainSync
 
-	PushGetPendingNonce(context.Context, uint64) uint64
+	PushGetPendingNonce(context.Context, uint64) (uint64, error)
 	PushMessage(context.Context, *tx.Message) (types.MsgID, error)
 	PushSignedMessage(context.Context, *tx.SignedMessage) (types.MsgID, error)
 }
@@ -196,22 +196,22 @@ type IChainState interface {
 	StateGetChalEpochInfo(context.Context) (*types.ChalEpoch, error)
 	StateGetChalEpochInfoAt(context.Context, uint64) (*types.ChalEpoch, error)
 
-	StateGetThreshold(context.Context) int
-	StateGetNonce(context.Context, uint64) uint64
+	StateGetThreshold(context.Context) (int, error)
+	StateGetNonce(context.Context, uint64) (uint64, error)
 	StateGetNetInfo(context.Context, uint64) (peer.AddrInfo, error)
 
-	StateGetAllKeepers(context.Context) []uint64
-	StateGetAllUsers(context.Context) []uint64
-	StateGetAllProviders(context.Context) []uint64
-	StateGetUsersAt(context.Context, uint64) []uint64
-	StateGetProsAt(context.Context, uint64) []uint64
+	StateGetAllKeepers(context.Context) ([]uint64, error)
+	StateGetAllUsers(context.Context) ([]uint64, error)
+	StateGetAllProviders(context.Context) ([]uint64, error)
+	StateGetUsersAt(context.Context, uint64) ([]uint64, error)
+	StateGetProsAt(context.Context, uint64) ([]uint64, error)
 
 	StateGetRoleInfo(context.Context, uint64) (*pb.RoleInfo, error)
 	StateGetPDPPublicKey(context.Context, uint64) ([]byte, error)
-	StateGetBucketAt(context.Context, uint64) uint64
+	StateGetBucketAt(context.Context, uint64) (uint64, error)
 
-	StateGetOrderNonce(context.Context, uint64, uint64, uint64) *types.NonceSeq
-	StateGetProofEpoch(ctx context.Context, userID, proID uint64) uint64
+	StateGetOrderNonce(context.Context, uint64, uint64, uint64) (*types.NonceSeq, error)
+	StateGetProofEpoch(ctx context.Context, userID, proID uint64) (uint64, error)
 	StateGetOrder(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)
 	StateGetOrderSeq(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error)
 	StateGetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)

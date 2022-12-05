@@ -171,7 +171,10 @@ var infoCmd = &cli.Command{
 
 			size := uint64(0)
 			price := big.NewInt(0)
-			users := api.StateGetUsersAt(context.TODO(), pri.RoleID)
+			users, err := api.StateGetUsersAt(context.TODO(), pri.RoleID)
+			if err != nil {
+				return err
+			}
 			for _, uid := range users {
 				si, err := api.SettleGetStoreInfo(context.TODO(), uid, pri.RoleID)
 				if err != nil {
@@ -203,7 +206,10 @@ var infoCmd = &cli.Command{
 
 			size := uint64(0)
 			price := big.NewInt(0)
-			pros := api.StateGetProsAt(context.TODO(), pri.RoleID)
+			pros, err := api.StateGetProsAt(context.TODO(), pri.RoleID)
+			if err != nil {
+				return err
+			}
 			for _, pid := range pros {
 				si, err := api.SettleGetStoreInfo(context.TODO(), pri.RoleID, pid)
 				if err != nil {

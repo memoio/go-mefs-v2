@@ -146,8 +146,13 @@ func (l *LfsService) Start() error {
 		has = true
 	}
 
+	bun, err := l.OrderMgr.StateGetBucketAt(l.ctx, l.userID)
+	if err != nil {
+		return err
+	}
+
 	// load bucket
-	l.sb.bucketVerify = l.OrderMgr.StateGetBucketAt(l.ctx, l.userID)
+	l.sb.bucketVerify = bun
 
 	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
 		if uint64(len(l.sb.buckets)) > bid {

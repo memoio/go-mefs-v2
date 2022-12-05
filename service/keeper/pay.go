@@ -54,10 +54,16 @@ func (k *KeeperNode) updatePay() {
 
 			logger.Debugf("pay at epoch %d", payEpoch)
 
-			pros := k.StateGetAllProviders(k.ctx)
+			pros, err := k.StateGetAllProviders(k.ctx)
+			if err != nil {
+				continue
+			}
 			for _, pid := range pros {
 				logger.Debugf("pay for %d at epoch %d", pid, payEpoch)
-				users := k.StateGetUsersAt(k.ctx, pid)
+				users, err := k.StateGetUsersAt(k.ctx, pid)
+				if err != nil {
+					continue
+				}
 				if len(users) == 0 {
 					logger.Debugf("pay for %d at epoch %d, not have users", pid, payEpoch)
 					continue

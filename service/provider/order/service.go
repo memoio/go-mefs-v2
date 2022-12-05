@@ -87,9 +87,11 @@ func (m *OrderMgr) Start() {
 		m.di.Deserialize(val)
 	}
 	// load some
-	users := m.ics.StateGetUsersAt(m.ctx, m.localID)
-	for _, uid := range users {
-		m.getOrder(uid)
+	users, err := m.ics.StateGetUsersAt(m.ctx, m.localID)
+	if err == nil {
+		for _, uid := range users {
+			m.getOrder(uid)
+		}
 	}
 
 	go m.runCheck()

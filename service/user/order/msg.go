@@ -56,9 +56,15 @@ func (m *OrderMgr) checkBalance() {
 	}()
 
 	needPay := big.NewInt(0)
-	pros := m.StateGetProsAt(m.ctx, m.localID)
+	pros, err := m.StateGetProsAt(m.ctx, m.localID)
+	if err != nil {
+		return
+	}
 	for _, proID := range pros {
-		ns := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
+		ns, err := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("fail to get order info in chain", m.localID, proID, err)
@@ -186,7 +192,10 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 }
 
 func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
-	ns := m.StateGetOrderNonce(m.ctx, of.localID, of.pro, math.MaxUint64)
+	ns, err := m.StateGetOrderNonce(m.ctx, of.localID, of.pro, math.MaxUint64)
+	if err != nil {
+		return err
+	}
 
 	key := store.NewKey(pb.MetaType_OrderSeqJobKey, of.localID, of.pro)
 	nData, err := m.ds.Get(key)
@@ -480,12 +489,17 @@ func (m *OrderMgr) RemoveSegLocation(srp *tx.SegRemoveParas) {
 func (m *OrderMgr) submitOrders() error {
 	logger.Debug("addOrder for user: ", m.localID)
 
-	pros := m.StateGetProsAt(m.ctx, m.localID)
-
+	pros, err := m.StateGetProsAt(m.ctx, m.localID)
+	if err != nil {
+		return err
+	}
 	var wg sync.WaitGroup
 	// for each provider, do AddOrder
 	for _, proID := range pros {
-		ns := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
+		ns, err := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
 		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, proID)
 		if err != nil {
 			logger.Debug("addOrder fail to get order info in chain", m.localID, proID, err)

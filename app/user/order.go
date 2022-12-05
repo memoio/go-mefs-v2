@@ -273,7 +273,10 @@ var orderGetCmd = &cli.Command{
 			return err
 		}
 
-		ns := api.StateGetOrderNonce(cctx.Context, api.SettleGetRoleID(cctx.Context), pid, math.MaxUint64)
+		ns, err := api.StateGetOrderNonce(cctx.Context, api.SettleGetRoleID(cctx.Context), pid, math.MaxUint64)
+		if err != nil {
+			return err
+		}
 
 		si, err := api.SettleGetStoreInfo(cctx.Context, api.SettleGetRoleID(cctx.Context), pid)
 		if err != nil {
