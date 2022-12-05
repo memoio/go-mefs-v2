@@ -181,17 +181,17 @@ func (m *OrderMgr) load() error {
 		m.opi.Deserialize(val)
 	}
 
-	m.opi.OnChainSize = 0
+	size := uint64(0)
 	pros, err := m.StateGetProsAt(context.TODO(), m.localID)
-	if err != nil {
-		return err
-	}
-	for _, pid := range pros {
-		si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, pid)
-		if err != nil {
-			continue
+	if err == nil {
+		for _, pid := range pros {
+			si, err := m.is.SettleGetStoreInfo(m.ctx, m.localID, pid)
+			if err != nil {
+				continue
+			}
+			size += si.Size
 		}
-		m.opi.OnChainSize += si.Size
+		m.opi.OnChainSize = size
 	}
 
 	key = store.NewKey(pb.MetaType_OrderProsKey, m.localID)

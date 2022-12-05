@@ -313,6 +313,15 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 			return nd, err
 		}
 
+		si, err := nodeapi.SyncGetInfo(nd.ctx)
+		if err != nil {
+			return nd, err
+		}
+
+		if si.Version != build.ApiVersion {
+			return nil, xerrors.Errorf("api version not equal, need %d, got %d", build.ApiVersion, si.Version)
+		}
+
 		nd.isProxy = true
 		nd.IChainSync = nodeapi
 		nd.ClientCloser = closer

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -326,6 +327,7 @@ func (sp *SyncPool) SyncGetInfo(ctx context.Context) (*api.SyncInfo, error) {
 	defer sp.lk.RUnlock()
 	si := &api.SyncInfo{
 		Status:       sp.ready,
+		Version:      build.ApiVersion,
 		SyncedHeight: sp.nextHeight,
 		RemoteHeight: sp.remoteHeight,
 	}
