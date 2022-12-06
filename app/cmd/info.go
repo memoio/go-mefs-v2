@@ -235,7 +235,7 @@ var infoCmd = &cli.Command{
 			// sizePledge = pPB * size
 			bigS := new(big.Int).SetUint64(gi.Size)
 			sizePledge := new(big.Int)
-			sizePledge = sizePledge.Mul(gi.PpB, bigS)
+			sizePledge = sizePledge.Mul(gi.KpB, bigS)
 			fmt.Printf("Size Pledge: %s\n", types.FormatMemo(sizePledge))
 		}
 
