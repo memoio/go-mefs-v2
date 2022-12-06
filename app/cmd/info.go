@@ -178,17 +178,17 @@ var infoCmd = &cli.Command{
 			size := uint64(0)
 			price := big.NewInt(0)
 			users, err := api.StateGetUsersAt(context.TODO(), pri.RoleID)
-			if err != nil {
-				return err
-			}
-			for _, uid := range users {
-				si, err := api.SettleGetStoreInfo(context.TODO(), uid, pri.RoleID)
-				if err != nil {
-					continue
+			if err == nil {
+				for _, uid := range users {
+					si, err := api.SettleGetStoreInfo(context.TODO(), uid, pri.RoleID)
+					if err != nil {
+						continue
+					}
+					size += si.Size
+					price.Add(price, si.Price)
 				}
-				size += si.Size
-				price.Add(price, si.Price)
 			}
+
 			fmt.Println()
 			fmt.Printf("Data Stored: size %d byte (%s), price %d\n", size, types.FormatBytes(size), price)
 
@@ -213,17 +213,17 @@ var infoCmd = &cli.Command{
 			size := uint64(0)
 			price := big.NewInt(0)
 			pros, err := api.StateGetProsAt(context.TODO(), pri.RoleID)
-			if err != nil {
-				return err
-			}
-			for _, pid := range pros {
-				si, err := api.SettleGetStoreInfo(context.TODO(), pri.RoleID, pid)
-				if err != nil {
-					continue
+			if err == nil {
+				for _, pid := range pros {
+					si, err := api.SettleGetStoreInfo(context.TODO(), pri.RoleID, pid)
+					if err != nil {
+						continue
+					}
+					size += si.Size
+					price.Add(price, si.Price)
 				}
-				size += si.Size
-				price.Add(price, si.Price)
 			}
+
 			fmt.Println()
 			fmt.Printf("Data Stored: size %d byte (%s), price %d\n", size, types.FormatBytes(size), price)
 		case pb.RoleInfo_Keeper:
