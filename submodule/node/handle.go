@@ -23,7 +23,9 @@ func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) erro
 
 func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.SignedBlock) error {
 	logger.Debug("received pub block: ", blk.MinerID, blk.Height)
-	return n.SyncAddTxBlock(ctx, blk)
+	err := n.SyncAddTxBlock(ctx, blk)
+	logger.Debug("handle pub block: ", blk.MinerID, blk.Height, err)
+	return err
 }
 
 func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
