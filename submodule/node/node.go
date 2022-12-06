@@ -130,10 +130,11 @@ func (n *BaseNode) StartLocal() error {
 
 	go n.CheckSpace()
 
-	if !n.isProxy {
+	if n.isProxy {
 		if n.RoleType == "keeper" {
 			return xerrors.Errorf("not use sync mode for keeper, clear sync api and token in config")
 		}
+	} else {
 		// handle received tx message
 		n.BlockHandle.Register(n.TxBlockHandler)
 		// start local push pool
