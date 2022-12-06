@@ -236,9 +236,12 @@ func (g *getImpl) GetGroupInfo(gi uint64) (*api.GroupInfo, error) {
 		return nil, err
 	}
 
-	if level < (kcnt+1)*2/3 {
-		level = (kcnt + 1) * 2 / 3
-	}
+	/*
+		// fix: too many keeper
+		if level < (kcnt+1)*2/3 {
+			level = (kcnt + 1) * 2 / 3
+		}
+	*/
 
 	kpB, ppB, err := getIns.GetPlePerB(&bind.CallOpts{
 		From: g.eAddr,
