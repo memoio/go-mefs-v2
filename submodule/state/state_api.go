@@ -196,10 +196,7 @@ func (s *StateMgr) StateGetProsAt(ctx context.Context, userID uint64) ([]uint64,
 	defer s.lk.RUnlock()
 
 	key := store.NewKey(pb.MetaType_ST_ProsKey, userID)
-	data, err := s.get(key)
-	if err != nil {
-		return nil, err
-	}
+	data, _ := s.get(key)
 
 	res := make([]uint64, len(data)/8)
 	for i := 0; i < len(data)/8; i++ {
@@ -214,10 +211,7 @@ func (s *StateMgr) StateGetUsersAt(ctx context.Context, proID uint64) ([]uint64,
 	defer s.lk.RUnlock()
 
 	key := store.NewKey(pb.MetaType_ST_UsersKey, proID)
-	data, err := s.get(key)
-	if err != nil {
-		return nil, err
-	}
+	data, _ := s.get(key)
 
 	res := make([]uint64, len(data)/8)
 	for i := 0; i < len(data)/8; i++ {

@@ -144,7 +144,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 		segDoneChan:    make(chan *types.SegJob, 128),
 		segConfirmChan: make(chan *types.SegJob, 128),
 
-		msgChan: make(chan *tx.Message, 128),
+		msgChan: make(chan *tx.Message, 1024),
 	}
 
 	logger.Info("create order manager")
