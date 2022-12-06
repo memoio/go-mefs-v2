@@ -33,6 +33,12 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		return oi, xerrors.Errorf("not have enough balance, please rcharge at least %d", l.needPay.Sub(l.needPay, l.bal))
 	}
 
+	// check space left
+	dms := l.ds.Size()
+	if dms.Free < 1024*1024*1024 {
+		return oi, xerrors.Errorf("space left is not enough, at least 1GB")
+	}
+
 	replaceName := false
 	if objectName == "" {
 		replaceName = true

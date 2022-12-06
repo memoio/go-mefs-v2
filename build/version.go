@@ -1,5 +1,7 @@
 package build
 
+import "fmt"
+
 var CurrentCommit string
 
 // change when IChainSync api modify
@@ -9,5 +11,5 @@ const ApiVersion = 2
 const BuildVersion = "2.5.11"
 
 func UserVersion() string {
-	return BuildVersion + CurrentCommit
+	return BuildVersion + fmt.Sprintf("+api.%d", ApiVersion) + CurrentCommit
 }

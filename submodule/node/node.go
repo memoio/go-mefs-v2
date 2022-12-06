@@ -123,10 +123,18 @@ func (n *BaseNode) StartLocal() error {
 		n.RoleMgr.Start()
 	}
 
-	if !n.isProxy {
+	err := n.checkSpace()
+	if err != nil {
+		return err
+	}
+
+	go n.CheckSpace()
+
+	if n.isProxy {
 		if n.RoleType == "keeper" {
 			return xerrors.Errorf("not use sync mode for keeper, clear sync api and token in config")
 		}
+	} else {
 		// handle received tx message
 		n.BlockHandle.Register(n.TxBlockHandler)
 		// start local push pool
@@ -142,20 +150,64 @@ func (n *BaseNode) StartLocal() error {
 }
 
 func (n *BaseNode) WaitForSync() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
 	for {
-		time.Sleep(10 * time.Second)
+		select {
+		case <-ticker.C:
+			si, err := n.SyncGetInfo(n.ctx)
+			if err != nil {
+				continue
+			}
 
-		si, err := n.SyncGetInfo(n.ctx)
-		if err != nil {
-			continue
-		}
-
-		logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
-		if si.SyncedHeight == si.RemoteHeight && si.Status {
-			logger.Info("sync complete; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
-			break
+			logger.Debug("wait sync; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+			if si.SyncedHeight == si.RemoteHeight && si.Status {
+				logger.Info("sync complete; pool state: ", si.SyncedHeight, si.RemoteHeight, si.Status)
+				return
+			}
+		case <-n.ctx.Done():
+			return
 		}
 	}
+}
+
+func (n *BaseNode) CheckSpace() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			err := n.checkSpace()
+			if err != nil {
+				logger.Warn("exit due to: ", err)
+				n.Shutdown(context.TODO())
+			}
+		case <-n.ctx.Done():
+			return
+		}
+	}
+}
+
+func (n *BaseNode) checkSpace() error {
+	dms, err := n.Repo.LocalStoreGetMeta(n.ctx)
+	if err != nil {
+		return err
+	}
+	if dms.Free < 1024*1024*1024 {
+		return xerrors.Errorf("caution: meta space is not enough, at least 1GB")
+	}
+
+	ds, err := n.Repo.LocalStoreGetData(n.ctx)
+	if err != nil {
+		return err
+	}
+	if ds.Free < 10*1024*1024*1024 {
+		return xerrors.Errorf("caution: data space is not enough, at least 10GB")
+	}
+
+	return nil
 }
 
 func (n *BaseNode) Ready(ctx context.Context) bool {

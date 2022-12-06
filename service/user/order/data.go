@@ -819,6 +819,8 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					o.inflight = false
 					o.Unlock()
 
+					time.Sleep(1 * time.Second)
+
 					continue
 				}
 
