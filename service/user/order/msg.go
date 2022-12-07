@@ -576,7 +576,7 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 		// send wsos out
 		rsos, err := m.getSeqFixAck(wsos)
 		if err != nil {
-			return err
+			return xerrors.Errorf("getSeqFixAck: %s", err)
 		}
 
 		ok, err := m.RoleVerify(m.ctx, wsos.ProID, nsos.Hash().Bytes(), rsos.ProDataSig)

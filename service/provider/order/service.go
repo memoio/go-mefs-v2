@@ -741,5 +741,19 @@ func (m *OrderMgr) HandleFixSeq(userID uint64, b []byte) ([]byte, error) {
 	os.ProDataSig = ssig
 	os.ProSig = osig
 
+	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, os.Nonce, os.SeqNum)
+	data, err := nsos.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	m.ds.Put(key, data)
+
+	key = store.NewKey(pb.MetaType_OrderBaseKey, m.localID, userID, os.Nonce)
+	data, err = ob.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	m.ds.Put(key, data)
+
 	return os.Serialize()
 }
