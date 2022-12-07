@@ -105,6 +105,8 @@ func (p *ProviderNode) Start(perm bool) error {
 	p.GenericService.Register(pb.NetMessage_CreateSeq, p.handleCreateSeq)
 	p.GenericService.Register(pb.NetMessage_FinishSeq, p.handleFinishSeq)
 
+	p.GenericService.Register(pb.NetMessage_FixSeq, p.handleFixSeq)
+
 	p.GenericService.Register(pb.NetMessage_PutSegment, p.handleSegData)
 	p.GenericService.Register(pb.NetMessage_GetSegment, p.handleGetSeg)
 

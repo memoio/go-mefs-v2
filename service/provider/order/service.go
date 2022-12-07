@@ -608,3 +608,138 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 	return nil, xerrors.Errorf("fail finish seq sat: %d nonce %d seq %d state %s %s, got %d %d", or.userID, or.nonce, or.seqNum, or.orderState, or.seqState, os.Nonce, os.SeqNum)
 }
+
+func (m *OrderMgr) HandleFixSeq(userID uint64, b []byte) ([]byte, error) {
+	os := new(types.SignedOrderSeq)
+	err := os.Deserialize(b)
+	if err != nil {
+		return nil, err
+	}
+
+	if os.UserID != userID {
+		return nil, xerrors.Errorf("wrong user")
+	}
+
+	ob := new(types.SignedOrder)
+	key := store.NewKey(pb.MetaType_OrderBaseKey, m.localID, userID, os.Nonce)
+	val, err := m.ds.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	err = ob.Deserialize(val)
+	if err != nil {
+		return nil, err
+	}
+
+	sos := new(types.SignedOrderSeq)
+	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, os.Nonce, os.SeqNum)
+	val, err = m.ds.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	err = sos.Deserialize(val)
+	if err != nil {
+		return nil, err
+	}
+
+	if !os.ProDataSig.Equal(sos.ProDataSig) {
+		return nil, xerrors.Errorf("data sig not equal")
+	}
+
+	if !os.ProSig.Equal(sos.ProSig) {
+		return nil, xerrors.Errorf("sig not equal")
+	}
+
+	nsos := &types.SignedOrderSeq{
+		OrderSeq: types.OrderSeq{
+			UserID: sos.UserID,
+			ProID:  sos.ProID,
+			Nonce:  sos.Nonce,
+			SeqNum: sos.SeqNum,
+			Price:  new(big.Int),
+		},
+	}
+
+	or := m.getOrder(sos.UserID)
+	sid, err := segment.NewSegmentID(or.fsID, 0, 0, 0)
+	if err != nil {
+		return nil, xerrors.Errorf("invalid user fsID")
+	}
+
+	cnt := 0
+	for _, seg := range sos.Segments {
+		sid.SetBucketID(seg.BucketID)
+		for j := seg.Start; j < seg.Start+seg.Length; j++ {
+			cnt++
+			sid.SetStripeID(j)
+			sid.SetChunkID(seg.ChunkID)
+
+			as := &types.AggSegs{
+				BucketID: sid.GetBucketID(),
+				Start:    sid.GetStripeID(),
+				Length:   1,
+				ChunkID:  sid.GetChunkID(),
+			}
+
+			if !os.Segments.Has(sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID()) {
+				cnt++
+				nsos.Segments.Push(as)
+				nsos.Segments.Merge()
+			}
+		}
+	}
+
+	usize := uint64(cnt) * build.DefaultSegSize
+
+	if os.SeqNum > 0 {
+		ospr := new(types.SignedOrderSeq)
+		key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, os.Nonce, os.SeqNum-1)
+		val, err = m.ds.Get(key)
+		if err != nil {
+			return nil, err
+		}
+		err = ospr.Deserialize(val)
+		if err != nil {
+			return nil, err
+		}
+
+		nsos.Price.Set(ospr.Price)
+		nsos.Size = ospr.Size
+	}
+
+	nsos.Size += usize
+	price := new(big.Int).Mul(ob.SegPrice, big.NewInt(int64(cnt)))
+	nsos.Price.Add(nsos.Price, price)
+
+	ob.Size = nsos.Size
+	ob.Price.Set(nsos.Price)
+
+	ok, err := m.ir.RoleVerify(m.ctx, os.UserID, nsos.Hash().Bytes(), os.UserDataSig)
+	if err != nil || !ok {
+		return nil, xerrors.Errorf("invalid user data sign: %s", err)
+	}
+
+	ok, err = m.ir.RoleVerify(m.ctx, os.UserID, ob.Hash(), os.UserSig)
+	if err != nil || !ok {
+		return nil, xerrors.Errorf("invalid user sign: %s", err)
+	}
+
+	ssig, err := m.ir.RoleSign(m.ctx, m.localID, nsos.Hash().Bytes(), types.SigSecp256k1)
+	if err != nil {
+		return nil, err
+	}
+
+	osig, err := m.ir.RoleSign(m.ctx, m.localID, ob.Hash(), types.SigSecp256k1)
+	if err != nil {
+		return nil, err
+	}
+
+	nsos.ProDataSig = ssig
+	nsos.ProSig = osig
+	// save local ob, nsos
+
+	os.ProDataSig = ssig
+	os.ProSig = osig
+
+	return os.Serialize()
+}

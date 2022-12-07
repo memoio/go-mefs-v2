@@ -385,3 +385,55 @@ func (m *OrderMgr) getSeqFinishAck(proID uint64, data []byte) error {
 
 	return nil
 }
+
+func (m *OrderMgr) getSeqFixAck(sos *types.SignedOrderSeq) (*types.SignedOrderSeq, error) {
+	logger.Debug("fix seq ack getr: ", sos.ProID)
+	data, err := sos.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	msg := blake3.Sum256(data)
+	sig, err := m.RoleSign(m.ctx, m.localID, msg[:], types.SigSecp256k1)
+	if err != nil {
+		return nil, err
+	}
+
+	sigByte, err := sig.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := m.ns.SendMetaRequest(m.ctx, sos.ProID, pb.NetMessage_FixSeq, data, sigByte)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.GetHeader().GetType() == pb.NetMessage_Err {
+		return nil, xerrors.Errorf("get fix seq ack from %d fail %s", sos.ProID, resp.GetData().MsgInfo)
+	}
+
+	os := new(types.SignedOrderSeq)
+	err = os.Deserialize(resp.GetData().GetMsgInfo())
+	if err != nil {
+		return nil, err
+	}
+
+	psig := new(types.Signature)
+	err = psig.Deserialize(resp.GetData().GetSign())
+	if err != nil {
+		return nil, err
+	}
+
+	pmsg := blake3.Sum256(resp.GetData().GetMsgInfo())
+	ok, err := m.RoleVerify(m.ctx, sos.ProID, pmsg[:], *psig)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, xerrors.Errorf("get fix seq ack from %d wrong sign", sos.ProID)
+	}
+
+	return os, nil
+}

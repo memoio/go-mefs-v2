@@ -429,3 +429,74 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	return resp, nil
 }
+
+func (p *ProviderNode) handleFixSeq(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	logger.Debug("handle fix seq sat: ", mes.GetHeader().From)
+	resp := &pb.NetMessage{
+		Header: &pb.NetMessage_MsgHeader{
+			Version: 1,
+			Type:    mes.GetHeader().GetType(),
+			From:    p.RoleID(),
+		},
+		Data: &pb.NetMessage_MsgData{},
+	}
+
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle finish seq sat: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	// verify sig
+	sigFrom := new(types.Signature)
+	err := sigFrom.Deserialize(mes.GetData().GetSign())
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
+
+	dataFrom := mes.GetData().GetMsgInfo()
+	msgFrom := blake3.Sum256(dataFrom)
+
+	ok, err := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
+	if !ok {
+		resp.Header.Type = pb.NetMessage_Err
+		if err != nil {
+			resp.Data.MsgInfo = []byte(err.Error())
+		}
+		return resp, nil
+	}
+
+	res, err := p.OrderMgr.HandleFixSeq(mes.Header.From, dataFrom)
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
+
+	resp.Data.MsgInfo = res
+
+	msg := blake3.Sum256(res)
+
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, p.RoleID(), msg[:], types.SigSecp256k1)
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
+
+	sigByte, err := sigTo.Serialize()
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
+
+	resp.Data.Sign = sigByte
+
+	logger.Debug("handle fix seq end sat: ", mes.GetHeader().From)
+
+	return resp, nil
+}

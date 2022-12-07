@@ -2,7 +2,6 @@ package order
 
 import (
 	"context"
-	"encoding/binary"
 	"math"
 	"math/big"
 	"sync"
@@ -10,6 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -288,36 +288,12 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 				}
 			}
 
-			key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, ns.Nonce, i)
-			data, err := m.ds.Get(key)
+			err = m.checkSeg(of.localID, of.pro, ns.Nonce, i)
 			if err != nil {
-				return xerrors.Errorf("found %s error %d", string(key), err)
+				return err
 			}
 
-			// verify last one
-			if i == ss.Number {
-				os := new(types.SignedOrderSeq)
-				err = os.Deserialize(data)
-				if err != nil {
-					return err
-				}
-
-				if os.ProDataSig.Type == 0 || os.ProSig.Type == 0 {
-					return xerrors.Errorf("pro sig empty %d %d", os.ProDataSig.Type, os.ProSig.Type)
-				}
-			}
-
-			msg := &tx.Message{
-				Version: 0,
-				From:    of.localID,
-				To:      of.pro,
-				Method:  tx.AddDataOrder,
-				Params:  data,
-			}
-
-			m.msgChan <- msg
-
-			key = store.NewKey(pb.MetaType_OrderSeqJobKey, msg.From, msg.To)
+			key = store.NewKey(pb.MetaType_OrderSeqJobKey, of.localID, of.pro)
 			nval := &types.NonceSeq{
 				Nonce:  ns.Nonce,
 				SeqNum: i,
@@ -329,8 +305,6 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 			}
 
 			nextSeq = i + 1
-
-			logger.Debug("push msg: ", msg.From, msg.To, msg.Method, ns.Nonce, i)
 		}
 
 		// check order state before commit
@@ -465,6 +439,194 @@ func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
 	}
 
 	logger.Debug("confirm jobs: ReplaceSegWithLoc done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+}
+
+func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
+	logger.Debug("check order seq: ", userID, proID, nonce, seqNum)
+	key := store.NewKey(pb.MetaType_OrderSeqKey, userID, proID, nonce, seqNum)
+	data, err := m.ds.Get(key)
+	if err != nil {
+		return xerrors.Errorf("found %s error %d", string(key), err)
+	}
+
+	sos := new(types.SignedOrderSeq)
+	err = sos.Deserialize(data)
+	if err != nil {
+		return err
+	}
+
+	// verify last one
+	if sos.ProDataSig.Type == 0 || sos.ProSig.Type == 0 {
+		return xerrors.Errorf("pro sig empty %d %d", sos.ProDataSig.Type, sos.ProSig.Type)
+	}
+
+	sid, err := segment.NewSegmentID(m.fsID, 0, 0, 0)
+	if err != nil {
+		return err
+	}
+
+	// contain wrong seg
+	wsos := &types.SignedOrderSeq{
+		OrderSeq: types.OrderSeq{
+			UserID: sos.UserID,
+			ProID:  sos.ProID,
+			Nonce:  sos.Nonce,
+			SeqNum: sos.SeqNum,
+		},
+		ProDataSig: sos.ProDataSig, // has old sig
+		ProSig:     sos.ProSig,
+	}
+
+	nsos := &types.SignedOrderSeq{
+		OrderSeq: types.OrderSeq{
+			UserID: sos.UserID,
+			ProID:  sos.ProID,
+			Nonce:  sos.Nonce,
+			SeqNum: sos.SeqNum,
+			Price:  new(big.Int),
+		},
+	}
+
+	renew := false
+
+	cnt := 0
+	for _, seg := range sos.Segments {
+		sid.SetBucketID(seg.BucketID)
+		for j := seg.Start; j < seg.Start+seg.Length; j++ {
+			cnt++
+			sid.SetStripeID(j)
+			sid.SetChunkID(seg.ChunkID)
+
+			as := &types.AggSegs{
+				BucketID: sid.GetBucketID(),
+				Start:    sid.GetStripeID(),
+				Length:   1,
+				ChunkID:  sid.GetChunkID(),
+			}
+
+			_, err := m.GetSegmentLocation(m.ctx, sid)
+			if err != nil {
+				cnt++
+				nsos.Segments.Push(as)
+				nsos.Segments.Merge()
+			} else {
+				renew = true
+				wsos.Segments.Push(as)
+				wsos.Segments.Merge()
+			}
+		}
+	}
+
+	key = store.NewKey(pb.MetaType_OrderBaseKey, sos.UserID, sos.ProID, sos.Nonce)
+	obdata, err := m.ds.Get(key)
+	if err != nil {
+		return err
+	}
+
+	ob := new(types.SignedOrder)
+	err = ob.Deserialize(obdata)
+	if err != nil {
+		return err
+	}
+
+	usize := uint64(cnt) * build.DefaultSegSize
+
+	if sos.SeqNum > 0 {
+		key := store.NewKey(pb.MetaType_OrderSeqKey, sos.UserID, sos.ProID, sos.Nonce, sos.SeqNum-1)
+		obdata, err := m.ds.Get(key)
+		if err != nil {
+			return err
+		}
+
+		ospr := new(types.SignedOrderSeq)
+		err = ospr.Deserialize(obdata)
+		if err != nil {
+			return err
+		}
+
+		if ospr.Size+usize != sos.Size {
+			renew = true
+		}
+		nsos.Price.Set(ospr.Price)
+		nsos.Size = ospr.Size
+	}
+
+	if renew {
+		// update price and size
+		nsos.Size += usize
+		price := new(big.Int).Mul(ob.SegPrice, big.NewInt(int64(cnt)))
+		nsos.Price.Add(nsos.Price, price)
+
+		// re-sign
+		ssig, err := m.RoleSign(m.ctx, m.localID, nsos.Hash().Bytes(), types.SigSecp256k1)
+		if err != nil {
+			return err
+		}
+
+		ob.Size = nsos.Size
+		ob.Price.Set(nsos.Price)
+		osig, err := m.RoleSign(m.ctx, m.localID, ob.Hash(), types.SigSecp256k1)
+		if err != nil {
+			return err
+		}
+
+		wsos.UserDataSig = ssig // contain new sig
+		wsos.UserSig = ssig
+
+		// send wsos out
+		rsos, err := m.getSeqFixAck(wsos)
+		if err != nil {
+			return err
+		}
+
+		ok, err := m.RoleVerify(m.ctx, wsos.ProID, nsos.Hash().Bytes(), rsos.ProDataSig)
+		if err != nil || !ok {
+			return xerrors.Errorf("fix seq fail invalid pro data sign: %s", err)
+		}
+
+		ok, err = m.RoleVerify(m.ctx, wsos.ProID, ob.Hash(), rsos.ProSig)
+		if err != nil || !ok {
+			return xerrors.Errorf("fix seq fail invalid pro sign: %s", err)
+		}
+
+		// save order base
+		ob.Usign = osig
+		ob.Psign = rsos.ProSig
+		key := store.NewKey(pb.MetaType_OrderBaseKey, sos.UserID, sos.ProID, sos.Nonce)
+		obdata, err := ob.Serialize()
+		if err != nil {
+			return err
+		}
+		m.ds.Put(key, obdata)
+
+		// save order seq
+		nsos.UserDataSig = ssig
+		nsos.UserSig = osig
+
+		nsos.ProDataSig = rsos.ProDataSig
+		nsos.ProSig = rsos.ProSig
+
+		data, err = nsos.Serialize()
+		if err != nil {
+			return err
+		}
+		key = store.NewKey(pb.MetaType_OrderSeqKey, sos.UserID, sos.ProID, sos.Nonce, sos.SeqNum)
+		m.ds.Put(key, data)
+	}
+
+	msg := &tx.Message{
+		Version: 0,
+		From:    nsos.UserID,
+		To:      nsos.ProID,
+		Method:  tx.AddDataOrder,
+		Params:  data,
+	}
+
+	m.msgChan <- msg
+
+	logger.Debug("push msg: ", msg.From, msg.To, msg.Method, sos.Nonce, sos.SeqNum)
+
+	return nil
 }
 
 // todo
