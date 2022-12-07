@@ -451,16 +451,14 @@ func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
 	if err != nil {
 		return
 	}
-	val := make([]byte, 8)
-	binary.BigEndian.PutUint64(val, seq.ProID)
+
 	for _, seg := range seq.Segments {
 		sid.SetBucketID(seg.BucketID)
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
 			sid.SetStripeID(j)
 			sid.SetChunkID(seg.ChunkID)
-			key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
-			// add location map
-			m.ds.Put(key, val)
+
+			m.PutSegmentLocation(m.ctx, sid, seq.ProID)
 			// delete from local
 			m.DeleteSegment(m.ctx, sid)
 		}
@@ -482,8 +480,7 @@ func (m *OrderMgr) RemoveSegLocation(srp *tx.SegRemoveParas) {
 				continue
 			}
 
-			key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
-			m.ds.Delete(key)
+			m.DeleteSegmentLocation(m.ctx, sid)
 		}
 	}
 }

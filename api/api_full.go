@@ -147,6 +147,9 @@ type IDataService interface {
 	SendSegmentByID(ctx context.Context, sid segment.SegmentID, to uint64) error
 
 	GetSegmentLocation(ctx context.Context, sid segment.SegmentID) (uint64, error)
+	PutSegmentLocation(ctx context.Context, sid segment.SegmentID, pid uint64) error
+	DeleteSegmentLocation(ctx context.Context, sid segment.SegmentID) error
+
 	GetSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error)
 	GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error)
 }

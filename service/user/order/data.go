@@ -460,12 +460,12 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 	opDoneCount := uint64(0)
 	val, err := m.ds.Get(opckey)
 	if err == nil && len(val) >= 8 {
-		opDoneCount = binary.BigEndian.Uint64(val)
+		opDoneCount = binary.BigEndian.Uint64(val) + 1
 	}
 
 	logger.Debug("load unfinished job from: ", bucketID, opDoneCount, opID)
 
-	for i := opDoneCount + 1; i < opID; i++ {
+	for i := opDoneCount; i < opID; i++ {
 		seg, err := m.getSegJob(bucketID, i, true, true)
 		if err != nil {
 			continue
@@ -803,6 +803,23 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				o.Lock()
 				o.inflight = false
 				o.Unlock()
+
+				time.Sleep(10 * time.Second)
+				continue
+			}
+
+			// has been sent?
+			_, err = o.GetSegmentLocation(o.ctx, sid)
+			if err == nil {
+				m.sendCtr.Release(1)
+
+				o.Lock()
+				bjob = o.jobs[bid]
+				bjob.jobs = bjob.jobs[1:]
+				o.inflight = false
+				o.Unlock()
+				m.segDoneChan <- sj
+
 				continue
 			}
 
@@ -834,7 +851,7 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					continue
 				}
 
-				// weather has been sent
+				// has been sent, judge here?
 				_, err := o.GetSegmentLocation(o.ctx, sid)
 				if err != nil {
 					o.Lock()

@@ -158,6 +158,20 @@ func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.Segmen
 	return binary.BigEndian.Uint64(val), nil
 }
 
+func (d *dataService) PutSegmentLocation(ctx context.Context, sid segment.SegmentID, pid uint64) error {
+	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+	val := make([]byte, 8)
+
+	binary.BigEndian.PutUint64(val[:8], pid)
+	return d.ds.Put(key, val)
+}
+
+func (d *dataService) DeleteSegmentLocation(ctx context.Context, sid segment.SegmentID) error {
+	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+
+	return d.ds.Delete(key)
+}
+
 // GetSegmentFrom get segmemnt over network
 func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error) {
 	logger.Debug("get segment from remote: ", sid, from)
