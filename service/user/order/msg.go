@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"math/big"
+	"os"
 	"sync"
 	"time"
 
@@ -487,7 +488,9 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 		},
 	}
 
-	oscheck := new(types.SignedOrderSeq)
+	ospr := new(types.SignedOrderSeq)
+	segCheck := new(types.AggSegsQueue)
+
 	if seqNum == 0 && nonce > 0 {
 		key := store.NewKey(pb.MetaType_OrderSeqNumKey, userID, proID, nonce-1)
 		val, err := m.ds.Get(key)
@@ -500,35 +503,78 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 			return err
 		}
 
-		key = store.NewKey(pb.MetaType_OrderSeqKey, userID, proID, nonce-1, ss.Number)
-		obdata, err := m.ds.Get(key)
-		if err != nil {
-			return err
+		i := uint32(ss.Number)
+		if os.Getenv("MEFS_FIX_STRICT") != "" {
+			i = 0
 		}
 
-		err = oscheck.Deserialize(obdata)
-		if err != nil {
-			return err
+		// change from 0 if not ok
+		for ; i <= ss.Number; i++ {
+			key = store.NewKey(pb.MetaType_OrderSeqKey, userID, proID, nonce-1, i)
+			obdata, err := m.ds.Get(key)
+			if err != nil {
+				return err
+			}
+			err = ospr.Deserialize(obdata)
+			if err != nil {
+				return err
+			}
+			for _, seg := range ospr.Segments {
+				sid.SetBucketID(seg.BucketID)
+				for j := seg.Start; j < seg.Start+seg.Length; j++ {
+					sid.SetStripeID(j)
+					sid.SetChunkID(seg.ChunkID)
+
+					as := &types.AggSegs{
+						BucketID: sid.GetBucketID(),
+						Start:    sid.GetStripeID(),
+						Length:   1,
+						ChunkID:  sid.GetChunkID(),
+					}
+					segCheck.Push(as)
+				}
+				segCheck.Merge()
+			}
 		}
 	}
 
-	ospr := new(types.SignedOrderSeq)
-	if sos.SeqNum > 0 {
-		key := store.NewKey(pb.MetaType_OrderSeqKey, sos.UserID, sos.ProID, sos.Nonce, sos.SeqNum-1)
-		obdata, err := m.ds.Get(key)
-		if err != nil {
-			return err
+	if seqNum > 0 {
+		i := uint32(seqNum - 1)
+		if os.Getenv("MEFS_FIX_STRICT") != "" {
+			i = 0
 		}
+		for ; i < seqNum; i++ {
+			key = store.NewKey(pb.MetaType_OrderSeqKey, userID, proID, nonce, i)
+			obdata, err := m.ds.Get(key)
+			if err != nil {
+				return err
+			}
+			ospr := new(types.SignedOrderSeq)
+			err = ospr.Deserialize(obdata)
+			if err != nil {
+				return err
+			}
+			for _, seg := range ospr.Segments {
+				sid.SetBucketID(seg.BucketID)
+				for j := seg.Start; j < seg.Start+seg.Length; j++ {
+					sid.SetStripeID(j)
+					sid.SetChunkID(seg.ChunkID)
 
-		err = ospr.Deserialize(obdata)
-		if err != nil {
-			return err
+					as := &types.AggSegs{
+						BucketID: sid.GetBucketID(),
+						Start:    sid.GetStripeID(),
+						Length:   1,
+						ChunkID:  sid.GetChunkID(),
+					}
+					segCheck.Push(as)
+				}
+				segCheck.Merge()
+			}
+			if i == seqNum-1 {
+				nsos.Price.Set(ospr.Price)
+				nsos.Size = ospr.Size
+			}
 		}
-
-		oscheck = ospr
-
-		nsos.Price.Set(ospr.Price)
-		nsos.Size = ospr.Size
 	}
 
 	renew := false
@@ -547,7 +593,7 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 				ChunkID:  sid.GetChunkID(),
 			}
 
-			if oscheck.Segments.Has(sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID()) {
+			if segCheck.Has(sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID()) {
 				renew = true
 				logger.Debug("duplicate chunk: ", sid.String())
 				wsos.Segments.Push(as)
@@ -557,9 +603,14 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 
 			_, err := m.GetSegmentLocation(m.ctx, sid)
 			if err != nil {
-				cnt++
-				nsos.Segments.Push(as)
-				nsos.Segments.Merge()
+				// self already has
+				if nsos.Segments.Has(sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID()) {
+					logger.Debug("self duplicate chunk: ", sid.String())
+				} else {
+					cnt++
+					nsos.Segments.Push(as)
+					nsos.Segments.Merge()
+				}
 			} else {
 				renew = true
 				logger.Debug("duplicate chunk: ", sid.String())

@@ -794,6 +794,15 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				continue
 			}
 			sj := bjob.jobs[0]
+
+			if o.seq.Segments.Has(sj.BucketID, sj.Start, sj.ChunkID) {
+				bjob = o.jobs[bid]
+				bjob.jobs = bjob.jobs[1:]
+				o.Unlock()
+				m.sendCtr.Release(1)
+				continue
+			}
+
 			o.inflight = true
 			o.Unlock()
 

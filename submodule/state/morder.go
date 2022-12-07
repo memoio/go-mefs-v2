@@ -112,7 +112,15 @@ func (s *StateMgr) createOrder(msg *tx.Message) error {
 	}
 
 	if or.Price == nil {
-		return xerrors.Errorf("wrong paras price")
+		return xerrors.Errorf("wrong paras order price")
+	}
+
+	if or.Size != 0 {
+		return xerrors.Errorf("order size should be zero")
+	}
+
+	if or.Price.BitLen() != 0 {
+		return xerrors.Errorf("order price should be zero")
 	}
 
 	if or.End-or.Start < build.OrderMin {
@@ -260,7 +268,15 @@ func (s *StateMgr) canCreateOrder(msg *tx.Message) error {
 	}
 
 	if or.Price == nil {
-		return xerrors.Errorf("wrong paras price")
+		return xerrors.Errorf("wrong paras order price")
+	}
+
+	if or.Size != 0 {
+		return xerrors.Errorf("order size should be zero")
+	}
+
+	if or.Price.BitLen() != 0 {
+		return xerrors.Errorf("order price should be zero")
 	}
 
 	if or.End-or.Start < build.OrderMin {

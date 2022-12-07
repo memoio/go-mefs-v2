@@ -210,6 +210,14 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("order duration %d is short than %d", ob.OrderBase.End-ob.OrderBase.Start, build.OrderMin)
 	}
 
+	if ob.Size != 0 {
+		return nil, xerrors.Errorf("order size should be zero")
+	}
+
+	if ob.Price.BitLen() != 0 {
+		return nil, xerrors.Errorf("order price should be zero")
+	}
+
 	err = lib.CheckOrder(ob.OrderBase)
 	if err != nil {
 		return nil, err
@@ -226,7 +234,6 @@ func (m *OrderMgr) HandleCreateOrder(b []byte) ([]byte, error) {
 	nt := time.Now().Unix()
 	if ob.Start < nt && nt-ob.Start > types.Hour {
 		return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
-
 	} else if ob.Start > nt && ob.Start-nt > types.Hour {
 		return nil, xerrors.Errorf("order start %d is far from %d", ob.Start, nt)
 	}
@@ -678,6 +685,11 @@ func (m *OrderMgr) HandleFixSeq(userID uint64, b []byte) ([]byte, error) {
 				Start:    sid.GetStripeID(),
 				Length:   1,
 				ChunkID:  sid.GetChunkID(),
+			}
+
+			// self already has
+			if nsos.Segments.Has(sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID()) {
+				continue
 			}
 
 			if !os.Segments.Has(sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID()) {
