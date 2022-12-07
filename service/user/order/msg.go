@@ -676,8 +676,6 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 		}
 
 		// save order base
-		ob.Usign = osig
-		ob.Psign = rsos.ProSig
 		key := store.NewKey(pb.MetaType_OrderBaseKey, sos.UserID, sos.ProID, sos.Nonce)
 		obdata, err := ob.Serialize()
 		if err != nil {

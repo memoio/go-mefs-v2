@@ -724,7 +724,6 @@ func (m *OrderMgr) HandleFixSeq(userID uint64, b []byte) ([]byte, error) {
 
 	ob.Size = nsos.Size
 	ob.Price.Set(nsos.Price)
-
 	ok, err := m.ir.RoleVerify(m.ctx, os.UserID, nsos.Hash().Bytes(), os.UserDataSig)
 	if err != nil || !ok {
 		return nil, xerrors.Errorf("invalid user data sign: %s", err)
@@ -747,11 +746,8 @@ func (m *OrderMgr) HandleFixSeq(userID uint64, b []byte) ([]byte, error) {
 
 	nsos.ProDataSig = ssig
 	nsos.ProSig = osig
-	// save local ob, nsos
 
-	os.ProDataSig = ssig
-	os.ProSig = osig
-
+	// save local nsos, ob
 	key = store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, os.Nonce, os.SeqNum)
 	data, err := nsos.Serialize()
 	if err != nil {
@@ -765,6 +761,10 @@ func (m *OrderMgr) HandleFixSeq(userID uint64, b []byte) ([]byte, error) {
 		return nil, err
 	}
 	m.ds.Put(key, data)
+
+	// return
+	os.ProDataSig = ssig
+	os.ProSig = osig
 
 	return os.Serialize()
 }
