@@ -487,13 +487,56 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 		},
 	}
 
+	oscheck := new(types.SignedOrderSeq)
+	if seqNum == 0 && nonce > 0 {
+		key := store.NewKey(pb.MetaType_OrderSeqNumKey, userID, proID, nonce-1)
+		val, err := m.ds.Get(key)
+		if err != nil {
+			return xerrors.Errorf("found %s error %d", string(key), err)
+		}
+		ss := new(SeqState)
+		err = ss.Deserialize(val)
+		if err != nil {
+			return err
+		}
+
+		key = store.NewKey(pb.MetaType_OrderSeqKey, userID, proID, nonce-1, ss.Number)
+		obdata, err := m.ds.Get(key)
+		if err != nil {
+			return err
+		}
+
+		err = oscheck.Deserialize(obdata)
+		if err != nil {
+			return err
+		}
+	}
+
+	ospr := new(types.SignedOrderSeq)
+	if sos.SeqNum > 0 {
+		key := store.NewKey(pb.MetaType_OrderSeqKey, sos.UserID, sos.ProID, sos.Nonce, sos.SeqNum-1)
+		obdata, err := m.ds.Get(key)
+		if err != nil {
+			return err
+		}
+
+		err = ospr.Deserialize(obdata)
+		if err != nil {
+			return err
+		}
+
+		oscheck = ospr
+
+		nsos.Price.Set(ospr.Price)
+		nsos.Size = ospr.Size
+	}
+
 	renew := false
 
 	cnt := 0
 	for _, seg := range sos.Segments {
 		sid.SetBucketID(seg.BucketID)
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
-			cnt++
 			sid.SetStripeID(j)
 			sid.SetChunkID(seg.ChunkID)
 
@@ -504,6 +547,14 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 				ChunkID:  sid.GetChunkID(),
 			}
 
+			if oscheck.Segments.Has(sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID()) {
+				renew = true
+				logger.Debug("duplicate chunk: ", sid.String())
+				wsos.Segments.Push(as)
+				wsos.Segments.Merge()
+				continue
+			}
+
 			_, err := m.GetSegmentLocation(m.ctx, sid)
 			if err != nil {
 				cnt++
@@ -511,6 +562,7 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 				nsos.Segments.Merge()
 			} else {
 				renew = true
+				logger.Debug("duplicate chunk: ", sid.String())
 				wsos.Segments.Push(as)
 				wsos.Segments.Merge()
 			}
@@ -530,25 +582,8 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 	}
 
 	usize := uint64(cnt) * build.DefaultSegSize
-
-	if sos.SeqNum > 0 {
-		key := store.NewKey(pb.MetaType_OrderSeqKey, sos.UserID, sos.ProID, sos.Nonce, sos.SeqNum-1)
-		obdata, err := m.ds.Get(key)
-		if err != nil {
-			return err
-		}
-
-		ospr := new(types.SignedOrderSeq)
-		err = ospr.Deserialize(obdata)
-		if err != nil {
-			return err
-		}
-
-		if ospr.Size+usize != sos.Size {
-			renew = true
-		}
-		nsos.Price.Set(ospr.Price)
-		nsos.Size = ospr.Size
+	if ospr.Size+usize != sos.Size {
+		renew = true
 	}
 
 	if renew {
@@ -571,7 +606,7 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 		}
 
 		wsos.UserDataSig = ssig // contain new sig
-		wsos.UserSig = ssig
+		wsos.UserSig = osig
 
 		// send wsos out
 		rsos, err := m.getSeqFixAck(wsos)

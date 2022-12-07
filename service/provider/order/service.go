@@ -670,7 +670,6 @@ func (m *OrderMgr) HandleFixSeq(userID uint64, b []byte) ([]byte, error) {
 	for _, seg := range sos.Segments {
 		sid.SetBucketID(seg.BucketID)
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
-			cnt++
 			sid.SetStripeID(j)
 			sid.SetChunkID(seg.ChunkID)
 
