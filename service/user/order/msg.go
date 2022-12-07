@@ -198,6 +198,46 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 		return err
 	}
 
+	if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+		logger.Debug("clean stale data: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
+		sid, err := segment.NewSegmentID(m.fsID, 0, 0, 0)
+		if err != nil {
+			return err
+		}
+		for i := uint64(0); i <= ns.Nonce; i++ {
+			ss := new(SeqState)
+			key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, i)
+			val, err := m.ds.Get(key)
+			if err != nil {
+				continue
+			}
+			err = ss.Deserialize(val)
+			if err != nil {
+				continue
+			}
+			for j := uint32(0); j <= ss.Number; j++ {
+				sos, err := m.StateGetOrderSeq(m.ctx, of.localID, of.pro, i, j)
+				if err != nil {
+					continue
+				}
+
+				for _, seg := range sos.Segments {
+					sid.SetBucketID(seg.BucketID)
+					sid.SetChunkID(seg.ChunkID)
+					for k := seg.Start; k < seg.Start+seg.Length; k++ {
+						sid.SetStripeID(k)
+
+						has, err := m.HasSegment(m.ctx, sid)
+						if err == nil && has {
+							m.PutSegmentLocation(m.ctx, sid, of.pro)
+							m.DeleteSegment(m.ctx, sid)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	logger.Debug("re-confirm jobs: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
 	key := store.NewKey(pb.MetaType_OrderSeqJobKey, of.localID, of.pro)
 	nData, err := m.ds.Get(key)
@@ -291,7 +331,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 
 			err = m.checkSeg(of.localID, of.pro, ns.Nonce, i)
 			if err != nil {
-				return err
+				return xerrors.Errorf("check seq err: %s", err)
 			}
 
 			key = store.NewKey(pb.MetaType_OrderSeqJobKey, of.localID, of.pro)
@@ -322,7 +362,8 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 			}
 
 			if nns.State != Order_Done {
-				return xerrors.Errorf("order state %s is not done at %d", nns.State, ns.Nonce)
+				logger.Debugf("order state %s is not done at %d", nns.State, ns.Nonce)
+				return nil
 			}
 		}
 
@@ -414,7 +455,7 @@ func (m *OrderMgr) updateSize(seq types.OrderSeq) {
 		}
 	}
 
-	logger.Debug("confirm jobs: updateSize done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+	logger.Debug("confirm jobs: updateSize done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum, size)
 }
 
 // remove segment from local when commit
@@ -429,9 +470,9 @@ func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
 
 	for _, seg := range seq.Segments {
 		sid.SetBucketID(seg.BucketID)
+		sid.SetChunkID(seg.ChunkID)
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
 			sid.SetStripeID(j)
-			sid.SetChunkID(seg.ChunkID)
 
 			m.PutSegmentLocation(m.ctx, sid, seq.ProID)
 			// delete from local
@@ -504,7 +545,7 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 		}
 
 		i := uint32(ss.Number)
-		if os.Getenv("MEFS_FIX_STRICT") != "" {
+		if os.Getenv("MEFS_RECOVERY_MODE") != "" {
 			i = 0
 		}
 
@@ -521,9 +562,9 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 			}
 			for _, seg := range ospr.Segments {
 				sid.SetBucketID(seg.BucketID)
+				sid.SetChunkID(seg.ChunkID)
 				for j := seg.Start; j < seg.Start+seg.Length; j++ {
 					sid.SetStripeID(j)
-					sid.SetChunkID(seg.ChunkID)
 
 					as := &types.AggSegs{
 						BucketID: sid.GetBucketID(),
@@ -540,7 +581,7 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 
 	if seqNum > 0 {
 		i := uint32(seqNum - 1)
-		if os.Getenv("MEFS_FIX_STRICT") != "" {
+		if os.Getenv("MEFS_RECOVERY_MODE") != "" {
 			i = 0
 		}
 		for ; i < seqNum; i++ {
@@ -582,9 +623,9 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 	cnt := 0
 	for _, seg := range sos.Segments {
 		sid.SetBucketID(seg.BucketID)
+		sid.SetChunkID(seg.ChunkID)
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
 			sid.SetStripeID(j)
-			sid.SetChunkID(seg.ChunkID)
 
 			as := &types.AggSegs{
 				BucketID: sid.GetBucketID(),

@@ -72,7 +72,7 @@ func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.Segme
 }
 
 func (d *dataService) HasSegment(ctx context.Context, sid segment.SegmentID) (bool, error) {
-	logger.Debug("has segment from local: ", sid)
+	//logger.Debug("has segment from local: ", sid)
 	has := d.cache.Contains(sid.String())
 	if has {
 		return true, nil

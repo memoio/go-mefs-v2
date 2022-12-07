@@ -33,8 +33,6 @@ type lastProsPerBucket struct {
 func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
 	logger.Info("register order for bucket: ", bucketID, nextOpID)
 
-	m.loadUnfinishedSegJobs(bucketID, nextOpID)
-
 	storedPros, delPros := m.loadLastProsPerBucket(bucketID, int(bopt.DataCount+bopt.ParityCount))
 
 	lp := &lastProsPerBucket{
@@ -47,9 +45,13 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 	m.updateProsForBucket(lp)
 
-	logger.Info("order bucket: ", lp.bucketID, lp.pros)
+	logger.Info("load order bucket: ", lp.bucketID, lp.pros, lp.deleted)
 
 	m.bucketChan <- lp
+
+	// wait order suc
+	time.Sleep(30 * time.Second)
+	m.loadUnfinishedSegJobs(bucketID, nextOpID)
 }
 
 func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64, cnt int) ([]uint64, []uint64) {
@@ -463,7 +465,11 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 		opDoneCount = binary.BigEndian.Uint64(val) + 1
 	}
 
-	logger.Debug("load unfinished job from: ", bucketID, opDoneCount, opID)
+	if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+		opDoneCount = 0
+	}
+
+	logger.Info("load unfinished job: ", bucketID, opDoneCount, opID)
 
 	for i := opDoneCount; i < opID; i++ {
 		seg, err := m.getSegJob(bucketID, i, true, true)
@@ -474,7 +480,16 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 		if seg.confirmBits.Count() != uint(seg.Length)*uint(seg.ChunkID) {
 			// clone from doneBits
 			seg.dispatchBits = seg.doneBits.Clone()
-			logger.Debug("load unfinished job: ", bucketID, i, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count(), uint(seg.Length)*uint(seg.ChunkID))
+			logger.Info("load unfinished job: ", bucketID, i, seg.dispatchBits.Count(), seg.doneBits.Count(), seg.confirmBits.Count(), uint(seg.Length)*uint(seg.ChunkID))
+		} else {
+			// remove from memory if all done
+			jk := jobKey{
+				bucketID: bucketID,
+				jobID:    i,
+			}
+			m.segLock.Lock()
+			delete(m.segs, jk)
+			m.segLock.Unlock()
 		}
 	}
 }
@@ -833,8 +848,9 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 			}
 
 			err = o.SendSegmentByID(o.ctx, sid, o.pro)
+			m.sendCtr.Release(1)
+
 			if err != nil {
-				m.sendCtr.Release(1)
 				logger.Debug("send segment fail: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID(), err)
 
 				// local has no such block, so skip it
@@ -850,24 +866,14 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					continue
 				}
 
-				if strings.Contains(err.Error(), "already has seg") {
-					o.Lock()
-					bjob = o.jobs[bid]
-					bjob.jobs = bjob.jobs[1:]
-					o.inflight = false
-					o.Unlock()
-
-					continue
-				}
-
 				// has been sent, judge here?
-				_, err := o.GetSegmentLocation(o.ctx, sid)
-				if err != nil {
+				_, werr := o.GetSegmentLocation(o.ctx, sid)
+				if werr != nil {
 					o.Lock()
 					o.inflight = false
 					o.Unlock()
 
-					time.Sleep(10 * time.Second)
+					time.Sleep(1 * time.Second)
 				} else {
 					// has sent
 					o.Lock()
@@ -878,9 +884,21 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					m.segDoneChan <- sj
 				}
 
-				continue
+				if !strings.Contains(err.Error(), "already has seg") {
+					continue
+				}
+
+				// skip chunk if not in recovery mode
+				if strings.Contains(err.Error(), "in local") && os.Getenv("MEFS_RECOVERY_MODE") == "" {
+					o.Lock()
+					bjob = o.jobs[bid]
+					bjob.jobs = bjob.jobs[1:]
+					o.inflight = false
+					o.Unlock()
+					continue
+				}
+
 			}
-			m.sendCtr.Release(1)
 
 			logger.Debug("send segment: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
 

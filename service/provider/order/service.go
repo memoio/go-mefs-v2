@@ -486,9 +486,11 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 
 					for _, seg := range os.Segments {
 						sid.SetBucketID(seg.BucketID)
+						sid.SetChunkID(seg.ChunkID)
+
 						for j := seg.Start; j < seg.Start+seg.Length; j++ {
 							sid.SetStripeID(j)
-							sid.SetChunkID(seg.ChunkID)
+
 							segmt, err := m.ids.GetSegmentFromLocal(m.ctx, sid)
 							if err != nil {
 								// should not, how to fix this by user?
@@ -676,9 +678,10 @@ func (m *OrderMgr) HandleFixSeq(userID uint64, b []byte) ([]byte, error) {
 	cnt := 0
 	for _, seg := range sos.Segments {
 		sid.SetBucketID(seg.BucketID)
+		sid.SetChunkID(seg.ChunkID)
+
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
 			sid.SetStripeID(j)
-			sid.SetChunkID(seg.ChunkID)
 
 			as := &types.AggSegs{
 				BucketID: sid.GetBucketID(),
