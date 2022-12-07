@@ -494,7 +494,7 @@ func (m *OrderMgr) submitOrders() error {
 	}
 	var wg sync.WaitGroup
 	// for each provider, do AddOrder
-	for _, proID := range pros {
+	for i, proID := range pros {
 		ns, err := m.StateGetOrderNonce(m.ctx, m.localID, proID, math.MaxUint64)
 		if err != nil {
 			continue
@@ -520,8 +520,10 @@ func (m *OrderMgr) submitOrders() error {
 		}
 
 		wg.Add(1)
-		go func(of *types.SignedOrder) {
+		go func(of *types.SignedOrder, pi int) {
 			defer wg.Done()
+
+			time.Sleep(time.Duration(pi) * time.Second)
 
 			avail, err := m.is.SettleGetBalanceInfo(m.ctx, of.UserID)
 			if err != nil {
@@ -559,7 +561,7 @@ func (m *OrderMgr) submitOrders() error {
 				}
 				m.sizelk.Unlock()
 			}
-		}(&tof.SignedOrder)
+		}(&tof.SignedOrder, i)
 	}
 	wg.Wait()
 	return nil
