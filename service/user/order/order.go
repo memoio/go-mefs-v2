@@ -299,12 +299,18 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 func (m *OrderMgr) check(o *OrderFull) {
 	nt := time.Now().Unix()
 
+	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
+
+	if o.inStop {
+		return
+	}
+
 	if nt-o.availTime < 300 {
 		o.ready = true
 	} else {
 		// not connect if pro is inStop
 		// connect pro every 10 miniute
-		if nt-o.updateTime > 600 && !o.inStop {
+		if nt-o.updateTime > 600 {
 			o.updateTime = nt
 			go m.update(o.pro)
 		}
@@ -319,8 +325,6 @@ func (m *OrderMgr) check(o *OrderFull) {
 		}
 	}
 
-	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
-
 	if !o.ready {
 		return
 	}
@@ -334,7 +338,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 	switch o.orderState {
 	case Order_Init:
 		o.RLock()
-		if !o.inStop && o.hasSeg() {
+		if o.hasSeg() {
 			o.orderTime = time.Now().Unix()
 			go m.getQuotation(o.pro)
 		}
@@ -358,7 +362,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		switch o.seqState {
 		case OrderSeq_Init:
 			o.RLock()
-			if o.hasSeg() && !o.inStop {
+			if o.hasSeg() {
 				err := m.createSeq(o)
 				o.RUnlock()
 				if err != nil {
@@ -397,14 +401,6 @@ func (m *OrderMgr) check(o *OrderFull) {
 			o.seqState = OrderSeq_Init
 		}
 	case Order_Closing:
-		o.RLock()
-		if o.inStop {
-			o.seqState = OrderSeq_Init
-			m.doneOrder(o)
-			o.RUnlock()
-			return
-		}
-		o.RUnlock()
 		switch o.seqState {
 		case OrderSeq_Send:
 			err := m.commitSeq(o)
@@ -429,7 +425,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		}
 	case Order_Done:
 		o.RLock()
-		if o.hasSeg() && !o.inStop {
+		if o.hasSeg() {
 			o.orderState = Order_Init
 		}
 		o.RUnlock()
@@ -656,23 +652,11 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 		return xerrors.Errorf("%d order is empty", o.pro)
 	}
 
-	// clean state; need test
-	if o.inStop && o.base.Size == 0 && (o.seq == nil || (o.seq != nil && o.seq.Size == 0)) {
-		o.orderState = Order_Init
-
-		// save nonce state
-		err := saveOrderState(o, m.ds)
-		if err != nil {
-			return err
-		}
-		return xerrors.Errorf("%d %d order not close", o.pro, o.base.Nonce)
-	}
-
 	if o.orderState != Order_Running {
 		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
 	}
 
-	if !o.inStop && o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
+	if o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
 		// should not close empty seq
 		logger.Debug("should not close empty order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 		if o.base.End > time.Now().Unix() {
@@ -812,25 +796,21 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 
 	o.inStop = true
 
+	if o.base == nil {
+		o.Unlock()
+		return
+	}
+
+	cnt := uint64(0)
 	// add redo current seq
 	if o.sjq != nil {
 		// should not, TODO: fix
 		sLen := o.sjq.Len()
 		ss := *o.sjq
 
-		size := uint64(0)
 		for i := 0; i < sLen; i++ {
-			size += ss[i].Length * build.DefaultSegSize
+			cnt += ss[i].Length
 			m.redoSegJob(ss[i])
-		}
-
-		// size is added to base, so reduce it here
-		if o.seqState == OrderSeq_Commit {
-			if o.base.Size > size {
-				o.base.Size -= size
-			} else {
-				o.base.Size = 0
-			}
 		}
 
 		o.sjq = new(types.SegJobsQueue)
@@ -846,12 +826,38 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 		bjob.jobs = bjob.jobs[:0]
 	}
 
-	// reset
-	o.failCnt = 0
-
 	o.Unlock()
 
-	m.closeOrder(o)
+	// size is added to base, so reduce it here
+	if o.seqState == OrderSeq_Commit && len(o.seq.UserDataSig.Data) != 0 {
+		if o.seq.Size < cnt*build.DefaultSegSize {
+			return
+		}
+
+		pr := big.NewInt(int64(cnt))
+		pr.Mul(pr, o.base.SegPrice)
+		o.seq.Price.Sub(o.seq.Price, pr)
+		o.seq.Size -= cnt * build.DefaultSegSize
+
+		o.base.Size = o.seq.Size
+		o.base.Price.Set(o.seq.Price)
+
+	}
+
+	// clean state; need test
+	if o.base.Size == 0 && (o.seq == nil || (o.seq != nil && o.seq.Size == 0)) {
+		o.orderState = Order_Init
+
+		// save nonce state
+		saveOrderState(o, m.ds)
+		return
+	}
+
+	if o.seq != nil {
+		o.orderState = Order_Closing
+		o.seqState = OrderSeq_Init
+		m.doneOrder(o)
+	}
 }
 
 // create a new orderseq for prepare

@@ -45,6 +45,13 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 		delPerChunk: delPer,
 	}
 
+	// load all pros used in bucket
+	for _, pid := range lp.pros {
+		go m.newProOrder(pid)
+	}
+
+	time.Sleep(30 * time.Second)
+
 	m.updateProsForBucket(lp)
 
 	logger.Info("load order bucket: ", lp.bucketID, lp.pros, lp.deleted)
@@ -52,7 +59,6 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 	m.bucketChan <- lp
 
 	// wait order suc
-	time.Sleep(30 * time.Second)
 	m.loadUnfinishedSegJobs(bucketID, nextOpID)
 }
 
@@ -802,6 +808,12 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 			return
 		default:
 			if o.inStop {
+				time.Sleep(time.Minute)
+				logger.Info("exit send data duo to stop")
+				return
+			}
+
+			if !o.ready {
 				time.Sleep(time.Minute)
 				continue
 			}
