@@ -257,7 +257,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 	sort.Strings(lisAddrs)
 	for _, addr := range lisAddrs {
-		logger.Debug("Swarm listening on: ", addr)
+		logger.Info("Swarm listening on: ", addr)
 	}
 
 	nd.isOnline = true

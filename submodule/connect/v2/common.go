@@ -112,10 +112,10 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 		for qCount < 5 {
 			balance := GetTxBalance(endPoint, toAddress)
 			if balance.Cmp(bbal) > 0 {
-				log.Printf("transfer ok %s has balance %d", toAddress, balance)
+				log.Printf("transfer ok, %s has balance %d now", toAddress, balance)
 				return nil
 			}
-			log.Printf("%s balance now: %d, waiting for transfer success", toAddress, balance)
+			log.Printf("%s balance: %d, waiting for transfer success", toAddress, balance)
 
 			rand.NewSource(time.Now().UnixNano())
 			t := rand.Intn(20 * (qCount + 1))
@@ -145,10 +145,11 @@ func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.In
 		}
 
 		newVal := ercIns.BalanceOf(addr)
-
-		newVal.Sub(newVal, oldVal)
-		if newVal.Cmp(val) >= 0 {
-			logger.Debugf("Memo %s received balance %d", addr, newVal)
+		deltaVal := big.NewInt(0)
+		deltaVal.Sub(newVal, oldVal)
+		if deltaVal.Cmp(big.NewInt(0)) > 0 {
+			log.Printf("transfer ok, %s has memo %d now", addr, newVal)
+			logger.Debugf("Memo %s received balance %d", addr, deltaVal)
 			return nil
 		}
 

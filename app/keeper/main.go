@@ -15,6 +15,7 @@ import (
 func main() {
 	local := make([]*cli.Command, 0, len(cmd.CommonCmd))
 	local = append(local, cmd.CommonCmd...)
+	local = append(local, cmd.TransferCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-keeper",
