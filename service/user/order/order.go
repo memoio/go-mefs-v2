@@ -326,7 +326,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 	}
 
 	if o.failCnt > minFailCnt {
-		logger.Debugf("close order %d due to fail too many times", o.pro)
+		logger.Warnf("close order %d due to fail too many times", o.pro)
 		m.stopOrder(o)
 		return
 	}
@@ -572,8 +572,8 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		}
 
 		// wait one hour
-		if nt-o.orderTime > 60*types.Minute || (nt-o.orderTime > 10*types.Minute && o.base.Nonce == 0) {
-			logger.Warnf("%d order stop due to unable create new order", o.pro, o.base.Nonce)
+		if o.failCnt > 30 && o.base.Nonce == 0 {
+			logger.Warnf("close order %d due to unable create new order", o.pro)
 			go m.stopOrder(o)
 			return nil
 		}
@@ -652,8 +652,8 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 // time up to close current order
 func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	logger.Debug("handle close order sat: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
-	if o.base == nil || o.orderState != Order_Running {
-		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
+	if o.base == nil {
+		return xerrors.Errorf("%d order is empty", o.pro)
 	}
 
 	// clean state; need test
@@ -666,6 +666,10 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 			return err
 		}
 		return xerrors.Errorf("%d %d order not close", o.pro, o.base.Nonce)
+	}
+
+	if o.orderState != Order_Running {
+		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
 	}
 
 	if !o.inStop && o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
