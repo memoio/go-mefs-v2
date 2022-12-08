@@ -178,7 +178,7 @@ func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode
 	}
 	sort.Strings(lisAddrs)
 	for _, addr := range lisAddrs {
-		logger.Debug("Swarm listening on: ", addr)
+		logger.Info("Swarm listening on: ", addr)
 	}
 
 	return bn

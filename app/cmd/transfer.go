@@ -1,10 +1,11 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
+	"fmt"
+	"math/big"
 	"path/filepath"
 	"strconv"
-
-	callconts "memoc/callcontracts"
 
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
@@ -19,6 +20,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
@@ -128,17 +130,14 @@ var addKeeperToGroupCmd = &cli.Command{
 
 var transferEthCmd = &cli.Command{
 	Name:      "eth",
-	Usage:     "transfer eth",
-	ArgsUsage: "[wallet address (0x...)] [amount (Token / Gwei / Wei)]",
+	Usage:     "transfer eth, payer's sk can be provided, if not, use wallet address as payer",
+	ArgsUsage: "[receiver address (0x...)] [amount (Token / Gwei / Wei)]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "endPoint",
-			Value: callconts.EndPoint,
-		},
-		&cli.StringFlag{
-			Name:  "sk",
-			Usage: "secret key of admin",
-			Value: "",
+			Name:    "secretKey",
+			Aliases: []string{"sk"},
+			Usage:   "secret key of admin",
+			Value:   "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -146,66 +145,102 @@ var transferEthCmd = &cli.Command{
 			return xerrors.Errorf("need two parameters")
 		}
 
-		repoDir := cctx.String(FlagNodeRepo)
-		repoDir, err := homedir.Expand(repoDir)
-		if err != nil {
-			return err
-		}
-
+		// get toAddress from param
 		addr := cctx.Args().Get(0)
 		toAdderss := common.HexToAddress(addr)
 
+		// get value from param
 		val, err := types.ParsetEthValue(cctx.Args().Get(1))
 		if err != nil {
 			return xerrors.Errorf("parsing 'amount' argument: %w", err)
 		}
+		if val.Cmp(big.NewInt(0)) == 0 {
+			return xerrors.Errorf("amount can't be zero.")
+		}
 
-		ep := cctx.String("endPoint")
-		sk := cctx.String("sk")
+		// get repoDir's full path
+		repoDir := cctx.String(FlagNodeRepo)
+		absHomeDir, err := homedir.Expand(repoDir)
+		if err != nil {
+			return err
+		}
+		// read config file
+		configFilePath := filepath.Join(absHomeDir, "config.json")
+		cfg, err := config.ReadFile(configFilePath)
+		if err != nil {
+			return xerrors.Errorf("failed to read config file at %q %w", configFilePath, err)
+		}
+		// read endpoint from config file
+		ep := cfg.Contract.EndPoint
+		// read self wallet from config file
+		ar, err := address.NewFromString(cfg.Wallet.DefaultAddress)
+		if err != nil {
+			return xerrors.Errorf("failed to parse addr %s %w", cfg.Wallet.DefaultAddress, err)
+		}
+		selfAdderss := common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
+		// trans address format to multiaddr
+		maddr, err := address.NewAddress(selfAdderss.Bytes())
+		if err != nil {
+			return err
+		}
+		// get keyfile from keystore
+		keyfile := filepath.Join(repoDir, "keystore", maddr.String())
 
+		// if no receiver provided, transfer to self
 		if addr == "0x0" {
-			configFile := filepath.Join(repoDir, "config.json")
-			cfg, err := config.ReadFile(configFile)
-			if err != nil {
-				return xerrors.Errorf("failed to read config file at %q %w", configFile, err)
-			}
+			toAdderss = selfAdderss
+		}
 
+		// get sk from option
+		sk := cctx.String("sk")
+		// if no sk provided, get sk from api or config file
+		if sk == "" {
+			sk, err = getSK(cctx, selfAdderss, keyfile)
+			if err != nil {
+				return err
+			}
+		}
+
+		// check payer
+		skECDSA, err := crypto.HexToECDSA(sk)
+		if err != nil {
+			return err
+		}
+		pubKey := skECDSA.Public()
+		pubKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
+		if !ok {
+			return xerrors.New("error casting public key to ECDSA")
+		}
+		payer := crypto.PubkeyToAddress(*pubKeyECDSA)
+		if payer == toAdderss {
+			return xerrors.New("payer should be different with receiver")
+		}
+
+		// if no address provided, transfer to local
+		if addr == "0x0" {
+			// get local address from config file
 			ar, err := address.NewFromString(cfg.Wallet.DefaultAddress)
 			if err != nil {
 				return xerrors.Errorf("failed to parse addr %s %w", cfg.Wallet.DefaultAddress, err)
 			}
-
 			toAdderss = common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
-			ep = cfg.Contract.EndPoint
 		}
 
-		return settle.TransferTo(ep, toAdderss, val, sk)
+		// transfer
+		return v2.TransferTo(ep, toAdderss, val, sk)
 	},
 }
 
 var transferErcCmd = &cli.Command{
 	Name:      "memo",
-	Usage:     "transfer memo",
-	ArgsUsage: "[wallet address (0x...)] [amount (Memo / NanoMemo / AttoMemo)]",
+	Usage:     "transfer memo, payer's sk can be provided, if not, use wallet address as payer",
+	ArgsUsage: "[receiver address (0x...)] [amount (Memo / NanoMemo / AttoMemo)]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "endPoint",
-			Value: callconts.EndPoint,
-		},
-		&cli.StringFlag{
-			Name:  "instanceAddr",
-			Usage: "instance contract address",
-			Value: callconts.RoleAddr.String(),
-		},
-		&cli.IntFlag{
-			Name:  "version",
-			Usage: "contract version",
-			Value: 0,
-		},
-		&cli.StringFlag{
-			Name:  "sk",
-			Usage: "secret key of admin",
-			Value: "",
+			Name:    "secretKey",
+			Aliases: []string{"sk"},
+			Usage:   "secret key of admin",
+			Value:   "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -213,45 +248,83 @@ var transferErcCmd = &cli.Command{
 			return xerrors.Errorf("need two parameters: address and value")
 		}
 
-		repoDir := cctx.String(FlagNodeRepo)
-		repoDir, err := homedir.Expand(repoDir)
-		if err != nil {
-			return err
-		}
-
+		// get toAddress from param
 		addr := cctx.Args().Get(0)
 		toAdderss := common.HexToAddress(addr)
-
+		// get val from param
 		val, err := types.ParsetValue(cctx.Args().Get(1))
 		if err != nil {
 			return xerrors.Errorf("parsing 'amount' argument: %w", err)
 		}
-
-		ep := cctx.String("endPoint")
-		rAddr := common.HexToAddress(cctx.String("instanceAddr"))
-		sk := cctx.String("sk")
-		ver := cctx.Int("version")
-
-		if addr == "0x0" {
-			configFile := filepath.Join(repoDir, "config.json")
-			cfg, err := config.ReadFile(configFile)
-			if err != nil {
-				return xerrors.Errorf("failed to read config file at %q %w", configFile, err)
-			}
-			ar, err := address.NewFromString(cfg.Wallet.DefaultAddress)
-			if err != nil {
-				return xerrors.Errorf("failed to parse addr %s %w", cfg.Wallet.DefaultAddress, err)
-			}
-
-			toAdderss = common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
-
-			rAddr = common.HexToAddress(cfg.Contract.RoleContract)
-			ep = cfg.Contract.EndPoint
-			ver = int(cfg.Contract.Version)
+		if val.Cmp(big.NewInt(0)) == 0 {
+			return xerrors.Errorf("amount can't be zero.")
 		}
 
+		// get repoDir's full path
+		repoDir := cctx.String(FlagNodeRepo)
+		absHomeDir, err := homedir.Expand(repoDir)
+		if err != nil {
+			return err
+		}
+		// read config file
+		configFilePath := filepath.Join(absHomeDir, "config.json")
+		cfg, err := config.ReadFile(configFilePath)
+		if err != nil {
+			return xerrors.Errorf("failed to read config file at %q %w", configFilePath, err)
+		}
+		// read endpoint from config file
+		ep := cfg.Contract.EndPoint
+		// read version from config file
+		ver := int(cfg.Contract.Version)
+		// read instance address from config file
+		instAddr := common.HexToAddress(cfg.Contract.RoleContract)
+		// read self wallet from config file
+		ar, err := address.NewFromString(cfg.Wallet.DefaultAddress)
+		if err != nil {
+			return xerrors.Errorf("failed to parse addr %s %w", cfg.Wallet.DefaultAddress, err)
+		}
+		selfAdderss := common.BytesToAddress(utils.ToEthAddress(ar.Bytes()))
+		// trans address format to multiaddr
+		maddr, err := address.NewAddress(selfAdderss.Bytes())
+		if err != nil {
+			return err
+		}
+		// get keyfile from keystore
+		keyfile := filepath.Join(repoDir, "keystore", maddr.String())
+
+		// if no receiver provided, transfer to self
+		if addr == "0x0" {
+			toAdderss = selfAdderss
+		}
+
+		// get sk from option
+		sk := cctx.String("sk")
+		// if no sk provided, restore sk from api or config file
+		if sk == "" {
+			sk, err = getSK(cctx, selfAdderss, keyfile)
+			if err != nil {
+				return err
+			}
+		}
+
+		// check payer
+		skECDSA, err := crypto.HexToECDSA(sk)
+		if err != nil {
+			return err
+		}
+		pubKey := skECDSA.Public()
+		pubKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
+		if !ok {
+			return xerrors.New("error casting public key to ECDSA")
+		}
+		payer := crypto.PubkeyToAddress(*pubKeyECDSA)
+		if payer == toAdderss {
+			return xerrors.New("payer should be different with receiver")
+		}
+
+		// call transfer memo
 		if ver == 0 {
-			rtAddr, err := settle.GetRoleTokenAddr(ep, rAddr, toAdderss)
+			rtAddr, err := settle.GetRoleTokenAddr(ep, instAddr, toAdderss)
 			if err != nil {
 				return err
 			}
@@ -262,13 +335,31 @@ var transferErcCmd = &cli.Command{
 			}
 			return settle.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
 		} else {
-			tAddr, err := v2.GetTokenAddr(ep, rAddr, sk)
+			tAddr, err := v2.GetTokenAddr(ep, instAddr, sk)
 			if err != nil {
 				return err
 			}
+			fmt.Println("token addr:", tAddr)
 
 			return v2.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
 		}
 
 	},
+}
+
+// get sk from api first, if fail get sk from keystore
+func getSK(cctx *cli.Context, selfAddress common.Address, keyfile string) (string, error) {
+	// input wallet password in commandline
+	pw, err := minit.GetPassWord()
+	if err != nil {
+		return "", err
+	}
+
+	// get sk from config file with password
+	sk, err := keystore.LoadKeyFile(pw, keyfile)
+	if err != nil {
+		return "", err
+	}
+
+	return sk, nil
 }

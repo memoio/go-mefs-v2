@@ -197,7 +197,7 @@ var walletnewCmd = &cli.Command{
 
 var walletExportCmd = &cli.Command{
 	Name:      "export",
-	Usage:     "export wallet address",
+	Usage:     "export wallet secret key",
 	ArgsUsage: "[wallet address (0x...)]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{

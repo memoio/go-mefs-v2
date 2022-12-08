@@ -17,6 +17,7 @@ func main() {
 	local = append(local, cmd.CommonCmd...)
 	local = append(local, OrderCmd)
 	local = append(local, cmd.RestrictCmd)
+	local = append(local, cmd.TransferCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-provider",
