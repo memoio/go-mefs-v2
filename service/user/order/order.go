@@ -334,7 +334,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 	switch o.orderState {
 	case Order_Init:
 		o.RLock()
-		if o.hasSeg() && !o.inStop {
+		if !o.inStop && o.hasSeg() {
 			o.orderTime = time.Now().Unix()
 			go m.getQuotation(o.pro)
 		}
@@ -571,6 +571,13 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 			return nil
 		}
 
+		// wait one hour
+		if nt-o.orderTime > 60*types.Minute || (nt-o.orderTime > 10*types.Minute && o.base.Nonce == 0) {
+			logger.Warnf("%d order stop due to unable create new order", o.pro, o.base.Nonce)
+			go m.stopOrder(o)
+			return nil
+		}
+
 		// send to pro
 		data, err := o.base.Serialize()
 		if err != nil {
@@ -647,6 +654,18 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	logger.Debug("handle close order sat: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	if o.base == nil || o.orderState != Order_Running {
 		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
+	}
+
+	if o.inStop && o.base.Size == 0 {
+		// clean
+		o.orderState = Order_Init
+
+		// save nonce state
+		err := saveOrderState(o, m.ds)
+		if err != nil {
+			return err
+		}
+		return xerrors.Errorf("%d %d order not close", o.pro, o.base.Nonce)
 	}
 
 	if !o.inStop && o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
