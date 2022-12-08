@@ -20,11 +20,12 @@ import (
 )
 
 type lastProsPerBucket struct {
-	lk       sync.RWMutex
-	bucketID uint64
-	dc, pc   int
-	pros     []uint64 // update and save to local
-	deleted  []uint64 // add del pro here
+	lk          sync.RWMutex
+	bucketID    uint64
+	dc, pc      int
+	pros        []uint64 // update and save to local
+	deleted     []uint64 // add del pro here
+	delPerChunk [][]uint64
 }
 
 // TODO: change pro when quotation price is too high
@@ -33,14 +34,15 @@ type lastProsPerBucket struct {
 func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
 	logger.Info("register order for bucket: ", bucketID, nextOpID)
 
-	storedPros, delPros := m.loadLastProsPerBucket(bucketID, int(bopt.DataCount+bopt.ParityCount))
+	storedPros, delPros, delPer := m.loadLastProsPerBucket(bucketID, int(bopt.DataCount+bopt.ParityCount))
 
 	lp := &lastProsPerBucket{
-		bucketID: bucketID,
-		dc:       int(bopt.DataCount),
-		pc:       int(bopt.ParityCount),
-		pros:     storedPros,
-		deleted:  delPros,
+		bucketID:    bucketID,
+		dc:          int(bopt.DataCount),
+		pc:          int(bopt.ParityCount),
+		pros:        storedPros,
+		deleted:     delPros,
+		delPerChunk: delPer,
 	}
 
 	m.updateProsForBucket(lp)
@@ -54,17 +56,20 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 	m.loadUnfinishedSegJobs(bucketID, nextOpID)
 }
 
-func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64, cnt int) ([]uint64, []uint64) {
+func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64, cnt int) ([]uint64, []uint64, [][]uint64) {
 	res := make([]uint64, cnt)
+	delRes := make([]uint64, 0, 1)
+	delPer := make([][]uint64, cnt)
+
 	for i := 0; i < int(cnt); i++ {
 		res[i] = math.MaxUint64
+		delPer[i] = make([]uint64, 0, 1)
 	}
 
-	delRes := make([]uint64, 0, 1)
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID, bucketID)
 	val, err := m.ds.Get(key)
 	if err != nil {
-		return res, delRes
+		return res, delRes, delPer
 	}
 
 	for i := 0; i < len(val)/8 && i < cnt; i++ {
@@ -79,7 +84,7 @@ func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64, cnt int) ([]uint64, []
 	key = store.NewKey(pb.MetaType_OrderProsDeleteKey, m.localID, bucketID)
 	val, err = m.ds.Get(key)
 	if err != nil {
-		return res, nil
+		return res, delRes, delPer
 	}
 
 	delRes = make([]uint64, len(val)/8)
@@ -90,7 +95,22 @@ func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64, cnt int) ([]uint64, []
 		}
 	}
 
-	return res, delRes
+	for i := 0; i < cnt; i++ {
+		key = store.NewKey(pb.MetaType_OrderProsDeleteKey, m.localID, bucketID, i)
+		val, err = m.ds.Get(key)
+		if err != nil {
+			continue
+		}
+
+		for j := 0; j < len(val)/8; j++ {
+			pid := binary.BigEndian.Uint64(val[8*j : 8*(j+1)])
+			if pid != math.MaxUint64 {
+				delPer[i] = append(delPer[i], pid)
+			}
+		}
+	}
+
+	return res, delRes, delPer
 }
 
 func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) {
@@ -102,20 +122,28 @@ func (m *OrderMgr) saveLastProsPerBucket(lp *lastProsPerBucket) {
 	key := store.NewKey(pb.MetaType_OrderProsKey, m.localID, lp.bucketID)
 	m.ds.Put(key, buf)
 
-	if len(lp.deleted) == 0 {
-		return
+	if len(lp.deleted) != 0 {
+		buf = make([]byte, 8*len(lp.deleted))
+		for i, pid := range lp.deleted {
+			binary.BigEndian.PutUint64(buf[8*i:8*(i+1)], pid)
+		}
+
+		key = store.NewKey(pb.MetaType_OrderProsDeleteKey, m.localID, lp.bucketID)
+		m.ds.Put(key, buf)
 	}
 
-	buf = make([]byte, 8*len(lp.deleted))
-	for i, pid := range lp.deleted {
-		if pid == math.MaxUint64 {
+	for i := 0; i < len(lp.pros); i++ {
+		if len(lp.delPerChunk[i]) == 0 {
 			continue
 		}
-		binary.BigEndian.PutUint64(buf[8*i:8*(i+1)], pid)
-	}
+		buf = make([]byte, 8*len(lp.delPerChunk[i]))
+		for j, pid := range lp.delPerChunk[i] {
+			binary.BigEndian.PutUint64(buf[8*j:8*(j+1)], pid)
+		}
 
-	key = store.NewKey(pb.MetaType_OrderProsDeleteKey, m.localID, lp.bucketID)
-	m.ds.Put(key, buf)
+		key = store.NewKey(pb.MetaType_OrderProsDeleteKey, m.localID, lp.bucketID, i)
+		m.ds.Put(key, buf)
+	}
 }
 
 func removeDup(a []uint64) []uint64 {
@@ -247,6 +275,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {
 							lp.deleted = append(lp.deleted, pid)
+							lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
 						}
 						break
 					}
@@ -280,6 +309,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {
 							lp.deleted = append(lp.deleted, pid)
+							lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
 						}
 						break
 					}
@@ -319,6 +349,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {
 							lp.deleted = append(lp.deleted, pid)
+							lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
 						}
 
 						break
@@ -330,8 +361,10 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 
 	if change {
 		m.saveLastProsPerBucket(lp)
+		logger.Info("order bucket: ", lp.bucketID, lp.pros)
 	}
-	logger.Info("order bucket: ", lp.bucketID, lp.pros, lp.deleted)
+
+	logger.Debug("order bucket: ", lp.bucketID, lp.pros, lp.deleted, lp.delPerChunk)
 }
 
 // disptach, done, total
@@ -885,6 +918,10 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				}
 
 				if !strings.Contains(err.Error(), "already has seg") {
+					if strings.Contains(err.Error(), "resource limit exceeded") {
+						// wait?
+						time.Sleep(30 * time.Second)
+					}
 					continue
 				}
 
@@ -897,7 +934,6 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					o.Unlock()
 					continue
 				}
-
 			}
 
 			logger.Debug("send segment: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
