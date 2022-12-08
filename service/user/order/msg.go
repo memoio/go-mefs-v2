@@ -597,9 +597,9 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 			}
 			for _, seg := range ospr.Segments {
 				sid.SetBucketID(seg.BucketID)
+				sid.SetChunkID(seg.ChunkID)
 				for j := seg.Start; j < seg.Start+seg.Length; j++ {
 					sid.SetStripeID(j)
-					sid.SetChunkID(seg.ChunkID)
 
 					as := &types.AggSegs{
 						BucketID: sid.GetBucketID(),
