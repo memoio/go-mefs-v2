@@ -656,8 +656,8 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
 	}
 
-	if o.inStop && o.base.Size == 0 {
-		// clean
+	// clean state; need test
+	if o.inStop && o.base.Size == 0 && (o.seq == nil || (o.seq != nil && o.seq.Size == 0)) {
 		o.orderState = Order_Init
 
 		// save nonce state
