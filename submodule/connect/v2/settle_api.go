@@ -136,31 +136,36 @@ func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) 
 }
 
 func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (*api.PledgeInfo, error) {
+	// total current pledge amount of all nodes recorded in pledge contract, all pledge amount, no mint
 	tp, err := cm.getIns.GetTotalPledge()
 	if err != nil {
 		return nil, err
 	}
 
+	// get erc20 balance of pledge pool, including pledge and mint,
 	ep, err := cm.getIns.GetPledge(cm.tIndex)
 	if err != nil {
 		return nil, err
 	}
 
-	pv, err := cm.getIns.GetPledgeAt(roleID, cm.tIndex)
+	// get current pledge balance of a node
+	bal, err := cm.getIns.GetPledgeAt(roleID, cm.tIndex)
 	if err != nil {
 		return nil, err
 	}
 
 	// get node pledge and node reward
-	_, _, lp, lr, err := cm.getIns.GetPleRewardInfo(roleID, 0)
+	_, last, lp, lr, err := cm.getIns.GetPleRewardInfo(roleID, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	pi := &api.PledgeInfo{
-		Value:       pv,
-		ErcTotal:    ep,
-		Total:       tp,
+		Value:    bal,
+		ErcTotal: ep,
+		Total:    tp,
+
+		Last:        last,
 		LocalPledge: lp,
 		LocalReward: lr,
 	}
