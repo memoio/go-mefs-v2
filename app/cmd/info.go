@@ -294,6 +294,7 @@ var infoCmd = &cli.Command{
 			fmt.Println("Need Pay:", types.FormatMemo(pi.NeedPay))
 			fmt.Println("Paid:", types.FormatMemo(pi.Paid))
 
+			pi.NeedPay.Sub(pi.NeedPay, pi.Paid)
 			fsbal := new(big.Int).Add(bi.LockValue, bi.FsValue) // fs中可用余额
 			fsbal.Add(fsbal, bi.ErcValue)                       // 加上账户可充值到fs中的余额
 			if pi.NeedPay.Cmp(fsbal) > 0 {
