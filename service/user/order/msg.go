@@ -367,6 +367,10 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 			}
 		}
 
+		if nextSeq == 0 {
+			logger.Warn("empty data order at: ", of.pro, ns.Nonce)
+		}
+
 		ocp := tx.OrderCommitParas{
 			UserID: of.localID,
 			ProID:  of.pro,

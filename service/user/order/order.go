@@ -177,7 +177,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		fsID:    m.fsID,
 		pro:     id,
 
-		availTime: time.Now().Unix() - 300,
+		availTime: time.Now().Unix() - 301,
 
 		prevEnd: time.Now().Unix(),
 
@@ -352,7 +352,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			}
 		}
 	case Order_Running:
-		if nt-o.orderTime > int64(m.orderLast) {
+		if nt-o.orderTime > m.orderLast {
 			err := m.closeOrder(o)
 			if err != nil {
 				logger.Debugf("%d order fail due to close order %d %s", o.pro, o.failCnt, err)
@@ -659,7 +659,7 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	if o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
 		// should not close empty seq
 		logger.Debug("should not close empty order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
-		if o.base.End > time.Now().Unix() {
+		if o.base.End > time.Now().Unix()+m.orderLast+600 {
 			// not close order when data is empty
 			o.orderTime = time.Now().Unix()
 			err := saveOrderState(o, m.ds)
@@ -715,6 +715,10 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	// last seq is not start, so use it
 	if o.sjq.Len() == 0 && (o.base.Size == o.seq.Size) && len(o.seq.ProDataSig.Data) == 0 {
 		ocp.SeqNum = o.seq.SeqNum
+	}
+
+	if ocp.SeqNum == 0 {
+		return xerrors.Errorf("empty data at order: %d %d", o.base.ProID, o.base.Nonce)
 	}
 
 	data, err := ocp.Serialize()
@@ -841,15 +845,24 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 
 		o.base.Size = o.seq.Size
 		o.base.Price.Set(o.seq.Price)
-
 	}
 
 	// clean state; need test
-	if o.base.Size == 0 && (o.seq == nil || (o.seq != nil && o.seq.Size == 0)) {
-		o.orderState = Order_Init
+	if o.base.Size == 0 {
+		if o.seq == nil {
+			return
+		}
 
-		// save nonce state
-		saveOrderState(o, m.ds)
+		// reset seq state
+		if o.seq.Size == 0 && (o.seqState == OrderSeq_Send || o.seqState == OrderSeq_Commit) {
+			// reset
+			o.seq.Segments = types.AggSegsQueue{}
+			o.seqState = OrderSeq_Send
+			saveOrderSeq(o, m.ds)
+
+			saveSeqJob(o, m.ds)
+		}
+
 		return
 	}
 
