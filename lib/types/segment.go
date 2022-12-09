@@ -224,7 +224,6 @@ func (asq *AggSegsQueue) Push(s *AggSegs) {
 	asqval := *asq
 	last := asqval[asq.Len()-1]
 	if last.BucketID == s.BucketID && last.Start+last.Length == s.Start {
-
 		last.Length += s.Length
 		*asq = asqval
 	} else {

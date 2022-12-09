@@ -247,6 +247,11 @@ func (l *LfsService) Start() error {
 		}
 	}
 
+	// wait load seg job
+	if l.sb.NextBucketID > 0 {
+		time.Sleep(60 * time.Second)
+	}
+
 	logger.Debug("start lfs for: ", l.userID, l.sb.write)
 	if has {
 		l.sb.write = true

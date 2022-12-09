@@ -411,6 +411,7 @@ func (s *SegMgr) challenge(userID uint64) {
 				var fault types.AggSegsQueue
 				for _, seg := range sf.Segments {
 					sid.SetBucketID(seg.BucketID)
+					sid.SetChunkID(seg.ChunkID)
 					for j := seg.Start; j < seg.Start+seg.Length; j++ {
 						if sf.DelSegs.Has(seg.BucketID, j, seg.ChunkID) {
 							logger.Debug("challenge skip fault seg: ", seg.BucketID, j, seg.ChunkID)
@@ -418,7 +419,7 @@ func (s *SegMgr) challenge(userID uint64) {
 						}
 
 						sid.SetStripeID(j)
-						sid.SetChunkID(seg.ChunkID)
+
 						segm, err := s.GetSegmentFromLocal(context.TODO(), sid)
 						if err != nil {
 							logger.Debug("challenge not have chunk for stripe: ", userID, sid)
@@ -529,6 +530,7 @@ func (s *SegMgr) challenge(userID uint64) {
 				var fault types.AggSegsQueue
 				for _, seg := range sf.Segments {
 					sid.SetBucketID(seg.BucketID)
+					sid.SetChunkID(seg.ChunkID)
 					for j := seg.Start; j < seg.Start+seg.Length; j++ {
 						if sf.DelSegs.Has(seg.BucketID, j, seg.ChunkID) {
 							logger.Debug("challenge skip fault seg: ", seg.BucketID, j, seg.ChunkID)
@@ -536,7 +538,7 @@ func (s *SegMgr) challenge(userID uint64) {
 						}
 
 						sid.SetStripeID(j)
-						sid.SetChunkID(seg.ChunkID)
+
 						segm, err := s.GetSegmentFromLocal(context.TODO(), sid)
 						if err != nil {
 							logger.Debug("challenge not have chunk for stripe: ", userID, sid)

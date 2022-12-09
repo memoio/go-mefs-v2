@@ -27,6 +27,7 @@ message NetMessage {
     	OrderSegment = 15;    // handle segment; by provider
 		GetOrder = 16;        // get order meta info from provider
 		GetSeq = 17;	      // get order seq meta info from provider
+		FixSeq = 18;          // fix seq due to duplicate
 	}
 
 	message MsgHeader {

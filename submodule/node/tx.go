@@ -36,11 +36,11 @@ func (n *BaseNode) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgI
 		Signature: sig,
 	}
 
-	logger.Info("push message remote: ", mes.From, mes.Nonce, mes.Method)
+	logger.Debug("push message remote: ", mes.From, mes.To, mes.Nonce, mes.Method)
 
 	nmid, err := n.rcp.PushSignedMessage(ctx, sm)
 	if err != nil {
-		logger.Warn("push message remote: ", mes.From, mes.Nonce, mes.Method, err)
+		logger.Warn("push message remote: ", mes.From, mes.To, mes.Nonce, mes.Method, err)
 		return mid, err
 	}
 

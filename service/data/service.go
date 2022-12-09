@@ -72,7 +72,7 @@ func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.Segme
 }
 
 func (d *dataService) HasSegment(ctx context.Context, sid segment.SegmentID) (bool, error) {
-	logger.Debug("has segment from local: ", sid)
+	//logger.Debug("has segment from local: ", sid)
 	has := d.cache.Contains(sid.String())
 	if has {
 		return true, nil
@@ -158,6 +158,20 @@ func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.Segmen
 	return binary.BigEndian.Uint64(val), nil
 }
 
+func (d *dataService) PutSegmentLocation(ctx context.Context, sid segment.SegmentID, pid uint64) error {
+	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+	val := make([]byte, 8)
+
+	binary.BigEndian.PutUint64(val[:8], pid)
+	return d.ds.Put(key, val)
+}
+
+func (d *dataService) DeleteSegmentLocation(ctx context.Context, sid segment.SegmentID) error {
+	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+
+	return d.ds.Delete(key)
+}
+
 // GetSegmentFrom get segmemnt over network
 func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error) {
 	logger.Debug("get segment from remote: ", sid, from)
@@ -191,4 +205,8 @@ func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) 
 	logger.Debug("delete segment in local: ", sid)
 	d.cache.Remove(sid.String())
 	return d.segStore.Delete(sid)
+}
+
+func (d *dataService) Size() store.DiskStats {
+	return d.segStore.Size()
 }

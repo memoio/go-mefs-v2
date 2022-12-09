@@ -1,6 +1,8 @@
 package types
 
 import (
+	"bytes"
+
 	"github.com/fxamacker/cbor/v2"
 	"golang.org/x/xerrors"
 
@@ -26,6 +28,13 @@ func (s *Signature) Serialize() ([]byte, error) {
 
 func (s *Signature) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, s)
+}
+
+func (s *Signature) Equal(b Signature) bool {
+	if s.Type == b.Type && bytes.Equal(s.Data, b.Data) {
+		return true
+	}
+	return false
 }
 
 type MultiSignature struct {

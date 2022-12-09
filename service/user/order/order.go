@@ -177,7 +177,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		fsID:    m.fsID,
 		pro:     id,
 
-		availTime: time.Now().Unix() - 300,
+		availTime: time.Now().Unix() - 301,
 
 		prevEnd: time.Now().Unix(),
 
@@ -299,12 +299,18 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 func (m *OrderMgr) check(o *OrderFull) {
 	nt := time.Now().Unix()
 
+	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
+
+	if o.inStop {
+		return
+	}
+
 	if nt-o.availTime < 300 {
 		o.ready = true
 	} else {
 		// not connect if pro is inStop
 		// connect pro every 10 miniute
-		if nt-o.updateTime > 600 && !o.inStop {
+		if nt-o.updateTime > 600 {
 			o.updateTime = nt
 			go m.update(o.pro)
 		}
@@ -315,26 +321,25 @@ func (m *OrderMgr) check(o *OrderFull) {
 
 		// for test
 		if nt-o.availTime > m.orderLast {
-			m.stopOrder(o)
+			err := m.stopOrder(o)
+			logger.Warnf("stop order %d %s", o.pro, err)
 		}
 	}
-
-	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
 
 	if !o.ready {
 		return
 	}
 
 	if o.failCnt > minFailCnt {
-		logger.Debugf("close order %d due to fail too many times", o.pro)
-		m.stopOrder(o)
+		err := m.stopOrder(o)
+		logger.Warnf("stop order %d due to fail too many times %s", o.pro, err)
 		return
 	}
 
 	switch o.orderState {
 	case Order_Init:
 		o.RLock()
-		if o.hasSeg() && !o.inStop {
+		if o.hasSeg() {
 			o.orderTime = time.Now().Unix()
 			go m.getQuotation(o.pro)
 		}
@@ -348,7 +353,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 			}
 		}
 	case Order_Running:
-		if nt-o.orderTime > int64(m.orderLast) {
+		if nt-o.orderTime > m.orderLast {
 			err := m.closeOrder(o)
 			if err != nil {
 				logger.Debugf("%d order fail due to close order %d %s", o.pro, o.failCnt, err)
@@ -358,7 +363,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		switch o.seqState {
 		case OrderSeq_Init:
 			o.RLock()
-			if o.hasSeg() && !o.inStop {
+			if o.hasSeg() {
 				err := m.createSeq(o)
 				o.RUnlock()
 				if err != nil {
@@ -397,14 +402,6 @@ func (m *OrderMgr) check(o *OrderFull) {
 			o.seqState = OrderSeq_Init
 		}
 	case Order_Closing:
-		o.RLock()
-		if o.inStop {
-			o.seqState = OrderSeq_Init
-			m.doneOrder(o)
-			o.RUnlock()
-			return
-		}
-		o.RUnlock()
 		switch o.seqState {
 		case OrderSeq_Send:
 			err := m.commitSeq(o)
@@ -429,7 +426,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		}
 	case Order_Done:
 		o.RLock()
-		if o.hasSeg() && !o.inStop {
+		if o.hasSeg() {
 			o.orderState = Order_Init
 		}
 		o.RUnlock()
@@ -571,6 +568,13 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 			return nil
 		}
 
+		// wait one hour
+		if o.failCnt > 30 && o.base.Nonce == 0 {
+			err := m.stopOrder(o)
+			logger.Warnf("close order %d due to unable create new order %s", o.pro, err)
+			return nil
+		}
+
 		// send to pro
 		data, err := o.base.Serialize()
 		if err != nil {
@@ -645,14 +649,18 @@ func (m *OrderMgr) runOrder(o *OrderFull, ob *types.SignedOrder) error {
 // time up to close current order
 func (m *OrderMgr) closeOrder(o *OrderFull) error {
 	logger.Debug("handle close order sat: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
-	if o.base == nil || o.orderState != Order_Running {
+	if o.base == nil {
+		return xerrors.Errorf("%d order is empty", o.pro)
+	}
+
+	if o.orderState != Order_Running {
 		return xerrors.Errorf("%d order state expectd %s, got %s", o.pro, Order_Running, o.orderState)
 	}
 
-	if !o.inStop && o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
+	if o.seq == nil || (o.seq != nil && o.seq.Size == 0) {
 		// should not close empty seq
 		logger.Debug("should not close empty order: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
-		if o.base.End > time.Now().Unix() {
+		if o.base.End > time.Now().Unix()+m.orderLast+600 {
 			// not close order when data is empty
 			o.orderTime = time.Now().Unix()
 			err := saveOrderState(o, m.ds)
@@ -661,7 +669,8 @@ func (m *OrderMgr) closeOrder(o *OrderFull) error {
 			}
 			return nil
 		} else {
-			m.stopOrder(o)
+			err := m.stopOrder(o)
+			logger.Warnf("close empty order %d duo to end %s", o.pro, err)
 		}
 	}
 
@@ -708,6 +717,10 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	// last seq is not start, so use it
 	if o.sjq.Len() == 0 && (o.base.Size == o.seq.Size) && len(o.seq.ProDataSig.Data) == 0 {
 		ocp.SeqNum = o.seq.SeqNum
+	}
+
+	if ocp.SeqNum == 0 {
+		return xerrors.Errorf("empty data at order: %d %d", o.base.ProID, o.base.Nonce)
 	}
 
 	data, err := ocp.Serialize()
@@ -777,40 +790,37 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	return nil
 }
 
-func (m *OrderMgr) stopOrder(o *OrderFull) {
+func (m *OrderMgr) stopOrder(o *OrderFull) error {
 	logger.Debug("handle stop order sat: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	o.Lock()
 
 	// data is sending, waiting
 	if o.inflight {
 		o.Unlock()
-		return
+		return xerrors.Errorf("sending data")
 	}
 
 	o.inStop = true
 
+	if o.base == nil {
+		o.Unlock()
+		return xerrors.Errorf("order is empty at: %d", o.nonce)
+	}
+
+	cnt := uint64(0)
 	// add redo current seq
 	if o.sjq != nil {
 		// should not, TODO: fix
 		sLen := o.sjq.Len()
 		ss := *o.sjq
 
-		size := uint64(0)
 		for i := 0; i < sLen; i++ {
-			size += ss[i].Length * build.DefaultSegSize
+			cnt += ss[i].Length
 			m.redoSegJob(ss[i])
 		}
 
-		// size is added to base, so reduce it here
-		if o.seqState == OrderSeq_Commit {
-			if o.base.Size > size {
-				o.base.Size -= size
-			} else {
-				o.base.Size = 0
-			}
-		}
-
 		o.sjq = new(types.SegJobsQueue)
+		saveSeqJob(o, m.ds)
 	}
 
 	for _, bid := range o.buckets {
@@ -823,12 +833,49 @@ func (m *OrderMgr) stopOrder(o *OrderFull) {
 		bjob.jobs = bjob.jobs[:0]
 	}
 
-	// reset
-	o.failCnt = 0
-
 	o.Unlock()
 
-	m.closeOrder(o)
+	// size is added to base, so reduce it here
+	if o.seqState == OrderSeq_Commit && len(o.seq.UserDataSig.Data) != 0 {
+		if o.seq.Size >= cnt*build.DefaultSegSize {
+			pr := big.NewInt(int64(cnt))
+			pr.Mul(pr, o.base.SegPrice)
+			o.seq.Price.Sub(o.seq.Price, pr)
+			o.seq.Size -= cnt * build.DefaultSegSize
+
+			o.base.Size = o.seq.Size
+			o.base.Price.Set(o.seq.Price)
+		} else {
+			logger.Warnf("order seq size is large: %d %d %d", o.seq.SeqNum, o.seq.Size, cnt*build.DefaultSegSize)
+		}
+
+		//return xerrors.Errorf("order seq size is large: %d %d %d", o.seq.SeqNum, o.seq.Size, cnt*build.DefaultSegSize)
+	}
+
+	// clean state; need test
+	if o.base.Size == 0 {
+		if o.seq == nil {
+			return xerrors.Errorf("seq is empty")
+		}
+
+		// reset seq state
+		if o.seq.Size == 0 && (o.seqState == OrderSeq_Send || o.seqState == OrderSeq_Commit) {
+			// reset
+			o.seq.Segments = types.AggSegsQueue{}
+			o.seqState = OrderSeq_Send
+			saveOrderSeq(o, m.ds)
+		}
+
+		return nil
+	}
+
+	if o.seq != nil {
+		o.orderState = Order_Closing
+		o.seqState = OrderSeq_Init
+		return m.doneOrder(o)
+	}
+
+	return nil
 }
 
 // create a new orderseq for prepare
