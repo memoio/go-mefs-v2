@@ -152,6 +152,8 @@ type IDataService interface {
 
 	GetSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error)
 	GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error)
+
+	Size() store.DiskStats
 }
 
 type ILfsService interface {

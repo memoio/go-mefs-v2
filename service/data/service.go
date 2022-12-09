@@ -206,3 +206,7 @@ func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) 
 	d.cache.Remove(sid.String())
 	return d.segStore.Delete(sid)
 }
+
+func (d *dataService) Size() store.DiskStats {
+	return d.segStore.Size()
+}

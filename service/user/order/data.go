@@ -166,6 +166,9 @@ func removeDup(a []uint64) []uint64 {
 }
 
 func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
+	if !m.ready {
+		return
+	}
 
 	cnt := 0
 	for _, pid := range lp.pros {
@@ -276,7 +279,8 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				or, ok := m.orders[npid]
 				m.lk.RUnlock()
 				if ok {
-					if !or.inStop && m.ready {
+					// choose good ones
+					if !or.inStop && or.ready && or.failCnt < 12 {
 						change = true
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {
@@ -310,7 +314,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				or, ok := m.orders[npid]
 				m.lk.RUnlock()
 				if ok {
-					if !or.inStop && m.ready {
+					if !or.inStop && or.ready && or.failCnt < 12 {
 						change = true
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {
@@ -350,7 +354,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				or, ok := m.orders[npid]
 				m.lk.RUnlock()
 				if ok {
-					if !or.inStop && m.ready {
+					if !or.inStop && or.ready && or.failCnt < 12 {
 						change = true
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {

@@ -36,7 +36,12 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	// check space left
 	dms := l.ds.Size()
 	if dms.Free < 1024*1024*1024 {
-		return oi, xerrors.Errorf("space left is not enough, at least 1GB")
+		return oi, xerrors.Errorf("meta space left is not enough, at least 1GB")
+	}
+
+	dms = l.OrderMgr.IDataService.Size()
+	if dms.Free < 10*1024*1024*1024 {
+		return oi, xerrors.Errorf("data space left is not enough, at least 10GB")
 	}
 
 	replaceName := false
