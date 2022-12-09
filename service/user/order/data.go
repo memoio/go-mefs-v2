@@ -930,9 +930,9 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				}
 
 				if !strings.Contains(err.Error(), "already has seg") {
+					time.Sleep(30 * time.Second)
 					if strings.Contains(err.Error(), "resource limit exceeded") {
-						// wait?
-						time.Sleep(30 * time.Second)
+						time.Sleep(2 * time.Minute)
 					}
 					continue
 				}
