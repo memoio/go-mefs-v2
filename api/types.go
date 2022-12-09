@@ -108,12 +108,13 @@ type BalanceInfo struct {
 }
 
 type PledgeInfo struct {
-	Value    *big.Int
+	Value    *big.Int // current pledge balance
 	ErcTotal *big.Int
 	Total    *big.Int
 
-	LocalPledge *big.Int
-	LocalReward *big.Int
+	Last        *big.Int // pledge balance after last update
+	LocalPledge *big.Int // history accumulate pledge
+	LocalReward *big.Int // history accumulate reward
 }
 
 type StoreInfo struct {
