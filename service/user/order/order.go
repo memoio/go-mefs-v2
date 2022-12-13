@@ -820,7 +820,9 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 		}
 
 		o.sjq = new(types.SegJobsQueue)
-		saveSeqJob(o, m.ds)
+		if o.seq != nil {
+			saveSeqJob(o, m.ds)
+		}
 	}
 
 	for _, bid := range o.buckets {
