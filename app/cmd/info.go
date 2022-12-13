@@ -217,9 +217,9 @@ var infoCmd = &cli.Command{
 
 			fmt.Println()
 			if showAll {
-				fmt.Printf("Storage Size %d byte (%s), Price %d (AttoMemo/Second)\n", size, types.FormatBytes(size), price)
+				fmt.Printf("Storage Size: %d byte (%s), Price: %d (AttoMemo/Second)\n", size, types.FormatBytes(size), price)
 			} else {
-				fmt.Printf("Storage Size %d byte (%s)\n", size, types.FormatBytes(size))
+				fmt.Printf("Storage Size: %d byte (%s)\n", size, types.FormatBytes(size))
 			}
 
 			// calc size pledge for provider
