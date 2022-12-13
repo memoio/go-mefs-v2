@@ -169,15 +169,28 @@ var infoCmd = &cli.Command{
 		// display balance
 		fmt.Printf("Memo Balance: %s\n", types.FormatMemo(bi.ErcValue))
 		fmt.Printf("cMemo Balance: %s\n", types.FormatEth(bi.Value))
-		fmt.Printf("FS Balance(FileSys): %s, Reward: %s\n", types.FormatMemo(bi.FsValue), types.FormatMemo(bi.LockValue))
-		fmt.Println()
-		// current reward = bal - last
-		curReward := big.NewInt(0).Sub(pi.Value, pi.Last)
-		fmt.Printf("Current Pledge:  %s, Current Reward: %s\n", types.FormatMemo(pi.Value), types.FormatMemo(curReward))
-		// total reward = total pledge + total reward - last
-		totalWithdraw := big.NewInt(0).Add(pi.LocalPledge, pi.LocalReward)
-		totalWithdraw.Sub(totalWithdraw, pi.Last)
-		fmt.Printf("Historical Pledge: %s, Historical Withdraw: %s, Historical Reward: %s\n", types.FormatMemo(pi.LocalPledge), types.FormatMemo(totalWithdraw), types.FormatMemo(pi.LocalReward))
+		fmt.Printf("FileSys Balance: %s\n", types.FormatMemo(bi.FsValue))
+
+		// pledgeBal = pledge - (pledge+rs-last) = pledge-pledge-rs+last=last-rs
+		// if (pledgeBal>=0)，rewardBal=rs；
+		// else，pledgeBal=0，rewardBal=last
+		var (
+			pledgeBal *big.Int
+			rewardBal *big.Int
+		)
+		pledgeBal = big.NewInt(0).Sub(pi.Last, pi.LocalReward)
+		if pledgeBal.Cmp(big.NewInt(0)) >= 0 {
+			rewardBal = pi.LocalReward
+		} else {
+			pledgeBal = big.NewInt(0)
+			rewardBal = pi.Last
+		}
+		fmt.Printf("Pledge Balance: %s, Reward: %s\n", types.FormatMemo(pledgeBal), types.FormatMemo(rewardBal))
+
+		// // total withdraw = total pledge + total reward - last
+		// totalWithdraw := big.NewInt(0).Add(pi.LocalPledge, pi.LocalReward)
+		// totalWithdraw.Sub(totalWithdraw, pi.Last)
+		// fmt.Printf("Historical Pledge: %s, Historical Withdraw: %s, Historical Reward: %s\n", types.FormatMemo(pi.LocalPledge), types.FormatMemo(totalWithdraw), types.FormatMemo(pi.LocalReward))
 
 		switch pri.Type {
 		case pb.RoleInfo_Provider:
