@@ -166,15 +166,34 @@ var infoCmd = &cli.Command{
 			fmt.Printf("Pledge Pool: %s (total pledge), %s (total in pool)\n", types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
 		}
 
+		// display balance
+		fmt.Printf("Memo Balance: %s\n", types.FormatMemo(bi.ErcValue))
+		fmt.Printf("cMemo Balance: %s\n", types.FormatEth(bi.Value))
+		fmt.Printf("FileSys Balance: %s\n", types.FormatMemo(bi.FsValue))
+
+		// pledgeBal = pledge - (pledge+rs-last) = pledge-pledge-rs+last=last-rs
+		// if (pledgeBal>=0)，rewardBal=rs；
+		// else，pledgeBal=0，rewardBal=last
+		var (
+			pledgeBal *big.Int
+			rewardBal *big.Int
+		)
+		pledgeBal = big.NewInt(0).Sub(pi.Last, pi.LocalReward)
+		if pledgeBal.Cmp(big.NewInt(0)) >= 0 {
+			rewardBal = pi.LocalReward
+		} else {
+			pledgeBal = big.NewInt(0)
+			rewardBal = pi.Last
+		}
+		fmt.Printf("Pledge Balance: %s, Reward: %s\n", types.FormatMemo(pledgeBal), types.FormatMemo(rewardBal))
+
+		// // total withdraw = total pledge + total reward - last
+		// totalWithdraw := big.NewInt(0).Add(pi.LocalPledge, pi.LocalReward)
+		// totalWithdraw.Sub(totalWithdraw, pi.Last)
+		// fmt.Printf("Historical Pledge: %s, Historical Withdraw: %s, Historical Reward: %s\n", types.FormatMemo(pi.LocalPledge), types.FormatMemo(totalWithdraw), types.FormatMemo(pi.LocalReward))
+
 		switch pri.Type {
 		case pb.RoleInfo_Provider:
-			fmt.Printf("Memo Balance: %s\n", types.FormatMemo(bi.ErcValue))
-			fmt.Printf("cMemo Balance: %s\n", types.FormatEth(bi.Value))
-			fmt.Printf("FS Balance(FileSys): %s, Reward: %s\n", types.FormatMemo(bi.FsValue), types.FormatMemo(bi.LockValue))
-			fmt.Printf("Pledge Balance(Pledge+Reward): %s, \n", types.FormatMemo(pi.Value))
-			fmt.Printf("Accumulated Pledge: %s\n", types.FormatMemo(pi.LocalPledge))
-			fmt.Printf("Accumulated Reward: %s\n", types.FormatMemo(pi.LocalReward))
-
 			size := uint64(0)
 			price := big.NewInt(0)
 			users, err := api.StateGetUsersAt(context.TODO(), pri.RoleID)
@@ -203,13 +222,6 @@ var infoCmd = &cli.Command{
 			sizePledge = sizePledge.Mul(gi.PpB, bigS)
 			fmt.Printf("Size Pledge: %s\n", types.FormatMemo(sizePledge))
 		case pb.RoleInfo_User:
-			fmt.Printf("Memo Balance: %s\n", types.FormatMemo(bi.ErcValue))
-			fmt.Printf("cMemo Balance: %s\n", types.FormatEth(bi.Value))
-			fmt.Printf("FS Balance(FileSys): %s, Voucher: %s\n", types.FormatMemo(bi.FsValue), types.FormatMemo(bi.LockValue))
-			fmt.Printf("Pledge Balance(Pledge+Reward): %s, \n", types.FormatMemo(pi.Value))
-			fmt.Printf("Accumulated Pledge: %s\n", types.FormatMemo(pi.LocalPledge))
-			fmt.Printf("Accumulated Reward: %s\n", types.FormatMemo(pi.LocalReward))
-
 			size := uint64(0)
 			price := big.NewInt(0)
 			pros, err := api.StateGetProsAt(context.TODO(), pri.RoleID)
@@ -225,7 +237,7 @@ var infoCmd = &cli.Command{
 			}
 
 			fmt.Println()
-			fmt.Printf("Data Stored: size %d byte (%s), price %d\n", size, types.FormatBytes(size), price)
+			fmt.Printf("Data Stored: size %d byte (%s), sizeprice %d\n", size, types.FormatBytes(size), price)
 		case pb.RoleInfo_Keeper:
 			// calc size pledge for keeper
 			gi, err := api.SettleGetGroupInfoAt(cctx.Context, pri.GroupID)
@@ -236,6 +248,7 @@ var infoCmd = &cli.Command{
 			bigS := new(big.Int).SetUint64(gi.Size)
 			sizePledge := new(big.Int)
 			sizePledge = sizePledge.Mul(gi.KpB, bigS)
+			fmt.Println()
 			fmt.Printf("Size Pledge: %s\n", types.FormatMemo(sizePledge))
 		}
 
@@ -252,7 +265,7 @@ var infoCmd = &cli.Command{
 			fmt.Println("Group ID: ", gid)
 			fmt.Println("Security Level: ", gi.Level)
 			fmt.Println("Size: ", types.FormatBytes(gi.Size))
-			fmt.Println("Price: ", gi.Price)
+			fmt.Println("SizePrice: ", gi.Price)
 
 			pros, err := api.RoleGetRelated(cctx.Context, pb.RoleInfo_Provider)
 			if err != nil {
