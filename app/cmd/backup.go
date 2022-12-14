@@ -50,33 +50,31 @@ var backupExportCmd = &cli.Command{
 		rep.Close()
 
 		path := cctx.String("path")
-		// get full path of home dir
-		p, err := homedir.Expand(path)
+		// get expanded path of home dir
+		expPath, err := homedir.Expand(path)
 		if err != nil {
 			return err
 		}
 
-		p, err = filepath.Abs(p)
+		absPath, err := filepath.Abs(expPath)
 		if err != nil {
 			return err
 		}
-		fi, err := os.Stat(p)
+		fi, err := os.Stat(absPath)
 		if err != nil {
 			return err
 		}
 
 		if !fi.IsDir() {
-			return xerrors.Errorf("%s should be dir", p)
+			return xerrors.Errorf("%s should be dir", absPath)
 		}
-
-		dir := filepath.Dir(p)
 
 		dbType := cctx.String("dbType")
 		if dbType != "state" && dbType != "meta" {
 			return xerrors.Errorf("%s not supported, 'meta' or 'state'", dbType)
 		}
 
-		p = filepath.Join(dir, dbType+"-"+time.Now().Format("20060102T150405")+".db")
+		p := filepath.Join(absPath, dbType+"-"+time.Now().Format("20060102T150405")+".db")
 
 		// check file exist
 		_, error := os.Stat(p)

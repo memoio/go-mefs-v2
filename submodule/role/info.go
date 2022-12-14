@@ -178,6 +178,7 @@ func (rm *RoleMgr) sync() {
 	}
 }
 
+// get ri from memory first, if failed, get from db and update the ri in memory.
 func (rm *RoleMgr) get(roleID uint64) (*pb.RoleInfo, error) {
 	ri, ok := rm.infos[roleID]
 	if ok {
