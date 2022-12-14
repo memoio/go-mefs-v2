@@ -28,6 +28,7 @@ var infoCmd = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "update",
 			Value: false,
+			Usage: "Update role info in memory by read it from db.",
 		},
 		&cli.BoolFlag{
 			Name:    "all",
