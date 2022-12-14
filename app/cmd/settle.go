@@ -163,7 +163,7 @@ var pledgeWithdrawCmd = &cli.Command{
 
 var settleSetDescCmd = &cli.Command{
 	Name:      "setDesc",
-	Usage:     "set desc",
+	Usage:     "Set description for a node. Especially for providers, if desc is set to 'cloud', they will be selected as dc in buckets preferentially.",
 	ArgsUsage: "[desc required]",
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Args().Present() {
@@ -285,7 +285,7 @@ var settleQuitRoleCmd = &cli.Command{
 
 var settleAlterPayeeCmd = &cli.Command{
 	Name:      "alterPayee",
-	Usage:     "alter payee",
+	Usage:     "alter current payee to a new one, need to be comfirmed by new payee to finish.",
 	ArgsUsage: "[address(0x...), required]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{

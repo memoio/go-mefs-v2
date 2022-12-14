@@ -188,7 +188,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return xerrors.Errorf("group should be larger than zero")
 	}
 
-	// register account
+	// register account if index is 0
 	if ri.Index == 0 {
 		err := cm.RegisterAccount()
 		if err != nil {
@@ -216,7 +216,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		return nil
 	}
 
-	// register role
+	// register role if no role
 	if ri.RType == 0 {
 		err := cm.RegisterRole(typ)
 		if err != nil {
@@ -259,6 +259,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 
 		cm.groupID = ri.GIndex
 
+		// check if group is set ok
 		if cm.groupID != gIndex {
 			return xerrors.Errorf("add to group fails")
 		}
