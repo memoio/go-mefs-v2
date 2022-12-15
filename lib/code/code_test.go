@@ -376,6 +376,29 @@ func TestStripe(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	for i := 0; i < dataCount+parityCount; i++ {
+		segID.SetChunkID(uint32(i))
+		seg := segment.NewBaseSegment(datas[i], segID)
+		segData, err := seg.Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		bs := new(segment.BaseSegment)
+		err = bs.Deserialize(segData)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = bs.Content()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = bs.Tags()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	_, good, err := opt.VerifyStripe(segID, datas)
 	if err != nil {
 		t.Fatal(err)
