@@ -91,6 +91,11 @@ func (bs *BaseSegment) Content() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if len(bs.data) < preLen+int(pre.SegSize) {
+		return nil, xerrors.Errorf("invalid seg length should at least %d got %d", preLen+int(pre.SegSize), len(bs.data))
+	}
+
 	seg := make([]byte, pre.SegSize)
 	copy(seg, bs.data[preLen:])
 	return seg, nil
@@ -108,6 +113,9 @@ func (bs *BaseSegment) Tags() ([][]byte, error) {
 
 	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
 	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
+	if preLen+int(pre.SegSize)+tagCount*tagLen != len(bs.data) {
+		return nil, xerrors.Errorf("invalid tag length should at least %d got %d", preLen+int(pre.SegSize)+tagCount*tagLen, len(bs.data))
+	}
 
 	tag := make([][]byte, tagCount)
 	for i := 0; i < tagCount; i++ {
@@ -135,9 +143,19 @@ func (bs *BaseSegment) Deserialize(b []byte) error {
 		return err
 	}
 
-	_, _, err = DeserializePrefix(b[40:])
+	pre, preSize, err := DeserializePrefix(b[40:])
 	if err != nil {
 		return err
+	}
+
+	if pre.DataCount < 1 || pre.ParityCount < 1 {
+		return xerrors.Errorf("data/parity count is wrong")
+	}
+
+	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
+	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
+	if 40+preSize+int(pre.SegSize)+tagCount*tagLen != len(b) {
+		return xerrors.Errorf("invalid segment size should %d got %d", 40+preSize+int(pre.SegSize)+tagCount*tagLen, len(b))
 	}
 
 	bs.segID = segID
