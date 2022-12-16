@@ -113,7 +113,8 @@ type OrderFull struct {
 	buckets  []uint64
 	jobs     map[uint64]*bucketJob // buf and persist?
 
-	failCnt int // TODO: retry > 10; change pro?
+	failCnt  int // TODO: retry > 128; change pro?
+	failSent int
 
 	ready  bool // ready for service; network is ok
 	inStop bool // stop receiving data; duo to high price
@@ -330,7 +331,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		return
 	}
 
-	if o.failCnt > minFailCnt {
+	if o.failCnt > minFailCnt || o.failSent > minFailCnt {
 		err := m.stopOrder(o)
 		logger.Warnf("stop order %d due to fail too many times %s", o.pro, err)
 		return
