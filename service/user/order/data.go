@@ -280,7 +280,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				m.lk.RUnlock()
 				if ok {
 					// choose good ones
-					if !or.inStop && or.ready && or.failCnt < 12 {
+					if or.isGood() {
 						change = true
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {
@@ -314,7 +314,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				or, ok := m.orders[npid]
 				m.lk.RUnlock()
 				if ok {
-					if !or.inStop && or.ready && or.failCnt < 12 {
+					if or.isGood() {
 						change = true
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {
@@ -354,7 +354,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				or, ok := m.orders[npid]
 				m.lk.RUnlock()
 				if ok {
-					if !or.inStop && or.ready && or.failCnt < 12 {
+					if or.isGood() {
 						change = true
 						lp.pros[i] = npid
 						if pid != math.MaxUint64 {
@@ -765,6 +765,14 @@ func (o *OrderFull) hasSeg() bool {
 	return has
 }
 
+func (o *OrderFull) isGood() bool {
+	if !o.inStop && o.ready && o.failCnt < 30 && o.failSent < 30 {
+		return true
+	}
+
+	return false
+}
+
 func (o *OrderFull) segCount() int {
 	cnt := 0
 	o.RLock()
@@ -934,7 +942,8 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				}
 
 				if !strings.Contains(err.Error(), "already has seg") {
-					time.Sleep(30 * time.Second)
+					o.failSent++
+					time.Sleep(60 * time.Second)
 					if strings.Contains(err.Error(), "resource limit exceeded") {
 						time.Sleep(2 * time.Minute)
 					}
@@ -950,6 +959,8 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					o.Unlock()
 					continue
 				}
+			} else {
+				o.failSent = 0
 			}
 
 			logger.Debug("send segment: ", o.pro, sid.GetBucketID(), sid.GetStripeID(), sid.GetChunkID())
