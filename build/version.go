@@ -8,7 +8,7 @@ var CurrentCommit string
 const ApiVersion = 2
 
 // BuildVersion is the local build version, set by build system
-const BuildVersion = "2.6.1"
+const BuildVersion = "2.6.2"
 
 func UserVersion() string {
 	return BuildVersion + fmt.Sprintf("+api.%d", ApiVersion) + CurrentCommit
