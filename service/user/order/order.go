@@ -803,11 +803,6 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 
 	o.inStop = true
 
-	if o.base == nil {
-		o.Unlock()
-		return xerrors.Errorf("order is empty at: %d", o.nonce)
-	}
-
 	cnt := uint64(0)
 	// add redo current seq
 	if o.sjq != nil {
@@ -821,7 +816,7 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 		}
 
 		o.sjq = new(types.SegJobsQueue)
-		if o.seq != nil {
+		if o.base != nil && o.seq != nil {
 			saveSeqJob(o, m.ds)
 		}
 	}
@@ -834,6 +829,11 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 			}
 		}
 		bjob.jobs = bjob.jobs[:0]
+	}
+
+	if o.base == nil {
+		o.Unlock()
+		return xerrors.Errorf("order is empty at: %d", o.nonce)
 	}
 
 	o.Unlock()
