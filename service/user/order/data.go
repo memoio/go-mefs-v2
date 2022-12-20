@@ -923,25 +923,10 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 					continue
 				}
 
-				// has been sent, judge here?
-				_, werr := o.GetSegmentLocation(o.ctx, sid)
-				if werr != nil {
-					o.Lock()
-					o.inflight = false
-					o.Unlock()
-
-					time.Sleep(1 * time.Second)
-				} else {
-					// has sent
-					o.Lock()
-					bjob = o.jobs[bid]
-					bjob.jobs = bjob.jobs[1:]
-					o.inflight = false
-					o.Unlock()
-					m.segDoneChan <- sj
-				}
-
 				if !strings.Contains(err.Error(), "already has seg") {
+					o.Lock()
+					o.inflight = false
+					o.Unlock()
 					o.failSent++
 					time.Sleep(60 * time.Second)
 					if strings.Contains(err.Error(), "resource limit exceeded") {
@@ -951,14 +936,16 @@ func (m *OrderMgr) sendData(o *OrderFull) {
 				}
 
 				// skip chunk if not in recovery mode
-				if strings.Contains(err.Error(), "in local") && os.Getenv("MEFS_RECOVERY_MODE") == "" {
-					o.Lock()
-					bjob = o.jobs[bid]
-					bjob.jobs = bjob.jobs[1:]
-					o.inflight = false
-					o.Unlock()
-					continue
-				}
+				/*
+					if strings.Contains(err.Error(), "in local") && os.Getenv("MEFS_RECOVERY_MODE") == "" {
+						o.Lock()
+						bjob = o.jobs[bid]
+						bjob.jobs = bjob.jobs[1:]
+						o.inflight = false
+						o.Unlock()
+						continue
+					}
+				*/
 			} else {
 				o.failSent = 0
 			}
