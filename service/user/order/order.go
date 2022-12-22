@@ -113,7 +113,8 @@ type OrderFull struct {
 	buckets  []uint64
 	jobs     map[uint64]*bucketJob // buf and persist?
 
-	failCnt int // TODO: retry > 10; change pro?
+	failCnt  int // TODO: retry > 128; change pro?
+	failSent int
 
 	ready  bool // ready for service; network is ok
 	inStop bool // stop receiving data; duo to high price
@@ -330,7 +331,7 @@ func (m *OrderMgr) check(o *OrderFull) {
 		return
 	}
 
-	if o.failCnt > minFailCnt {
+	if o.failCnt > minFailCnt || o.failSent > minFailCnt {
 		err := m.stopOrder(o)
 		logger.Warnf("stop order %d due to fail too many times %s", o.pro, err)
 		return
@@ -802,11 +803,6 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 
 	o.inStop = true
 
-	if o.base == nil {
-		o.Unlock()
-		return xerrors.Errorf("order is empty at: %d", o.nonce)
-	}
-
 	cnt := uint64(0)
 	// add redo current seq
 	if o.sjq != nil {
@@ -820,7 +816,7 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 		}
 
 		o.sjq = new(types.SegJobsQueue)
-		if o.seq != nil {
+		if o.base != nil && o.seq != nil {
 			saveSeqJob(o, m.ds)
 		}
 	}
@@ -833,6 +829,11 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 			}
 		}
 		bjob.jobs = bjob.jobs[:0]
+	}
+
+	if o.base == nil {
+		o.Unlock()
+		return xerrors.Errorf("order is empty at: %d", o.nonce)
 	}
 
 	o.Unlock()
