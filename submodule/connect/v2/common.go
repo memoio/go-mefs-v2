@@ -112,7 +112,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 		for qCount < 5 {
 			balance := GetTxBalance(endPoint, toAddress)
 			if balance.Cmp(bbal) > 0 {
-				log.Printf("transfer ok, %s has balance %d now", toAddress, balance)
+				log.Printf("transfer eth ok, %s has balance %d now", toAddress, balance)
 				return nil
 			}
 			log.Printf("%s balance: %d, waiting for transfer success", toAddress, balance)
@@ -148,7 +148,7 @@ func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.In
 		deltaVal := big.NewInt(0)
 		deltaVal.Sub(newVal, oldVal)
 		if deltaVal.Cmp(big.NewInt(0)) > 0 {
-			log.Printf("transfer ok, %s has memo %d now", addr, newVal)
+			log.Printf("transfer memo ok, %s has memo %d now", addr, newVal)
 			logger.Debugf("Memo %s received balance %d", addr, deltaVal)
 			return nil
 		}
