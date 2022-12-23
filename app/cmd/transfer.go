@@ -298,11 +298,6 @@ var transferErcCmd = &cli.Command{
 			return xerrors.Errorf("amount can't be zero.")
 		}
 
-		ep := cctx.String("ep")
-		sk := cctx.String("sk")
-		ia := cctx.String("ia")
-		ver := cctx.Int("v")
-
 		var (
 			repoDir        string
 			absHomeDir     string
@@ -312,6 +307,12 @@ var transferErcCmd = &cli.Command{
 			selfAdderss    common.Address
 			instAddr       common.Address
 		)
+
+		ep := cctx.String("ep")
+		sk := cctx.String("sk")
+		ia := cctx.String("ia")
+		instAddr = common.HexToAddress(ia)
+		ver := cctx.Int("v")
 
 		//===============
 		// get repoDir's full path
@@ -353,8 +354,6 @@ var transferErcCmd = &cli.Command{
 			if ia == "" {
 				// read instance address from config file
 				instAddr = common.HexToAddress(cfg.Contract.RoleContract)
-			} else {
-				instAddr = common.HexToAddress(ia)
 			}
 
 			// if no sk provided, restore sk from api or config file
