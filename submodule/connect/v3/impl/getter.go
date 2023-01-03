@@ -9,9 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/memoio/contractsv2/v2/getter"
+	"github.com/memoio/contractsv2/go_contracts/getter"
 	"github.com/memoio/go-mefs-v2/api"
-	inter "github.com/memoio/go-mefs-v2/submodule/connect/v2/interface"
+	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2/impl"
+	inter "github.com/memoio/go-mefs-v2/submodule/connect/v3/interface"
 )
 
 type getImpl struct {
@@ -36,7 +37,7 @@ func NewGetter(endPoint, hexSk string, getAddr common.Address) (inter.IGetter, e
 		chainID = big.NewInt(666)
 	}
 
-	eAddr, err := SkToAddr(hexSk)
+	eAddr, err := v2.SkToAddr(hexSk)
 	if err != nil {
 		return nil, err
 	}
@@ -579,32 +580,32 @@ func (g *getImpl) GetGInfo(gi uint64, ti uint8) (*getter.GroupOut, error) {
 }
 
 // get pledge reward info: accu, last, pledge, rs
-func (g *getImpl) GetPleRewardInfo(index uint64, ti uint8) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
+func (g *getImpl) GetPleRewardInfo(index uint64, ti uint8) (*big.Int, *big.Int, *big.Int, *big.Int, *big.Int, *big.Int, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	retryCount := 0
 	for {
 		retryCount++
-		accu, last, pledge, rs, err := getIns.Rewards(&bind.CallOpts{
+		accu, last, pledge, reward, curReward, pledgeTime, err := getIns.Rewards(&bind.CallOpts{
 			From: g.eAddr,
 		}, index, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return accu, last, pledge, rs, nil
+		return accu, last, pledge, reward, curReward, pledgeTime, nil
 	}
 }

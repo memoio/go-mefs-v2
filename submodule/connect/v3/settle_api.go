@@ -1,4 +1,4 @@
-package v2
+package v3
 
 import (
 	"context"
@@ -10,12 +10,13 @@ import (
 	"golang.org/x/xerrors"
 
 	inst "github.com/memoio/contractsv2/go_contracts/instance"
-	"github.com/memoio/contractsv2/v2/proxy"
+	"github.com/memoio/contractsv2/go_contracts/proxy"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
+	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
 )
 
 func (cm *ContractMgr) SettleGetRoleID(ctx context.Context) uint64 {
@@ -155,7 +156,7 @@ func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (
 	}
 
 	// get node pledge and node reward
-	_, last, lp, lr, err := cm.getIns.GetPleRewardInfo(roleID, 0)
+	_, last, lp, lr, cr, pt, err := cm.getIns.GetPleRewardInfo(roleID, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +170,8 @@ func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (
 		LocalPledge: lp,
 		LocalReward: lr,
 
-		PledgeTime: big.NewInt(0),
+		CurReward:  cr,
+		PledgeTime: pt,
 	}
 
 	return pi, nil
@@ -188,7 +190,7 @@ func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) 
 	//avil.Add(avil, lock)
 
 	bi := &api.BalanceInfo{
-		Value:        GetTxBalance(cm.endPoint, gotAddr),
+		Value:        v2.GetTxBalance(cm.endPoint, gotAddr),
 		ErcValue:     cm.ercIns.BalanceOf(gotAddr),
 		FsValue:      avail,
 		LockValue:    lock,

@@ -247,6 +247,7 @@ type ISettle interface {
 	SettleWithdraw(context.Context, *big.Int) error
 	SettlePledge(context.Context, *big.Int) error
 	SettlePledgeWithdraw(context.Context, *big.Int) error
+	SettlePledgeRewardWithdraw(context.Context, *big.Int) error
 }
 
 type IOrder interface {

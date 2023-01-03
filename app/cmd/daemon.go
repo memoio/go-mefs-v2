@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/minit"
@@ -18,6 +19,7 @@ import (
 	"github.com/memoio/go-mefs-v2/service/user"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
+	v3 "github.com/memoio/go-mefs-v2/submodule/connect/v3"
 	basenode "github.com/memoio/go-mefs-v2/submodule/node"
 )
 
@@ -181,16 +183,25 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 	// create the node with opts above
 	switch cctx.String(FlagRoleType) {
 	case pb.RoleInfo_Keeper.String():
-		if cfg.Contract.Version == 0 {
+		switch cfg.Contract.Version {
+		case 0:
 			rid, gid, err = settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
 			if err != nil {
 				return err
 			}
-		} else {
+		case 2:
 			rid, gid, err = v2.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
 			if err != nil {
 				return err
 			}
+		case 3:
+			rid, gid, err = v3.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Keeper, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
+		default:
+			logger.Errorf("Please configure the correct contract version(0,2,3) in config.json.")
+			return xerrors.Errorf("Wronng contract version: %d", cfg.Contract.Version)
 		}
 		cfg.Identity.Role = "keeper"
 		cfg.Identity.Group = strconv.Itoa(int(gid))
@@ -205,16 +216,25 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	case pb.RoleInfo_Provider.String():
-		if cfg.Contract.Version == 0 {
+		switch cfg.Contract.Version {
+		case 0:
 			rid, gid, err = settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
 			if err != nil {
 				return err
 			}
-		} else {
+		case 2:
 			rid, gid, err = v2.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
 			if err != nil {
 				return err
 			}
+		case 3:
+			rid, gid, err = v3.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Provider, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
+		default:
+			logger.Errorf("Please configure the correct contract version(0,2,3) in config.json.")
+			return xerrors.Errorf("Wronng contract version: %d", cfg.Contract.Version)
 		}
 
 		cfg.Identity.Role = "provider"
@@ -229,16 +249,25 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	case pb.RoleInfo_User.String():
-		if cfg.Contract.Version == 0 {
+		switch cfg.Contract.Version {
+		case 0:
 			rid, gid, err = settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
 			if err != nil {
 				return err
 			}
-		} else {
+		case 2:
 			rid, gid, err = v2.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
 			if err != nil {
 				return err
 			}
+		case 3:
+			rid, gid, err = v3.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_User, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
+		default:
+			logger.Errorf("Please configure the correct contract version(0,2,3) in config.json.")
+			return xerrors.Errorf("Wronng contract version: %d", cfg.Contract.Version)
 		}
 
 		cfg.Identity.Role = "user"
@@ -253,16 +282,25 @@ func daemonStartFunc(cctx *cli.Context) (_err error) {
 			return err
 		}
 	default:
-		if cfg.Contract.Version == 0 {
+		switch cfg.Contract.Version {
+		case 0:
 			rid, gid, err = settle.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
 			if err != nil {
 				return err
 			}
-		} else {
+		case 2:
 			rid, gid, err = v2.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
 			if err != nil {
 				return err
 			}
+		case 3:
+			rid, gid, err = v3.Register(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey, pb.RoleInfo_Unknown, cctx.Uint64(groupKwd))
+			if err != nil {
+				return err
+			}
+		default:
+			logger.Errorf("Please configure the correct contract version(0,2,3) in config.json.")
+			return xerrors.Errorf("Wronng contract version: %d", cfg.Contract.Version)
 		}
 
 		cfg.Identity.Role = "unkown"

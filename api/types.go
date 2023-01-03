@@ -115,6 +115,9 @@ type PledgeInfo struct {
 	Last        *big.Int // pledge balance after last update
 	LocalPledge *big.Int // history accumulate pledge
 	LocalReward *big.Int // history accumulate reward
+
+	CurReward  *big.Int
+	PledgeTime *big.Int // pledge time recently
 }
 
 type StoreInfo struct {

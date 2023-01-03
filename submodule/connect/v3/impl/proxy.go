@@ -9,8 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/memoio/contractsv2/v2/proxy"
-	inter "github.com/memoio/go-mefs-v2/submodule/connect/v2/interface"
+	"github.com/memoio/contractsv2/go_contracts/proxy"
+	inter "github.com/memoio/go-mefs-v2/submodule/connect/v3/interface"
+	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2/impl"
 )
 
 type proxyImpl struct {
@@ -35,7 +36,7 @@ func NewProxy(endPoint, hexSk string, proxyAddr common.Address) (inter.IProxy, e
 		chainID = big.NewInt(666)
 	}
 
-	eAddr, err := SkToAddr(hexSk)
+	eAddr, err := v2.SkToAddr(hexSk)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func (p *proxyImpl) ReAcc() error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -86,7 +87,7 @@ func (p *proxyImpl) ReAcc() error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "register account")
+	return v2.CheckTx(p.endPoint, tx, "register account")
 }
 
 func (p *proxyImpl) ReRole(rtype uint8, extra []byte) error {
@@ -101,7 +102,7 @@ func (p *proxyImpl) ReRole(rtype uint8, extra []byte) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -111,7 +112,7 @@ func (p *proxyImpl) ReRole(rtype uint8, extra []byte) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "register role")
+	return v2.CheckTx(p.endPoint, tx, "register role")
 }
 
 func (p *proxyImpl) QuitRole(rid uint64) error {
@@ -126,7 +127,7 @@ func (p *proxyImpl) QuitRole(rid uint64) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -136,7 +137,7 @@ func (p *proxyImpl) QuitRole(rid uint64) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "quite role")
+	return v2.CheckTx(p.endPoint, tx, "quite role")
 }
 
 func (p *proxyImpl) AlterPayee(rid uint64, np common.Address) error {
@@ -151,7 +152,7 @@ func (p *proxyImpl) AlterPayee(rid uint64, np common.Address) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -161,7 +162,7 @@ func (p *proxyImpl) AlterPayee(rid uint64, np common.Address) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "alter payee")
+	return v2.CheckTx(p.endPoint, tx, "alter payee")
 }
 
 // add a user/keeper/provider to group
@@ -177,7 +178,7 @@ func (p *proxyImpl) AddToGroup(gi uint64) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -187,7 +188,7 @@ func (p *proxyImpl) AddToGroup(gi uint64) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "add to group")
+	return v2.CheckTx(p.endPoint, tx, "add to group")
 }
 
 func (p *proxyImpl) SetDesc(desc []byte) error {
@@ -202,7 +203,7 @@ func (p *proxyImpl) SetDesc(desc []byte) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -212,7 +213,7 @@ func (p *proxyImpl) SetDesc(desc []byte) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "set desc")
+	return v2.CheckTx(p.endPoint, tx, "set desc")
 }
 
 func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
@@ -227,7 +228,7 @@ func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -237,7 +238,7 @@ func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "pledge")
+	return v2.CheckTx(p.endPoint, tx, "pledge")
 }
 
 func (p *proxyImpl) PledgeWithdraw(i uint64, ti uint8, money *big.Int) error {
@@ -252,7 +253,7 @@ func (p *proxyImpl) PledgeWithdraw(i uint64, ti uint8, money *big.Int) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -262,7 +263,32 @@ func (p *proxyImpl) PledgeWithdraw(i uint64, ti uint8, money *big.Int) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "unpledge")
+	return v2.CheckTx(p.endPoint, tx, "unpledge")
+}
+
+func (p *proxyImpl) PledgeRewardWithdraw(i uint64, ti uint8, money *big.Int) error {
+	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	proxyIns, err := proxy.NewProxy(p.proxy, client)
+	if err != nil {
+		return err
+	}
+
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
+	if err != nil {
+		return err
+	}
+
+	tx, err := proxyIns.WithdrawPleRwd(auth, i, ti, money)
+	if err != nil {
+		return err
+	}
+
+	return v2.CheckTx(p.endPoint, tx, "pledgeRewardWithdraw")
 }
 
 func (p *proxyImpl) AddOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error {
@@ -277,7 +303,7 @@ func (p *proxyImpl) AddOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -287,7 +313,7 @@ func (p *proxyImpl) AddOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "add order")
+	return v2.CheckTx(p.endPoint, tx, "add order")
 }
 
 func (p *proxyImpl) SubOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error {
@@ -302,7 +328,7 @@ func (p *proxyImpl) SubOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -312,7 +338,7 @@ func (p *proxyImpl) SubOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "sub order")
+	return v2.CheckTx(p.endPoint, tx, "sub order")
 }
 
 func (p *proxyImpl) AddRepair(oi proxy.OrderIn, kis []uint64, ksigns [][]byte) error {
@@ -327,7 +353,7 @@ func (p *proxyImpl) AddRepair(oi proxy.OrderIn, kis []uint64, ksigns [][]byte) e
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -337,7 +363,7 @@ func (p *proxyImpl) AddRepair(oi proxy.OrderIn, kis []uint64, ksigns [][]byte) e
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "add repair")
+	return v2.CheckTx(p.endPoint, tx, "add repair")
 }
 
 func (p *proxyImpl) Recharge(i uint64, ti uint8, isLock bool, money *big.Int) error {
@@ -352,7 +378,7 @@ func (p *proxyImpl) Recharge(i uint64, ti uint8, isLock bool, money *big.Int) er
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -362,7 +388,7 @@ func (p *proxyImpl) Recharge(i uint64, ti uint8, isLock bool, money *big.Int) er
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "recharge")
+	return v2.CheckTx(p.endPoint, tx, "recharge")
 }
 
 func (p *proxyImpl) Withdraw(i uint64, ti uint8, money *big.Int) error {
@@ -377,7 +403,7 @@ func (p *proxyImpl) Withdraw(i uint64, ti uint8, money *big.Int) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -387,7 +413,7 @@ func (p *proxyImpl) Withdraw(i uint64, ti uint8, money *big.Int) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "withdraw")
+	return v2.CheckTx(p.endPoint, tx, "withdraw")
 }
 
 func (p *proxyImpl) ProWithdraw(ps proxy.PWIn, kis []uint64, ksigns [][]byte) error {
@@ -432,7 +458,7 @@ func (p *proxyImpl) ProWithdraw(ps proxy.PWIn, kis []uint64, ksigns [][]byte) er
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := v2.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -442,5 +468,5 @@ func (p *proxyImpl) ProWithdraw(ps proxy.PWIn, kis []uint64, ksigns [][]byte) er
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "pro withdraw")
+	return v2.CheckTx(p.endPoint, tx, "pro withdraw")
 }

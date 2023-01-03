@@ -24,6 +24,7 @@ import (
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
+	v3 "github.com/memoio/go-mefs-v2/submodule/connect/v3"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
 	"github.com/memoio/go-mefs-v2/submodule/state"
@@ -213,7 +214,8 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		shutdownChan: make(chan struct{}),
 	}
 
-	if cfg.Contract.Version == 0 {
+	switch cfg.Contract.Version {
+	case 0:
 		cm, err := settle.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
 		if err != nil {
 			return nil, err
@@ -224,7 +226,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 			return nil, err
 		}
 		nd.ISettle = cm
-	} else {
+	case 2:
 		cm, err := v2.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
 		if err != nil {
 			return nil, err
@@ -235,6 +237,20 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 			return nil, err
 		}
 		nd.ISettle = cm
+	case 3:
+		cm, err := v3.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
+		if err != nil {
+			return nil, err
+		}
+
+		err = cm.Start(pb.RoleInfo_Unknown, b.groupID)
+		if err != nil {
+			return nil, err
+		}
+		nd.ISettle = cm
+	default:
+		logger.Errorf("Please configure the correct contract version(0,2,3) in config.json.")
+		return nil, xerrors.Errorf("Wronng contract version: %d", cfg.Contract.Version)
 	}
 
 	networkName := cfg.Contract.RoleContract[2:10] + "/" + strconv.FormatUint(b.groupID, 10)

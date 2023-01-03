@@ -113,6 +113,8 @@ func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (
 		Value:    pv,
 		ErcTotal: ep,
 		Total:    tp,
+		
+		PledgeTime: big.NewInt(0),
 	}
 	return pi, nil
 }
@@ -180,6 +182,10 @@ func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) e
 		return err
 	}
 
+	return nil
+}
+
+func (cm *ContractMgr) SettlePledgeRewardWithdraw(ctx context.Context, val *big.Int) error {
 	return nil
 }
 

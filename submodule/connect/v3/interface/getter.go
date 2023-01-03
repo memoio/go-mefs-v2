@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/memoio/contractsv2/v2/getter"
+	"github.com/memoio/contractsv2/go_contracts/getter"
 	"github.com/memoio/go-mefs-v2/api"
 )
 
@@ -35,5 +35,5 @@ type IGetter interface {
 	GetGInfo(gi uint64, ti uint8) (*getter.GroupOut, error)
 
 	// add some info
-	GetPleRewardInfo(index uint64, ti uint8) (*big.Int, *big.Int, *big.Int, *big.Int, error)
+	GetPleRewardInfo(index uint64, ti uint8) (*big.Int, *big.Int, *big.Int, *big.Int, *big.Int, *big.Int, error)
 }

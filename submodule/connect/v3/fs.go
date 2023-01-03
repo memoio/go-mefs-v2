@@ -1,9 +1,9 @@
-package v2
+package v3
 
 import (
 	"math/big"
 
-	"github.com/memoio/contractsv2/v2/proxy"
+	"github.com/memoio/contractsv2/go_contracts/proxy"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"golang.org/x/xerrors"
 )

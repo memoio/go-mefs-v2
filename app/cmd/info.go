@@ -175,29 +175,46 @@ var infoCmd = &cli.Command{
 			fmt.Printf("Storage Balance: %s\n", types.FormatMemo(bi.FsValue))
 		}
 
-		// pledgeBal = pledge - (pledge+rs-last) = pledge-pledge-rs+last=last-rs
-		// if (pledgeBal>=0)，rewardBal=rs；
-		// else，pledgeBal=0，rewardBal=last
+		if pi.PledgeTime.Cmp(big.NewInt(0)) > 0 {
+			curReward := new(big.Int).Sub(pi.Value, pi.Last)
+			fmt.Printf("Current Pledge: %s, Reward: %s\n", types.FormatMemo(pi.Last), types.FormatMemo(curReward))
+			fmt.Printf("Pledge Time: %s\n", time.Unix(pi.PledgeTime.Int64(), 0).Format(utils.SHOWTIME))
 
-		curReward := new(big.Int).Sub(pi.Value, pi.Last)
-		pledgeBal := new(big.Int).Sub(pi.Last, pi.LocalReward)
-		rewardBal := new(big.Int).Set(pi.LocalReward)
-		if pi.Last.Cmp(pi.LocalReward) > 0 {
-			rewardBal.Add(rewardBal, curReward)
+			if showAll {
+				localReward := new(big.Int).Sub(curReward, pi.CurReward)
+				localReward = localReward.Add(localReward, pi.LocalReward)
+				fmt.Printf("Historical Pledge: %s, Reward: %s\n", types.FormatMemo(pi.LocalPledge), types.FormatMemo(localReward))
+				pledgeWithdraw := new(big.Int).Sub(pi.LocalPledge, pi.Last)
+				pledgeRewardWithdraw := new(big.Int).Sub(pi.LocalReward, pi.CurReward)
+				fmt.Printf("Withdraw Pledge: %s, Reward: %s\n", types.FormatMemo(pledgeWithdraw), types.FormatMemo(pledgeRewardWithdraw))
+
+				fmt.Printf("Pool Pledge: %s, Reward: %s\n", types.FormatMemo(pi.Total), types.FormatMemo(new(big.Int).Sub(pi.ErcTotal, pi.Total)))
+			}
 		} else {
-			pledgeBal.SetInt64(0)
-			rewardBal.Add(pi.Last, curReward)
-		}
+			// pledgeBal = pledge - (pledge+rs-last) = pledge-pledge-rs+last=last-rs
+			// if (pledgeBal>=0)，rewardBal=rs；
+			// else，pledgeBal=0，rewardBal=last
 
-		fmt.Printf("Current Pledge: %s, Reward: %s\n", types.FormatMemo(pledgeBal), types.FormatMemo(rewardBal))
+			curReward := new(big.Int).Sub(pi.Value, pi.Last)
+			pledgeBal := new(big.Int).Sub(pi.Last, pi.LocalReward)
+			rewardBal := new(big.Int).Set(pi.LocalReward)
+			if pi.Last.Cmp(pi.LocalReward) > 0 {
+				rewardBal.Add(rewardBal, curReward)
+			} else {
+				pledgeBal.SetInt64(0)
+				rewardBal.Add(pi.Last, curReward)
+			}
 
-		if showAll {
-			// total withdraw = total pledge + total reward - last
-			totalWithdraw := new(big.Int).Add(pi.LocalPledge, pi.LocalReward)
-			totalWithdraw.Sub(totalWithdraw, pi.Last)
-			fmt.Printf("Historical Pledge: %s, Reward: %s, Withdraw: %s\n", types.FormatMemo(pi.LocalPledge), types.FormatMemo(pi.LocalReward), types.FormatMemo(totalWithdraw))
+			fmt.Printf("Current Pledge: %s, Reward: %s\n", types.FormatMemo(pledgeBal), types.FormatMemo(rewardBal))
 
-			fmt.Printf("Pool Pledge: %s, Reward: %s\n", types.FormatMemo(pi.Total), types.FormatMemo(new(big.Int).Sub(pi.ErcTotal, pi.Total)))
+			if showAll {
+				// total withdraw = total pledge + total reward - last
+				totalWithdraw := new(big.Int).Add(pi.LocalPledge, pi.LocalReward)
+				totalWithdraw.Sub(totalWithdraw, pi.Last)
+				fmt.Printf("Historical Pledge: %s, Reward: %s, Withdraw: %s\n", types.FormatMemo(pi.LocalPledge), types.FormatMemo(pi.LocalReward), types.FormatMemo(totalWithdraw))
+
+				fmt.Printf("Pool Pledge: %s, Reward: %s\n", types.FormatMemo(pi.Total), types.FormatMemo(new(big.Int).Sub(pi.ErcTotal, pi.Total)))
+			}
 		}
 
 		switch pri.Type {

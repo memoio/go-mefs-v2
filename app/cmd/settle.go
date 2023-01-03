@@ -20,6 +20,7 @@ var settleCmd = &cli.Command{
 		pledgeAddCmd,
 		pledgeGetCmd,
 		pledgeWithdrawCmd,
+		pledgeRewardWithdrawCmd,
 		settleQuitRoleCmd,
 		settleAlterPayeeCmd,
 	},
@@ -128,7 +129,7 @@ var pledgeWithdrawCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("Before Withdraw: %s, %s (in fs), %s (in pledge), %s (total pledge), %s (total pledge + reward) \n", types.FormatMemo(fi.ErcValue), types.FormatMemo(fi.FsValue), types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
+		fmt.Printf("Before Withdraw: %s, %s (in fs), %s (in pledge), %s (total pledge), %s (total pledge + reward), %s (current pledge)\n", types.FormatMemo(fi.ErcValue), types.FormatMemo(fi.FsValue), types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal), types.FormatMemo(pi.Last))
 
 		if cctx.Args().Present() {
 			val, err := types.ParsetValue(cctx.Args().First())
@@ -155,7 +156,69 @@ var pledgeWithdrawCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("After Withdraw: %s, %s (in fs), %s (in pledge), %s (total pledge), %s (total pledge + reward) \n", types.FormatMemo(fi.ErcValue), types.FormatMemo(fi.FsValue), types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal))
+		fmt.Printf("After Withdraw: %s, %s (in fs), %s (in pledge), %s (total pledge), %s (total pledge + reward), %s (current pledge)\n", types.FormatMemo(fi.ErcValue), types.FormatMemo(fi.FsValue), types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal), types.FormatMemo(pi.Last))
+
+		return nil
+	},
+}
+
+var pledgeRewardWithdrawCmd = &cli.Command{
+	Name:      "pledgeRewardWithdraw",
+	Usage:     "move pledge reward value to fs, then call settle withdraw",
+	ArgsUsage: "[amount (Memo / NanoMemo / AttoMemo) optional, otherwise withdraw max available]",
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		rid := api.SettleGetRoleID(cctx.Context)
+
+		fi, err := api.SettleGetBalanceInfo(cctx.Context, rid)
+		if err != nil {
+			return err
+		}
+
+		pi, err := api.SettleGetPledgeInfo(cctx.Context, rid)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Before Withdraw: %s, %s (in fs), %s (in pledge), %s (total pledge), %s (total pledge + reward), %s (current reward)\n", types.FormatMemo(fi.ErcValue), types.FormatMemo(fi.FsValue), types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal), types.FormatMemo(pi.CurReward))
+
+		if cctx.Args().Present() {
+			val, err := types.ParsetValue(cctx.Args().First())
+			if err != nil {
+				return xerrors.Errorf("parsing 'amount' argument: %w", err)
+			}
+			pi.Value.Set(val)
+		}
+
+		fmt.Println("Withdraw: ", types.FormatMemo(pi.Value))
+
+		err = api.SettlePledgeRewardWithdraw(cctx.Context, pi.Value)
+		if err != nil {
+			return err
+		}
+
+		fi, err = api.SettleGetBalanceInfo(cctx.Context, rid)
+		if err != nil {
+			return err
+		}
+
+		pi, err = api.SettleGetPledgeInfo(cctx.Context, rid)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("After Withdraw: %s, %s (in fs), %s (in pledge), %s (total pledge), %s (total pledge + reward), %s (current reward)\n", types.FormatMemo(fi.ErcValue), types.FormatMemo(fi.FsValue), types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal), types.FormatMemo(pi.CurReward))
 
 		return nil
 	},

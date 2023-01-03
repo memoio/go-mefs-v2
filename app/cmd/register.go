@@ -13,6 +13,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
+	v3 "github.com/memoio/go-mefs-v2/submodule/connect/v3"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
@@ -106,15 +107,22 @@ var registerCmd = &cli.Command{
 		ver := int(cfg.Contract.Version)
 
 		var uid uint64
-		if ver == 0 {
+		switch ver {
+		case 0:
 			uid, gid, err = settle.Register(cctx.Context, cfg.Contract.EndPoint, rAddr.String(), ki.SecretKey, typ, gid)
 			if err != nil {
 				return err
 			}
-		} else {
+		case 2:
 			rid, gid, err := v2.Register(cctx.Context, ep, rAddr.String(), []byte(ki.SecretKey), typ, gid)
 			fmt.Println("after register, rid, gid: ", rid, gid)
 			return err
+		case 3:
+			rid, gid, err := v3.Register(cctx.Context, ep, rAddr.String(), []byte(ki.SecretKey), typ, gid)
+			fmt.Println("after register, rid, gid: ", rid, gid)
+			return err
+		default:
+			return xerrors.Errorf("contract version: %d is wrong, correct is 0,2,3", cfg.Contract.Version)
 		}
 
 		fmt.Printf("register as %d in group %d", uid, gid)

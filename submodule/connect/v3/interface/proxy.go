@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/memoio/contractsv2/v2/proxy"
+	"github.com/memoio/contractsv2/go_contracts/proxy"
 )
 
 type IProxy interface {
@@ -21,6 +21,7 @@ type IProxy interface {
 
 	Pledge(i uint64, money *big.Int) error
 	PledgeWithdraw(i uint64, ti uint8, money *big.Int) error
+	PledgeRewardWithdraw(i uint64, ti uint8, money *big.Int) error
 
 	AddOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
 	SubOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
