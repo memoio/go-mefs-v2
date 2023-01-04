@@ -245,6 +245,13 @@ func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) e
 }
 
 func (cm *ContractMgr) SettlePledgeRewardWithdraw(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d pledge reward withdraw %d", cm.roleID, val)
+
+	err := cm.proxyIns.PledgeRewardWithdraw(cm.roleID, cm.tIndex, val)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

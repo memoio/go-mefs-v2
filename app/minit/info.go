@@ -2,7 +2,6 @@ package minit
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"runtime"
 
@@ -23,8 +22,7 @@ type Node interface {
 }
 
 func PrintVersion() {
-	v := build.UserVersion()
-	log.Printf("Memoriae version: %s", v)
+	log.Printf("Memoriae version: %s", build.UserVersion())
 	log.Printf("System version: %s", runtime.GOARCH+"/"+runtime.GOOS)
 	log.Printf("Golang version: %s", runtime.Version())
 }
@@ -35,7 +33,7 @@ func StartMetrics() {
 		EnableMemory: true,
 	})
 	if err != nil {
-		fmt.Printf("enabling runtime metrics: %s", err)
+		log.Printf("enabling runtime metrics: %s", err)
 	}
 
 	view.Register(metrics.DefaultViews...)

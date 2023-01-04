@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"math/big"
@@ -20,21 +19,6 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
-
-// register account and register role
-func Register(ctx context.Context, endPoint, rAddr string, sk []byte, typ pb.RoleInfo_Type, gIndex uint64) (uint64, uint64, error) {
-	cm, err := NewContractMgr(ctx, endPoint, rAddr, sk)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	err = cm.Start(typ, gIndex)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return cm.SettleGetRoleID(ctx), cm.SettleGetGroupID(ctx), nil
-}
 
 func (cm *ContractMgr) RegisterAcc() error {
 	logger.Debug("register an account to get an unique ID")

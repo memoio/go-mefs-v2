@@ -20,11 +20,13 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 )
 
-var logger = logging.Logger("settle")
+var logger = logging.Logger("settle/v1")
 
 const (
 	EndPoint     = "http://119.147.213.220:8191"
 	RoleContract = "0x3A014045154403aFF1C07C19553Bc985C123CB6E"
+
+	InvalidAddr = "0x0000000000000000000000000000000000000000"
 )
 
 const (
@@ -35,7 +37,6 @@ const (
 	checkTxSleepTime          = 6 // 先等待6s（出块时间加1）
 	nextBlockTime             = 5 // 出块时间5s
 
-	InvalidAddr = "0x0000000000000000000000000000000000000000"
 	// DefaultGasLimit default gas limit in sending transaction
 	DefaultGasLimit = uint64(5000000) // as small as possible
 	DefaultGasPrice = 200
@@ -138,88 +139,6 @@ func getTransactionReceipt(endPoint string, hash common.Hash) *types.Receipt {
 		logger.Debugf("get transaction %s receipt fail: %s", hash, err)
 	}
 	return receipt
-}
-
-// TransferTo trans money
-func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk string) error {
-	logger.Debugf("%s transfer tx fee %d to %s", endPoint, value, toAddress)
-	ctx, cancle := context.WithTimeout(context.TODO(), 10*time.Second)
-	defer cancle()
-	client, err := ethclient.DialContext(ctx, endPoint)
-	if err != nil {
-		return xerrors.Errorf("dail %s fail %s", endPoint, err)
-	}
-	defer client.Close()
-
-	privateKey, err := crypto.HexToECDSA(sk)
-	if err != nil {
-		return err
-	}
-
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		return xerrors.Errorf("error casting public key to ECDSA")
-	}
-
-	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
-
-	logger.Debugf("transfer %d from %s to %s", value, fromAddress, toAddress)
-
-	gasLimit := uint64(23000) // in units
-
-	chainID, err := client.NetworkID(context.Background())
-	if err != nil {
-		chainID = big.NewInt(666)
-	}
-
-	bbal := getBalance(endPoint, toAddress)
-
-	retry := 0
-	for {
-		retry++
-		if retry > 10 {
-			return xerrors.New("fail to transfer")
-		}
-
-		nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
-		if err != nil {
-			continue
-		}
-
-		gasPrice, err := client.SuggestGasPrice(context.Background())
-		if err != nil {
-			continue
-		}
-
-		tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, nil)
-
-		signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
-		if err != nil {
-			continue
-		}
-
-		err = client.SendTransaction(context.Background(), signedTx)
-		if err != nil {
-			logger.Debug("trans transcation fail:", err)
-			continue
-		}
-
-		qCount := 0
-		for qCount < 5 {
-			balance := getBalance(endPoint, toAddress)
-			if balance.Cmp(bbal) > 0 {
-				logger.Debugf("transfer ok %s has balance %d", toAddress, balance)
-				return nil
-			}
-			logger.Debugf("%s balance now: %d, waiting for transfer success", toAddress, balance)
-
-			rand.NewSource(time.Now().UnixNano())
-			t := rand.Intn(20 * (qCount + 1))
-			time.Sleep(time.Duration(t) * time.Second)
-			qCount++
-		}
-	}
 }
 
 func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.Int) error {

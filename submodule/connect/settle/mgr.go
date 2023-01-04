@@ -53,7 +53,7 @@ type ContractMgr struct {
 
 // create and verify
 func NewContractMgr(ctx context.Context, endPoint, baseAddr string, ver uint32, sk []byte) (scom.SettleMgr, error) {
-	logger.Debug("create v2 contract mgr: ", endPoint, ", ", baseAddr)
+	logger.Debugf("create contract mgr: %s %s %d", endPoint, baseAddr, ver)
 
 	client, err := ethclient.DialContext(context.TODO(), endPoint)
 	if err != nil {
@@ -138,7 +138,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, ver uint32, 
 		cm.getIns = geti
 		cm.proxyIns = proxyi
 	default:
-		return nil, xerrors.Errorf("unsupported contract version: ", ver)
+		return nil, xerrors.Errorf("unsupported contract version: %d", ver)
 	}
 
 	erc20Addr, err := cm.getIns.GetToken(0)
@@ -201,11 +201,11 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 		}
 
 		cm.level = int(gi.Level)
-		logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
+		//logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
 		return nil
 	}
 
-	logger.Debug("register in contract mgr: ", typ, gIndex)
+	//logger.Debug("register in contract mgr: ", typ, gIndex)
 	ri, err := cm.getIns.GetRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
@@ -234,7 +234,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			return xerrors.Errorf("register account fails")
 		}
 
-		logger.Info("Register account successfully. Account ID: ", cm.roleID)
+		logger.Info("Register account successfully, account ID: ", cm.roleID)
 	}
 
 	if typ == pb.RoleInfo_Unknown && gIndex > 0 {
@@ -262,7 +262,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			return xerrors.Errorf("register type fails")
 		}
 
-		logger.Info("Register role successfully. Role type: ", cm.typ)
+		logger.Info("Register role successfully, role type: ", cm.typ.String())
 	}
 
 	// add to group
@@ -291,7 +291,7 @@ func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
 			return xerrors.Errorf("add to group fails")
 		}
 
-		logger.Info("Add to group successfully. Role group id: ", ri.GIndex)
+		logger.Info("Add to group successfully, group ID: ", ri.GIndex)
 
 		if cm.groupID > 0 {
 			gi, err := cm.getIns.GetGroupInfo(cm.groupID)
@@ -359,5 +359,5 @@ func GetTokenAddr(endPoint string, baseAddr common.Address, hexSk string, ver ui
 		return geti.GetToken(0)
 	}
 
-	return res, xerrors.Errorf("unsupported contract version: ", ver)
+	return res, xerrors.Errorf("unsupported contract version: %d", ver)
 }

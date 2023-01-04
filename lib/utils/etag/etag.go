@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/ipfs/go-cid"
@@ -167,10 +166,12 @@ func (tr *Tree) Result() {
 		tr.layers[i+1].AddLink("", fLen, sLen, cid)
 	}
 
-	for i := 0; i < tr.depth; i++ {
-		fLen, sLen, cid := tr.layers[i].Result()
-		fmt.Println(i, fLen, sLen, cid.String())
-	}
+	/*
+		for i := 0; i < tr.depth; i++ {
+			fLen, sLen, cid := tr.layers[i].Result()
+			fmt.Println(i, fLen, sLen, cid.String())
+		}
+	*/
 }
 
 func (tr *Tree) TmpRoot() cid.Cid {

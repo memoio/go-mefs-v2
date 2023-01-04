@@ -24,14 +24,14 @@ func (cm *ContractMgr) Recharge(roleID uint64, ti uint8, isLock bool, val *big.I
 	// check allowance
 	al := cm.ercIns.Allowance(cm.eAddr, fpool)
 	if val.Cmp(al) > 0 {
-		logger.Infof("Approve %d in pool %s", val, fpool)
+		logger.Debugf("Approve %d in pool %s", val, fpool)
 		err := cm.ercIns.Approve(fpool, val)
 		if err != nil {
 			return err
 		}
 	}
 
-	logger.Infof("Recharge %d", val)
+	logger.Debugf("Recharge %d", val)
 	err = cm.proxyIns.Recharge(roleID, ti, isLock, val)
 	if err != nil {
 		return err

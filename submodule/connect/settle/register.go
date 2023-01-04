@@ -31,9 +31,8 @@ func Register(ctx context.Context, endPoint, rAddr string, ver uint32, sk []byte
 }
 
 func (cm *ContractMgr) RegisterAccount() error {
-	logger.Debug("register an account to get an unique ID")
+	logger.Info("register account to get an unique ID")
 
-	logger.Info("Register account")
 	err := cm.proxyIns.ReAcc()
 	if err != nil {
 		return err
@@ -83,7 +82,7 @@ func (cm *ContractMgr) RegisterRole(typ pb.RoleInfo_Type) error {
 		return xerrors.Errorf("Register role unsupported role type %s", typ)
 	}
 
-	logger.Info("Register role: ", typ)
+	logger.Info("register role: ", typ)
 	err := cm.proxyIns.ReRole(rtype, extra)
 	if err != nil {
 		return err
@@ -124,7 +123,7 @@ func (cm *ContractMgr) AddToGroup(gi uint64) error {
 		}
 	}
 
-	logger.Infof("Add to group %d", gi)
+	logger.Infof("add to group %d", gi)
 	err = cm.proxyIns.AddToGroup(gi)
 	if err != nil {
 		return err
@@ -148,14 +147,14 @@ func (cm *ContractMgr) Pledge(roleID uint64, val *big.Int) error {
 	// check allowance
 	al := cm.ercIns.Allowance(cm.eAddr, ppool)
 	if val.Cmp(al) > 0 {
-		logger.Infof("Approve %d in pool %s", val, ppool)
+		logger.Debugf("Approve %d in pool %s", val, ppool)
 		err := cm.ercIns.Approve(ppool, val)
 		if err != nil {
 			return err
 		}
 	}
 
-	logger.Infof("Pledge %d", val)
+	logger.Debugf("Pledge %d", val)
 	err = cm.proxyIns.Pledge(roleID, val)
 	if err != nil {
 		return err

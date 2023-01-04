@@ -111,8 +111,7 @@ var gatewayRunCmd = &cli2.Command{
 		}
 
 		<-terminate
-		log.Println("received shutdown signal")
-		log.Println("shutdown...")
+		log.Println("received shutdown signal, shutdown...")
 
 		return nil
 	},

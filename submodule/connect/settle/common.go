@@ -2,8 +2,6 @@ package settle
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"math/big"
 	"math/rand"
 	"time"
@@ -48,7 +46,6 @@ func GetTxBalance(endPoint string, addr common.Address) *big.Int {
 
 // TransferTo trans money
 func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk string) error {
-	log.Printf("%s transfer tx fee %d to %s", endPoint, value, toAddress)
 	client, err := ethclient.DialContext(context.TODO(), endPoint)
 	if err != nil {
 		return xerrors.Errorf("dail %s fail %s", endPoint, err)
@@ -65,7 +62,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 		return err
 	}
 
-	log.Printf("transfer %d from %s to %s", value, fromAddress, toAddress)
+	logger.Debugf("%s transfer %d from %s to %s", endPoint, value, fromAddress, toAddress)
 
 	gasLimit := uint64(23000) // in units
 
@@ -109,10 +106,9 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 		for qCount < 5 {
 			balance := GetTxBalance(endPoint, toAddress)
 			if balance.Cmp(bbal) > 0 {
-				log.Printf("transfer eth ok, %s has balance %d now", toAddress, balance)
+				logger.Infof("transfer txfee  ok, %s has %d now", toAddress, balance)
 				return nil
 			}
-			log.Printf("%s balance: %d, waiting for transfer success", toAddress, balance)
 
 			rand.NewSource(time.Now().UnixNano())
 			t := rand.Intn(20 * (qCount + 1))
@@ -123,7 +119,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 }
 
 func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.Int) error {
-	log.Printf("Memo %s %s transfer %d to %s", endPoint, tAddr, val, addr)
+	logger.Debugf("Memo %s %s transfer %d to %s", endPoint, tAddr, val, addr)
 
 	ercIns, err := impl.NewErc20(endPoint, sk, tAddr)
 	if err != nil {
@@ -136,7 +132,6 @@ func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.In
 	for retry < 10 {
 		err = ercIns.Transfer(addr, val)
 		if err != nil {
-			fmt.Println("Memo transfer fail: ", tAddr, addr, val, err)
 			retry++
 			continue
 		}
@@ -145,8 +140,7 @@ func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.In
 		deltaVal := big.NewInt(0)
 		deltaVal.Sub(newVal, oldVal)
 		if deltaVal.Cmp(big.NewInt(0)) > 0 {
-			log.Printf("transfer memo ok, %s has memo %d now", addr, newVal)
-			logger.Debugf("Memo %s received balance %d", addr, deltaVal)
+			logger.Infof("transfer memo %d ok, %s has memo %d now", deltaVal, addr, newVal)
 			return nil
 		}
 
