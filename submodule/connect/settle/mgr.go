@@ -2,20 +2,25 @@ package settle
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
-	"math/big"
 	"time"
-
-	"memoc/contracts/role"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/xerrors"
+
+	inst "github.com/memoio/contractsv2/go_contracts/instance"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+
+	scom "github.com/memoio/go-mefs-v2/submodule/connect/settle/common"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle/impl"
+	inter "github.com/memoio/go-mefs-v2/submodule/connect/settle/interface"
+	v1 "github.com/memoio/go-mefs-v2/submodule/connect/v1"
+	v2impl "github.com/memoio/go-mefs-v2/submodule/connect/v2/impl"
+	v3impl "github.com/memoio/go-mefs-v2/submodule/connect/v3/impl"
 )
 
 var _ api.ISettle = &ContractMgr{}
@@ -23,408 +28,336 @@ var _ api.ISettle = &ContractMgr{}
 type ContractMgr struct {
 	ctx context.Context
 
+	// chain related
 	endPoint string
-	chainID  *big.Int
 
-	hexSK   string
-	roleID  uint64
+	// role related
+	roleID uint64
+	typ    pb.RoleInfo_Type
+
+	// group related
 	groupID uint64
 	level   int
-	tIndex  uint32
 
-	eAddr   common.Address // local address
-	rAddr   common.Address // role contract address
-	rtAddr  common.Address // token mgr address
-	tAddr   common.Address // token address
-	ppAddr  common.Address // pledge pool address
-	isAddr  common.Address // issurance address
-	rfsAddr common.Address // issurance address
-	fsAddr  common.Address // fs contract addr
+	tIndex uint8
+
+	sk    string
+	eAddr common.Address
+
+	baseAddr common.Address
+
+	proxyIns inter.IProxy  //
+	getIns   inter.IGetter // addr is get from base
+	ercIns   inter.IERC20  //
 }
 
-func NewContractMgr(ctx context.Context, endPoint, roleAddr string, sk []byte) (*ContractMgr, error) {
-	logger.Debug("create contract mgr: ", endPoint, ", ", roleAddr)
+// create and verify
+func NewContractMgr(ctx context.Context, endPoint, baseAddr string, ver uint32, sk []byte) (scom.SettleMgr, error) {
+	logger.Debug("create v2 contract mgr: ", endPoint, ", ", baseAddr)
 
-	client := getClient(endPoint)
-	chainID, err := client.NetworkID(context.Background())
+	client, err := ethclient.DialContext(context.TODO(), endPoint)
 	if err != nil {
-		return nil, xerrors.Errorf("eth get networkID from %s fail: %s", endPoint, err)
+		return nil, xerrors.Errorf("get client from %s fail: %s", endPoint, err)
 	}
+	defer client.Close()
 
 	// convert key
 	hexSk := hex.EncodeToString(sk)
-	privateKey, err := crypto.HexToECDSA(hexSk)
+
+	eAddr, err := scom.SkToAddr(hexSk)
 	if err != nil {
 		return nil, err
 	}
 
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, xerrors.Errorf("error casting public key to ECDSA")
-	}
-
-	eAddr := crypto.PubkeyToAddress(*publicKeyECDSA)
-
-	// transfer eth
-	// TODO: remove at mainnet
-	val := getBalance(endPoint, eAddr)
-	logger.Debugf("%s has val %d", eAddr, val)
+	val := GetTxBalance(endPoint, eAddr)
+	logger.Debugf("%s has tx fee %d", eAddr, val)
 	if val.BitLen() == 0 {
 		return nil, xerrors.Errorf("not have tx fee on chain")
 	}
 
-	rAddr := common.HexToAddress(roleAddr)
-	logger.Debug("role contract address: ", rAddr.Hex())
+	base := common.HexToAddress(baseAddr)
 
-	tIndex := uint32(0)
+	// get contract addr from instance contract and create ins
+	insti, err := inst.NewInstance(base, client)
+	if err != nil {
+		return nil, err
+	}
+
+	getAddr, err := insti.Instances(&bind.CallOpts{
+		From: eAddr,
+	}, 150)
+	if err != nil {
+		return nil, xerrors.Errorf("get getter contract fail: %s", err)
+	}
+	logger.Debug("getter contract: ", getAddr)
+
+	proxyAddr, err := insti.Instances(&bind.CallOpts{
+		From: eAddr,
+	}, 100)
+	if err != nil {
+		return nil, xerrors.Errorf("get proxy contract fail: %s", err)
+	}
+	logger.Debug("proxy contract: ", proxyAddr)
+
 	cm := &ContractMgr{
 		ctx:      ctx,
 		endPoint: endPoint,
-		chainID:  chainID,
 
-		hexSK:  hexSk,
-		tIndex: tIndex,
-
-		eAddr: eAddr,
-		rAddr: rAddr,
+		sk:       hexSk,
+		eAddr:    eAddr,
+		baseAddr: base,
 	}
 
-	rtAddr, err := GetRoleTokenAddr(cm.endPoint, cm.rAddr, cm.eAddr)
+	switch ver {
+	case 0:
+		return v1.NewContractMgr(ctx, endPoint, baseAddr, sk)
+	case 2:
+		geti, err := v2impl.NewGetter(endPoint, hexSk, getAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		proxyi, err := v2impl.NewProxy(endPoint, hexSk, proxyAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		cm.getIns = geti
+		cm.proxyIns = proxyi
+	case 3:
+		geti, err := v3impl.NewGetter(endPoint, hexSk, getAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		proxyi, err := v3impl.NewProxy(endPoint, hexSk, proxyAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		cm.getIns = geti
+		cm.proxyIns = proxyi
+	default:
+		return nil, xerrors.Errorf("unsupported contract version: ", ver)
+	}
+
+	erc20Addr, err := cm.getIns.GetToken(0)
+	if err != nil {
+		return nil, xerrors.Errorf("get token contract fail: %s", err)
+	}
+	logger.Debug("erc20 contract: ", erc20Addr)
+
+	erc20i, err := impl.NewErc20(endPoint, hexSk, erc20Addr)
 	if err != nil {
 		return nil, err
 	}
-	cm.rtAddr = rtAddr
-	logger.Debug("token mgr contract address: ", rtAddr.Hex())
+	logger.Debugf("%s has memo %d", eAddr, erc20i.BalanceOf(eAddr))
 
-	tAddr, err := GetTokenAddr(cm.endPoint, cm.rtAddr, cm.eAddr, cm.tIndex)
+	cm.ercIns = erc20i
+
+	// getInfo
+	ri, err := cm.getIns.GetRoleInfo(eAddr)
 	if err != nil {
 		return nil, err
 	}
-	cm.tAddr = tAddr
-	logger.Debug("token contract address: ", tAddr.Hex())
 
-	val = cm.getBalanceInErc(eAddr)
-	logger.Debugf("%s has: %d (atto Memo)", eAddr, val)
+	cm.roleID = ri.Index
+	cm.groupID = ri.GIndex
 
-	//if val.BitLen() == 0 {
-	//	return nil, xerrors.Errorf("not have erc20 token")
-	//}
-
-	ppAddr, err := GetPledgeAddr(cm.endPoint, cm.rAddr, cm.eAddr)
-	if err != nil {
-		return nil, err
+	switch ri.RType {
+	case 1:
+		cm.typ = pb.RoleInfo_User
+		if ri.GIndex > 0 && ri.State != 3 {
+			return nil, xerrors.Errorf("user %d is not active in group %d", cm.roleID, cm.groupID)
+		}
+	case 2:
+		cm.typ = pb.RoleInfo_Provider
+		if ri.GIndex > 0 && ri.State != 3 {
+			return nil, xerrors.Errorf("provider %d is not active in group %d", cm.roleID, cm.groupID)
+		}
+	case 3:
+		cm.typ = pb.RoleInfo_Keeper
+		if ri.GIndex > 0 && ri.State != 3 {
+			logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
+			return nil, xerrors.Errorf("keeper is not active, activate first")
+		}
+	default:
+		cm.typ = pb.RoleInfo_Unknown
 	}
-	cm.ppAddr = ppAddr
-	logger.Debug("pledge contract address: ", ppAddr.Hex())
-
-	rfsAddr, err := GetRolefsAddr(cm.endPoint, cm.rAddr, cm.eAddr)
-	if err != nil {
-		return nil, err
-	}
-	cm.rfsAddr = rfsAddr
-	logger.Debug("role fs contract address: ", rfsAddr.Hex())
-
-	isAddr, err := GetIssuanceAddr(cm.endPoint, cm.rAddr, cm.eAddr)
-	if err != nil {
-		return nil, err
-	}
-	cm.isAddr = isAddr
-	logger.Debug("issu contract address: ", isAddr.Hex())
 
 	return cm, nil
 }
 
+// register account, type and group
 func (cm *ContractMgr) Start(typ pb.RoleInfo_Type, gIndex uint64) error {
-	logger.Debug("start contract mgr: ", typ, gIndex)
-	ri, err := cm.getRoleInfo(cm.eAddr)
+	if cm.groupID > 0 {
+		gi, err := cm.getIns.GetGroupInfo(cm.groupID)
+		if err != nil {
+			return err
+		}
+
+		if gi.State != 3 {
+			return xerrors.Errorf("group %d is not active", cm.groupID)
+		}
+
+		cm.level = int(gi.Level)
+		logger.Debug("registered in contract: ", cm.roleID, cm.typ, cm.groupID)
+		return nil
+	}
+
+	logger.Debug("register in contract mgr: ", typ, gIndex)
+	ri, err := cm.getIns.GetRoleInfo(cm.eAddr)
 	if err != nil {
 		return err
 	}
 
-	if gIndex == 0 && ri.GroupID == 0 {
+	if gIndex == 0 && ri.GIndex == 0 {
 		return xerrors.Errorf("group should be larger than zero")
 	}
 
-	logger.Debug("get roleinfo: ", ri)
-
-	// register account
-	if ri.RoleID == 0 {
-		err := cm.RegisterAcc()
+	// register account if index is 0
+	if ri.Index == 0 {
+		err := cm.RegisterAccount()
 		if err != nil {
 			return err
 		}
 
 		time.Sleep(10 * time.Second)
-	}
-
-	ri, err = cm.getRoleInfo(cm.eAddr)
-	if err != nil {
-		return err
-	}
-
-	logger.Debug("get roleinfo after register account: ", ri)
-
-	if ri.RoleID == 0 {
-		return xerrors.Errorf("register fails")
-	}
-
-	cm.roleID = ri.RoleID
-
-	// register role
-	if ri.Type == pb.RoleInfo_Unknown {
-		switch typ {
-		case pb.RoleInfo_Keeper:
-			err = cm.RegisterKeeper()
-			if err != nil {
-				logger.Debug("register keeper fail: ", err)
-				return err
-			}
-		case pb.RoleInfo_Provider:
-			// provider: register,register; add to group
-			err = cm.RegisterProvider()
-			if err != nil {
-				logger.Debug("register provider fail: ", err)
-				return err
-			}
-		case pb.RoleInfo_User:
-			// user: resgister user
-			// get extra byte
-			err = cm.RegisterUser(gIndex)
-			if err != nil {
-				logger.Debug("register user fail: ", err)
-				return err
-			}
-		}
-	}
-
-	time.Sleep(5 * time.Second)
-
-	ri, err = cm.getRoleInfo(cm.eAddr)
-	if err != nil {
-		return err
-	}
-
-	logger.Debug("get roleinfo after register role: ", ri)
-
-	switch typ {
-	case pb.RoleInfo_Keeper:
-		if ri.Type != typ {
-			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_Keeper, ri.Type)
-		}
-
-		if ri.GroupID == 0 && gIndex > 0 {
-			return xerrors.Errorf("need grant to add keeper %d to group %d", ri.RoleID, gIndex)
-			/*
-				err = AddKeeperToGroup(cm.roleID, gIndex)
-				if err != nil {
-					return err
-				}
-
-				time.Sleep(5 * time.Second)
-
-				_, _, rType, _, gid, _, err = cm.iRole.GetRoleInfo(cm.eAddr)
-				if err != nil {
-					return err
-				}
-
-				if gid != gIndex {
-					return xerrors.Errorf("group is wrong, expected %d, got %d", gIndex, gid)
-				}
-			*/
-		}
-
-	case pb.RoleInfo_Provider:
-		if ri.Type != typ {
-			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_Provider, ri.Type)
-		}
-
-		if ri.GroupID == 0 && gIndex > 0 {
-			err = cm.AddProviderToGroup(gIndex)
-			if err != nil {
-				return err
-			}
-
-			time.Sleep(5 * time.Second)
-
-			ri, err = cm.getRoleInfo(cm.eAddr)
-			if err != nil {
-				return err
-			}
-
-			if ri.GroupID != gIndex {
-				return xerrors.Errorf("group add wrong, expected %d, got %d", gIndex, ri.GroupID)
-			}
-		}
-	case pb.RoleInfo_User:
-		if ri.Type != typ {
-			return xerrors.Errorf("role type wrong, expected %s, got %s", pb.RoleInfo_User, ri.Type)
-		}
-	default:
-	}
-
-	cm.roleID = ri.RoleID
-
-	if ri.GroupID == 0 {
-		cm.groupID = gIndex
-	} else {
-		cm.groupID = ri.GroupID
-	}
-
-	if cm.groupID > 0 {
-		if cm.groupID != gIndex && gIndex > 0 {
-			return xerrors.Errorf("group is wrong, expected %d, got %d", ri.GroupID, gIndex)
-		}
-
-		gi, err := cm.SettleGetGroupInfoAt(cm.ctx, cm.groupID)
+		ri, err = cm.getIns.GetRoleInfo(cm.eAddr)
 		if err != nil {
 			return err
 		}
-		cm.fsAddr = common.HexToAddress(gi.FsAddr)
-		cm.level = int(gi.Level)
-		logger.Debug("fs contract address: ", cm.fsAddr.Hex())
+
+		cm.roleID = ri.Index
+
+		if cm.roleID == 0 {
+			return xerrors.Errorf("register account fails")
+		}
+
+		logger.Info("Register account successfully. Account ID: ", cm.roleID)
 	}
+
+	if typ == pb.RoleInfo_Unknown && gIndex > 0 {
+		cm.typ = pb.RoleInfo_Unknown
+		cm.groupID = gIndex
+		return nil
+	}
+
+	// register role if no role
+	if ri.RType == 0 {
+		err := cm.RegisterRole(typ)
+		if err != nil {
+			return err
+		}
+		time.Sleep(5 * time.Second)
+
+		ri, err = cm.getIns.GetRoleInfo(cm.eAddr)
+		if err != nil {
+			return err
+		}
+
+		cm.typ = pb.RoleInfo_Type(ri.RType)
+
+		if cm.typ != typ {
+			return xerrors.Errorf("register type fails")
+		}
+
+		logger.Info("Register role successfully. Role type: ", cm.typ)
+	}
+
+	// add to group
+	if ri.GIndex == 0 && gIndex > 0 {
+		_, err := cm.getIns.GetGroupInfo(gIndex)
+		if err != nil {
+			return xerrors.Errorf("get groupinfo %d fail %s", gIndex, err)
+		}
+
+		err = cm.AddToGroup(gIndex)
+		if err != nil {
+			return err
+		}
+
+		time.Sleep(5 * time.Second)
+
+		ri, err = cm.getIns.GetRoleInfo(cm.eAddr)
+		if err != nil {
+			return err
+		}
+
+		cm.groupID = ri.GIndex
+
+		// check if group is set ok
+		if cm.groupID != gIndex {
+			return xerrors.Errorf("add to group fails")
+		}
+
+		logger.Info("Add to group successfully. Role group id: ", ri.GIndex)
+
+		if cm.groupID > 0 {
+			gi, err := cm.getIns.GetGroupInfo(cm.groupID)
+			if err != nil {
+				return err
+			}
+
+			if gi.State != 3 {
+				return xerrors.Errorf("group %d is not active, you need to activate some keepers.", cm.groupID)
+			}
+
+			cm.level = int(gi.Level)
+		}
+	}
+
+	logger.Debug("register in contract: ", cm.roleID, cm.typ, cm.groupID)
 
 	return nil
 }
 
-func GetRoleTokenAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
-	var rt common.Address
-
-	client := getClient(endPoint)
+func GetTokenAddr(endPoint string, baseAddr common.Address, hexSk string, ver uint32) (common.Address, error) {
+	var res common.Address
+	client, err := ethclient.DialContext(context.TODO(), endPoint)
+	if err != nil {
+		return res, xerrors.Errorf("get client from %s fail: %s", endPoint, err)
+	}
 	defer client.Close()
 
-	roleIns, err := role.NewRole(rAddr, client)
+	eAddr, err := scom.SkToAddr(hexSk)
 	if err != nil {
-		return rt, err
+		return res, err
 	}
 
-	retryCount := 0
-	for {
-		retryCount++
-		rt, err = roleIns.RToken(&bind.CallOpts{
-			From: addr,
-		})
-		if err != nil {
-			if retryCount > sendTransactionRetryCount {
-				return rt, err
-			}
-			time.Sleep(retryGetInfoSleepTime)
-			continue
-		}
-
-		return rt, nil
+	val := GetTxBalance(endPoint, eAddr)
+	logger.Debugf("%s has tx fee %d", eAddr, val)
+	if val.BitLen() == 0 {
+		return res, xerrors.Errorf("not have tx fee on chain")
 	}
-}
 
-func GetTokenAddr(endPoint string, rtAddr, addr common.Address, tIndex uint32) (common.Address, error) {
-	var taddr common.Address
-
-	client := getClient(endPoint)
-	defer client.Close()
-	rToken, err := role.NewRToken(rtAddr, client)
+	// get contract addr from instance contract and create ins
+	insti, err := inst.NewInstance(baseAddr, client)
 	if err != nil {
-		return taddr, err
+		return res, err
 	}
 
-	retryCount := 0
-	for {
-		retryCount++
-		taddr, err = rToken.GetTA(&bind.CallOpts{
-			From: addr,
-		}, tIndex)
-		if err != nil {
-			if retryCount > sendTransactionRetryCount {
-				return taddr, err
-			}
-			time.Sleep(retryGetInfoSleepTime)
-			continue
-		}
-
-		return taddr, nil
-	}
-}
-
-func GetPledgeAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
-	var pp common.Address
-	client := getClient(endPoint)
-	defer client.Close()
-	roleIns, err := role.NewRole(rAddr, client)
+	getAddr, err := insti.Instances(&bind.CallOpts{
+		From: eAddr,
+	}, 150)
 	if err != nil {
-		return pp, err
+		return res, err
 	}
 
-	retryCount := 0
-	for {
-		retryCount++
-		pp, err = roleIns.PledgePool(&bind.CallOpts{
-			From: addr,
-		})
+	switch ver {
+	case 2:
+		geti, err := v2impl.NewGetter(endPoint, hexSk, getAddr)
 		if err != nil {
-			if retryCount > sendTransactionRetryCount {
-				return pp, err
-			}
-			time.Sleep(retryGetInfoSleepTime)
-			continue
+			return res, err
 		}
-
-		return pp, nil
-	}
-}
-
-func GetRolefsAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
-	var rfs common.Address
-
-	client := getClient(endPoint)
-	defer client.Close()
-
-	roleIns, err := role.NewRole(rAddr, client)
-	if err != nil {
-		return rfs, err
-	}
-
-	retryCount := 0
-	for {
-		retryCount++
-		rfs, err = roleIns.Rolefs(&bind.CallOpts{
-			From: addr,
-		})
+		return geti.GetToken(0)
+	case 3:
+		geti, err := v3impl.NewGetter(endPoint, hexSk, getAddr)
 		if err != nil {
-			if retryCount > sendTransactionRetryCount {
-				return rfs, err
-			}
-			time.Sleep(retryGetInfoSleepTime)
-			continue
+			return res, err
 		}
-
-		return rfs, nil
-	}
-}
-
-func GetIssuanceAddr(endPoint string, rAddr, addr common.Address) (common.Address, error) {
-	var is common.Address
-
-	client := getClient(endPoint)
-	defer client.Close()
-	roleIns, err := role.NewRole(rAddr, client)
-	if err != nil {
-		return is, err
+		return geti.GetToken(0)
 	}
 
-	retryCount := 0
-	for {
-		retryCount++
-		is, err = roleIns.Issuance(&bind.CallOpts{
-			From: addr,
-		})
-		if err != nil {
-			if retryCount > sendTransactionRetryCount {
-				return is, err
-			}
-			time.Sleep(retryGetInfoSleepTime)
-			continue
-		}
-
-		return is, nil
-	}
+	return res, xerrors.Errorf("unsupported contract version: ", ver)
 }

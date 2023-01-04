@@ -11,8 +11,8 @@ import (
 
 	"github.com/memoio/contractsv2/go_contracts/getter"
 	"github.com/memoio/go-mefs-v2/api"
-	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2/impl"
-	inter "github.com/memoio/go-mefs-v2/submodule/connect/v3/interface"
+	scom "github.com/memoio/go-mefs-v2/submodule/connect/settle/common"
+	inter "github.com/memoio/go-mefs-v2/submodule/connect/settle/interface"
 )
 
 type getImpl struct {
@@ -37,7 +37,7 @@ func NewGetter(endPoint, hexSk string, getAddr common.Address) (inter.IGetter, e
 		chainID = big.NewInt(666)
 	}
 
-	eAddr, err := v2.SkToAddr(hexSk)
+	eAddr, err := scom.SkToAddr(hexSk)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (g *getImpl) GetAddrAt(i uint64) (common.Address, error) {
 	}
 }
 
-func (g *getImpl) GetRoleInfo(addr common.Address) (*getter.RoleOut, error) {
+func (g *getImpl) GetRoleInfo(addr common.Address) (*inter.RoleOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
 		return nil, err
@@ -186,7 +186,17 @@ func (g *getImpl) GetRoleInfo(addr common.Address) (*getter.RoleOut, error) {
 			continue
 		}
 
-		return &res, nil
+		return &inter.RoleOut{
+			State:        res.State,
+			RType:        res.RType,
+			Index:        res.Index,
+			GIndex:       res.GIndex,
+			RegisterTime: res.RegisterTime,
+			Owner:        res.Owner,
+			Next:         res.Next,
+			VerifyKey:    res.VerifyKey,
+			Desc:         res.Desc,
+		}, nil
 	}
 }
 
@@ -459,7 +469,7 @@ func (g *getImpl) GetBalAt(i uint64, ti uint8) (*big.Int, *big.Int, *big.Int, er
 	}
 }
 
-func (g *getImpl) GetStoreInfo(ui, pi uint64, ti uint8) (*getter.StoreOut, error) {
+func (g *getImpl) GetStoreInfo(ui, pi uint64, ti uint8) (*inter.StoreOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
 		return nil, err
@@ -485,11 +495,16 @@ func (g *getImpl) GetStoreInfo(ui, pi uint64, ti uint8) (*getter.StoreOut, error
 			continue
 		}
 
-		return &res, err
+		return &inter.StoreOut{
+			Start:  res.Start,
+			End:    res.End,
+			Size:   res.Size,
+			Sprice: res.Sprice,
+		}, err
 	}
 }
 
-func (g *getImpl) GetSettleInfo(pi uint64, ti uint8) (*getter.SettleOut, error) {
+func (g *getImpl) GetSettleInfo(pi uint64, ti uint8) (*inter.SettleOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
 		return nil, err
@@ -515,11 +530,19 @@ func (g *getImpl) GetSettleInfo(pi uint64, ti uint8) (*getter.SettleOut, error) 
 			continue
 		}
 
-		return &res, nil
+		return &inter.SettleOut{
+			Time:    res.Time,
+			Size:    res.Size,
+			Price:   res.Price,
+			MaxPay:  res.MaxPay,
+			HasPaid: res.HasPaid,
+			CanPay:  res.CanPay,
+			Lost:    res.Lost,
+		}, nil
 	}
 }
 
-func (g *getImpl) GetFsInfo(ui, pi uint64) (*getter.FsOut, error) {
+func (g *getImpl) GetFsInfo(ui, pi uint64) (*inter.FsOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
 		return nil, err
@@ -545,11 +568,14 @@ func (g *getImpl) GetFsInfo(ui, pi uint64) (*getter.FsOut, error) {
 			continue
 		}
 
-		return &res, nil
+		return &inter.FsOut{
+			Nonce:    res.Nonce,
+			SubNonce: res.SubNonce,
+		}, nil
 	}
 }
 
-func (g *getImpl) GetGInfo(gi uint64, ti uint8) (*getter.GroupOut, error) {
+func (g *getImpl) GetGInfo(gi uint64, ti uint8) (*inter.GroupOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
 		return nil, err
@@ -575,21 +601,25 @@ func (g *getImpl) GetGInfo(gi uint64, ti uint8) (*getter.GroupOut, error) {
 			continue
 		}
 
-		return &res, nil
+		return &inter.GroupOut{
+			Size:   res.Size,
+			Sprice: res.Sprice,
+			Lost:   res.Lost,
+		}, nil
 	}
 }
 
 // get pledge reward info: accu, last, pledge, rs
-func (g *getImpl) GetPleRewardInfo(index uint64, ti uint8) (*big.Int, *big.Int, *big.Int, *big.Int, *big.Int, *big.Int, error) {
+func (g *getImpl) GetPleRewardInfo(index uint64, ti uint8) (*inter.RewardOut, error) {
 	client, err := ethclient.DialContext(context.TODO(), g.endPoint)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, err
+		return nil, err
 	}
 	defer client.Close()
 
 	getIns, err := getter.NewGetter(g.getAddr, client)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	retryCount := 0
@@ -600,12 +630,19 @@ func (g *getImpl) GetPleRewardInfo(index uint64, ti uint8) (*big.Int, *big.Int, 
 		}, index, ti)
 		if err != nil {
 			if retryCount > 3 {
-				return nil, nil, nil, nil, nil, nil, err
+				return nil, err
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return accu, last, pledge, reward, curReward, pledgeTime, nil
+		return &inter.RewardOut{
+			Accu:       accu,
+			Last:       last,
+			Pledge:     pledge,
+			Reward:     reward,
+			CurReward:  curReward,
+			PledgeTime: pledgeTime,
+		}, nil
 	}
 }

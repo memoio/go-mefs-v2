@@ -1,4 +1,4 @@
-package impl
+package common
 
 import (
 	"context"
@@ -10,6 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"golang.org/x/xerrors"
 )
 
@@ -24,6 +27,12 @@ const (
 	DefaultGasLimit = uint64(5000000) // as small as possible
 	DefaultGasPrice = 200
 )
+
+type SettleMgr interface {
+	api.ISettle
+	Start(pb.RoleInfo_Type, uint64) error
+	SettleGetRoleInfo(address.Address) (*api.RoleInfo, error)
+}
 
 func MakeAuth(chainID *big.Int, hexSk string) (*bind.TransactOpts, error) {
 	auth := &bind.TransactOpts{}

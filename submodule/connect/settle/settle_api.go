@@ -4,13 +4,18 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"golang.org/x/xerrors"
 
+	inst "github.com/memoio/contractsv2/go_contracts/instance"
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
+	inter "github.com/memoio/go-mefs-v2/submodule/connect/settle/interface"
 )
 
 func (cm *ContractMgr) SettleGetRoleID(ctx context.Context) uint64 {
@@ -27,115 +32,168 @@ func (cm *ContractMgr) SettleGetThreshold(ctx context.Context) int {
 
 // as net prefix
 func (cm *ContractMgr) SettleGetBaseAddr(ctx context.Context) []byte {
-	return cm.rAddr.Bytes()
+	return cm.baseAddr.Bytes()
 }
 
 func (cm *ContractMgr) SettleGetAddrCnt(ctx context.Context) uint64 {
-	tc, _ := cm.getAddrCount()
-	return tc
+	return cm.getIns.GetAddrCnt()
 }
 
 // get info
-func (cm *ContractMgr) SettleGetRoleInfo(addr address.Address) (*api.RoleInfo, error) {
-	eAddr := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
-	ri, err := cm.getRoleInfo(eAddr)
+
+func (cm *ContractMgr) getRoleInfo(eAddr common.Address) (*api.RoleInfo, error) {
+	ri, err := cm.getIns.GetRoleInfo(eAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	return ri, nil
+	//if ri.State == 1 {
+	//	return nil, xerrors.Errorf("%d is banned", ri.Index)
+	//}
+
+	//if ri.RType > 0 && ri.GIndex > 0 && ri.State != 3 {
+	//	return nil, xerrors.Errorf("%d is not active", ri.Index)
+	//}
+
+	pri := new(api.RoleInfo)
+
+	pri.RoleID = ri.Index
+	pri.GroupID = ri.GIndex
+	pri.ChainVerifyKey = eAddr.Bytes()
+	pri.Desc = ri.Desc
+	pri.Owner = ri.Owner.String()
+
+	switch ri.State {
+	case 1:
+		pri.State = "banned"
+		pri.IsBanned = true
+	case 2:
+		pri.State = "inactive"
+	case 3:
+		pri.State = "active"
+		pri.IsActive = true
+	}
+
+	switch ri.RType {
+	case 1:
+		pri.Type = pb.RoleInfo_User
+		pri.Extra = ri.VerifyKey
+	case 2:
+		pri.Type = pb.RoleInfo_Provider
+	case 3:
+		pri.Type = pb.RoleInfo_Keeper
+		pri.BlsVerifyKey = ri.VerifyKey
+	default:
+		pri.Type = pb.RoleInfo_Unknown
+	}
+
+	return pri, nil
+}
+
+func (cm *ContractMgr) SettleGetRoleInfo(addr address.Address) (*api.RoleInfo, error) {
+	eAddr := common.BytesToAddress(utils.ToEthAddress(addr.Bytes()))
+	return cm.getRoleInfo(eAddr)
 }
 
 func (cm *ContractMgr) SettleGetRoleInfoAt(ctx context.Context, rid uint64) (*api.RoleInfo, error) {
-	gotAddr, err := cm.getAddrAt(rid)
+	eAddr, err := cm.getIns.GetAddrAt(rid)
 	if err != nil {
 		return nil, err
 	}
 
-	ri, err := cm.getRoleInfo(gotAddr)
-	if err != nil {
-		return nil, err
-	}
-	return ri, nil
+	return cm.getRoleInfo(eAddr)
 }
 
 func (cm *ContractMgr) SettleGetGroupInfoAt(ctx context.Context, gIndex uint64) (*api.GroupInfo, error) {
-	isActive, isBanned, isReady, level, size, price, fsAddr, err := cm.getGroupInfo(gIndex)
+	client, err := ethclient.DialContext(context.TODO(), cm.endPoint)
+	if err != nil {
+		return nil, xerrors.Errorf("get client from %s fail: %s", cm.endPoint, err)
+	}
+	defer client.Close()
+
+	insti, err := inst.NewInstance(cm.baseAddr, client)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Debugf("group %d, state %v %v %v, level %d, fsAddr %s", gIndex, isActive, isBanned, isReady, level, fsAddr)
+	kmAddr, err := insti.Instances(&bind.CallOpts{
+		From: cm.eAddr,
+	}, 13)
+	if err != nil {
+		return nil, xerrors.Errorf("get getter contract fail: %s", err)
+	}
 
-	kc, err := cm.getKNumAtGroup(cm.groupID)
+	gi, err := cm.getIns.GetGroupInfo(gIndex)
 	if err != nil {
 		return nil, err
 	}
 
-	uc, pc, err := cm.getUPNumAtGroup(cm.groupID)
-	if err != nil {
-		return nil, err
-	}
-
-	gi := &api.GroupInfo{
-		EndPoint: cm.endPoint,
-		BaseAddr: cm.rAddr.String(),
-		ID:       gIndex,
-		Level:    uint8(level),
-		FsAddr:   fsAddr.String(),
-		Size:     size.Uint64(),
-		Price:    new(big.Int).Set(price),
-		KCount:   kc,
-		UCount:   uc,
-		PCount:   pc,
-	}
+	gi.FsAddr = kmAddr.String()
+	gi.EndPoint = cm.endPoint
+	gi.BaseAddr = cm.baseAddr.String()
 
 	return gi, nil
 }
 
 func (cm *ContractMgr) SettleGetPledgeInfo(ctx context.Context, roleID uint64) (*api.PledgeInfo, error) {
-	tp, err := cm.getTotalPledge()
+	// total current pledge amount of all nodes recorded in pledge contract, all pledge amount, no mint
+	tp, err := cm.getIns.GetTotalPledge()
 	if err != nil {
 		return nil, err
 	}
 
-	ep, err := cm.getPledgeAmount(cm.tIndex)
+	// get erc20 balance of pledge pool, including pledge and mint,
+	ep, err := cm.getIns.GetPledge(cm.tIndex)
 	if err != nil {
 		return nil, err
 	}
 
-	pv, err := cm.getBalanceInPPool(roleID, cm.tIndex)
+	// get current pledge balance of a node
+	bal, err := cm.getIns.GetPledgeAt(roleID, cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	// get node pledge and node reward
+	pri, err := cm.getIns.GetPleRewardInfo(roleID, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	pi := &api.PledgeInfo{
-		Value:    pv,
+		Value:    bal,
 		ErcTotal: ep,
 		Total:    tp,
-		
-		PledgeTime: big.NewInt(0),
+
+		Last:        pri.Last,
+		LocalPledge: pri.Pledge,
+		LocalReward: pri.Reward,
+
+		CurReward:  pri.CurReward,
+		PledgeTime: pri.PledgeTime,
 	}
+
 	return pi, nil
 }
 
 func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) (*api.BalanceInfo, error) {
-	gotAddr, err := cm.getAddrAt(roleID)
+	gotAddr, err := cm.getIns.GetAddrAt(roleID)
 	if err != nil {
 		return nil, err
 	}
 
-	avil, tmp, err := cm.getBalanceInFs(roleID, cm.tIndex)
+	avail, lock, penalty, err := cm.getIns.GetBalAt(roleID, cm.tIndex)
 	if err != nil {
 		return nil, err
 	}
-
-	avil.Add(avil, tmp)
+	//avil.Add(avil, lock)
 
 	bi := &api.BalanceInfo{
-		Value:    getBalance(cm.endPoint, gotAddr),
-		ErcValue: cm.getBalanceInErc(gotAddr),
-		FsValue:  avil,
+		Value:        GetTxBalance(cm.endPoint, gotAddr),
+		ErcValue:     cm.ercIns.BalanceOf(gotAddr),
+		FsValue:      avail,
+		LockValue:    lock,
+		PenaltyValue: penalty,
 	}
 
 	return bi, nil
@@ -143,41 +201,42 @@ func (cm *ContractMgr) SettleGetBalanceInfo(ctx context.Context, roleID uint64) 
 
 // return time, size, price
 func (cm *ContractMgr) SettleGetStoreInfo(ctx context.Context, userID, proID uint64) (*api.StoreInfo, error) {
-	ti, size, price, err := cm.getStoreInfo(userID, proID, cm.tIndex)
+
+	fo, err := cm.getIns.GetFsInfo(userID, proID)
 	if err != nil {
 		return nil, err
 	}
 
-	addNonce, subNonce, err := cm.getFsInfoAggOrder(userID, proID)
+	so, err := cm.getIns.GetStoreInfo(userID, proID, cm.tIndex)
 	if err != nil {
 		return nil, err
 	}
 
 	si := &api.StoreInfo{
-		Time:     int64(ti),
-		Nonce:    addNonce,
-		SubNonce: subNonce,
-		Size:     size,
-		Price:    price,
+		Nonce:    fo.Nonce,
+		SubNonce: fo.SubNonce,
+		Time:     int64(so.Start),
+		Size:     so.Size,
+		Price:    so.Sprice,
 	}
 
 	return si, nil
 }
 
-func (cm *ContractMgr) SettlePledge(ctx context.Context, val *big.Int) error {
-	logger.Debugf("%d pledge %d", cm.roleID, val)
-	return cm.pledge(val)
-}
-
 func (cm *ContractMgr) SettleCharge(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d charge %d", cm.roleID, val)
-	return cm.Recharge(val)
+	return cm.Recharge(cm.roleID, cm.tIndex, false, val)
+}
+
+func (cm *ContractMgr) SettlePledge(ctx context.Context, val *big.Int) error {
+	logger.Debugf("%d pledge %d", cm.roleID, val)
+	return cm.Pledge(cm.roleID, val)
 }
 
 func (cm *ContractMgr) SettlePledgeWithdraw(ctx context.Context, val *big.Int) error {
-	logger.Debugf("%d cancle pledge %d", cm.roleID, val)
+	logger.Debugf("%d pledge withdraw %d", cm.roleID, val)
 
-	err := cm.canclePledge(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
+	err := cm.proxyIns.PledgeWithdraw(cm.roleID, cm.tIndex, val)
 	if err != nil {
 		return err
 	}
@@ -190,9 +249,16 @@ func (cm *ContractMgr) SettlePledgeRewardWithdraw(ctx context.Context, val *big.
 }
 
 func (cm *ContractMgr) SettleProIncome(ctx context.Context, val, penalty *big.Int, kindex []uint64, ksigns [][]byte) error {
-	logger.Debugf("%d pro income", cm.roleID)
+	logger.Debugf("%d pro income %d", cm.roleID, val)
 
-	err := cm.proWithdraw(cm.rAddr, cm.rtAddr, cm.roleID, cm.tIndex, val, penalty, kindex, ksigns)
+	pi := inter.PWIn{
+		PIndex: cm.roleID,
+		TIndex: cm.tIndex,
+		Pay:    val,
+		Lost:   penalty,
+	}
+
+	err := cm.proxyIns.ProWithdraw(pi, kindex, ksigns)
 	if err != nil {
 		return xerrors.Errorf("%d pro income fail %s", cm.roleID, err)
 	}
@@ -201,9 +267,9 @@ func (cm *ContractMgr) SettleProIncome(ctx context.Context, val, penalty *big.In
 }
 
 func (cm *ContractMgr) SettleWithdraw(ctx context.Context, val *big.Int) error {
-	logger.Debugf("%d withdraw", cm.roleID)
+	logger.Debugf("%d withdraw %d", cm.roleID, val)
 
-	err := cm.withdrawFromFs(cm.rtAddr, cm.roleID, cm.tIndex, val, nil)
+	err := cm.proxyIns.Withdraw(cm.roleID, cm.tIndex, val)
 	if err != nil {
 		return xerrors.Errorf("%d withdraw fail %s", cm.roleID, err)
 	}
@@ -220,13 +286,17 @@ func (cm *ContractMgr) SettleSubOrder(ctx context.Context, so *types.SignedOrder
 }
 
 func (cm *ContractMgr) SettleSetDesc(ctx context.Context, desc []byte) error {
-	return nil
+	return cm.proxyIns.SetDesc(desc)
 }
 
 func (cm *ContractMgr) SettleQuitRole(ctx context.Context) error {
-	return nil
+	return cm.proxyIns.QuitRole(cm.roleID)
 }
 
 func (cm *ContractMgr) SettleAlterPayee(ctx context.Context, p string) error {
-	return nil
+	if !common.IsHexAddress(p) {
+		return xerrors.Errorf("%s is not hex address", p)
+	}
+	np := common.HexToAddress(p)
+	return cm.proxyIns.AlterPayee(cm.roleID, np)
 }

@@ -4,8 +4,25 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/memoio/contractsv2/v2/proxy"
 )
+
+type OrderIn struct {
+	UIndex uint64
+	PIndex uint64
+	Start  uint64
+	End    uint64
+	Size   uint64
+	Nonce  uint64
+	TIndex uint8
+	Sprice *big.Int
+}
+
+type PWIn struct {
+	PIndex uint64
+	TIndex uint8
+	Pay    *big.Int
+	Lost   *big.Int
+}
 
 type IProxy interface {
 	// register self to get index
@@ -21,13 +38,14 @@ type IProxy interface {
 
 	Pledge(i uint64, money *big.Int) error
 	PledgeWithdraw(i uint64, ti uint8, money *big.Int) error
+	PledgeRewardWithdraw(i uint64, ti uint8, money *big.Int) error
 
-	AddOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
-	SubOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
+	AddOrder(oi OrderIn, uSign []byte, pSign []byte) error
+	SubOrder(oi OrderIn, uSign []byte, pSign []byte) error
 
-	AddRepair(oi proxy.OrderIn, kis []uint64, ksigns [][]byte) error
+	AddRepair(oi OrderIn, kis []uint64, ksigns [][]byte) error
 
 	Recharge(i uint64, ti uint8, isLock bool, money *big.Int) error
 	Withdraw(i uint64, ti uint8, money *big.Int) error
-	ProWithdraw(ps proxy.PWIn, kis []uint64, ksigns [][]byte) error
+	ProWithdraw(ps PWIn, kis []uint64, ksigns [][]byte) error
 }

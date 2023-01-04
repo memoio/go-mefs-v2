@@ -8,9 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/contractsv2/v2/proxy"
-	inter "github.com/memoio/go-mefs-v2/submodule/connect/v2/interface"
+	scom "github.com/memoio/go-mefs-v2/submodule/connect/settle/common"
+	inter "github.com/memoio/go-mefs-v2/submodule/connect/settle/interface"
 )
 
 type proxyImpl struct {
@@ -35,7 +37,7 @@ func NewProxy(endPoint, hexSk string, proxyAddr common.Address) (inter.IProxy, e
 		chainID = big.NewInt(666)
 	}
 
-	eAddr, err := SkToAddr(hexSk)
+	eAddr, err := scom.SkToAddr(hexSk)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +78,7 @@ func (p *proxyImpl) ReAcc() error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -86,7 +88,7 @@ func (p *proxyImpl) ReAcc() error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "register account")
+	return scom.CheckTx(p.endPoint, tx, "register account")
 }
 
 func (p *proxyImpl) ReRole(rtype uint8, extra []byte) error {
@@ -101,7 +103,7 @@ func (p *proxyImpl) ReRole(rtype uint8, extra []byte) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -111,7 +113,7 @@ func (p *proxyImpl) ReRole(rtype uint8, extra []byte) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "register role")
+	return scom.CheckTx(p.endPoint, tx, "register role")
 }
 
 func (p *proxyImpl) QuitRole(rid uint64) error {
@@ -126,7 +128,7 @@ func (p *proxyImpl) QuitRole(rid uint64) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -136,7 +138,7 @@ func (p *proxyImpl) QuitRole(rid uint64) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "quite role")
+	return scom.CheckTx(p.endPoint, tx, "quite role")
 }
 
 func (p *proxyImpl) AlterPayee(rid uint64, np common.Address) error {
@@ -151,7 +153,7 @@ func (p *proxyImpl) AlterPayee(rid uint64, np common.Address) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -161,7 +163,7 @@ func (p *proxyImpl) AlterPayee(rid uint64, np common.Address) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "alter payee")
+	return scom.CheckTx(p.endPoint, tx, "alter payee")
 }
 
 // add a user/keeper/provider to group
@@ -177,7 +179,7 @@ func (p *proxyImpl) AddToGroup(gi uint64) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -187,7 +189,7 @@ func (p *proxyImpl) AddToGroup(gi uint64) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "add to group")
+	return scom.CheckTx(p.endPoint, tx, "add to group")
 }
 
 func (p *proxyImpl) SetDesc(desc []byte) error {
@@ -202,7 +204,7 @@ func (p *proxyImpl) SetDesc(desc []byte) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -212,7 +214,7 @@ func (p *proxyImpl) SetDesc(desc []byte) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "set desc")
+	return scom.CheckTx(p.endPoint, tx, "set desc")
 }
 
 func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
@@ -227,7 +229,7 @@ func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -237,7 +239,7 @@ func (p *proxyImpl) Pledge(i uint64, money *big.Int) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "pledge")
+	return scom.CheckTx(p.endPoint, tx, "pledge")
 }
 
 func (p *proxyImpl) PledgeWithdraw(i uint64, ti uint8, money *big.Int) error {
@@ -252,7 +254,7 @@ func (p *proxyImpl) PledgeWithdraw(i uint64, ti uint8, money *big.Int) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -262,10 +264,14 @@ func (p *proxyImpl) PledgeWithdraw(i uint64, ti uint8, money *big.Int) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "unpledge")
+	return scom.CheckTx(p.endPoint, tx, "unpledge")
 }
 
-func (p *proxyImpl) AddOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error {
+func (p *proxyImpl) PledgeRewardWithdraw(i uint64, ti uint8, money *big.Int) error {
+	return xerrors.Errorf("unsupported method")
+}
+
+func (p *proxyImpl) AddOrder(oi inter.OrderIn, uSign []byte, pSign []byte) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
 	if err != nil {
 		return err
@@ -277,20 +283,31 @@ func (p *proxyImpl) AddOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
 
-	tx, err := proxyIns.AddOrder(auth, oi, uSign, pSign)
+	noi := proxy.OrderIn{
+		UIndex: oi.UIndex,
+		PIndex: oi.PIndex,
+		Start:  oi.Start,
+		End:    oi.End,
+		Size:   oi.Size,
+		Nonce:  oi.Nonce,
+		TIndex: oi.TIndex,
+		Sprice: oi.Sprice,
+	}
+
+	tx, err := proxyIns.AddOrder(auth, noi, uSign, pSign)
 	if err != nil {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "add order")
+	return scom.CheckTx(p.endPoint, tx, "add order")
 }
 
-func (p *proxyImpl) SubOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error {
+func (p *proxyImpl) SubOrder(oi inter.OrderIn, uSign []byte, pSign []byte) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
 	if err != nil {
 		return err
@@ -302,20 +319,31 @@ func (p *proxyImpl) SubOrder(oi proxy.OrderIn, uSign []byte, pSign []byte) error
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
 
-	tx, err := proxyIns.SubOrder(auth, oi, uSign, pSign)
+	noi := proxy.OrderIn{
+		UIndex: oi.UIndex,
+		PIndex: oi.PIndex,
+		Start:  oi.Start,
+		End:    oi.End,
+		Size:   oi.Size,
+		Nonce:  oi.Nonce,
+		TIndex: oi.TIndex,
+		Sprice: oi.Sprice,
+	}
+
+	tx, err := proxyIns.SubOrder(auth, noi, uSign, pSign)
 	if err != nil {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "sub order")
+	return scom.CheckTx(p.endPoint, tx, "sub order")
 }
 
-func (p *proxyImpl) AddRepair(oi proxy.OrderIn, kis []uint64, ksigns [][]byte) error {
+func (p *proxyImpl) AddRepair(oi inter.OrderIn, kis []uint64, ksigns [][]byte) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
 	if err != nil {
 		return err
@@ -327,17 +355,28 @@ func (p *proxyImpl) AddRepair(oi proxy.OrderIn, kis []uint64, ksigns [][]byte) e
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
 
-	tx, err := proxyIns.AddRepair(auth, oi, kis, ksigns)
+	noi := proxy.OrderIn{
+		UIndex: oi.UIndex,
+		PIndex: oi.PIndex,
+		Start:  oi.Start,
+		End:    oi.End,
+		Size:   oi.Size,
+		Nonce:  oi.Nonce,
+		TIndex: oi.TIndex,
+		Sprice: oi.Sprice,
+	}
+
+	tx, err := proxyIns.AddRepair(auth, noi, kis, ksigns)
 	if err != nil {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "add repair")
+	return scom.CheckTx(p.endPoint, tx, "add repair")
 }
 
 func (p *proxyImpl) Recharge(i uint64, ti uint8, isLock bool, money *big.Int) error {
@@ -352,7 +391,7 @@ func (p *proxyImpl) Recharge(i uint64, ti uint8, isLock bool, money *big.Int) er
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -362,7 +401,7 @@ func (p *proxyImpl) Recharge(i uint64, ti uint8, isLock bool, money *big.Int) er
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "recharge")
+	return scom.CheckTx(p.endPoint, tx, "recharge")
 }
 
 func (p *proxyImpl) Withdraw(i uint64, ti uint8, money *big.Int) error {
@@ -377,7 +416,7 @@ func (p *proxyImpl) Withdraw(i uint64, ti uint8, money *big.Int) error {
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
@@ -387,10 +426,10 @@ func (p *proxyImpl) Withdraw(i uint64, ti uint8, money *big.Int) error {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "withdraw")
+	return scom.CheckTx(p.endPoint, tx, "withdraw")
 }
 
-func (p *proxyImpl) ProWithdraw(ps proxy.PWIn, kis []uint64, ksigns [][]byte) error {
+func (p *proxyImpl) ProWithdraw(ps inter.PWIn, kis []uint64, ksigns [][]byte) error {
 	client, err := ethclient.DialContext(context.TODO(), p.endPoint)
 	if err != nil {
 		return err
@@ -432,15 +471,22 @@ func (p *proxyImpl) ProWithdraw(ps proxy.PWIn, kis []uint64, ksigns [][]byte) er
 		return err
 	}
 
-	auth, err := MakeAuth(p.chainID, p.sk)
+	auth, err := scom.MakeAuth(p.chainID, p.sk)
 	if err != nil {
 		return err
 	}
 
-	tx, err := proxyIns.ProWithdraw(auth, ps, nkis, nksigns)
+	nps := proxy.PWIn{
+		PIndex: ps.PIndex,
+		TIndex: ps.TIndex,
+		Pay:    ps.Pay,
+		Lost:   ps.Lost,
+	}
+
+	tx, err := proxyIns.ProWithdraw(auth, nps, nkis, nksigns)
 	if err != nil {
 		return err
 	}
 
-	return CheckTx(p.endPoint, tx, "pro withdraw")
+	return scom.CheckTx(p.endPoint, tx, "pro withdraw")
 }

@@ -175,7 +175,7 @@ var infoCmd = &cli.Command{
 			fmt.Printf("Storage Balance: %s\n", types.FormatMemo(bi.FsValue))
 		}
 
-		if pi.PledgeTime.Cmp(big.NewInt(0)) > 0 {
+		if pi.PledgeTime != nil && pi.PledgeTime.Cmp(big.NewInt(0)) > 0 {
 			curReward := new(big.Int).Sub(pi.Value, pi.Last)
 			fmt.Printf("Current Pledge: %s, Reward: %s\n", types.FormatMemo(pi.Last), types.FormatMemo(curReward))
 			fmt.Printf("Pledge Time: %s\n", time.Unix(pi.PledgeTime.Int64(), 0).Format(utils.SHOWTIME))

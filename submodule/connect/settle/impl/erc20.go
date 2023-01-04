@@ -11,7 +11,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/contractsv2/go_contracts/erc"
-	inter "github.com/memoio/go-mefs-v2/submodule/connect/v2/interface"
+	scom "github.com/memoio/go-mefs-v2/submodule/connect/settle/common"
+	inter "github.com/memoio/go-mefs-v2/submodule/connect/settle/interface"
 )
 
 type ercImpl struct {
@@ -36,7 +37,7 @@ func NewErc20(endPoint, hexSk string, erc20 common.Address) (inter.IERC20, error
 		chainID = big.NewInt(666)
 	}
 
-	eAddr, err := SkToAddr(hexSk)
+	eAddr, err := scom.SkToAddr(hexSk)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func (e *ercImpl) Transfer(recipient common.Address, amount *big.Int) error {
 		return err
 	}
 
-	auth, err := MakeAuth(e.chainID, e.sk)
+	auth, err := scom.MakeAuth(e.chainID, e.sk)
 	if err != nil {
 		return err
 	}
@@ -92,7 +93,7 @@ func (e *ercImpl) Transfer(recipient common.Address, amount *big.Int) error {
 		return err
 	}
 
-	return CheckTx(e.endPoint, tx, "transfer")
+	return scom.CheckTx(e.endPoint, tx, "transfer")
 }
 
 func (e *ercImpl) Approve(spender common.Address, amount *big.Int) error {
@@ -107,7 +108,7 @@ func (e *ercImpl) Approve(spender common.Address, amount *big.Int) error {
 		return err
 	}
 
-	auth, err := MakeAuth(e.chainID, e.sk)
+	auth, err := scom.MakeAuth(e.chainID, e.sk)
 	if err != nil {
 		return err
 	}
@@ -117,7 +118,7 @@ func (e *ercImpl) Approve(spender common.Address, amount *big.Int) error {
 		return err
 	}
 
-	return CheckTx(e.endPoint, tx, "approve")
+	return scom.CheckTx(e.endPoint, tx, "approve")
 }
 
 func (e *ercImpl) BalanceOf(account common.Address) *big.Int {

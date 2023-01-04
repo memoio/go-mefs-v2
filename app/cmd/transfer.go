@@ -15,7 +15,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
-	v2 "github.com/memoio/go-mefs-v2/submodule/connect/v2"
+	v1 "github.com/memoio/go-mefs-v2/submodule/connect/v1"
 	"github.com/memoio/go-mefs-v2/submodule/wallet"
 	"github.com/mitchellh/go-homedir"
 
@@ -98,7 +98,7 @@ var addKeeperToGroupCmd = &cli.Command{
 			return err
 		}
 
-		cm, err := settle.NewContractMgr(cctx.Context, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
+		cm, err := v1.NewContractMgr(cctx.Context, cfg.Contract.EndPoint, cfg.Contract.RoleContract, ki.SecretKey)
 		if err != nil {
 			return err
 		}
@@ -118,7 +118,7 @@ var addKeeperToGroupCmd = &cli.Command{
 
 		if ri.GroupID == 0 && gid > 0 {
 			sk := cctx.String("sk")
-			err = settle.AddKeeperToGroup(cfg.Contract.EndPoint, cfg.Contract.RoleContract, sk, ri.RoleID, gid)
+			err = v1.AddKeeperToGroup(cfg.Contract.EndPoint, cfg.Contract.RoleContract, sk, ri.RoleID, gid)
 			if err != nil {
 				return err
 			}
@@ -245,7 +245,7 @@ var transferEthCmd = &cli.Command{
 		}
 
 		// transfer
-		return v2.TransferTo(ep, toAdderss, val, sk)
+		return settle.TransferTo(ep, toAdderss, val, sk)
 	},
 }
 
@@ -388,24 +388,24 @@ var transferErcCmd = &cli.Command{
 
 		// call transfer memo
 		if ver == 0 {
-			rtAddr, err := settle.GetRoleTokenAddr(ep, instAddr, toAdderss)
+			rtAddr, err := v1.GetRoleTokenAddr(ep, instAddr, toAdderss)
 			if err != nil {
 				return err
 			}
 
-			tAddr, err := settle.GetTokenAddr(ep, rtAddr, toAdderss, 0)
+			tAddr, err := v1.GetTokenAddr(ep, rtAddr, toAdderss, 0)
 			if err != nil {
 				return err
 			}
-			return settle.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
+			return v1.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
 		} else {
-			tAddr, err := v2.GetTokenAddr(ep, instAddr, sk)
+			tAddr, err := settle.GetTokenAddr(ep, instAddr, sk, uint32(ver))
 			if err != nil {
 				return err
 			}
 			fmt.Println("token addr:", tAddr)
 
-			return v2.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
+			return settle.TransferMemoTo(ep, sk, tAddr, toAdderss, val)
 		}
 
 	},
