@@ -193,17 +193,18 @@ var pledgeRewardWithdrawCmd = &cli.Command{
 
 		fmt.Printf("Before Withdraw: %s, %s (in fs), %s (in pledge), %s (total pledge), %s (total pledge + reward), %s (current reward)\n", types.FormatMemo(fi.ErcValue), types.FormatMemo(fi.FsValue), types.FormatMemo(pi.Value), types.FormatMemo(pi.Total), types.FormatMemo(pi.ErcTotal), types.FormatMemo(pi.CurReward))
 
+		curReward := new(big.Int).Sub(pi.Value, pi.Last)
 		if cctx.Args().Present() {
 			val, err := types.ParsetValue(cctx.Args().First())
 			if err != nil {
 				return xerrors.Errorf("parsing 'amount' argument: %w", err)
 			}
-			pi.Value.Set(val)
+			curReward.Set(val)
 		}
 
-		fmt.Println("Withdraw: ", types.FormatMemo(pi.Value))
+		fmt.Println("Withdraw: ", types.FormatMemo(curReward))
 
-		err = api.SettlePledgeRewardWithdraw(cctx.Context, pi.Value)
+		err = api.SettlePledgeRewardWithdraw(cctx.Context, curReward)
 		if err != nil {
 			return err
 		}

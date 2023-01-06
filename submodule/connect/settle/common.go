@@ -106,7 +106,7 @@ func TransferTo(endPoint string, toAddress common.Address, value *big.Int, sk st
 		for qCount < 5 {
 			balance := GetTxBalance(endPoint, toAddress)
 			if balance.Cmp(bbal) > 0 {
-				logger.Infof("transfer txfee  ok, %s has %d now", toAddress, balance)
+				logger.Infof("transfer txfee ok, %s has %d now", toAddress, balance)
 				return nil
 			}
 
