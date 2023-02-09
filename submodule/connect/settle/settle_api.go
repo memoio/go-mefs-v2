@@ -223,6 +223,27 @@ func (cm *ContractMgr) SettleGetStoreInfo(ctx context.Context, userID, proID uin
 	return si, nil
 }
 
+// return time, size, price, maxpay, haspaid, canpay, lost
+func (cm *ContractMgr) SettleGetSettleInfo(ctx context.Context, proID uint64) (*api.SettleInfo, error) {
+
+	out, err := cm.getIns.GetSettleInfo(proID, cm.tIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	info := &api.SettleInfo{
+		Time:    int64(out.Time),
+		Size:    out.Size,
+		Price:   out.Price,
+		MaxPay:  out.MaxPay,
+		HasPaid: out.HasPaid,
+		CanPay:  out.CanPay,
+		Lost:    out.Lost,
+	}
+
+	return info, nil
+}
+
 func (cm *ContractMgr) SettleCharge(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d charge %d", cm.roleID, val)
 	return cm.Recharge(cm.roleID, cm.tIndex, false, val)

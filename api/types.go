@@ -127,6 +127,15 @@ type StoreInfo struct {
 	Size     uint64
 	Price    *big.Int
 }
+type SettleInfo struct {
+	Time    int64
+	Size    uint64
+	Price   *big.Int
+	MaxPay  *big.Int
+	HasPaid *big.Int
+	CanPay  *big.Int
+	Lost    *big.Int
+}
 
 type OrderJobInfo struct {
 	ID uint64
