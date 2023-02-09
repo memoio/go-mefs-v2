@@ -170,7 +170,30 @@ var infoCmd = &cli.Command{
 		}
 
 		if showAll {
-			fmt.Printf("Storage Balance: %s, Voucher: %s\n", types.FormatMemo(bi.FsValue), types.FormatMemo(bi.LockValue))
+			switch pri.Type {
+			case pb.RoleInfo_Provider:
+				// totalIncome from state db
+				var totalIncome = new(big.Int)
+				spi, err := api.StateGetAccPostIncome(cctx.Context, pri.RoleID)
+				if err == nil {
+					// got existed record from state db, and set totalIncome to it
+					totalIncome.Set(spi.Value)
+				}
+
+				// get haspaid from settle info
+				settleInfo, err := api.SettleGetSettleInfo(cctx.Context, pri.RoleID)
+				if err != nil {
+					return err
+				}
+
+				// calc provider income with total income and haspaid
+				totalIncome.Sub(totalIncome, settleInfo.HasPaid)
+				fmt.Printf("Storage Balance: %s, Income: %s\n", types.FormatMemo(bi.FsValue), types.FormatMemo(totalIncome))
+			case pb.RoleInfo_User:
+				fmt.Printf("Storage Balance: %s, Voucher: %s\n", types.FormatMemo(bi.FsValue), bi.LockValue)
+			default:
+				fmt.Printf("Storage Balance: %s\n", types.FormatMemo(bi.FsValue))
+			}
 		} else {
 			fmt.Printf("Storage Balance: %s\n", types.FormatMemo(bi.FsValue))
 		}
