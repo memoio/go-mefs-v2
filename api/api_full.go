@@ -236,7 +236,7 @@ type ISettle interface {
 	SettleGetBalanceInfo(context.Context, uint64) (*BalanceInfo, error)
 	SettleGetPledgeInfo(context.Context, uint64) (*PledgeInfo, error)
 	SettleGetStoreInfo(context.Context, uint64, uint64) (*StoreInfo, error)
-
+	SettleGetSettleInfo(context.Context, uint64) (*SettleInfo, error)
 	SettleQuitRole(context.Context) error
 	SettleAlterPayee(context.Context, string) error
 	SettleSetDesc(context.Context, []byte) error

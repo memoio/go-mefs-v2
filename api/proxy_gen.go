@@ -84,27 +84,28 @@ type CommonStruct struct {
 		StateGetAccPostIncome   func(context.Context, uint64) (*types.SignedAccPostIncome, error)             `perm:"read"`
 		StateGetAccPostIncomeAt func(context.Context, uint64, uint64) (*types.AccPostIncome, error)           `perm:"read"`
 
-		SettleGetRoleID      func(context.Context) uint64                                        `perm:"read"`
-		SettleGetAddrCnt     func(context.Context) uint64                                        `perm:"read"`
-		SettleGetGroupID     func(context.Context) uint64                                        `perm:"read"`
-		SettleGetBaseAddr    func(context.Context) []byte                                        `perm:"read"`
-		SettleGetThreshold   func(context.Context) int                                           `perm:"read"`
-		SettleGetRoleInfoAt  func(context.Context, uint64) (*RoleInfo, error)                    `perm:"read"`
-		SettleGetGroupInfoAt func(context.Context, uint64) (*GroupInfo, error)                   `perm:"read"`
-		SettleGetBalanceInfo func(context.Context, uint64) (*BalanceInfo, error)                 `perm:"read"`
-		SettleGetPledgeInfo  func(context.Context, uint64) (*PledgeInfo, error)                  `perm:"read"`
-		SettleGetStoreInfo   func(context.Context, uint64, uint64) (*StoreInfo, error)           `perm:"read"`
-		SettleProIncome      func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
-		SettleWithdraw       func(context.Context, *big.Int) error                               `perm:"write"`
-		SettleCharge         func(context.Context, *big.Int) error                               `perm:"write"`
-		SettlePledge         func(context.Context, *big.Int) error                               `perm:"write"`
-		SettlePledgeWithdraw func(context.Context, *big.Int) error                               `perm:"write"`
-		SettlePledgeRewardWithdraw func(context.Context, *big.Int) error `perm:"write"`
-		SettleAddOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
-		SettleSubOrder       func(context.Context, *types.SignedOrder) error                     `perm:"write"`
-		SettleSetDesc        func(context.Context, []byte) error                                 `perm:"write"`
-		SettleQuitRole       func(context.Context) error                                         `perm:"admin"`
-		SettleAlterPayee     func(context.Context, string) error                                 `perm:"admin"`
+		SettleGetRoleID            func(context.Context) uint64                                        `perm:"read"`
+		SettleGetAddrCnt           func(context.Context) uint64                                        `perm:"read"`
+		SettleGetGroupID           func(context.Context) uint64                                        `perm:"read"`
+		SettleGetBaseAddr          func(context.Context) []byte                                        `perm:"read"`
+		SettleGetThreshold         func(context.Context) int                                           `perm:"read"`
+		SettleGetRoleInfoAt        func(context.Context, uint64) (*RoleInfo, error)                    `perm:"read"`
+		SettleGetGroupInfoAt       func(context.Context, uint64) (*GroupInfo, error)                   `perm:"read"`
+		SettleGetBalanceInfo       func(context.Context, uint64) (*BalanceInfo, error)                 `perm:"read"`
+		SettleGetPledgeInfo        func(context.Context, uint64) (*PledgeInfo, error)                  `perm:"read"`
+		SettleGetStoreInfo         func(context.Context, uint64, uint64) (*StoreInfo, error)           `perm:"read"`
+		SettleGetSettleInfo        func(context.Context, uint64) (*SettleInfo, error)                  `perm:"read"`
+		SettleProIncome            func(context.Context, *big.Int, *big.Int, []uint64, [][]byte) error `perm:"write"`
+		SettleWithdraw             func(context.Context, *big.Int) error                               `perm:"write"`
+		SettleCharge               func(context.Context, *big.Int) error                               `perm:"write"`
+		SettlePledge               func(context.Context, *big.Int) error                               `perm:"write"`
+		SettlePledgeWithdraw       func(context.Context, *big.Int) error                               `perm:"write"`
+		SettlePledgeRewardWithdraw func(context.Context, *big.Int) error                               `perm:"write"`
+		SettleAddOrder             func(context.Context, *types.SignedOrder) error                     `perm:"write"`
+		SettleSubOrder             func(context.Context, *types.SignedOrder) error                     `perm:"write"`
+		SettleSetDesc              func(context.Context, []byte) error                                 `perm:"write"`
+		SettleQuitRole             func(context.Context) error                                         `perm:"admin"`
+		SettleAlterPayee           func(context.Context, string) error                                 `perm:"admin"`
 
 		SyncGetInfo func(context.Context) (*SyncInfo, error) `perm:"read"`
 
@@ -372,6 +373,10 @@ func (s *CommonStruct) SettleGetPledgeInfo(ctx context.Context, rid uint64) (*Pl
 
 func (s *CommonStruct) SettleGetStoreInfo(ctx context.Context, uid, pid uint64) (*StoreInfo, error) {
 	return s.Internal.SettleGetStoreInfo(ctx, uid, pid)
+}
+
+func (s *CommonStruct) SettleGetSettleInfo(ctx context.Context, pid uint64) (*SettleInfo, error) {
+	return s.Internal.SettleGetSettleInfo(ctx, pid)
 }
 
 func (s *CommonStruct) SettleProIncome(ctx context.Context, val, penlty *big.Int, kind []uint64, sig [][]byte) error {
