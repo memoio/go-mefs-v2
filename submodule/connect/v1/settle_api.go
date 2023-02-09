@@ -162,6 +162,11 @@ func (cm *ContractMgr) SettleGetStoreInfo(ctx context.Context, userID, proID uin
 	return si, nil
 }
 
+// to hold the space for the same implement as the one in settle/settle_api.go
+func (cm *ContractMgr) SettleGetSettleInfo(ctx context.Context, proID uint64) (*api.SettleInfo, error) {
+	return nil, xerrors.Errorf("not implemented")
+}
+
 func (cm *ContractMgr) SettlePledge(ctx context.Context, val *big.Int) error {
 	logger.Debugf("%d pledge %d", cm.roleID, val)
 	return cm.pledge(val)
