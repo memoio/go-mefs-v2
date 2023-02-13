@@ -190,7 +190,7 @@ var infoCmd = &cli.Command{
 				totalIncome.Sub(totalIncome, settleInfo.HasPaid)
 				fmt.Printf("Storage Balance: %s, Income: %s\n", types.FormatMemo(bi.FsValue), types.FormatMemo(totalIncome))
 			case pb.RoleInfo_User:
-				fmt.Printf("Storage Balance: %s, Voucher: %s\n", types.FormatMemo(bi.FsValue), bi.LockValue)
+				fmt.Printf("Storage Balance: %s, Voucher: %s\n", types.FormatMemo(bi.FsValue), types.FormatMemo(bi.LockValue))
 			default:
 				fmt.Printf("Storage Balance: %s\n", types.FormatMemo(bi.FsValue))
 			}
