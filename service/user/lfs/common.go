@@ -5,6 +5,7 @@ import (
 	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 )
 
 var logger = logging.Logger("lfs")
@@ -36,4 +37,9 @@ func checkBucketName(bucketName string) error {
 
 func checkObjectName(objectName string) error {
 	return s3utils.CheckValidObjectName(objectName)
+}
+
+type msgWithChan struct {
+	tx.Message
+	callback chan uint64
 }

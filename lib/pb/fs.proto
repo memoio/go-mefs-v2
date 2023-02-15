@@ -48,6 +48,9 @@ enum MetaType {
 	ST_SegPayKey = 46;          // key: x/userID/proID; val: payinfo
 	ST_SegPayComfirmKey = 47;   // key: x/proID; val: payinfo  
 
+	ST_BucMetaKey = 48;          // key: x/userID/bucketID; val: bucketName
+	ST_ObjMetaKey = 49;          // key: x/userID/bucketID/objectID; val: objInfo  
+
 	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
 	OrderBaseKey = 51;       // key: x/userID/proID/nonce; value: OrderBase

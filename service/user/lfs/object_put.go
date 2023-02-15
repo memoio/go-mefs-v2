@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
@@ -117,6 +119,36 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		object.pin = true
 	}
 	object.State = fmt.Sprintf("total: %d, dispatch: %d, sent: %d, confirm: %d", tt, dist, donet, ct)
+
+	if os.Getenv("MEFS_META_UPLOAD") != "" {
+		if len(object.Parts) > 0 {
+			omp := tx.ObjMetaParas{
+				ObjMetaValue: tx.ObjMetaValue{
+					Offset:  object.Parts[0].Offset,
+					Length:  object.ObjectInfo.Size,
+					ETag:    object.ETag,
+					Encrypt: object.Encryption,
+					Name:    object.Name,
+				},
+				BucketID: object.BucketID,
+				ObjectID: object.ObjectID,
+			}
+
+			data, err := omp.Serialize()
+			if err != nil {
+				return object.ObjectInfo, err
+			}
+			msg := &tx.Message{
+				Version: 0,
+				From:    l.userID,
+				To:      l.userID,
+				Method:  tx.AddObjMeta,
+				Params:  data,
+			}
+
+			l.msgChan <- msg
+		}
+	}
 
 	logger.Debugf("Upload object: %s to bucket: %s end, cost: %s", objectName, bucketName, time.Since(nt))
 

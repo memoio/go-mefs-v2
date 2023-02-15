@@ -43,6 +43,7 @@ type LfsService struct {
 
 	bucketChan chan uint64
 	readyChan  chan struct{}
+	msgChan    chan *tx.Message
 }
 
 func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
@@ -74,6 +75,7 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 
 		readyChan:  make(chan struct{}, 1),
 		bucketChan: make(chan uint64),
+		msgChan:    make(chan *tx.Message, 128),
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()
@@ -89,6 +91,7 @@ func (l *LfsService) Start() error {
 	// start order manager
 	l.OrderMgr.Start()
 
+	go l.runPush()
 	go l.persistMeta()
 
 	has := false
@@ -106,42 +109,7 @@ func (l *LfsService) Start() error {
 			Params:  l.keyset.PublicKey().Serialize(),
 		}
 
-		var mid types.MsgID
-		for {
-			id, err := l.OrderMgr.PushMessage(l.ctx, msg)
-			if err != nil {
-				time.Sleep(5 * time.Second)
-				continue
-			}
-			mid = id
-			break
-		}
-
-		go func(mid types.MsgID, rc chan struct{}) {
-			ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
-			defer cancle()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-				st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
-				if err != nil {
-					time.Sleep(5 * time.Second)
-					continue
-				}
-
-				if st.Status.Err == 0 {
-					logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
-				} else {
-					logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
-				}
-
-				break
-			}
-			rc <- struct{}{}
-		}(mid, l.readyChan)
+		l.msgChan <- msg
 	} else {
 		has = true
 	}
@@ -179,6 +147,8 @@ func (l *LfsService) Start() error {
 		for bid := l.sb.bucketVerify; bid < l.sb.NextBucketID; bid++ {
 			logger.Debug("push create bucket message: ", bid)
 			bu := l.sb.buckets[bid]
+
+			// send bucket option
 			tbp := tx.BucketParams{
 				BucketOption: bu.BucketOption,
 				BucketID:     bid,
@@ -197,46 +167,29 @@ func (l *LfsService) Start() error {
 				Params:  data,
 			}
 
-			var mid types.MsgID
-			retry := 0
-			for retry < 60 {
-				retry++
-				id, err := l.OrderMgr.PushMessage(l.ctx, msg)
+			l.msgChan <- msg
+
+			// send buc meta
+			if os.Getenv("MEFS_META_UPLOAD") != "" {
+				bmp := tx.BucMetaParas{
+					BucketID: bid,
+					Name:     bu.GetName(),
+				}
+
+				data, err = bmp.Serialize()
 				if err != nil {
-					time.Sleep(10 * time.Second)
-					continue
+					return err
 				}
-				mid = id
-				break
+				msg = &tx.Message{
+					Version: 0,
+					From:    l.userID,
+					To:      l.userID,
+					Method:  tx.AddBucMeta,
+					Params:  data,
+				}
+
+				l.msgChan <- msg
 			}
-
-			go func(bucketID uint64, mid types.MsgID) {
-				ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
-				defer cancle()
-				logger.Debug("waiting tx message done: ", mid)
-
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-					}
-					st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
-					if err != nil {
-						time.Sleep(5 * time.Second)
-						continue
-					}
-
-					if st.Status.Err == 0 {
-						logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
-						l.bucketChan <- bucketID
-					} else {
-						logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
-					}
-
-					break
-				}
-			}(bid, mid)
 		}
 	}
 

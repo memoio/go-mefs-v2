@@ -1,11 +1,11 @@
 package lfs
 
 import (
-	"context"
 	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"os"
 	"sync"
 	"time"
 
@@ -163,48 +163,29 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opts pb.Bu
 		Params:  data,
 	}
 
-	// handle result and retry?
+	l.msgChan <- msg
 
-	var mid types.MsgID
-	retry := 0
-	for retry < 60 {
-		retry++
-		id, err := l.OrderMgr.PushMessage(l.ctx, msg)
+	if os.Getenv("MEFS_META_UPLOAD") != "" {
+		// send buc meta
+		bmp := tx.BucMetaParas{
+			BucketID: bucketID,
+			Name:     bu.GetName(),
+		}
+
+		data, err = bmp.Serialize()
 		if err != nil {
-			time.Sleep(10 * time.Second)
-			continue
+			return nil, err
 		}
-		mid = id
-		break
+		msg = &tx.Message{
+			Version: 0,
+			From:    l.userID,
+			To:      l.userID,
+			Method:  tx.AddBucMeta,
+			Params:  data,
+		}
+
+		l.msgChan <- msg
 	}
-
-	go func(bucketID uint64, mid types.MsgID) {
-		ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancle()
-		logger.Debug("waiting tx message done: ", mid)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-			st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
-			if err != nil {
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			if st.Status.Err == 0 {
-				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
-				l.bucketChan <- bucketID
-			} else {
-				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
-			}
-
-			break
-		}
-	}(bucketID, mid)
 
 	err = bu.saveOptions(l.userID, l.ds)
 	if err != nil {
@@ -351,7 +332,7 @@ func (l *LfsService) addOpRecord(bu *bucket, por *pb.OpRecord) error {
 		return err
 	}
 
-	go l.broadcast(l.userID, bu.BucketID, por.OpID)
+	//go l.broadcast(l.userID, bu.BucketID, por.OpID)
 
 	return nil
 }
