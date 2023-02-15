@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"math"
 	"math/big"
+	"os"
 	"sync"
 	"time"
 
@@ -79,7 +80,10 @@ func (s *SegMgr) Start() error {
 	s.eInfo = se
 
 	go s.regularChallenge()
-	go s.regularRemove()
+	// clean data
+	if os.Getenv("MEFS_CLEANUP") != "" {
+		go s.regularRemove()
+	}
 
 	return nil
 }
