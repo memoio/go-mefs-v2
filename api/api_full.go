@@ -215,6 +215,7 @@ type IChainState interface {
 	StateGetPDPPublicKey(context.Context, uint64) ([]byte, error)
 	StateGetBucketAt(context.Context, uint64) (uint64, error)
 
+	StateGetBucOpt(context.Context, uint64, uint64) (*pb.BucketOption, error)
 	StateGetBucMeta(context.Context, uint64, uint64) (*tx.BucMetaParas, error)
 	StateGetObjMeta(context.Context, uint64, uint64, uint64) (*tx.ObjMetaValue, error)
 	StateGetObjMetaKey(context.Context, []byte, uint64) (*tx.ObjMetaKey, error)

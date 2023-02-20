@@ -409,6 +409,25 @@ func (s *StateMgr) StateGetOrderSeq(ctx context.Context, userID, proID, nonce ui
 	return nil, xerrors.Errorf("not found order seq:%d, %d, %d, %d ", userID, proID, nonce, seqNum)
 }
 
+func (s *StateMgr) StateGetBucOpt(ctx context.Context, userID, bucketID uint64) (*pb.BucketOption, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_BucketOptKey, userID, bucketID)
+	data, err := s.get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	bo := new(pb.BucketOption)
+	err = proto.Unmarshal(data, bo)
+	if err != nil {
+		return nil, err
+	}
+
+	return bo, nil
+}
+
 func (s *StateMgr) StateGetBucMeta(ctx context.Context, userID, bucketID uint64) (*tx.BucMetaParas, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()

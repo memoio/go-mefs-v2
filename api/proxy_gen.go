@@ -75,6 +75,7 @@ type CommonStruct struct {
 		StateGetPDPPublicKey func(context.Context, uint64) ([]byte, error) `perm:"read"`
 		StateGetBucketAt     func(context.Context, uint64) (uint64, error) `perm:"read"`
 
+		StateGetBucOpt     func(context.Context, uint64, uint64) (*pb.BucketOption, error)         `perm:"read"`
 		StateGetBucMeta    func(context.Context, uint64, uint64) (*tx.BucMetaParas, error)         `perm:"read"`
 		StateGetObjMeta    func(context.Context, uint64, uint64, uint64) (*tx.ObjMetaValue, error) `perm:"read"`
 		StateGetObjMetaKey func(context.Context, []byte, uint64) (*tx.ObjMetaKey, error)           `perm:"read"`
@@ -265,6 +266,10 @@ func (s *CommonStruct) StateGetChalEpochInfoAt(ctx context.Context, epoch uint64
 
 func (s *CommonStruct) StateGetNonce(ctx context.Context, roleID uint64) (uint64, error) {
 	return s.Internal.StateGetNonce(ctx, roleID)
+}
+
+func (s *CommonStruct) StateGetBucOpt(ctx context.Context, userID, bucketID uint64) (*pb.BucketOption, error) {
+	return s.Internal.StateGetBucOpt(ctx, userID, bucketID)
 }
 
 func (s *CommonStruct) StateGetBucMeta(ctx context.Context, userID, bucketID uint64) (*tx.BucMetaParas, error) {
