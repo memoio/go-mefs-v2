@@ -292,12 +292,12 @@ func (l *LfsService) getOtherObject(ctx context.Context, omk *tx.ObjMetaKey, ena
 	}
 
 	if !bytes.Equal(tag, omv.ETag) {
-		return nil, xerrors.Errorf("compatible etag and userID-bucketID-objectID")
+		return nil, xerrors.Errorf("uncompatible etag and userID-bucketID-objectID")
 	}
 
 	poi := pb.ObjectInfo{
-		ObjectID:    omk.BucketID,
-		BucketID:    omk.ObjectID,
+		ObjectID:    omk.ObjectID,
+		BucketID:    omk.BucketID,
 		Name:        omv.Name,
 		Encryption:  omv.Encrypt,
 		UserDefined: make(map[string]string),
