@@ -94,12 +94,13 @@ func (s *StateMgr) addObjMeta(msg *tx.Message) error {
 	val, err := s.get(key)
 	if err == nil && len(val) >= 8 {
 		cnt = binary.BigEndian.Uint64(val[:8])
-		val = make([]byte, 8)
-		binary.BigEndian.PutUint64(val[:8], cnt+1)
-		err = s.put(key, val)
-		if err != nil {
-			return err
-		}
+	}
+
+	val = make([]byte, 8)
+	binary.BigEndian.PutUint64(val[:8], cnt+1)
+	err = s.put(key, val)
+	if err != nil {
+		return err
 	}
 
 	if cnt > 0 {
