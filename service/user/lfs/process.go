@@ -3,14 +3,13 @@ package lfs
 import (
 	"context"
 	"crypto/md5"
-	"encoding/binary"
 	"io"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/zeebo/blake3"
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/xerrors"
 
@@ -29,6 +28,8 @@ import (
 type dataProcess struct {
 	sync.Mutex
 
+	userID      uint64
+	fsID        []byte
 	bucketID    uint64
 	dataCount   int
 	parityCount int
@@ -41,16 +42,64 @@ type dataProcess struct {
 	dv pdpcommon.DataVerifier
 }
 
-func (l *LfsService) newDataProcess(bucketID uint64, bopt *pb.BucketOption) (*dataProcess, error) {
+func (l *LfsService) newDataProcess(ctx context.Context, userID, bucketID uint64, bopt *pb.BucketOption) (*dataProcess, error) {
+	if userID != l.userID {
+		pbyte, err := l.StateGetPDPPublicKey(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+
+		keyset, err := pdp.ReKeyWithPublicKey(pdpcommon.PDPV2, pbyte)
+		if err != nil {
+			return nil, err
+		}
+
+		coder, err := code.NewDataCoderWithBopts(keyset, bopt)
+		if err != nil {
+			return nil, err
+		}
+
+		stripeSize := int(bopt.SegSize) * int(bopt.DataCount)
+
+		fsID := keyset.VerifyKey().Hash()
+
+		err = l.addSegLoc(ctx, userID, fsID)
+		if err != nil {
+			return nil, err
+		}
+
+		segID, err := segment.NewSegmentID(fsID, bucketID, 0, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		dv, err := pdp.NewDataVerifier(keyset.PublicKey(), keyset.SecreteKey())
+		if err != nil {
+			return nil, err
+		}
+
+		dp := &dataProcess{
+			userID:      userID,
+			bucketID:    bucketID,
+			dataCount:   int(bopt.DataCount),
+			parityCount: int(bopt.ParityCount),
+			stripeSize:  stripeSize,
+
+			coder: coder,
+			segID: segID,
+
+			fsID: fsID,
+
+			dv: dv,
+		}
+
+		return dp, nil
+	}
+
 	coder, err := code.NewDataCoderWithBopts(l.keyset, bopt)
 	if err != nil {
 		return nil, err
 	}
-
-	tmpkey := make([]byte, len(l.encryptKey)+8)
-	copy(tmpkey, l.encryptKey)
-	binary.BigEndian.PutUint64(tmpkey[len(l.encryptKey):], bucketID)
-	hres := blake3.Sum256(tmpkey)
 
 	stripeSize := int(bopt.SegSize) * int(bopt.DataCount)
 
@@ -65,14 +114,16 @@ func (l *LfsService) newDataProcess(bucketID uint64, bopt *pb.BucketOption) (*da
 	}
 
 	dp := &dataProcess{
+		userID:      userID,
 		bucketID:    bucketID,
 		dataCount:   int(bopt.DataCount),
 		parityCount: int(bopt.ParityCount),
 		stripeSize:  stripeSize,
 
-		aesKey: hres,
-		coder:  coder,
-		segID:  segID,
+		coder: coder,
+		segID: segID,
+
+		fsID: l.fsID,
 
 		dv: dv,
 	}
@@ -90,7 +141,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	dp, ok := l.dps[bucket.BucketID]
 	l.RUnlock()
 	if !ok {
-		ndp, err := l.newDataProcess(bucket.BucketID, &bucket.BucketOption)
+		ndp, err := l.newDataProcess(ctx, l.userID, bucket.BucketID, &bucket.BucketOption)
 		if err != nil {
 			return err
 		}
@@ -112,14 +163,6 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	tr := etag.NewTree()
 
 	h := md5.New()
-	/*
-		if opts.UserDefined != nil {
-			val, ok := opts.UserDefined["etag"]
-			if ok && val == "cid" {
-				h = sha256.New()
-			}
-		}
-	*/
 
 	breakFlag := false
 	for !breakFlag {
@@ -127,7 +170,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		// clear itself
 		buf = buf[:0]
 
-		// 读数据，限定一次处理一个stripe
+		// process one stripe
 		n, err := io.ReadAtLeast(r, rdata[:dp.stripeSize], dp.stripeSize)
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			breakFlag = true
@@ -167,12 +210,15 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		totalSize += len(buf)
 
 		// encrypt
-		if object.Encryption == "aes" {
+		switch object.Encryption {
+		case "aes": // each stripe has one encrypt code, wrong code here for compatible
 			if len(buf)%aes.BlockSize != 0 {
 				buf = aes.PKCS5Padding(buf)
 			}
 
-			aesEnc, err := aes.ContructAesEnc(dp.aesKey[:], object.ObjectID, curStripe+uint64(stripeCount))
+			aesKey := aes.ContructAesKey(nil, dp.bucketID, object.ObjectID, curStripe+uint64(stripeCount))
+
+			aesEnc, err := aes.ContructAesEnc(aesKey)
 			if err != nil {
 				return err
 			}
@@ -180,6 +226,49 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			crypted := make([]byte, len(buf))
 			aesEnc.CryptBlocks(crypted, buf)
 			copy(buf, crypted)
+		case "aes1": // each bucket has one encrypt code
+			if len(buf)%aes.BlockSize != 0 {
+				buf = aes.PKCS5Padding(buf)
+			}
+
+			aesKey := aes.ContructAesKey(l.encryptKey, dp.bucketID, math.MaxUint64, math.MaxUint64)
+			aesEnc, err := aes.ContructAesEnc(aesKey)
+			if err != nil {
+				return err
+			}
+
+			crypted := make([]byte, len(buf))
+			aesEnc.CryptBlocks(crypted, buf)
+			copy(buf, crypted)
+		case "aes2": // each obejct has one encrypt code
+			if len(buf)%aes.BlockSize != 0 {
+				buf = aes.PKCS5Padding(buf)
+			}
+
+			aesKey := aes.ContructAesKey(l.encryptKey, dp.bucketID, object.ObjectID, math.MaxUint64)
+			aesEnc, err := aes.ContructAesEnc(aesKey)
+			if err != nil {
+				return err
+			}
+
+			crypted := make([]byte, len(buf))
+			aesEnc.CryptBlocks(crypted, buf)
+			copy(buf, crypted)
+		case "aes3": // each stripe has one encryt code
+			if len(buf)%aes.BlockSize != 0 {
+				buf = aes.PKCS5Padding(buf)
+			}
+
+			aesKey := aes.ContructAesKey(l.encryptKey, dp.bucketID, object.ObjectID, curStripe+uint64(stripeCount))
+			aesEnc, err := aes.ContructAesEnc(aesKey)
+			if err != nil {
+				return err
+			}
+
+			crypted := make([]byte, len(buf))
+			aesEnc.CryptBlocks(crypted, buf)
+			copy(buf, crypted)
+		default:
 		}
 
 		dp.segID.SetStripeID(curStripe + uint64(stripeCount))
@@ -363,7 +452,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 				go func(chunkID int) {
 					defer wg.Done()
 
-					segID, err := segment.NewSegmentID(l.fsID, bi.BucketID, uint64(stripeID), uint32(chunkID))
+					segID, err := segment.NewSegmentID(dp.fsID, bi.BucketID, uint64(stripeID), uint32(chunkID))
 					if err != nil {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
@@ -429,7 +518,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 					go func(chunkID int) {
 						defer wg.Done()
 
-						segID, err := segment.NewSegmentID(l.fsID, bi.BucketID, uint64(stripeID), uint32(chunkID))
+						segID, err := segment.NewSegmentID(dp.fsID, bi.BucketID, uint64(stripeID), uint32(chunkID))
 						if err != nil {
 							atomic.AddInt32(&failCnt, 1)
 							sm.Release(1)
@@ -477,14 +566,50 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 				return err
 			}
 
-			if object.Encryption == "aes" {
-				aesDec, err := aes.ContructAesDec(dp.aesKey[:], object.ObjectID, uint64(stripeID))
+			switch object.Encryption {
+			case "aes":
+				aesKey := aes.ContructAesKey(nil, dp.bucketID, object.ObjectID, uint64(stripeID))
+				aesDec, err := aes.ContructAesDec(aesKey)
 				if err != nil {
 					return err
 				}
 				decrypted := make([]byte, len(res))
 				aesDec.CryptBlocks(decrypted, res)
 				res = decrypted
+			case "aes1":
+				aesKey := dp.aesKey[:]
+				if dp.userID == l.userID {
+					aesKey = aes.ContructAesKey(l.encryptKey, dp.bucketID, math.MaxUint64, math.MaxUint64)
+				}
+				aesDec, err := aes.ContructAesDec(aesKey[:])
+				if err != nil {
+					return err
+				}
+				decrypted := make([]byte, len(res))
+				aesDec.CryptBlocks(decrypted, res)
+				res = decrypted
+			case "aes2":
+				aesKey := dp.aesKey[:]
+				if dp.userID == l.userID {
+					aesKey = aes.ContructAesKey(l.encryptKey, dp.bucketID, object.ObjectID, math.MaxUint64)
+				}
+				aesDec, err := aes.ContructAesDec(aesKey[:])
+				if err != nil {
+					return err
+				}
+				decrypted := make([]byte, len(res))
+				aesDec.CryptBlocks(decrypted, res)
+				res = decrypted
+			case "aes3":
+				aesKey := aes.ContructAesKey(l.encryptKey, dp.bucketID, object.ObjectID, uint64(stripeID))
+				aesDec, err := aes.ContructAesDec(aesKey[:])
+				if err != nil {
+					return err
+				}
+				decrypted := make([]byte, len(res))
+				aesDec.CryptBlocks(decrypted, res)
+				res = decrypted
+			default:
 			}
 
 			stripeOffset := start % dp.stripeSize
@@ -510,6 +635,66 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 			if sizeReceived >= length {
 				breakFlag = true
 			}
+		}
+	}
+
+	return nil
+}
+
+func (l *LfsService) addSegLoc(ctx context.Context, userID uint64, fsID []byte) error {
+	sid, err := segment.NewSegmentID(fsID, 0, 0, 0)
+	if err != nil {
+		return err
+	}
+
+	pros, err := l.StateGetProsAt(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	for _, proID := range pros {
+		key := store.NewKey(pb.MetaType_OrderPayInfoKey, userID, proID)
+		lns := new(types.NonceSeq)
+		val, err := l.ds.Get(key)
+		if err == nil {
+			lns.Deserialize(val)
+		}
+
+		ns, err := l.StateGetOrderNonce(ctx, userID, proID, math.MaxUint64)
+		if err != nil {
+			continue
+		}
+
+		sns := new(types.NonceSeq)
+		for i := lns.Nonce; i <= ns.Nonce; i++ {
+			sns.Nonce = i
+			of, err := l.StateGetOrder(ctx, userID, proID, i)
+			if err != nil {
+				continue
+			}
+
+			for j := lns.SeqNum; j <= of.SeqNum; j++ {
+				sns.SeqNum = j
+				seq, err := l.StateGetOrderSeq(ctx, userID, proID, i, j)
+				if err != nil {
+					continue
+				}
+
+				for _, seg := range seq.Segments {
+					sid.SetBucketID(seg.BucketID)
+					sid.SetChunkID(seg.ChunkID)
+					for k := seg.Start; k < seg.Start+seg.Length; k++ {
+						sid.SetStripeID(k)
+
+						l.PutSegmentLocation(ctx, sid, seq.ProID)
+					}
+				}
+			}
+		}
+
+		da, err := sns.Serialize()
+		if err == nil {
+			l.ds.Put(key, da)
 		}
 	}
 

@@ -28,7 +28,6 @@ enum MetaType {
 	ST_UsersKey = 26;           // key: x/roleID; val: users
 	ST_ProsKey = 27;            // key: x/roleID; val: pros  
 	
-	
 	ST_PDPVerifyKey = 29;     // key: x/userID; val: Bls Prove verify key 
 	ST_RoleBaseKey = 30;      // key: x/roleID; val: pb.RoleInfo
 	ST_RoleValueKey = 31;     // key: x/roleID; val: nonce, val
@@ -78,6 +77,8 @@ enum MetaType {
 	ConfirmPayKey = 73;      // key: x; val: epoch
 	Chal_UsersKey = 74;      // key: x/roleID; val: users
 	Chal_ProsKey = 75;       // key: x/roleID; val: pros  
+
+	OrderSegLocKey = 76;     // key: x/userID/proID; val: nonce/seq
 
 	// read pay 
 	ReadPay_NonceKey = 80;     // key: x/userAddr/proAddr; val: nonce

@@ -1,7 +1,6 @@
 package lfs
 
 import (
-	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	lru "github.com/hashicorp/golang-lru"
 	rbtree "github.com/sakeven/RbTree"
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
@@ -26,11 +26,11 @@ type superBlock struct {
 	sync.RWMutex
 	pb.SuperBlockInfo
 	dirty          bool
-	write          bool                     // set true when finish unfinished jobs
-	bucketVerify   uint64                   // Get from chain; in case create too mant buckets
-	bucketNameToID map[string]uint64        // bucketName -> bucketID
-	buckets        []*bucket                // 所有的bucket信息
-	cids           map[string]*objectDigest // from cid -> object
+	write          bool              // set true when finish unfinished jobs
+	bucketVerify   uint64            // Get from chain; in case create too mant buckets
+	bucketNameToID map[string]uint64 // bucketName -> bucketID
+	buckets        []*bucket         // 所有的bucket信息
+	etagCache      *lru.ARCCache     // from etags -> objectDigest
 }
 
 type bucket struct {
@@ -60,6 +60,7 @@ type objectDigest struct {
 }
 
 func newSuperBlock() *superBlock {
+	cache, _ := lru.NewARC(1024 * 1024)
 	return &superBlock{
 		SuperBlockInfo: pb.SuperBlockInfo{
 			Version:      0,
@@ -71,7 +72,7 @@ func newSuperBlock() *superBlock {
 		bucketVerify:   0,
 		buckets:        make([]*bucket, 0, 1),
 		bucketNameToID: make(map[string]uint64),
-		cids:           make(map[string]*objectDigest),
+		etagCache:      cache,
 	}
 }
 
@@ -551,12 +552,13 @@ func (l *LfsService) load() error {
 						obj.Name = newName
 					}
 
-					if len(obj.ETag) != md5.Size {
-						ename, _ := etag.ToString(obj.ETag)
-						l.sb.cids[ename] = &objectDigest{
+					ename, err := etag.ToString(obj.ETag)
+					if err == nil {
+						od := &objectDigest{
 							bucketID: obj.BucketID,
 							objectID: obj.ObjectID,
 						}
+						l.sb.etagCache.Add(ename, od)
 					}
 
 					bu.objects[obj.ObjectID] = obj
@@ -742,12 +744,13 @@ func (l *LfsService) Recontruct() error {
 						obj.Name = newName
 					}
 
-					if len(obj.ETag) != md5.Size {
-						ename, _ := etag.ToString(obj.ETag)
-						l.sb.cids[ename] = &objectDigest{
+					ename, err := etag.ToString(obj.ETag)
+					if err == nil {
+						od := &objectDigest{
 							bucketID: obj.BucketID,
 							objectID: obj.ObjectID,
 						}
+						l.sb.etagCache.Add(ename, od)
 					}
 				}
 			}

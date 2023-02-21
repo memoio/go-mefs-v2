@@ -3,13 +3,16 @@ package cmd
 import (
 	"encoding/hex"
 	"fmt"
+	"math"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
+	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/client"
@@ -17,6 +20,7 @@ import (
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/backend/keystore"
+	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
 	"github.com/memoio/go-mefs-v2/lib/repo"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
@@ -30,6 +34,7 @@ var walletCmd = &cli.Command{
 		walletListCmd,
 		walletDefaultCmd,
 		walletExportCmd,
+		walletGenerateCmd,
 	},
 }
 
@@ -253,6 +258,98 @@ var walletExportCmd = &cli.Command{
 			}
 			fmt.Println("secret key: ", sk)
 		}
+
+		return nil
+	},
+}
+
+var walletGenerateCmd = &cli.Command{
+	Name:      "generate",
+	Usage:     "generate decrypt key for lfs object",
+	ArgsUsage: "[wallet address (0x...)] [bucketID] [objectID] [stripeID]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    pwKwd,
+			Aliases: []string{"pwd"},
+			Value:   "memoriae",
+		},
+		&cli.StringFlag{
+			Name:  "enc",
+			Usage: "encryption method",
+			Value: "aes2",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 4 {
+			return xerrors.Errorf("need four parameter")
+		}
+
+		// trans address format
+		toAdderss := common.HexToAddress(cctx.Args().Get(0))
+		maddr, err := address.NewAddress(toAdderss.Bytes())
+		if err != nil {
+			return err
+		}
+
+		// get password
+		pw := cctx.String(pwKwd)
+		if pw == "" {
+			pw, err = minit.GetPassWord()
+			if err != nil {
+				return err
+			}
+		}
+
+		var encryptBytes []byte
+
+		repoDir := cctx.String(FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err == nil {
+			api, closer, err := client.NewGenericNode(cctx.Context, addr, headers)
+			if err != nil {
+				return err
+			}
+			defer closer()
+
+			ki, err := api.WalletExport(cctx.Context, maddr, pw)
+			if err != nil {
+				return err
+			}
+
+			encrypt := blake3.Sum256(ki.SecretKey)
+			encryptBytes = encrypt[:]
+		} else {
+			repoDir, err = homedir.Expand(repoDir)
+			if err != nil {
+				return err
+			}
+			kfile := filepath.Join(repoDir, "keystore", maddr.String())
+			sk, err := keystore.LoadKeyFile(pw, kfile)
+			if err != nil {
+				return err
+			}
+
+			encryptBytes, _ = hex.DecodeString(sk)
+			encrypt := blake3.Sum256(encryptBytes)
+			encryptBytes = encrypt[:]
+		}
+
+		bid, _ := strconv.Atoi(cctx.Args().Get(1))
+		oid, _ := strconv.Atoi(cctx.Args().Get(2))
+		sid, _ := strconv.Atoi(cctx.Args().Get(3))
+
+		switch cctx.String("enc") {
+		case "aes":
+			encryptBytes = aes.ContructAesKey(nil, uint64(bid), uint64(oid), uint64(sid))
+		case "aes1":
+			encryptBytes = aes.ContructAesKey(encryptBytes, uint64(bid), math.MaxUint64, math.MaxUint64)
+		case "aes2":
+			encryptBytes = aes.ContructAesKey(encryptBytes, uint64(bid), uint64(oid), math.MaxUint64)
+		case "aes3":
+			encryptBytes = aes.ContructAesKey(encryptBytes, uint64(bid), uint64(oid), uint64(sid))
+		}
+
+		fmt.Printf("%s encrypt %d %d %d is: %s\n", cctx.String("enc"), bid, oid, sid, hex.EncodeToString(encryptBytes))
 
 		return nil
 	},

@@ -2,7 +2,6 @@ package lfs
 
 import (
 	"context"
-	"crypto/md5"
 	"fmt"
 	"io"
 	"os"
@@ -98,12 +97,13 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 		l.renameObject(ctx, bucket, object, newName)
 	}
 
-	if len(object.ETag) != md5.Size {
-		ename, _ := etag.ToString(object.ETag)
-		l.sb.cids[ename] = &objectDigest{
+	ename, err := etag.ToString(object.ETag)
+	if err == nil {
+		od := &objectDigest{
 			bucketID: object.BucketID,
 			objectID: object.ObjectID,
 		}
+		l.sb.etagCache.Add(ename, od)
 	}
 
 	tt, dist, donet, ct := 0, 0, 0, 0

@@ -46,7 +46,7 @@ type LfsService struct {
 	msgChan    chan *tx.Message
 }
 
-func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
+func New(ctx context.Context, userID uint64, encryptKey []byte, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
 	wt := defaultWeighted
 	wts := os.Getenv("MEFS_LFS_PARALLEL")
 	if wts != "" {
@@ -62,9 +62,10 @@ func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.K
 		userID: userID,
 		fsID:   make([]byte, 20),
 
-		OrderMgr: OrderMgr,
-		ds:       ds,
-		keyset:   keyset,
+		OrderMgr:   OrderMgr,
+		ds:         ds,
+		encryptKey: encryptKey,
+		keyset:     keyset,
 
 		needPay: new(big.Int),
 		bal:     new(big.Int),

@@ -8,6 +8,7 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/gorilla/mux"
+	"github.com/zeebo/blake3"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
@@ -72,6 +73,8 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	privBytes := ki.SecretKey
 
+	encryptBytes := blake3.Sum256(privBytes)
+
 	privBytes = append(privBytes, byte(types.PDP))
 
 	keyset, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, privBytes)
@@ -87,7 +90,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 
 	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ISettle)
 
-	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
+	ls, err := lfs.New(ctx, bn.RoleID(), encryptBytes[:32], keyset, ds, segStore, om)
 	if err != nil {
 		return nil, err
 	}
