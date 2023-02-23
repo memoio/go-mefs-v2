@@ -280,8 +280,9 @@ var getObjectCmd = &cli.Command{
 			Usage:   "objectName",
 		},
 		&cli.StringFlag{
-			Name:  "cid",
-			Usage: "cid name",
+			Name:    "etag",
+			Aliases: []string{"cid", "md5"},
+			Usage:   "etag (cid or md5)",
 		},
 		&cli.Int64Flag{
 			Name:  "start",

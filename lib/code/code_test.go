@@ -193,6 +193,99 @@ func BenchmarkDecode(b *testing.B) {
 	}
 }
 
+func BenchmarkAccVerify(b *testing.B) {
+	keyset, err := pdp.GenerateKey(pdpcommon.PDPV2)
+	if err != nil {
+		b.Fatal(err)
+	}
+	dataCount := 28
+	parityCount := 52
+	policy := RsPolicy
+
+	dlen := dataCount * DefaultSegSize
+
+	opt, err := NewDataCoderWithDefault(keyset, policy, dataCount, parityCount, userID, userID)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	dv, err := pdp.NewDataVerifier(keyset.PublicKey(), nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	fsID := blake3.Sum256([]byte("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G"))
+	segID, err := segment.NewSegmentID(fsID[:20], 0, 0, 0)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	data := make([]byte, dlen)
+	fillRandom(data)
+
+	tmpkey := append(skbyte, byte(buckid))
+	skey := sha256.Sum256(tmpkey)
+
+	if len(data)%aes.BlockSize != 0 {
+		data = aes.PKCS5Padding(data)
+	}
+	data, _ = aes.AesEncrypt(data, skey[:])
+
+	datas, err := opt.Encode(segID, data)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	i := 0
+	segID.SetChunkID(uint32(i))
+	seg := segment.NewBaseSegment(datas[i], segID)
+	segData, err := seg.Serialize()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	bs := new(segment.BaseSegment)
+	err = bs.Deserialize(segData)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	da, err := bs.Content()
+	if err != nil {
+		b.Fatal(err)
+	}
+	tags, err := bs.Tags()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < 0; i++ {
+		ok, err := opt.VerifyChunk(segID, datas[0])
+		if err != nil || !ok {
+			b.Fatal(i, ok, err)
+		}
+	}
+
+	dv.Reset()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err = dv.Add(segID.Bytes(), da, tags[0])
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < 0; i++ {
+		ok, err := dv.Result()
+		if err != nil || !ok {
+			b.Fatal(ok, err)
+		}
+	}
+}
+
 func CodeAndRepair(policy, dc, pc, dlen int, t *testing.T) {
 	keyset, err := pdp.GenerateKey(pdpcommon.PDPV2)
 	if err != nil {
@@ -352,6 +445,11 @@ func TestStripe(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	dv, err := pdp.NewDataVerifier(keyset.PublicKey(), keyset.SecreteKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	fsID := blake3.Sum256([]byte("QmRL8b4C2wUJLTceEYsDXeBJBxG1ki8zRoAUJEEvPG952G"))
 	segID, err := segment.NewSegmentID(fsID[:20], 0, 0, 0)
 	if err != nil {
@@ -376,6 +474,7 @@ func TestStripe(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	dv.Reset()
 	for i := 0; i < dataCount+parityCount; i++ {
 		segID.SetChunkID(uint32(i))
 		seg := segment.NewBaseSegment(datas[i], segID)
@@ -389,14 +488,31 @@ func TestStripe(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = bs.Content()
+
+		da, err := bs.Content()
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = bs.Tags()
+		tags, err := bs.Tags()
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		ok, err := opt.VerifyChunk(segID, datas[i])
+		if err != nil || !ok {
+			t.Fatal(i, ok, err)
+		}
+
+		da[1] = '0'
+		err = dv.Add(segID.Bytes(), da, tags[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ok, err := dv.Result()
+	if err != nil || !ok {
+		t.Fatal(ok, err)
 	}
 
 	_, good, err := opt.VerifyStripe(segID, datas)
