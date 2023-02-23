@@ -32,12 +32,12 @@ func main() {
 				Name:    cmd.FlagNodeRepo,
 				EnvVars: []string{"MEFS_PATH"},
 				Value:   "~/.memo-user",
-				Usage:   "Specify memoriae path.",
+				Usage:   "specify memoriae path",
 			},
 			&cli.StringFlag{
 				Name:  cmd.FlagRoleType,
 				Value: pb.RoleInfo_User.String(),
-				Usage: "set role type.",
+				Usage: "set role type",
 			},
 			&cli.StringFlag{
 				Name:  minit.EnvEnableProfiling,
@@ -48,6 +48,9 @@ func main() {
 
 		Commands: local,
 	}
+
+	// enable default
+	os.Setenv("MEFS_META_UPLOAD", "1")
 
 	app.Setup()
 

@@ -63,11 +63,6 @@ func (l *LfsService) newDataProcess(ctx context.Context, userID, bucketID uint64
 
 		fsID := keyset.VerifyKey().Hash()
 
-		err = l.addSegLoc(ctx, userID, fsID)
-		if err != nil {
-			return nil, err
-		}
-
 		segID, err := segment.NewSegmentID(fsID, bucketID, 0, 0)
 		if err != nil {
 			return nil, err
@@ -525,6 +520,8 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 
 			if sucCnt < int32(dp.dataCount) || aerr != nil {
 				logger.Debug("retry download stripe: ", object.BucketID, object.ObjectID, stripeID, aerr)
+				l.addSegLoc(ctx, dp.userID, dp.fsID)
+
 				// retry
 				failCnt = 0
 				sucCnt = 0
