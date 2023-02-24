@@ -574,7 +574,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 							} else {
 								logger.Debug("download bad stripe chunk: ", stripeID, chunkID)
 								stripe[chunkID] = nil
-
+								l.OrderMgr.DeleteSegment(ctx, segID)
 								// handle provider, sub credit
 							}
 						}
@@ -592,6 +592,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 						if err != nil || !ok {
 							atomic.AddInt32(&failCnt, 1)
 							sm.Release(1)
+							l.OrderMgr.DeleteSegment(ctx, segID)
 							logger.Debug("download chunk is wrong: ", chunkID, segID, err)
 							return
 						}
