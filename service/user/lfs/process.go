@@ -39,7 +39,8 @@ type dataProcess struct {
 	segID  segment.SegmentID // for encode
 	coder  code.Codec
 
-	dv pdpcommon.DataVerifier
+	keyset pdpcommon.KeySet
+	dv     pdpcommon.DataVerifier
 }
 
 func (l *LfsService) newDataProcess(ctx context.Context, userID, bucketID uint64, bopt *pb.BucketOption) (*dataProcess, error) {
@@ -85,7 +86,8 @@ func (l *LfsService) newDataProcess(ctx context.Context, userID, bucketID uint64
 
 			fsID: fsID,
 
-			dv: dv,
+			dv:     dv,
+			keyset: keyset,
 		}
 
 		return dp, nil
@@ -120,7 +122,8 @@ func (l *LfsService) newDataProcess(ctx context.Context, userID, bucketID uint64
 
 		fsID: l.fsID,
 
-		dv: dv,
+		dv:     dv,
+		keyset: l.keyset,
 	}
 
 	l.Lock()
@@ -193,7 +196,6 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 						stepLen = bufLen - start
 					}
 					cid := etag.NewCidFromData(buf[start : start+stepLen])
-
 					tr.AddCid(cid, uint64(stepLen))
 
 					start += stepLen
@@ -279,17 +281,21 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 
 			seg := segment.NewBaseSegment(encodedData[i], dp.segID)
 
-			segData, _ := seg.Content()
-			segTag, _ := seg.Tags()
-
-			err := dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
+			segData, err := seg.Content()
 			if err != nil {
-				logger.Debug("Process data error: ", dp.segID, err)
+				return err
+			}
+			segTag, err := seg.Tags()
+			if err != nil {
+				return err
+			}
+			err = dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
+			if err != nil {
+				return err
 			}
 
 			err = l.OrderMgr.PutSegmentToLocal(ctx, seg)
 			if err != nil {
-				logger.Debug("Process data error: ", dp.segID, err)
 				return err
 			}
 		}
@@ -401,7 +407,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	return nil
 }
 
-func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.BucketInfo, object *object, start, length int, w io.Writer) error {
+func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon.DataVerifier, bi types.BucketInfo, object *object, start, length int, w io.Writer) error {
 	logger.Debug("download object: ", object.BucketID, object.ObjectID, start, length)
 
 	sizeReceived := 0
@@ -414,7 +420,6 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 			return xerrors.Errorf("context is cancle or done")
 		default:
 			stripeID := start / dp.stripeSize
-			dp.segID.SetStripeID(uint64(stripeID))
 
 			logger.Debug("download object stripe: ", object.BucketID, object.ObjectID, stripeID)
 
@@ -426,7 +431,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 
 			// accumulate verify
 			var lk sync.Mutex
-			dp.dv.Reset()
+			dv.Reset()
 
 			stripe := make([][]byte, dp.dataCount+dp.parityCount)
 
@@ -486,7 +491,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 						return
 					}
 
-					err = dp.dv.Add(segID.Bytes(), da, tags[0])
+					err = dv.Add(segID.Bytes(), da, tags[0])
 					if err != nil {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
@@ -509,7 +514,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 
 			var aerr error
 			if sucCnt >= int32(dp.dataCount) {
-				ok, err := dp.dv.Result()
+				ok, err := dv.Result()
 				if !ok {
 					aerr = xerrors.Errorf("download contains wrong chunk")
 				}
@@ -558,34 +563,42 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, bi types.Buc
 						if len(stripe[chunkID]) > 0 {
 							ok, err := dp.coder.VerifyChunk(segID, stripe[chunkID])
 							if err == nil && ok {
-								logger.Debug("download good stripe chunk ", stripeID, chunkID)
+								logger.Debug("download good stripe chunk: ", stripeID, chunkID)
 								atomic.AddInt32(&sucCnt, 1)
+
+								if atomic.LoadInt32(&sucCnt) >= int32(dp.dataCount) {
+									sm.Release(1)
+								}
+
+								return
 							} else {
+								logger.Debug("download bad stripe chunk: ", stripeID, chunkID)
 								stripe[chunkID] = nil
-							}
-							// handle provider, sub credit
-						} else {
-							seg, err := l.OrderMgr.GetSegment(ctx, segID)
-							if err != nil {
-								atomic.AddInt32(&failCnt, 1)
-								sm.Release(1)
-								logger.Debug("download chunk fail: ", segID, err)
-								return
-							}
 
-							// verify each seg
-							ok, err := dp.coder.VerifyChunk(segID, seg.Data())
-							if err != nil || !ok {
-								atomic.AddInt32(&failCnt, 1)
-								sm.Release(1)
-								logger.Debug("download chunk is wrong: ", chunkID, segID, err)
-								return
+								// handle provider, sub credit
 							}
-
-							logger.Debug("download success: ", chunkID, segID)
-							stripe[chunkID] = seg.Data()
-							atomic.AddInt32(&sucCnt, 1)
 						}
+
+						seg, err := l.OrderMgr.GetSegment(ctx, segID)
+						if err != nil {
+							atomic.AddInt32(&failCnt, 1)
+							sm.Release(1)
+							logger.Debug("download chunk fail: ", segID, err)
+							return
+						}
+
+						// verify each seg
+						ok, err := dp.coder.VerifyChunk(segID, seg.Data())
+						if err != nil || !ok {
+							atomic.AddInt32(&failCnt, 1)
+							sm.Release(1)
+							logger.Debug("download chunk is wrong: ", chunkID, segID, err)
+							return
+						}
+
+						logger.Debug("download success: ", chunkID, segID)
+						stripe[chunkID] = seg.Data()
+						atomic.AddInt32(&sucCnt, 1)
 
 						// download dataCount; release resource to break
 						if atomic.LoadInt32(&sucCnt) >= int32(dp.dataCount) {

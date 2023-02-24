@@ -14,6 +14,7 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -99,6 +100,11 @@ func (l *LfsService) downloadObject(ctx context.Context, userID uint64, bi types
 		}
 	}
 
+	dv, err := pdp.NewDataVerifier(dp.keyset.PublicKey(), dp.keyset.SecreteKey())
+	if err != nil {
+		return err
+	}
+
 	if readLength < 0 {
 		readLength = int64(object.Size - uint64(readStart))
 	}
@@ -135,7 +141,7 @@ func (l *LfsService) downloadObject(ctx context.Context, userID uint64, bi types
 			partLength -= (accLen + part.Length - uint64(readStart+readLength))
 		}
 
-		err := l.download(ctx, dp, bi, object, int(partStart), int(partLength), writer)
+		err := l.download(ctx, dp, dv, bi, object, int(partStart), int(partLength), writer)
 		if err != nil {
 			return err
 		}
