@@ -215,8 +215,13 @@ type IChainState interface {
 	StateGetPDPPublicKey(context.Context, uint64) ([]byte, error)
 	StateGetBucketAt(context.Context, uint64) (uint64, error)
 
+	StateGetBucOpt(context.Context, uint64, uint64) (*pb.BucketOption, error)
+	StateGetBucMeta(context.Context, uint64, uint64) (*tx.BucMetaParas, error)
+	StateGetObjMeta(context.Context, uint64, uint64, uint64) (*tx.ObjMetaValue, error)
+	StateGetObjMetaKey(context.Context, []byte, uint64) (*tx.ObjMetaKey, error)
+
 	StateGetOrderNonce(context.Context, uint64, uint64, uint64) (*types.NonceSeq, error)
-	StateGetProofEpoch(ctx context.Context, userID, proID uint64) (uint64, error)
+	StateGetProofEpoch(context.Context, uint64, uint64) (uint64, error)
 	StateGetOrder(context.Context, uint64, uint64, uint64) (*types.OrderFull, error)
 	StateGetOrderSeq(context.Context, uint64, uint64, uint64, uint32) (*types.SeqFull, error)
 	StateGetPostIncome(context.Context, uint64, uint64) (*types.PostIncome, error)

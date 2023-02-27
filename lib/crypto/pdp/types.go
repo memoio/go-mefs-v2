@@ -25,6 +25,15 @@ func GenerateKeyWithSeed(ver uint16, seed []byte) (pdpcommon.KeySet, error) {
 	}
 }
 
+func ReKeyWithPublicKey(ver uint16, data []byte) (pdpcommon.KeySet, error) {
+	switch ver {
+	case pdpcommon.PDPV2:
+		return pdpv2.ReKeyWithPublicKey(data)
+	default:
+		return nil, pdpcommon.ErrInvalidSettings
+	}
+}
+
 func DeserializeSecretKey(data []byte) (pdpcommon.SecretKey, error) {
 	if len(data) <= 2 {
 		return nil, pdpcommon.ErrNumOutOfRange

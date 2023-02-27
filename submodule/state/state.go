@@ -638,6 +638,16 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error
 		if err != nil {
 			return s.root, err
 		}
+	case tx.AddBucMeta:
+		err := s.addBucMeta(msg)
+		if err != nil {
+			return s.root, err
+		}
+	case tx.AddObjMeta:
+		err := s.addObjMeta(msg)
+		if err != nil {
+			return s.root, err
+		}
 	default:
 		return s.root, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}

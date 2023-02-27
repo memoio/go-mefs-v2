@@ -26,6 +26,17 @@ func TestChunk(t *testing.T) {
 
 	t.Log(tr.Root())
 
+	nbyte, err := ToByte(tr.Root().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := ToString(nbyte)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(s)
+
 	//tr.Result()
 
 	// change it to v0 string

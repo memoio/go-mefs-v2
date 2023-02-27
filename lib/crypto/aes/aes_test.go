@@ -79,12 +79,12 @@ func TestNewAes(t *testing.T) {
 	fmt.Println(data)
 	fmt.Println(key)
 
-	bme, err := ContructAesEnc(key, 0, 0)
+	bme, err := ContructAesEnc(key)
 	if err != nil {
 		t.Fatal("ContructAes error:", err)
 	}
 
-	bmd, err := ContructAesDec(key, 0, 0)
+	bmd, err := ContructAesDec(key)
 	if err != nil {
 		t.Fatal("ContructAes error:", err)
 	}
@@ -115,7 +115,7 @@ func TestAes(t *testing.T) {
 	fillRandom(key)
 	fillRandom(data)
 
-	ae, err := ContructAesEnc(key, 0, 0)
+	ae, err := ContructAesEnc(key)
 	if err != nil {
 		t.Fatal("AesEncrypt error")
 	}
@@ -123,7 +123,7 @@ func TestAes(t *testing.T) {
 	crypted := make([]byte, len(data))
 	ae.CryptBlocks(crypted, data)
 
-	ad, err := ContructAesDec(key, 0, 0)
+	ad, err := ContructAesDec(key)
 	if err != nil {
 		t.Fatal("AesEncrypt error")
 	}

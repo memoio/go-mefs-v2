@@ -253,3 +253,16 @@ func ToCidV0String(etag []byte) (string, error) {
 	// change it to v0 string
 	return cid.NewCidV0(ecid.Hash()).String(), nil
 }
+
+func ToByte(str string) ([]byte, error) {
+	if len(str) == 2*md5.Size {
+		return hex.DecodeString(str)
+	}
+
+	ncid, err := cid.Decode(str)
+	if err != nil {
+		return nil, err
+	}
+
+	return ncid.Bytes(), nil
+}

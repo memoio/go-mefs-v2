@@ -178,6 +178,16 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
+	case tx.AddBucMeta:
+		err := s.canAddBucMeta(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
+	case tx.AddObjMeta:
+		err := s.canAddObjMeta(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	default:
 		return s.validateRoot, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}

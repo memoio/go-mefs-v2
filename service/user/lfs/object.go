@@ -36,9 +36,23 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	defer l.sw.Release(1)
 
 	if bucketName == "" {
-		od, ok := l.sb.cids[objectName]
+		odi, ok := l.sb.etagCache.Get(objectName)
 		if !ok {
-			return oi, xerrors.Errorf("file not exist")
+			omk, err := l.getOther(ctx, objectName, types.DownloadObjectOptions{})
+			if err != nil {
+				return oi, err
+			}
+			obj, err := l.getOtherObject(ctx, omk, objectName)
+			if err != nil {
+				return oi, err
+			}
+
+			return obj.ObjectInfo, nil
+		}
+
+		od, ok := odi.(*objectDigest)
+		if !ok {
+			return oi, xerrors.Errorf("wrong type in etag cache")
 		}
 
 		if len(l.sb.buckets) < int(od.bucketID) {

@@ -349,7 +349,21 @@ func (k *KeySet) Calculate() {
 	for i = 1; i < k.Pk.Count; i++ {
 		bls.G1Mul(&k.Pk.ElemAlphas[i], &k.Pk.ElemAlphas[0], &k.Sk.ElemAlpha[i])
 	}
+}
 
+func ReKeyWithPublicKey(data []byte) (pdpcommon.KeySet, error) {
+	pk := new(PublicKey)
+	err := pk.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+
+	ks := &KeySet{
+		Pk:  pk,
+		typ: DefaultType,
+	}
+
+	return ks, nil
 }
 
 func (k *KeySet) PublicKey() pdpcommon.PublicKey {
