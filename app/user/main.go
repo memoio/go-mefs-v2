@@ -49,9 +49,6 @@ func main() {
 		Commands: local,
 	}
 
-	// enable default
-	os.Setenv("MEFS_META_UPLOAD", "1")
-
 	app.Setup()
 
 	err := app.Run(os.Args)
