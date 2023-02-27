@@ -15,14 +15,22 @@ const (
 	BlockSize = 16 // 128bit，16B
 )
 
-// ContructAesEnc contructs a new aes encrypt
-func ContructAesEnc(basekey []byte, objectID, stripeID uint64) (cipher.BlockMode, error) {
-	tmpkey := make([]byte, len(basekey)+16)
-	copy(tmpkey, basekey[:])
-	binary.BigEndian.PutUint64(tmpkey[len(basekey):len(basekey)+8], objectID)
-	binary.BigEndian.PutUint64(tmpkey[len(basekey)+8:], stripeID)
-	key := blake3.Sum256(tmpkey)
+func ContructAesKey(basekey []byte, bucketID, objectID, stripeID uint64) []byte {
+	tmpkey := make([]byte, len(basekey)+8)
+	copy(tmpkey, basekey)
+	binary.BigEndian.PutUint64(tmpkey[len(basekey):], bucketID)
+	hres := blake3.Sum256(tmpkey)
 
+	tmpkey = make([]byte, 48)
+	copy(tmpkey, hres[:])
+	binary.BigEndian.PutUint64(tmpkey[len(hres):len(hres)+8], objectID)
+	binary.BigEndian.PutUint64(tmpkey[len(hres)+8:], stripeID)
+	key := blake3.Sum256(tmpkey)
+	return key[:]
+}
+
+// ContructAesEnc contructs a new aes encrypt
+func ContructAesEnc(key []byte) (cipher.BlockMode, error) {
 	if len(key) != KeySize {
 		return nil, xerrors.New("keysize must be 32")
 	}
@@ -35,13 +43,7 @@ func ContructAesEnc(basekey []byte, objectID, stripeID uint64) (cipher.BlockMode
 	return cipher.NewCBCEncrypter(block, iv[:blockSize]), nil
 }
 
-func ContructAesDec(basekey []byte, objectID, stripeID uint64) (cipher.BlockMode, error) {
-	tmpkey := make([]byte, len(basekey)+16)
-	copy(tmpkey, basekey[:])
-	binary.BigEndian.PutUint64(tmpkey[len(basekey):len(basekey)+8], objectID)
-	binary.BigEndian.PutUint64(tmpkey[len(basekey)+8:], stripeID)
-	key := blake3.Sum256(tmpkey)
-
+func ContructAesDec(key []byte) (cipher.BlockMode, error) {
 	if len(key) != KeySize {
 		return nil, xerrors.New("keysize must be 32")
 	}

@@ -1,15 +1,15 @@
 package lfs
 
 import (
-	"context"
-	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	lru "github.com/hashicorp/golang-lru"
 	rbtree "github.com/sakeven/RbTree"
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
@@ -26,11 +26,11 @@ type superBlock struct {
 	sync.RWMutex
 	pb.SuperBlockInfo
 	dirty          bool
-	write          bool                     // set true when finish unfinished jobs
-	bucketVerify   uint64                   // Get from chain; in case create too mant buckets
-	bucketNameToID map[string]uint64        // bucketName -> bucketID
-	buckets        []*bucket                // 所有的bucket信息
-	cids           map[string]*objectDigest // from cid -> object
+	write          bool              // set true when finish unfinished jobs
+	bucketVerify   uint64            // Get from chain; in case create too mant buckets
+	bucketNameToID map[string]uint64 // bucketName -> bucketID
+	buckets        []*bucket         // 所有的bucket信息
+	etagCache      *lru.ARCCache     // from etags -> objectDigest
 }
 
 type bucket struct {
@@ -60,6 +60,7 @@ type objectDigest struct {
 }
 
 func newSuperBlock() *superBlock {
+	cache, _ := lru.NewARC(1024 * 1024)
 	return &superBlock{
 		SuperBlockInfo: pb.SuperBlockInfo{
 			Version:      0,
@@ -71,7 +72,7 @@ func newSuperBlock() *superBlock {
 		bucketVerify:   0,
 		buckets:        make([]*bucket, 0, 1),
 		bucketNameToID: make(map[string]uint64),
-		cids:           make(map[string]*objectDigest),
+		etagCache:      cache,
 	}
 }
 
@@ -163,48 +164,29 @@ func (l *LfsService) createBucket(bucketID uint64, bucketName string, opts pb.Bu
 		Params:  data,
 	}
 
-	// handle result and retry?
+	l.msgChan <- msg
 
-	var mid types.MsgID
-	retry := 0
-	for retry < 60 {
-		retry++
-		id, err := l.OrderMgr.PushMessage(l.ctx, msg)
+	if os.Getenv("MEFS_META_UPLOAD") != "" {
+		// send buc meta
+		bmp := tx.BucMetaParas{
+			BucketID: bucketID,
+			Name:     bu.GetName(),
+		}
+
+		data, err = bmp.Serialize()
 		if err != nil {
-			time.Sleep(10 * time.Second)
-			continue
+			return nil, err
 		}
-		mid = id
-		break
+		msg = &tx.Message{
+			Version: 0,
+			From:    l.userID,
+			To:      l.userID,
+			Method:  tx.AddBucMeta,
+			Params:  data,
+		}
+
+		l.msgChan <- msg
 	}
-
-	go func(bucketID uint64, mid types.MsgID) {
-		ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancle()
-		logger.Debug("waiting tx message done: ", mid)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-			st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
-			if err != nil {
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			if st.Status.Err == 0 {
-				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
-				l.bucketChan <- bucketID
-			} else {
-				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
-			}
-
-			break
-		}
-	}(bucketID, mid)
 
 	err = bu.saveOptions(l.userID, l.ds)
 	if err != nil {
@@ -351,7 +333,7 @@ func (l *LfsService) addOpRecord(bu *bucket, por *pb.OpRecord) error {
 		return err
 	}
 
-	go l.broadcast(l.userID, bu.BucketID, por.OpID)
+	//go l.broadcast(l.userID, bu.BucketID, por.OpID)
 
 	return nil
 }
@@ -570,12 +552,13 @@ func (l *LfsService) load() error {
 						obj.Name = newName
 					}
 
-					if len(obj.ETag) != md5.Size {
-						ename, _ := etag.ToString(obj.ETag)
-						l.sb.cids[ename] = &objectDigest{
+					ename, err := etag.ToString(obj.ETag)
+					if err == nil {
+						od := &objectDigest{
 							bucketID: obj.BucketID,
 							objectID: obj.ObjectID,
 						}
+						l.sb.etagCache.Add(ename, od)
 					}
 
 					bu.objects[obj.ObjectID] = obj
@@ -761,12 +744,13 @@ func (l *LfsService) Recontruct() error {
 						obj.Name = newName
 					}
 
-					if len(obj.ETag) != md5.Size {
-						ename, _ := etag.ToString(obj.ETag)
-						l.sb.cids[ename] = &objectDigest{
+					ename, err := etag.ToString(obj.ETag)
+					if err == nil {
+						od := &objectDigest{
 							bucketID: obj.BucketID,
 							objectID: obj.ObjectID,
 						}
+						l.sb.etagCache.Add(ename, od)
 					}
 				}
 			}

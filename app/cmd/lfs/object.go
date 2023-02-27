@@ -135,7 +135,7 @@ var putObjectCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "enc",
 			Usage: "encryption method",
-			Value: "aes",
+			Value: "aes2",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -161,8 +161,8 @@ var putObjectCmd = &cli.Command{
 		etagFlag := cctx.String("etag")
 		encFlag := cctx.String("enc")
 
-		if encFlag != "aes" && encFlag != "none" {
-			return xerrors.Errorf("support only 'none' or 'aes' method ")
+		if encFlag != "aes" && encFlag != "aes1" && encFlag != "aes2" && encFlag != "aes3" && encFlag != "none" {
+			return xerrors.Errorf("support only 'none' or 'aes', 'aes1', 'aes2', 'aes3' method ")
 		}
 
 		// get full path of home dir
@@ -280,8 +280,9 @@ var getObjectCmd = &cli.Command{
 			Usage:   "objectName",
 		},
 		&cli.StringFlag{
-			Name:  "cid",
-			Usage: "cid name",
+			Name:    "etag",
+			Aliases: []string{"cid", "md5"},
+			Usage:   "etag (cid or md5)",
 		},
 		&cli.Int64Flag{
 			Name:  "start",
@@ -296,6 +297,22 @@ var getObjectCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "path",
 			Usage: "stored path of file",
+		},
+		&cli.StringFlag{
+			Name:  "decrypt",
+			Usage: "decrypt",
+		},
+		&cli.StringFlag{
+			Name:  "userID",
+			Usage: "userID",
+		},
+		&cli.StringFlag{
+			Name:  "bucketID",
+			Usage: "bucketID",
+		},
+		&cli.StringFlag{
+			Name:  "objectID",
+			Usage: "objectID",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -383,9 +400,14 @@ var getObjectCmd = &cli.Command{
 			}
 
 			doo := types.DownloadObjectOptions{
-				Start:  startOffset,
-				Length: readLen,
+				Start:       startOffset,
+				Length:      readLen,
+				UserDefined: make(map[string]string),
 			}
+			doo.UserDefined["userID"] = cctx.String("userID")
+			doo.UserDefined["bucketID"] = cctx.String("bucketID")
+			doo.UserDefined["objectID"] = cctx.String("objectID")
+			doo.UserDefined["decrypt"] = cctx.String("decrypt")
 
 			data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
 			if err != nil {

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -89,6 +90,14 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 	seqLast := orderLast / 10
 	if seqLast < 180 {
 		seqLast = 180
+	}
+
+	if orderDuration < build.OrderMin {
+		orderDuration = build.OrderMin
+	}
+
+	if orderDuration > build.OrderMax {
+		orderDuration = build.OrderMax
 	}
 
 	om := &OrderMgr{

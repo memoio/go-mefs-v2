@@ -30,6 +30,9 @@ const (
 	AddDataOrder    MsgType = 24 // contain piece and segment; by user
 	CommitDataOrder MsgType = 25 // commit by user
 
+	AddBucMeta MsgType = 26
+	AddObjMeta MsgType = 27
+
 	SegmentProof MsgType = 31 // segment proof; by provider
 	SegmentFault MsgType = 32 // segment remove; by provider
 	SubDataOrder MsgType = 33 // order is expired; by provider

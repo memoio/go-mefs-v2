@@ -146,7 +146,7 @@ func newDefaultOrderConfig() OrderConfig {
 	return OrderConfig{
 		Stop:     false,
 		Price:    build.DefaultSegPrice.Uint64(),
-		Duration: 100,       // 100 day
+		Duration: 1000,      // 100 day
 		Wait:     3600 * 12, // 12 hour
 	}
 }

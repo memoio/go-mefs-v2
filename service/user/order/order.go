@@ -520,6 +520,9 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 		if end < o.prevEnd {
 			end = o.prevEnd
 		}
+		if end-start > 1000*types.Day {
+			end -= types.Day
+		}
 
 		o.base = &types.SignedOrder{
 			OrderBase: types.OrderBase{
@@ -562,6 +565,12 @@ func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 	}
 
 	if o.orderState == Order_Wait {
+		if o.base.End-o.base.Start > build.OrderMax || o.base.End-o.base.Start < build.OrderMin {
+			logger.Debugf("re-create order for %d at nonce %d", o.pro, o.nonce)
+			o.orderState = Order_Init
+			return nil
+		}
+
 		nt := time.Now().Unix()
 		if (o.base.Start < nt && nt-o.base.Start > types.Hour/2) || (o.base.Start > nt && o.base.Start-nt > types.Hour/2) {
 			logger.Debugf("re-create order for %d at nonce %d", o.pro, o.nonce)

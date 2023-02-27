@@ -11,6 +11,7 @@ import (
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
@@ -406,6 +407,86 @@ func (s *StateMgr) StateGetOrderSeq(ctx context.Context, userID, proID, nonce ui
 	}
 
 	return nil, xerrors.Errorf("not found order seq:%d, %d, %d, %d ", userID, proID, nonce, seqNum)
+}
+
+func (s *StateMgr) StateGetBucOpt(ctx context.Context, userID, bucketID uint64) (*pb.BucketOption, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_BucketOptKey, userID, bucketID)
+	data, err := s.get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	bo := new(pb.BucketOption)
+	err = proto.Unmarshal(data, bo)
+	if err != nil {
+		return nil, err
+	}
+
+	return bo, nil
+}
+
+func (s *StateMgr) StateGetBucMeta(ctx context.Context, userID, bucketID uint64) (*tx.BucMetaParas, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_BucMetaKey, userID, bucketID)
+	data, err := s.get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	bmp := new(tx.BucMetaParas)
+	err = bmp.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return bmp, nil
+}
+
+func (s *StateMgr) StateGetObjMeta(ctx context.Context, userID, bucketID, objectID uint64) (*tx.ObjMetaValue, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_ObjMetaKey, userID, bucketID, objectID)
+	data, err := s.get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	omv := new(tx.ObjMetaValue)
+	err = omv.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return omv, nil
+}
+
+func (s *StateMgr) StateGetObjMetaKey(ctx context.Context, etag []byte, cnt uint64) (*tx.ObjMetaKey, error) {
+	s.lk.RLock()
+	defer s.lk.RUnlock()
+
+	key := store.NewKey(pb.MetaType_ST_ObjMetaKey, etag)
+	if cnt > 0 {
+		key = store.NewKey(pb.MetaType_ST_ObjMetaKey, etag, cnt)
+	}
+
+	data, err := s.get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	omk := new(tx.ObjMetaKey)
+	err = omk.Deserialize(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return omk, nil
 }
 
 func (s *StateMgr) GetOrderDuration(userID, proID uint64) *types.OrderDuration {

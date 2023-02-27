@@ -139,8 +139,22 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 			return xerrors.Errorf("already has seg %s in local", seg.SegmentID())
 		}
 
+		da, err := seg.Content()
+		if err != nil {
+			return xerrors.Errorf("seg %s content wrong %s", seg.SegmentID().String(), err)
+		}
+		tags, err := seg.Tags()
+		if err != nil {
+			return xerrors.Errorf("seg %s tag wrong %s", seg.SegmentID().String(), err)
+		}
+
+		err = or.dv.Add(seg.SegmentID().Bytes(), da, tags[0])
+		if err != nil {
+			return xerrors.Errorf("seg %s wrong %s", seg.SegmentID().String(), err)
+		}
+
 		// put to local when received
-		err := m.ids.PutSegmentToLocal(m.ctx, seg)
+		err = m.ids.PutSegmentToLocal(m.ctx, seg)
 		if err != nil {
 			return err
 		}
@@ -164,17 +178,6 @@ func (m *OrderMgr) HandleData(userID uint64, seg segment.Segment) error {
 		key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, or.userID)
 		val, _ := or.di.Serialize()
 		m.ds.Put(key, val)
-
-		go func(nseg segment.Segment) {
-
-			id := nseg.SegmentID().Bytes()
-			data, _ := nseg.Content()
-			tags, _ := nseg.Tags()
-
-			or.lw.Lock()
-			defer or.lw.Unlock()
-			or.dv.Add(id, data, tags[0])
-		}(seg)
 
 		return nil
 	}
@@ -498,13 +501,22 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 							}
 
 							id := segmt.SegmentID().Bytes()
-							data, _ := segmt.Content()
-							tags, _ := segmt.Tags()
+							data, err := segmt.Content()
+							if err != nil {
+								continue
+							}
+							tags, err := segmt.Tags()
+							if err != nil {
+								continue
+							}
+
+							err = or.dv.Add(id, data, tags[0])
+							if err != nil {
+								continue
+							}
 
 							or.seq.Price.Add(or.seq.Price, or.base.SegPrice)
 							or.seq.Size += build.DefaultSegSize
-
-							or.dv.Add(id, data, tags[0])
 						}
 					}
 					or.seq.Segments = os.Segments
