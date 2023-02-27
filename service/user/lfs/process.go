@@ -720,19 +720,25 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64, fsID []byte) 
 			continue
 		}
 
-		sns := new(types.NonceSeq)
+		logger.Debug("retrieve seg location at: ", proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
+
+		sns := &types.NonceSeq{
+			Nonce:  lns.Nonce,
+			SeqNum: lns.SeqNum,
+		}
 		for i := lns.Nonce; i <= ns.Nonce; i++ {
-			sns.Nonce = i
 			of, err := l.StateGetOrder(ctx, userID, proID, i)
 			if err != nil {
-				continue
+				break
 			}
+			sns.Nonce = i
+			sns.SeqNum = lns.SeqNum // reset
 
 			for j := lns.SeqNum; j <= of.SeqNum; j++ {
 				sns.SeqNum = j
 				seq, err := l.StateGetOrderSeq(ctx, userID, proID, i, j)
 				if err != nil {
-					continue
+					break
 				}
 
 				for _, seg := range seq.Segments {
@@ -745,6 +751,7 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64, fsID []byte) 
 					}
 				}
 			}
+			lns.SeqNum = 0
 		}
 
 		da, err := sns.Serialize()

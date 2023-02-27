@@ -135,7 +135,7 @@ var putObjectCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "enc",
 			Usage: "encryption method",
-			Value: "aes",
+			Value: "aes2",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
