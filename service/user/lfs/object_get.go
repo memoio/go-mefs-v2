@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -317,6 +318,7 @@ func (l *LfsService) getOtherObject(ctx context.Context, omk *tx.ObjMetaKey, ena
 			Size:       omv.Length,
 			ETag:       omv.ETag,
 			Parts:      make([]*pb.ObjectPartInfo, 0, 1),
+			State:      fmt.Sprintf("user: %d", omk.UserID),
 		},
 		ops:      make([]uint64, 0, 2),
 		deletion: false,
