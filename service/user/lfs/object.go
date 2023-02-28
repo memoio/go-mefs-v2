@@ -36,9 +36,30 @@ func (l *LfsService) HeadObject(ctx context.Context, bucketName, objectName stri
 	defer l.sw.Release(1)
 
 	if bucketName == "" {
+		ons := strings.Split(objectName, "/")
+		if len(ons) < 1 {
+			return oi, xerrors.Errorf("invalid object or etag")
+		}
+
+		objectName = ons[0]
 		odi, ok := l.sb.etagCache.Get(objectName)
 		if !ok {
-			omk, err := l.getOther(ctx, objectName, types.DownloadObjectOptions{})
+			doo := types.DownloadObjectOptions{
+				UserDefined: make(map[string]string),
+			}
+
+			if len(ons) >= 2 {
+				doo.UserDefined["userID"] = ons[1]
+			}
+
+			if len(ons) >= 3 {
+				doo.UserDefined["bucketID"] = ons[2]
+			}
+
+			if len(ons) >= 4 {
+				doo.UserDefined["objectID"] = ons[3]
+			}
+			omk, err := l.getOther(ctx, objectName, doo)
 			if err != nil {
 				return oi, err
 			}

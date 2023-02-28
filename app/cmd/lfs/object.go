@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mitchellh/go-homedir"
@@ -339,12 +340,25 @@ var getObjectCmd = &cli.Command{
 		if cidName != "" {
 			bucketName = ""
 			objectName = cidName
+			var sb strings.Builder
+			sb.WriteString(cidName)
+			sb.WriteString("/")
+			sb.WriteString(cctx.String("userID"))
+			sb.WriteString("/")
+			sb.WriteString(cctx.String("bucketID"))
+			sb.WriteString("/")
+			sb.WriteString(cctx.String("objectID"))
+			cidName = sb.String()
+		} else {
+			cidName = objectName
 		}
 
-		objInfo, err := napi.HeadObject(cctx.Context, bucketName, objectName)
+		objInfo, err := napi.HeadObject(cctx.Context, bucketName, cidName)
 		if err != nil {
 			return err
 		}
+
+		fmt.Println(objInfo)
 
 		if objInfo.Size == 0 {
 			return xerrors.Errorf("empty file")
@@ -387,6 +401,14 @@ var getObjectCmd = &cli.Command{
 			stepLen = int64(build.DefaultSegSize * buInfo.DataCount)
 		}
 
+		doo := types.DownloadObjectOptions{
+			UserDefined: make(map[string]string),
+		}
+		doo.UserDefined["userID"] = cctx.String("userID")
+		doo.UserDefined["bucketID"] = cctx.String("bucketID")
+		doo.UserDefined["objectID"] = cctx.String("objectID")
+		doo.UserDefined["decrypt"] = cctx.String("decrypt")
+
 		startOffset := start
 		end := start + length
 		stepacc := 1
@@ -399,15 +421,8 @@ var getObjectCmd = &cli.Command{
 				readLen = end - startOffset
 			}
 
-			doo := types.DownloadObjectOptions{
-				Start:       startOffset,
-				Length:      readLen,
-				UserDefined: make(map[string]string),
-			}
-			doo.UserDefined["userID"] = cctx.String("userID")
-			doo.UserDefined["bucketID"] = cctx.String("bucketID")
-			doo.UserDefined["objectID"] = cctx.String("objectID")
-			doo.UserDefined["decrypt"] = cctx.String("decrypt")
+			doo.Start = startOffset
+			doo.Length = readLen
 
 			data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
 			if err != nil {
