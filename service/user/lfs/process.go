@@ -697,6 +697,25 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 }
 
 func (l *LfsService) addSegLoc(ctx context.Context, userID uint64, fsID []byte) error {
+	for {
+		l.Lock()
+		has := l.segloc[userID]
+		if !has {
+			l.segloc[userID] = true
+			l.Unlock()
+			break
+		}
+		l.Unlock()
+		logger.Debug("wait retrieve seg location at: ", userID)
+		time.Sleep(time.Second)
+	}
+
+	defer func() {
+		l.Lock()
+		l.segloc[userID] = false
+		l.Unlock()
+	}()
+
 	sid, err := segment.NewSegmentID(fsID, 0, 0, 0)
 	if err != nil {
 		return err
@@ -720,7 +739,7 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64, fsID []byte) 
 			continue
 		}
 
-		logger.Debug("retrieve seg location at: ", proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
+		logger.Debug("retrieve seg location at: ", userID, proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
 
 		sns := &types.NonceSeq{
 			Nonce:  lns.Nonce,

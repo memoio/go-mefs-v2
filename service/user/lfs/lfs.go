@@ -44,6 +44,8 @@ type LfsService struct {
 	bucketChan chan uint64
 	readyChan  chan struct{}
 	msgChan    chan *tx.Message
+
+	segloc map[uint64]bool
 }
 
 func New(ctx context.Context, userID uint64, encryptKey []byte, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
@@ -77,6 +79,8 @@ func New(ctx context.Context, userID uint64, encryptKey []byte, keyset pdpcommon
 		readyChan:  make(chan struct{}, 1),
 		bucketChan: make(chan uint64),
 		msgChan:    make(chan *tx.Message, 128),
+
+		segloc: make(map[uint64]bool),
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()
