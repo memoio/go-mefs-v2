@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/sha3"
@@ -123,6 +125,29 @@ func FormatBytes(i int64) (result string) {
 		result = fmt.Sprintf("%d B", i)
 	}
 	return
+}
+
+func HumanStringLoaded(s string) uint64 {
+	s = strings.TrimSpace(s)
+	ampl := uint64(1)
+	if len(s) >= 3 {
+		switch s[len(s)-3:] {
+		case "TiB":
+			ampl = TiB
+		case "GiB":
+			ampl = GiB
+		case "MiB":
+			ampl = MiB
+		case "KiB":
+			ampl = KiB
+		default:
+		}
+		s = s[:len(s)-3]
+	}
+
+	res, _ := strconv.ParseUint(s, 10, 0)
+	res = res * ampl
+	return res
 }
 
 // FormatBytesDec Convert bytes to base-10 human readable string. Like 2 MB, 64.2 KB, 52 B

@@ -122,6 +122,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 
 	if os.Getenv("MEFS_META_UPLOAD") != "" {
 		if len(object.Parts) > 0 {
+			// todo: add etag
 			omp := tx.ObjMetaParas{
 				ObjMetaValue: tx.ObjMetaValue{
 					Offset:  object.Parts[0].Offset,

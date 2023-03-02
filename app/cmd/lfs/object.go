@@ -23,6 +23,7 @@ import (
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
@@ -358,7 +359,7 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println(objInfo)
+		fmt.Println(FormatObjectInfo(objInfo))
 
 		if objInfo.Size == 0 {
 			return xerrors.Errorf("empty file")
@@ -386,7 +387,23 @@ var getObjectCmd = &cli.Command{
 		defer f.Close()
 
 		h := md5.New()
-		tr := etag.NewTree()
+		if len(objInfo.ETag) != md5.Size {
+			esize := build.DefaultSegSize
+			if objInfo.UserDefined != nil {
+				etags := objInfo.UserDefined["etag"]
+				if strings.HasPrefix(etags, "cid") {
+					etagss := strings.Split(etags, "-")
+					if len(etagss) > 1 {
+						esize = int(utils.HumanStringLoaded(etagss[1]))
+						if esize < 1024 {
+							esize = build.DefaultSegSize
+						}
+					}
+
+				}
+			}
+			h = etag.NewTree(esize)
+		}
 
 		stepLen := int64(build.DefaultSegSize * 16)
 		stepAccMax := 16
@@ -430,23 +447,7 @@ var getObjectCmd = &cli.Command{
 			}
 
 			bar.Add64(readLen)
-
-			if len(objInfo.ETag) == md5.Size {
-				h.Write(data)
-			} else {
-				for start := int64(0); start < readLen; {
-					stepLen := int64(build.DefaultSegSize)
-					if start+stepLen > readLen {
-						stepLen = readLen - start
-					}
-					cid := etag.NewCidFromData(data[start : start+stepLen])
-
-					tr.AddCid(cid, uint64(stepLen))
-
-					start += stepLen
-				}
-			}
-
+			h.Write(data)
 			f.Write(data)
 
 			startOffset += readLen
@@ -455,14 +456,7 @@ var getObjectCmd = &cli.Command{
 
 		bar.Finish()
 
-		var etagb []byte
-		if len(objInfo.ETag) == md5.Size {
-			etagb = h.Sum(nil)
-		} else {
-			cidEtag := tr.Root()
-			etagb = cidEtag.Bytes()
-		}
-
+		etagb := h.Sum(nil)
 		gotEtag, err := etag.ToString(etagb)
 		if err != nil {
 			return err
