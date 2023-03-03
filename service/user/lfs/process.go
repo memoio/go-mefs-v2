@@ -164,15 +164,17 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	if opts.UserDefined != nil {
 		etags := opts.UserDefined["etag"]
 		if strings.HasPrefix(etags, "cid") {
-			esize := build.DefaultSegSize
+			c := &etag.Config{
+				BlockSize: build.DefaultSegSize,
+			}
 			etagss := strings.Split(etags, "-")
 			if len(etagss) > 1 {
-				esize = int(utils.HumanStringLoaded(etagss[1]))
-				if esize < 1024 {
-					esize = build.DefaultSegSize
+				c.BlockSize = int(utils.HumanStringLoaded(etagss[1]))
+				if c.BlockSize < 1024 {
+					c.BlockSize = build.DefaultSegSize
 				}
 			}
-			h = etag.NewTree(esize)
+			h = etag.NewTreeWithConfig(c)
 		}
 	}
 

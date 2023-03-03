@@ -134,15 +134,18 @@ func HumanStringLoaded(s string) uint64 {
 		switch s[len(s)-3:] {
 		case "TiB":
 			ampl = TiB
+			s = s[:len(s)-3]
 		case "GiB":
 			ampl = GiB
+			s = s[:len(s)-3]
 		case "MiB":
 			ampl = MiB
+			s = s[:len(s)-3]
 		case "KiB":
 			ampl = KiB
+			s = s[:len(s)-3]
 		default:
 		}
-		s = s[:len(s)-3]
 	}
 
 	res, _ := strconv.ParseUint(s, 10, 0)

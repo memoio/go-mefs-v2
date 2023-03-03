@@ -2,10 +2,10 @@ package etag
 
 import (
 	"crypto/md5"
-	"crypto/sha256"
 	"encoding/hex"
 	"hash"
 
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	MaxLinkCnt = 174        // 8192/(34+8+5)
-	ChunkSize  = 256 * 1024 // 256KB
+	MaxLinkCnt       = 174        // 8192/(34+8+5)
+	DefaultChunkSize = 248 * 1024 // 248KB
+	DefaultHashType  = mh.SHA2_256
 )
 
 type RootNode struct {
@@ -101,20 +102,18 @@ func (n *RootNode) AddLink(name string, filesize, size uint64, cid cid.Cid) {
 	n.size += size
 }
 
-func (n *RootNode) Sum() (uint64, uint64, cid.Cid) {
+func (n *RootNode) Sum(c *Config) (uint64, uint64, cid.Cid) {
 	res, err := n.Serialize()
 	if err != nil {
 		return 0, 0, cid.Undef
 	}
 
-	digest := sha256.Sum256(res)
+	s := uint64(len(res)) + n.size
 
-	mhtag, err := mh.Encode(digest[:], mh.SHA2_256)
+	mhtag, err := c.Hash(res)
 	if err != nil {
 		return 0, 0, cid.Undef
 	}
-
-	s := uint64(len(res)) + n.size
 
 	return n.pd.GetFilesize(), uint64(s), cid.NewCidV1(cid.DagProtobuf, mhtag)
 }
@@ -138,27 +137,40 @@ func (n *RootNode) Reset() {
 
 var _ hash.Hash = (*Tree)(nil)
 
+type Config struct {
+	BlockSize int // need store
+	HashType  int // can decode from cid
+}
+
 type Tree struct {
 	depth  int
 	layers []*RootNode
 
-	c     int
-	cData []byte
+	cfg *Config
 
-	nx  int
-	len uint64
+	nx    int
+	cData []byte
 }
 
-func NewTree(size int) *Tree {
-	if size <= 0 {
-		size = ChunkSize
+func NewTree() *Tree {
+	c := new(Config)
+
+	return NewTreeWithConfig(c)
+}
+
+func NewTreeWithConfig(c *Config) *Tree {
+	if c.BlockSize <= 0 {
+		c.BlockSize = DefaultChunkSize
+	}
+	if c.BlockSize > math.MaxInt32 {
+		c.BlockSize = DefaultChunkSize
 	}
 
 	tr := &Tree{
 		layers: make([]*RootNode, 0, 8),
 		depth:  1,
-		c:      size,
-		cData:  make([]byte, 0, size),
+		cfg:    c,
+		cData:  make([]byte, 0, c.BlockSize),
 	}
 	tr.layers = append(tr.layers, NewRootNode())
 
@@ -171,7 +183,6 @@ func (tr *Tree) Reset() {
 	tr.layers = make([]*RootNode, 0, 8)
 	tr.layers = append(tr.layers, NewRootNode())
 
-	tr.len = 0
 	tr.nx = 0
 	tr.cData = tr.cData[:0]
 }
@@ -186,7 +197,7 @@ func (tr *Tree) Size() int {
 // of data, but it may operate more efficiently if all writes
 // are a multiple of the block size.
 func (tr *Tree) BlockSize() int {
-	return tr.c
+	return tr.cfg.BlockSize
 }
 
 func (tr *Tree) Write(p []byte) (int, error) {
@@ -194,25 +205,24 @@ func (tr *Tree) Write(p []byte) (int, error) {
 	if nn == 0 {
 		return 0, nil
 	}
-	tr.len += uint64(nn)
 	if tr.nx > 0 {
-		clen := tr.c - tr.nx
+		clen := tr.cfg.BlockSize - tr.nx
 		if clen > nn {
 			clen = nn
 		}
 		tr.cData = append(tr.cData, p[:clen]...)
 		tr.nx = len(tr.cData)
-		if tr.nx == tr.c {
-			tr.addCid(NewCidFromData(tr.cData), tr.nx)
+		if tr.nx == tr.cfg.BlockSize {
+			tr.addChunk(tr.cData)
 			tr.nx = 0
 			p = p[clen:]
 			tr.cData = tr.cData[:0]
 		}
 	}
 
-	for len(p) >= tr.c {
-		tr.addCid(NewCidFromData(p[:tr.c]), tr.c)
-		p = p[tr.c:]
+	for len(p) >= tr.cfg.BlockSize {
+		tr.addChunk(p[:tr.cfg.BlockSize])
+		p = p[tr.cfg.BlockSize:]
 	}
 
 	// copy left here
@@ -221,6 +231,11 @@ func (tr *Tree) Write(p []byte) (int, error) {
 		tr.nx = len(tr.cData)
 	}
 	return nn, nil
+}
+
+func (tr *Tree) addChunk(b []byte) {
+	cid := tr.cfg.NewCid(b)
+	tr.addCid(cid, len(b))
 }
 
 func (tr *Tree) addCid(cid cid.Cid, size int) {
@@ -232,7 +247,7 @@ func (tr *Tree) addCid(cid cid.Cid, size int) {
 				tr.layers = append(tr.layers, NewRootNode())
 				tr.depth++
 			}
-			fLen, sLen, cid := tr.layers[i].Sum()
+			fLen, sLen, cid := tr.layers[i].Sum(tr.cfg)
 			tr.layers[i+1].AddLink("", fLen, sLen, cid)
 			tr.layers[i].Reset()
 		} else {
@@ -248,11 +263,11 @@ func (tr *Tree) Sum(p []byte) []byte {
 	}
 
 	if tr.nx > 0 {
-		layers[0].AddLink("", uint64(tr.nx), uint64(tr.nx), NewCidFromData(tr.cData))
+		layers[0].AddLink("", uint64(tr.nx), uint64(tr.nx), tr.cfg.NewCid(tr.cData))
 	}
 
 	for i := 0; i < tr.depth-1; i++ {
-		fLen, sLen, cid := layers[i].Sum()
+		fLen, sLen, cid := layers[i].Sum(tr.cfg)
 		layers[i+1].AddLink("", fLen, sLen, cid)
 	}
 
@@ -260,31 +275,28 @@ func (tr *Tree) Sum(p []byte) []byte {
 	if tr.depth == 1 && len(layers[0].links) == 1 {
 		root = layers[0].links[0].Cid
 	} else {
-		_, _, root = layers[tr.depth-1].Sum()
+		_, _, root = layers[tr.depth-1].Sum(tr.cfg)
 	}
 
 	return root.Bytes()
 }
 
-func NewCidFromData(data []byte) cid.Cid {
-	digest := sha256.Sum256(data)
-
-	mhtag, err := mh.Encode(digest[:], mh.SHA2_256)
+//  36byte: version(1 byte,value 1) + cidCodec(1 byte) + hashType(1 byte) + hashLen(1 byte) + hashValue(32byte for SHA2_256)
+func (c *Config) NewCid(data []byte) cid.Cid {
+	mhtag, err := c.Hash(data)
 	if err != nil {
 		panic(err)
 	}
-
 	return cid.NewCidV1(cid.Raw, mhtag)
 }
 
-//  36byte: version(1 byte,value 1) + cidCodec(1 byte) + hashType(1 byte) + hashLen(1 byte) + hashValue(32byte for SHA2_256)
-func NewCid(digest []byte) cid.Cid {
-	mhtag, err := mh.Encode(digest, mh.SHA2_256)
-	if err != nil {
-		return cid.Undef
+func (c *Config) Hash(data []byte) ([]byte, error) {
+	switch c.HashType {
+	case mh.SHA2_256:
+		fallthrough
+	default:
+		return mh.Sum(data, mh.SHA2_256, 32)
 	}
-
-	return cid.NewCidV1(cid.Raw, mhtag)
 }
 
 func ToString(etag []byte) (string, error) {

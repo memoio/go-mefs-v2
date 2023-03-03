@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
 	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
@@ -194,6 +195,8 @@ var putObjectCmd = &cli.Command{
 		switch etagFlag {
 		case "cid":
 			poo = types.CidUploadOption()
+		default:
+			poo.UserDefined["etag"] = etagFlag
 		}
 
 		poo.UserDefined["encryption"] = encFlag
@@ -302,7 +305,7 @@ var getObjectCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "decrypt",
-			Usage: "decrypt",
+			Usage: "decryption key",
 		},
 		&cli.StringFlag{
 			Name:  "userID",
@@ -388,21 +391,30 @@ var getObjectCmd = &cli.Command{
 
 		h := md5.New()
 		if len(objInfo.ETag) != md5.Size {
-			esize := build.DefaultSegSize
+
+			_, ecid, err := cid.CidFromBytes(objInfo.ETag)
+			if err != nil {
+				return err
+			}
+
+			c := &etag.Config{
+				BlockSize: build.DefaultSegSize,
+				HashType:  int(ecid.Prefix().MhType),
+			}
+
 			if objInfo.UserDefined != nil {
 				etags := objInfo.UserDefined["etag"]
 				if strings.HasPrefix(etags, "cid") {
 					etagss := strings.Split(etags, "-")
 					if len(etagss) > 1 {
-						esize = int(utils.HumanStringLoaded(etagss[1]))
-						if esize < 1024 {
-							esize = build.DefaultSegSize
+						c.BlockSize = int(utils.HumanStringLoaded(etagss[1]))
+						if c.BlockSize < 1024 {
+							c.BlockSize = build.DefaultSegSize
 						}
 					}
-
 				}
 			}
-			h = etag.NewTree(esize)
+			h = etag.NewTreeWithConfig(c)
 		}
 
 		stepLen := int64(build.DefaultSegSize * 16)
@@ -469,6 +481,7 @@ var getObjectCmd = &cli.Command{
 
 		if start == 0 && length == int64(objInfo.Size) {
 			if !bytes.Equal(etagb, objInfo.ETag) {
+				fmt.Println("check your decryption key and etag method!")
 				return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 			}
 		}

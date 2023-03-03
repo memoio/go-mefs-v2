@@ -5,30 +5,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"testing"
-
-	mh "github.com/multiformats/go-multihash"
 )
 
 func TestChunk(t *testing.T) {
 	buf, _ := ioutil.ReadFile("/home/fjt/go-mefs-v2/mefs-user")
 	bufLen := len(buf)
-
-	tr := NewTree(248 * 1024)
-
-	mhtag, err := mh.Encode(buf[:32], mh.SHA2_256)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(len(mhtag))
-
 	fmt.Println(bufLen)
 
+	tr := NewTree()
+
 	tr.Write(buf[:248*1024+1])
-	root := tr.Sum(nil)
-	t.Log(root)
+	tr.Sum(nil)
 
 	tr.Write(buf[248*1024+1:])
-	root = tr.Sum(nil)
+	root := tr.Sum(nil)
 	t.Log(len(root))
 
 	s, err := ToString(root)
@@ -47,7 +37,7 @@ func BenchmarkChunk(b *testing.B) {
 	buf, _ := ioutil.ReadFile("/home/fjt/go-mefs-v2/mefs-user")
 	bufLen := len(buf)
 
-	tr := NewTree(248 * 1024)
+	tr := NewTree()
 
 	fmt.Println(bufLen)
 
