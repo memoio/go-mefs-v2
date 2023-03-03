@@ -18,9 +18,9 @@ import (
 	"github.com/memoio/go-mefs-v2/app/user/mutipart"
 	"github.com/memoio/go-mefs-v2/build"
 	mcode "github.com/memoio/go-mefs-v2/lib/code"
+	metag "github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	mtypes "github.com/memoio/go-mefs-v2/lib/types"
-	metag "github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 var (

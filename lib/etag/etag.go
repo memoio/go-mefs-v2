@@ -178,7 +178,7 @@ func (tr *Tree) Reset() {
 
 // Size returns the number of bytes Sum will return.
 func (tr *Tree) Size() int {
-	return 0
+	return 36
 }
 
 // BlockSize returns the hash's underlying block size.

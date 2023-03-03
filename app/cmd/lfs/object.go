@@ -22,9 +22,9 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 var listObjectsCmd = &cli.Command{

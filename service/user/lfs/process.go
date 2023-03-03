@@ -19,12 +19,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	"github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/lib/utils"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 type dataProcess struct {
