@@ -3,6 +3,7 @@ package lfs
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,10 +17,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	"github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 // read at most one stripe
@@ -311,6 +312,11 @@ func (l *LfsService) getOtherObject(ctx context.Context, omk *tx.ObjMetaKey, ena
 	}
 
 	poi.UserDefined["nencryption"] = omv.NEncrypt
+
+	if len(omv.Extra) >= 8 {
+		csize := binary.BigEndian.Uint64(omv.Extra[:8])
+		poi.UserDefined["etag"] = "cid-" + strconv.FormatUint(csize, 10)
+	}
 
 	object := &object{
 		ObjectInfo: types.ObjectInfo{

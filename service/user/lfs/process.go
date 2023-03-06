@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"io"
 	"math"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,11 +19,12 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/aes"
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	"github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 type dataProcess struct {
@@ -158,9 +160,23 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	rdata := make([]byte, dp.stripeSize)
 	curStripe := bucket.Length / uint64(dp.stripeSize) // length is aligned
 
-	tr := etag.NewTree()
-
 	h := md5.New()
+	if opts.UserDefined != nil {
+		etags := opts.UserDefined["etag"]
+		if strings.HasPrefix(etags, "cid") {
+			c := &etag.Config{
+				BlockSize: build.DefaultSegSize,
+			}
+			etagss := strings.Split(etags, "-")
+			if len(etagss) > 1 {
+				c.BlockSize = int(utils.HumanStringLoaded(etagss[1]))
+				if c.BlockSize < 1024 {
+					c.BlockSize = build.DefaultSegSize
+				}
+			}
+			h = etag.NewTreeWithConfig(c)
+		}
+	}
 
 	breakFlag := false
 	for !breakFlag {
@@ -185,23 +201,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			break
 		}
 
-		// hash of raw data
 		h.Write(buf)
-		if opts.UserDefined != nil {
-			val, ok := opts.UserDefined["etag"]
-			if ok && val == "cid" {
-				for start := 0; start < bufLen; {
-					stepLen := build.DefaultSegSize
-					if start+stepLen > bufLen {
-						stepLen = bufLen - start
-					}
-					cid := etag.NewCidFromData(buf[start : start+stepLen])
-					tr.AddCid(cid, uint64(stepLen))
-
-					start += stepLen
-				}
-			}
-		}
 
 		rawLen += len(buf)
 		totalSize += len(buf)
@@ -343,18 +343,6 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			dp.dv.Reset()
 
 			etagb := h.Sum(nil)
-			if opts.UserDefined != nil {
-				val, ok := opts.UserDefined["etag"]
-				if ok && val == "cid" {
-					if breakFlag {
-						cidEtag := tr.Root()
-						etagb = cidEtag.Bytes()
-					} else {
-						cidEtag := tr.TmpRoot()
-						etagb = cidEtag.Bytes()
-					}
-				}
-			}
 
 			usedBytes := uint64(dp.stripeSize * (dp.dataCount + dp.parityCount) * stripeCount / dp.dataCount)
 			opi := &pb.ObjectPartInfo{
@@ -697,6 +685,25 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 }
 
 func (l *LfsService) addSegLoc(ctx context.Context, userID uint64, fsID []byte) error {
+	for {
+		l.Lock()
+		has := l.segloc[userID]
+		if !has {
+			l.segloc[userID] = true
+			l.Unlock()
+			break
+		}
+		l.Unlock()
+		logger.Debug("wait retrieve seg location at: ", userID)
+		time.Sleep(time.Second)
+	}
+
+	defer func() {
+		l.Lock()
+		l.segloc[userID] = false
+		l.Unlock()
+	}()
+
 	sid, err := segment.NewSegmentID(fsID, 0, 0, 0)
 	if err != nil {
 		return err
@@ -720,7 +727,7 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64, fsID []byte) 
 			continue
 		}
 
-		logger.Debug("retrieve seg location at: ", proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
+		logger.Debug("retrieve seg location at: ", userID, proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
 
 		sns := &types.NonceSeq{
 			Nonce:  lns.Nonce,

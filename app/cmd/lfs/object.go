@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
 	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
@@ -22,8 +23,9 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var listObjectsCmd = &cli.Command{
@@ -193,6 +195,8 @@ var putObjectCmd = &cli.Command{
 		switch etagFlag {
 		case "cid":
 			poo = types.CidUploadOption()
+		default:
+			poo.UserDefined["etag"] = etagFlag
 		}
 
 		poo.UserDefined["encryption"] = encFlag
@@ -301,7 +305,7 @@ var getObjectCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "decrypt",
-			Usage: "decrypt",
+			Usage: "decryption key",
 		},
 		&cli.StringFlag{
 			Name:  "userID",
@@ -358,7 +362,7 @@ var getObjectCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println(objInfo)
+		fmt.Println(FormatObjectInfo(objInfo))
 
 		if objInfo.Size == 0 {
 			return xerrors.Errorf("empty file")
@@ -386,7 +390,32 @@ var getObjectCmd = &cli.Command{
 		defer f.Close()
 
 		h := md5.New()
-		tr := etag.NewTree()
+		if len(objInfo.ETag) != md5.Size {
+
+			_, ecid, err := cid.CidFromBytes(objInfo.ETag)
+			if err != nil {
+				return err
+			}
+
+			c := &etag.Config{
+				BlockSize: build.DefaultSegSize,
+				HashType:  int(ecid.Prefix().MhType),
+			}
+
+			if objInfo.UserDefined != nil {
+				etags := objInfo.UserDefined["etag"]
+				if strings.HasPrefix(etags, "cid") {
+					etagss := strings.Split(etags, "-")
+					if len(etagss) > 1 {
+						c.BlockSize = int(utils.HumanStringLoaded(etagss[1]))
+						if c.BlockSize < 1024 {
+							c.BlockSize = build.DefaultSegSize
+						}
+					}
+				}
+			}
+			h = etag.NewTreeWithConfig(c)
+		}
 
 		stepLen := int64(build.DefaultSegSize * 16)
 		stepAccMax := 16
@@ -430,23 +459,7 @@ var getObjectCmd = &cli.Command{
 			}
 
 			bar.Add64(readLen)
-
-			if len(objInfo.ETag) == md5.Size {
-				h.Write(data)
-			} else {
-				for start := int64(0); start < readLen; {
-					stepLen := int64(build.DefaultSegSize)
-					if start+stepLen > readLen {
-						stepLen = readLen - start
-					}
-					cid := etag.NewCidFromData(data[start : start+stepLen])
-
-					tr.AddCid(cid, uint64(stepLen))
-
-					start += stepLen
-				}
-			}
-
+			h.Write(data)
 			f.Write(data)
 
 			startOffset += readLen
@@ -455,14 +468,7 @@ var getObjectCmd = &cli.Command{
 
 		bar.Finish()
 
-		var etagb []byte
-		if len(objInfo.ETag) == md5.Size {
-			etagb = h.Sum(nil)
-		} else {
-			cidEtag := tr.Root()
-			etagb = cidEtag.Bytes()
-		}
-
+		etagb := h.Sum(nil)
 		gotEtag, err := etag.ToString(etagb)
 		if err != nil {
 			return err
@@ -475,6 +481,7 @@ var getObjectCmd = &cli.Command{
 
 		if start == 0 && length == int64(objInfo.Size) {
 			if !bytes.Equal(etagb, objInfo.ETag) {
+				fmt.Println("check your decryption key and etag method!")
 				return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 			}
 		}

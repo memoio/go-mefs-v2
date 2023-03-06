@@ -2,19 +2,22 @@ package lfs
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, opts types.PutObjectOptions) (types.ObjectInfo, error) {
@@ -132,6 +135,19 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 				},
 				BucketID: object.BucketID,
 				ObjectID: object.ObjectID,
+			}
+
+			// todo: add etag
+			if object.UserDefined != nil {
+				etags := opts.UserDefined["etag"]
+				if strings.HasPrefix(etags, "cid") {
+					etagss := strings.Split(etags, "-")
+					if len(etagss) > 1 {
+						esize := utils.HumanStringLoaded(etagss[1])
+						omp.Extra = make([]byte, 8)
+						binary.BigEndian.PutUint64(omp.Extra, esize)
+					}
+				}
 			}
 
 			data, err := omp.Serialize()
