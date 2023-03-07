@@ -37,79 +37,20 @@ type dataProcess struct {
 	parityCount int
 	stripeSize  int // dataCount*segSize
 
-	aesKey [32]byte          // aes encrypt base key
-	segID  segment.SegmentID // for encode
+	aesKey [32]byte // aes decrypt key
 	coder  code.Codec
 
 	keyset pdpcommon.KeySet
-	dv     pdpcommon.DataVerifier
 }
 
-func (l *LfsService) newDataProcess(ctx context.Context, userID, bucketID uint64, bopt *pb.BucketOption) (*dataProcess, error) {
-	if userID != l.userID {
-		pbyte, err := l.StateGetPDPPublicKey(ctx, userID)
-		if err != nil {
-			return nil, err
+func (l *LfsService) getDataProcess(ctx context.Context, userID, bucketID uint64, bopt *pb.BucketOption) (*dataProcess, error) {
+	if userID == l.userID {
+		l.RLock()
+		dp, ok := l.dps[bucketID]
+		l.RUnlock()
+		if ok {
+			return dp, nil
 		}
-
-		keyset, err := pdp.ReKeyWithPublicKey(pdpcommon.PDPV2, pbyte)
-		if err != nil {
-			return nil, err
-		}
-
-		coder, err := code.NewDataCoderWithBopts(keyset, bopt)
-		if err != nil {
-			return nil, err
-		}
-
-		stripeSize := int(bopt.SegSize) * int(bopt.DataCount)
-
-		fsID := keyset.VerifyKey().Hash()
-
-		segID, err := segment.NewSegmentID(fsID, bucketID, 0, 0)
-		if err != nil {
-			return nil, err
-		}
-
-		dv, err := pdp.NewDataVerifier(keyset.PublicKey(), keyset.SecreteKey())
-		if err != nil {
-			return nil, err
-		}
-
-		dp := &dataProcess{
-			userID:      userID,
-			bucketID:    bucketID,
-			dataCount:   int(bopt.DataCount),
-			parityCount: int(bopt.ParityCount),
-			stripeSize:  stripeSize,
-
-			coder: coder,
-			segID: segID,
-
-			fsID: fsID,
-
-			dv:     dv,
-			keyset: keyset,
-		}
-
-		return dp, nil
-	}
-
-	coder, err := code.NewDataCoderWithBopts(l.keyset, bopt)
-	if err != nil {
-		return nil, err
-	}
-
-	stripeSize := int(bopt.SegSize) * int(bopt.DataCount)
-
-	segID, err := segment.NewSegmentID(l.fsID, bucketID, 0, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	dv, err := pdp.NewDataVerifier(l.keyset.PublicKey(), l.keyset.SecreteKey())
-	if err != nil {
-		return nil, err
 	}
 
 	dp := &dataProcess{
@@ -117,35 +58,48 @@ func (l *LfsService) newDataProcess(ctx context.Context, userID, bucketID uint64
 		bucketID:    bucketID,
 		dataCount:   int(bopt.DataCount),
 		parityCount: int(bopt.ParityCount),
-		stripeSize:  stripeSize,
+		stripeSize:  int(bopt.SegSize) * int(bopt.DataCount),
 
-		coder: coder,
-		segID: segID,
-
-		fsID: l.fsID,
-
-		dv:     dv,
+		fsID:   l.fsID,
 		keyset: l.keyset,
 	}
 
-	l.Lock()
-	l.dps[bucketID] = dp
-	l.Unlock()
+	if userID != l.userID {
+		g, err := l.getGhost(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		dp.keyset = g.keyset
+		dp.fsID = g.fsID
+	}
+
+	coder, err := code.NewDataCoderWithBopts(dp.keyset, bopt)
+	if err != nil {
+		return nil, err
+	}
+	dp.coder = coder
+
+	if userID == l.userID {
+		l.Lock()
+		l.dps[bucketID] = dp
+		l.Unlock()
+	}
+
 	return dp, nil
 }
 
 func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object, r io.Reader, opts types.PutObjectOptions) error {
 	nt := time.Now()
 	logger.Debug("upload begin at: ", nt)
-	l.RLock()
-	dp, ok := l.dps[bucket.BucketID]
-	l.RUnlock()
-	if !ok {
-		ndp, err := l.newDataProcess(ctx, l.userID, bucket.BucketID, &bucket.BucketOption)
-		if err != nil {
-			return err
-		}
-		dp = ndp
+
+	dp, err := l.getDataProcess(ctx, l.userID, bucket.BucketID, &bucket.BucketOption)
+	if err != nil {
+		return err
+	}
+
+	dv, err := pdp.NewDataVerifier(dp.keyset.PublicKey(), dp.keyset.SecreteKey())
+	if err != nil {
+		return err
 	}
 
 	totalSize := 0
@@ -154,11 +108,14 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 	sendCount := 0
 	rawLen := 0
 	opID := bucket.NextOpID
-	dp.dv.Reset()
 
 	buf := make([]byte, dp.stripeSize)
 	rdata := make([]byte, dp.stripeSize)
 	curStripe := bucket.Length / uint64(dp.stripeSize) // length is aligned
+	segID, err := segment.NewSegmentID(dp.fsID, dp.bucketID, 0, 0)
+	if err != nil {
+		return err
+	}
 
 	h := md5.New()
 	if opts.UserDefined != nil {
@@ -268,18 +225,18 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		default:
 		}
 
-		dp.segID.SetStripeID(curStripe + uint64(stripeCount))
+		segID.SetStripeID(curStripe + uint64(stripeCount))
 
-		encodedData, err := dp.coder.Encode(dp.segID, buf)
+		encodedData, err := dp.coder.Encode(segID, buf)
 		if err != nil {
-			logger.Debug("encode data error: ", dp.segID, err)
+			logger.Debug("encode data error: ", segID, err)
 			return err
 		}
 
 		for i := 0; i < (dp.dataCount + dp.parityCount); i++ {
-			dp.segID.SetChunkID(uint32(i))
+			segID.SetChunkID(uint32(i))
 
-			seg := segment.NewBaseSegment(encodedData[i], dp.segID)
+			seg := segment.NewBaseSegment(encodedData[i], segID)
 
 			segData, err := seg.Content()
 			if err != nil {
@@ -289,7 +246,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			if err != nil {
 				return err
 			}
-			err = dp.dv.Add(dp.segID.Bytes(), segData, segTag[0])
+			err = dv.Add(segID.Bytes(), segData, segTag[0])
 			if err != nil {
 				return err
 			}
@@ -303,7 +260,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		sendCount++
 		// send some to order; 4MB*(bucket.DataCount + bucket.ParityCount)
 		if sendCount >= 16 || breakFlag {
-			ok, err := dp.dv.Result()
+			ok, err := dv.Result()
 			if !ok || err != nil {
 				return xerrors.New("encode data is wrong")
 			}
@@ -340,7 +297,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 			sendCount = 0
 
 			// update
-			dp.dv.Reset()
+			dv.Reset()
 
 			etagb := h.Sum(nil)
 
@@ -513,7 +470,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 
 			if sucCnt < int32(dp.dataCount) || aerr != nil {
 				logger.Debug("retry download stripe: ", object.BucketID, object.ObjectID, stripeID, aerr)
-				l.addSegLoc(ctx, dp.userID, dp.fsID)
+				l.addSegLoc(ctx, dp.userID)
 
 				// retry
 				failCnt = 0
@@ -678,92 +635,6 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 			if sizeReceived >= length {
 				breakFlag = true
 			}
-		}
-	}
-
-	return nil
-}
-
-func (l *LfsService) addSegLoc(ctx context.Context, userID uint64, fsID []byte) error {
-	for {
-		l.Lock()
-		has := l.segloc[userID]
-		if !has {
-			l.segloc[userID] = true
-			l.Unlock()
-			break
-		}
-		l.Unlock()
-		logger.Debug("wait retrieve seg location at: ", userID)
-		time.Sleep(time.Second)
-	}
-
-	defer func() {
-		l.Lock()
-		l.segloc[userID] = false
-		l.Unlock()
-	}()
-
-	sid, err := segment.NewSegmentID(fsID, 0, 0, 0)
-	if err != nil {
-		return err
-	}
-
-	pros, err := l.StateGetProsAt(ctx, userID)
-	if err != nil {
-		return err
-	}
-
-	for _, proID := range pros {
-		key := store.NewKey(pb.MetaType_OrderPayInfoKey, userID, proID)
-		lns := new(types.NonceSeq)
-		val, err := l.ds.Get(key)
-		if err == nil {
-			lns.Deserialize(val)
-		}
-
-		ns, err := l.StateGetOrderNonce(ctx, userID, proID, math.MaxUint64)
-		if err != nil {
-			continue
-		}
-
-		logger.Debug("retrieve seg location at: ", userID, proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
-
-		sns := &types.NonceSeq{
-			Nonce:  lns.Nonce,
-			SeqNum: lns.SeqNum,
-		}
-		for i := lns.Nonce; i <= ns.Nonce; i++ {
-			of, err := l.StateGetOrder(ctx, userID, proID, i)
-			if err != nil {
-				break
-			}
-			sns.Nonce = i
-			sns.SeqNum = lns.SeqNum // reset
-
-			for j := lns.SeqNum; j <= of.SeqNum; j++ {
-				sns.SeqNum = j
-				seq, err := l.StateGetOrderSeq(ctx, userID, proID, i, j)
-				if err != nil {
-					break
-				}
-
-				for _, seg := range seq.Segments {
-					sid.SetBucketID(seg.BucketID)
-					sid.SetChunkID(seg.ChunkID)
-					for k := seg.Start; k < seg.Start+seg.Length; k++ {
-						sid.SetStripeID(k)
-
-						l.PutSegmentLocation(ctx, sid, seq.ProID)
-					}
-				}
-			}
-			lns.SeqNum = 0
-		}
-
-		da, err := sns.Serialize()
-		if err == nil {
-			l.ds.Put(key, da)
 		}
 	}
 
