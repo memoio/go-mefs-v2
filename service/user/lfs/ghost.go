@@ -296,21 +296,17 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64) error {
 		l.Unlock()
 	}()
 
-	l.RLock()
-	g := l.users[userID]
-	l.RUnlock()
-
 	pros, err := l.StateGetProsAt(ctx, userID)
 	if err != nil {
 		return err
 	}
 
 	var wg sync.WaitGroup
-	for _, proID := range pros {
+	for _, pID := range pros {
 		wg.Add(1)
 		go func(proID uint64) {
 			defer wg.Done()
-			key := store.NewKey(pb.MetaType_OrderPayInfoKey, userID, proID)
+			key := store.NewKey(pb.MetaType_OrderSegLocKey, userID, proID, math.MaxInt)
 			lns := new(types.NonceSeq)
 			val, err := l.ds.Get(key)
 			if err == nil {
@@ -325,10 +321,14 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64) error {
 			nt := time.Now()
 			logger.Debug("retrieve seg location at: ", userID, proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
 
-			sid, err := segment.NewSegmentID(g.fsID, 0, 0, 0)
-			if err != nil {
-				return
+			asq := new(types.AggSegsQueue)
+
+			skey := store.NewKey(pb.MetaType_OrderSegLocKey, userID, proID)
+			sval, err := l.ds.Get(skey)
+			if err == nil && sval != nil {
+				asq.Deserialize(sval)
 			}
+
 			sns := &types.NonceSeq{
 				Nonce:  lns.Nonce,
 				SeqNum: lns.SeqNum,
@@ -349,26 +349,71 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64) error {
 					}
 
 					for _, seg := range seq.Segments {
-						sid.SetBucketID(seg.BucketID)
-						sid.SetChunkID(seg.ChunkID)
-						for k := seg.Start; k < seg.Start+seg.Length; k++ {
-							sid.SetStripeID(k)
-
-							l.PutSegmentLocation(ctx, sid, seq.ProID)
-						}
+						asq.Push(seg)
 					}
+					asq.Merge()
 				}
 				lns.SeqNum = 0
+			}
+
+			sda, err := asq.Serialize()
+			if err == nil {
+				l.ds.Put(skey, sda)
 			}
 
 			da, err := sns.Serialize()
 			if err == nil {
 				l.ds.Put(key, da)
 			}
-			logger.Debug("retrieve seg location end at: ", userID, proID, sns.Nonce, sns.SeqNum, ns.Nonce, ns.SeqNum, time.Since(nt))
-		}(proID)
+			logger.Debug("retrieve seg location end at: ", userID, proID, sns.Nonce, sns.SeqNum, ns.Nonce, ns.SeqNum, len(sda), time.Since(nt))
+		}(pID)
 	}
 	wg.Wait()
 
 	return nil
+}
+
+func (l *LfsService) getSegment(ctx context.Context, userID uint64, segID segment.SegmentID) (segment.Segment, error) {
+	if userID == l.userID {
+		return l.OrderMgr.GetSegment(ctx, segID)
+	}
+
+	seg, err := l.OrderMgr.GetSegmentFromLocal(ctx, segID)
+	if err == nil {
+		return seg, nil
+	}
+
+	pid, err := l.getSegmentLocation(ctx, userID, segID.GetBucketID(), segID.GetStripeID(), segID.GetChunkID())
+	if err != nil {
+		return nil, err
+	}
+
+	return l.OrderMgr.GetSegmentRemote(ctx, segID, pid)
+}
+
+func (l *LfsService) getSegmentLocation(ctx context.Context, userID uint64, bucketID, stripeID uint64, chunkID uint32) (uint64, error) {
+	pros, err := l.StateGetProsAt(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, pid := range pros {
+		key := store.NewKey(pb.MetaType_OrderSegLocKey, userID, pid)
+		val, err := l.ds.Get(key)
+		if err != nil {
+			continue
+		}
+
+		asq := new(types.AggSegsQueue)
+		err = asq.Deserialize(val)
+		if err != nil {
+			continue
+		}
+
+		if asq.Has(bucketID, stripeID, chunkID) {
+			return pid, nil
+		}
+	}
+
+	return 0, xerrors.Errorf("no location in meta")
 }

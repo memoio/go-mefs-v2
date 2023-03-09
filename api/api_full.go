@@ -151,7 +151,7 @@ type IDataService interface {
 	DeleteSegmentLocation(ctx context.Context, sid segment.SegmentID) error
 
 	GetSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error)
-	GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error)
+	GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error)
 
 	Size() store.DiskStats
 }

@@ -410,7 +410,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 						return
 					}
 
-					seg, err := l.OrderMgr.GetSegment(ctx, segID)
+					seg, err := l.getSegment(ctx, dp.userID, segID)
 					if err != nil {
 						atomic.AddInt32(&failCnt, 1)
 						sm.Release(1)
@@ -524,7 +524,7 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 							}
 						}
 
-						seg, err := l.OrderMgr.GetSegment(ctx, segID)
+						seg, err := l.getSegment(ctx, dp.userID, segID)
 						if err != nil {
 							atomic.AddInt32(&failCnt, 1)
 							sm.Release(1)

@@ -158,6 +158,14 @@ type AggSegs struct {
 
 type AggSegsQueue []*AggSegs
 
+func (asq *AggSegsQueue) Serialize() ([]byte, error) {
+	return cbor.Marshal(asq)
+}
+
+func (asq *AggSegsQueue) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, asq)
+}
+
 func (asq AggSegsQueue) Len() int {
 	return len(asq)
 }
