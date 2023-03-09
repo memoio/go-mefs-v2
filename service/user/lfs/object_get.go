@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
 	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/xerrors"
 
@@ -199,16 +198,14 @@ func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, writer 
 }
 
 func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	bucketName := vars["bn"]
-	objectName := vars["on"]
+	cidName := r.Header.Get("cid")
 
-	start, err := strconv.ParseInt(vars["st"], 10, 64)
+	start, err := strconv.ParseInt(r.Header.Get("start"), 10, 64)
 	if err != nil {
 		start = 0
 	}
 
-	length, err := strconv.ParseInt(vars["le"], 10, 64)
+	length, err := strconv.ParseInt(r.Header.Get("length"), 10, 64)
 	if err != nil {
 		length = -1
 	}
@@ -217,12 +214,25 @@ func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 		length = -1
 	}
 
-	logger.Debug("getfile : ", bucketName, objectName, start, length)
-
 	doo := types.DownloadObjectOptions{
 		Start:  start,
 		Length: length,
 	}
+
+	if cidName != "" {
+		logger.Debug("getfile : ", cidName, start, length)
+		err = l.getObjectByCID(r.Context(), cidName, w, doo)
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		return
+	}
+
+	bucketName := r.Header.Get("bucket")
+	objectName := r.Header.Get("object")
+
+	logger.Debug("getfile : ", bucketName, objectName, start, length)
 
 	//w.Header().Set("Content-Type", "application/octet-stream")
 	err = l.getObject(r.Context(), bucketName, objectName, w, doo)
@@ -232,42 +242,12 @@ func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (l *LfsService) GetFileByCID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	cid := vars["cid"]
-	start, err := strconv.ParseInt(vars["st"], 10, 64)
-	if err != nil {
-		start = 0
-	}
-
-	length, err := strconv.ParseInt(vars["le"], 10, 64)
-	if err != nil {
-		length = -1
-	}
-
-	if length == 0 {
-		length = -1
-	}
-
-	logger.Debug("getfile : ", cid, start, length)
-	doo := types.DownloadObjectOptions{
-		Start:  start,
-		Length: length,
-	}
-	//w.Header().Set("Content-Type", "application/octet-stream")
-	err = l.getObjectByCID(r.Context(), cid, w, doo)
-	if err != nil {
-		w.WriteHeader(500)
-		return
-	}
-
-}
-
 func (l *LfsService) GetState(w http.ResponseWriter, r *http.Request) {
 
 	gi, err := l.LfsGetInfo(r.Context(), false)
 	if err != nil {
 		w.WriteHeader(500)
+		return
 	}
 
 	json.NewEncoder(w).Encode(&gi)

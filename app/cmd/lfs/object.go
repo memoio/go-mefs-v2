@@ -3,6 +3,7 @@ package lfscmd
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -597,16 +598,18 @@ var downloadObjectCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
+		header.Add("bucket", bucketName)
+		header.Add("object", objectName)
 
 		start := cctx.Int64("start")
 		length := cctx.Int64("length")
+		header.Add("start", strconv.FormatInt(start, 10))
+		header.Add("length", strconv.FormatInt(length, 10))
 
-		haddr := "http://" + addr + "/gateway/" + bucketName + "/" + objectName + "/" + strconv.FormatInt(start, 10) + "/" + strconv.FormatInt(length, 10)
+		haddr := "http://" + addr + "/gateway/download"
 
 		if cidName != "" {
-			haddr = "http://" + addr + "/gateway/cid/" + cidName + "/" + strconv.FormatInt(start, 10) + "/" + strconv.FormatInt(length, 10)
-		} else {
-			cidName = bucketName + "/" + objectName
+			header.Add("cid", cidName)
 		}
 
 		hreq, err := http.NewRequest("GET", haddr, nil)
@@ -670,6 +673,121 @@ var downloadObjectCmd = &cli.Command{
 		bar.Finish()
 
 		fmt.Printf("object: %s is stored in: %s\n", cidName, p)
+
+		return nil
+	},
+}
+
+var uploadObjectCmd = &cli.Command{
+	Name:  "uploadObject",
+	Usage: "upload object using rpc",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
+		},
+		&cli.StringFlag{
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
+		},
+		&cli.StringFlag{
+			Name:  "path",
+			Usage: "stored path of file",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, header, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		p, err := homedir.Expand(cctx.String("path"))
+		if err != nil {
+			return err
+		}
+
+		p, err = filepath.Abs(p)
+		if err != nil {
+			return err
+		}
+
+		pf, err := os.Open(p)
+		if err != nil {
+			return err
+		}
+		defer pf.Close()
+
+		fi, err := pf.Stat()
+		if err != nil {
+			return err
+		}
+
+		bar := progressbar.DefaultBytes(fi.Size(), "upload:")
+		pr := progressbar.NewReader(pf, bar)
+
+		bucketName := cctx.String("bucket")
+		objectName := cctx.String("object")
+
+		haddr := "http://" + addr + "/gateway/upload"
+
+		hreq, err := http.NewRequest("POST", haddr, &pr)
+		if err != nil {
+			return err
+		}
+
+		header.Add("bucket", bucketName)
+		header.Add("object", objectName)
+
+		hreq.Header = header.Clone()
+
+		defaultHTTPClient := &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+					DualStack: true,
+				}).DialContext,
+				ForceAttemptHTTP2:     true,
+				WriteBufferSize:       16 << 10, // 16KiB moving up from 4KiB default
+				ReadBufferSize:        16 << 10, // 16KiB moving up from 4KiB default
+				MaxIdleConns:          100,
+				MaxIdleConnsPerHost:   100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				DisableCompression:    true,
+			},
+		}
+
+		resp, err := defaultHTTPClient.Do(hreq)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		res, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode != 200 {
+			return xerrors.Errorf("response: %s, msg: %s", resp.Status, res)
+		}
+
+		fmt.Printf("complete upload: %s to bucket: %s, object: %s\n", p, bucketName, objectName)
+
+		oi := new(types.ObjectInfo)
+		err = json.Unmarshal(res, oi)
+		if err != nil {
+			fmt.Println(err)
+			return nil
+		}
+
+		fmt.Println(FormatObjectInfo(*oi))
 
 		return nil
 	},

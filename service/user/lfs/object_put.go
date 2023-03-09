@@ -3,8 +3,10 @@ package lfs
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -294,4 +296,21 @@ func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *o
 	logger.Debugf("object %d rename to: %s in bucket: %s %d", object.ObjectID, object.GetName(), bucket.GetName(), op.OpID)
 
 	return nil
+}
+
+func (l *LfsService) PutFile(w http.ResponseWriter, r *http.Request) {
+	bucketName := r.Header.Get("bucket")
+	objectName := r.Header.Get("object")
+
+	poo := types.DefaultUploadOption()
+
+	//w.Header().Set("Content-Type", "application/octet-stream")
+	obj, err := l.PutObject(r.Context(), bucketName, objectName, r.Body, poo)
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	json.NewEncoder(w).Encode(&obj)
 }
