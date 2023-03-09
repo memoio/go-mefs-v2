@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
@@ -299,68 +300,75 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64) error {
 	g := l.users[userID]
 	l.RUnlock()
 
-	sid, err := segment.NewSegmentID(g.fsID, 0, 0, 0)
-	if err != nil {
-		return err
-	}
-
 	pros, err := l.StateGetProsAt(ctx, userID)
 	if err != nil {
 		return err
 	}
 
+	var wg sync.WaitGroup
 	for _, proID := range pros {
-		key := store.NewKey(pb.MetaType_OrderPayInfoKey, userID, proID)
-		lns := new(types.NonceSeq)
-		val, err := l.ds.Get(key)
-		if err == nil {
-			lns.Deserialize(val)
-		}
-
-		ns, err := l.StateGetOrderNonce(ctx, userID, proID, math.MaxUint64)
-		if err != nil {
-			continue
-		}
-
-		logger.Debug("retrieve seg location at: ", userID, proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
-
-		sns := &types.NonceSeq{
-			Nonce:  lns.Nonce,
-			SeqNum: lns.SeqNum,
-		}
-		for i := lns.Nonce; i <= ns.Nonce; i++ {
-			of, err := l.StateGetOrder(ctx, userID, proID, i)
-			if err != nil {
-				break
+		wg.Add(1)
+		go func(proID uint64) {
+			defer wg.Done()
+			key := store.NewKey(pb.MetaType_OrderPayInfoKey, userID, proID)
+			lns := new(types.NonceSeq)
+			val, err := l.ds.Get(key)
+			if err == nil {
+				lns.Deserialize(val)
 			}
-			sns.Nonce = i
-			sns.SeqNum = lns.SeqNum // reset
 
-			for j := lns.SeqNum; j <= of.SeqNum; j++ {
-				sns.SeqNum = j
-				seq, err := l.StateGetOrderSeq(ctx, userID, proID, i, j)
+			ns, err := l.StateGetOrderNonce(ctx, userID, proID, math.MaxUint64)
+			if err != nil {
+				return
+			}
+
+			nt := time.Now()
+			logger.Debug("retrieve seg location at: ", userID, proID, lns.Nonce, lns.SeqNum, ns.Nonce, ns.SeqNum)
+
+			sid, err := segment.NewSegmentID(g.fsID, 0, 0, 0)
+			if err != nil {
+				return
+			}
+			sns := &types.NonceSeq{
+				Nonce:  lns.Nonce,
+				SeqNum: lns.SeqNum,
+			}
+			for i := lns.Nonce; i <= ns.Nonce; i++ {
+				of, err := l.StateGetOrder(ctx, userID, proID, i)
 				if err != nil {
 					break
 				}
+				sns.Nonce = i
+				sns.SeqNum = lns.SeqNum // reset
 
-				for _, seg := range seq.Segments {
-					sid.SetBucketID(seg.BucketID)
-					sid.SetChunkID(seg.ChunkID)
-					for k := seg.Start; k < seg.Start+seg.Length; k++ {
-						sid.SetStripeID(k)
+				for j := lns.SeqNum; j <= of.SeqNum; j++ {
+					sns.SeqNum = j
+					seq, err := l.StateGetOrderSeq(ctx, userID, proID, i, j)
+					if err != nil {
+						break
+					}
 
-						l.PutSegmentLocation(ctx, sid, seq.ProID)
+					for _, seg := range seq.Segments {
+						sid.SetBucketID(seg.BucketID)
+						sid.SetChunkID(seg.ChunkID)
+						for k := seg.Start; k < seg.Start+seg.Length; k++ {
+							sid.SetStripeID(k)
+
+							l.PutSegmentLocation(ctx, sid, seq.ProID)
+						}
 					}
 				}
+				lns.SeqNum = 0
 			}
-			lns.SeqNum = 0
-		}
 
-		da, err := sns.Serialize()
-		if err == nil {
-			l.ds.Put(key, da)
-		}
+			da, err := sns.Serialize()
+			if err == nil {
+				l.ds.Put(key, da)
+			}
+			logger.Debug("retrieve seg location end at: ", userID, proID, sns.Nonce, sns.SeqNum, ns.Nonce, ns.SeqNum, time.Since(nt))
+		}(proID)
 	}
+	wg.Wait()
 
 	return nil
 }
