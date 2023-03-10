@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gorilla/mux"
 	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/xerrors"
 
@@ -196,7 +197,7 @@ func (l *LfsService) getObjectByEtag(ctx context.Context, etagName string, write
 	return l.downloadObject(ctx, l.userID, bucket.BucketInfo, object, writer, opts)
 }
 
-func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
+func (l *LfsService) DownloadFile(w http.ResponseWriter, r *http.Request) {
 	etagName := r.Header.Get("etag")
 
 	start, err := strconv.ParseInt(r.Header.Get("start"), 10, 64)
@@ -235,6 +236,38 @@ func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 
 	//w.Header().Set("Content-Type", "application/octet-stream")
 	err = l.getObject(r.Context(), bucketName, objectName, w, doo)
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+}
+
+func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	etagName := vars["etag"]
+
+	doo := types.DownloadObjectOptions{
+		Start:  0,
+		Length: -1,
+	}
+
+	if etagName != "" {
+		logger.Debug("getfile : ", etagName)
+		err := l.getObjectByEtag(r.Context(), etagName, w, doo)
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		return
+	}
+
+	bucketName := vars["bucket"]
+	objectName := vars["object"]
+
+	logger.Debug("getfile : ", bucketName, objectName)
+
+	err := l.getObject(r.Context(), bucketName, objectName, w, doo)
 	if err != nil {
 		w.WriteHeader(500)
 		return
