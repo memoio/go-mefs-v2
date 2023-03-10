@@ -173,7 +173,6 @@ func (u *UserNode) ServeRemoteHTTP(w http.ResponseWriter, r *http.Request) {
 
 	mux.HandleFunc("/gateway/upload", u.LfsService.PutFile).Methods("POST")
 
-	mux.HandleFunc("/gateway/state", u.LfsService.GetState).Methods("GET")
 	mux.HandleFunc("/gateway/download", u.LfsService.GetFile).Methods("GET")
 
 	mux.ServeHTTP(w, r)

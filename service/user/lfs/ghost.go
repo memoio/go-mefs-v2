@@ -64,8 +64,8 @@ func (l *LfsService) getGhost(ctx context.Context, userID uint64) (*ghost, error
 	return g, nil
 }
 
-func (l *LfsService) getOther(ctx context.Context, cidName string, opts types.DownloadObjectOptions) (*tx.ObjMetaKey, error) {
-	tag, err := etag.ToByte(cidName)
+func (l *LfsService) getOther(ctx context.Context, etagName string, opts types.DownloadObjectOptions) (*tx.ObjMetaKey, error) {
+	tag, err := etag.ToByte(etagName)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (l *LfsService) getOther(ctx context.Context, cidName string, opts types.Do
 		return omv, nil
 	}
 
-	omki, ok := l.tagCache.Get(cidName)
+	omki, ok := l.tagCache.Get(etagName)
 	if ok {
 		omk, ok := omki.(*tx.ObjMetaKey)
 		if ok {
@@ -120,7 +120,7 @@ func (l *LfsService) getOther(ctx context.Context, cidName string, opts types.Do
 			return nil, err
 		}
 
-		l.tagCache.Add(cidName, omk)
+		l.tagCache.Add(etagName, omk)
 
 		if omv.UserID != math.MaxUint64 {
 			if omv.UserID == omk.UserID {
@@ -251,8 +251,8 @@ func (l *LfsService) getOtherObject(ctx context.Context, omk *tx.ObjMetaKey, ena
 	return object, nil
 }
 
-func (l *LfsService) downloadOtherObjectByCID(ctx context.Context, cidName string, writer io.Writer, opts types.DownloadObjectOptions) error {
-	omk, err := l.getOther(ctx, cidName, opts)
+func (l *LfsService) downloadOtherObjectByEtag(ctx context.Context, etagName string, writer io.Writer, opts types.DownloadObjectOptions) error {
+	omk, err := l.getOther(ctx, etagName, opts)
 	if err != nil {
 		return err
 	}
@@ -262,7 +262,7 @@ func (l *LfsService) downloadOtherObjectByCID(ctx context.Context, cidName strin
 		return err
 	}
 
-	object, err := l.getOtherObject(ctx, omk, cidName)
+	object, err := l.getOtherObject(ctx, omk, etagName)
 	if err != nil {
 		return err
 	}

@@ -336,29 +336,29 @@ var getObjectCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
-		cidName := cctx.String("cid")
+		etagName := cctx.String("etag")
 		path := cctx.String("path")
 
 		start := cctx.Int64("start")
 		length := cctx.Int64("length")
 
-		if cidName != "" {
+		if etagName != "" {
 			bucketName = ""
-			objectName = cidName
+			objectName = etagName
 			var sb strings.Builder
-			sb.WriteString(cidName)
+			sb.WriteString(etagName)
 			sb.WriteString("/")
 			sb.WriteString(cctx.String("userID"))
 			sb.WriteString("/")
 			sb.WriteString(cctx.String("bucketID"))
 			sb.WriteString("/")
 			sb.WriteString(cctx.String("objectID"))
-			cidName = sb.String()
+			etagName = sb.String()
 		} else {
-			cidName = objectName
+			etagName = objectName
 		}
 
-		objInfo, err := napi.HeadObject(cctx.Context, bucketName, cidName)
+		objInfo, err := napi.HeadObject(cctx.Context, bucketName, etagName)
 		if err != nil {
 			return err
 		}
@@ -535,8 +535,8 @@ var delObjectCmd = &cli.Command{
 	},
 }
 
-var downloadObjectCmd = &cli.Command{
-	Name:  "downloadObject",
+var downloadCmd = &cli.Command{
+	Name:  "download",
 	Usage: "download object using rpc",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -550,8 +550,9 @@ var downloadObjectCmd = &cli.Command{
 			Usage:   "objectName",
 		},
 		&cli.StringFlag{
-			Name:  "cid",
-			Usage: "cid name",
+			Name:    "etag",
+			Aliases: []string{"cid", "md5"},
+			Usage:   "etag (cid or md5)",
 		},
 		&cli.Int64Flag{
 			Name:  "start",
@@ -575,7 +576,6 @@ var downloadObjectCmd = &cli.Command{
 			return err
 		}
 
-		cidName := cctx.String("cid")
 		path := cctx.String("path")
 
 		bar := progressbar.DefaultBytes(-1, "download:")
@@ -608,8 +608,9 @@ var downloadObjectCmd = &cli.Command{
 
 		haddr := "http://" + addr + "/gateway/download"
 
-		if cidName != "" {
-			header.Add("cid", cidName)
+		etagName := cctx.String("etag")
+		if etagName != "" {
+			header.Add("etag", etagName)
 		}
 
 		hreq, err := http.NewRequest("GET", haddr, nil)
@@ -672,14 +673,18 @@ var downloadObjectCmd = &cli.Command{
 
 		bar.Finish()
 
-		fmt.Printf("object: %s is stored in: %s\n", cidName, p)
+		if etagName != "" {
+			fmt.Printf("object: %s is stored in: %s\n", etagName, p)
+		} else {
+			fmt.Printf("object: %s is stored in: %s\n", objectName, p)
+		}
 
 		return nil
 	},
 }
 
-var uploadObjectCmd = &cli.Command{
-	Name:  "uploadObject",
+var uploadCmd = &cli.Command{
+	Name:  "upload",
 	Usage: "upload object using rpc",
 	Flags: []cli.Flag{
 		&cli.StringFlag{

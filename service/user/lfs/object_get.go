@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -37,7 +36,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 	buf := new(bytes.Buffer)
 	if bucketName == "" && objectName != "" {
-		err := l.getObjectByCID(ctx, objectName, buf, opts)
+		err := l.getObjectByEtag(ctx, objectName, buf, opts)
 		if err != nil {
 			return nil, xerrors.Errorf("object %s download fail %s", objectName, err)
 		}
@@ -169,10 +168,10 @@ func (l *LfsService) getObject(ctx context.Context, bucketName, objectName strin
 	return nil
 }
 
-func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, writer io.Writer, opts types.DownloadObjectOptions) error {
-	odi, ok := l.sb.etagCache.Get(cidName)
+func (l *LfsService) getObjectByEtag(ctx context.Context, etagName string, writer io.Writer, opts types.DownloadObjectOptions) error {
+	odi, ok := l.sb.etagCache.Get(etagName)
 	if !ok {
-		return l.downloadOtherObjectByCID(ctx, cidName, writer, opts)
+		return l.downloadOtherObjectByEtag(ctx, etagName, writer, opts)
 	}
 
 	od, ok := odi.(*objectDigest)
@@ -198,7 +197,7 @@ func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, writer 
 }
 
 func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
-	cidName := r.Header.Get("cid")
+	etagName := r.Header.Get("etag")
 
 	start, err := strconv.ParseInt(r.Header.Get("start"), 10, 64)
 	if err != nil {
@@ -219,9 +218,9 @@ func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 		Length: length,
 	}
 
-	if cidName != "" {
-		logger.Debug("getfile : ", cidName, start, length)
-		err = l.getObjectByCID(r.Context(), cidName, w, doo)
+	if etagName != "" {
+		logger.Debug("getfile : ", etagName, start, length)
+		err = l.getObjectByEtag(r.Context(), etagName, w, doo)
 		if err != nil {
 			w.WriteHeader(500)
 			return
@@ -240,15 +239,4 @@ func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		return
 	}
-}
-
-func (l *LfsService) GetState(w http.ResponseWriter, r *http.Request) {
-
-	gi, err := l.LfsGetInfo(r.Context(), false)
-	if err != nil {
-		w.WriteHeader(500)
-		return
-	}
-
-	json.NewEncoder(w).Encode(&gi)
 }

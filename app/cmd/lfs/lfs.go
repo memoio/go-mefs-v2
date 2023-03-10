@@ -112,8 +112,8 @@ var LfsCmd = &cli.Command{
 		showStorageCmd,
 		orderGetProsCmd,
 
-		downloadObjectCmd,
-		uploadObjectCmd,
+		downloadCmd,
+		uploadCmd,
 	},
 }
 
