@@ -13,6 +13,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/etag"
@@ -299,8 +300,20 @@ func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *o
 }
 
 func (l *LfsService) PutFile(w http.ResponseWriter, r *http.Request) {
-	bucketName := r.Header.Get("bucket")
-	objectName := r.Header.Get("object")
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+
+	bucketName := r.Form.Get("bucket")
+	objectName := r.Form.Get("object")
+
+	if bucketName == "" || objectName == "" {
+		vars := mux.Vars(r)
+		bucketName = vars["bucket"]
+		objectName = vars["object"]
+	}
 
 	poo := types.DefaultUploadOption()
 

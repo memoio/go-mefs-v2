@@ -198,14 +198,20 @@ func (l *LfsService) getObjectByEtag(ctx context.Context, etagName string, write
 }
 
 func (l *LfsService) DownloadFile(w http.ResponseWriter, r *http.Request) {
-	etagName := r.Header.Get("etag")
+	err := r.ParseForm()
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
 
-	start, err := strconv.ParseInt(r.Header.Get("start"), 10, 64)
+	etagName := r.Form.Get("etag")
+
+	start, err := strconv.ParseInt(r.Form.Get("start"), 10, 64)
 	if err != nil {
 		start = 0
 	}
 
-	length, err := strconv.ParseInt(r.Header.Get("length"), 10, 64)
+	length, err := strconv.ParseInt(r.Form.Get("length"), 10, 64)
 	if err != nil {
 		length = -1
 	}
@@ -229,8 +235,8 @@ func (l *LfsService) DownloadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bucketName := r.Header.Get("bucket")
-	objectName := r.Header.Get("object")
+	bucketName := r.Form.Get("bucket")
+	objectName := r.Form.Get("object")
 
 	logger.Debug("getfile : ", bucketName, objectName, start, length)
 

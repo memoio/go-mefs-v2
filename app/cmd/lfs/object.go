@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -598,27 +599,24 @@ var downloadCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
-		header.Add("bucket", bucketName)
-		header.Add("object", objectName)
+		etagName := cctx.String("etag")
 
-		start := cctx.Int64("start")
-		length := cctx.Int64("length")
-		header.Add("start", strconv.FormatInt(start, 10))
-		header.Add("length", strconv.FormatInt(length, 10))
+		form := url.Values{}
+		form.Set("bucket", bucketName)
+		form.Set("object", objectName)
+		form.Set("etag", etagName)
+		form.Set("start", strconv.FormatInt(cctx.Int64("start"), 10))
+		form.Set("length", strconv.FormatInt(cctx.Int64("length"), 10))
 
 		haddr := "http://" + addr + "/gateway/download"
-
-		etagName := cctx.String("etag")
-		if etagName != "" {
-			header.Add("etag", etagName)
-		}
-
-		hreq, err := http.NewRequest("GET", haddr, nil)
+		hreq, err := http.NewRequestWithContext(cctx.Context, "POST", haddr, strings.NewReader(form.Encode()))
 		if err != nil {
 			return err
 		}
 
 		hreq.Header = header.Clone()
+		hreq.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+		hreq.Header.Add("Content-Length", strconv.Itoa(len(form.Encode())))
 
 		defaultHTTPClient := &http.Client{
 			Transport: &http.Transport{
@@ -736,15 +734,11 @@ var uploadCmd = &cli.Command{
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
 
-		haddr := "http://" + addr + "/gateway/upload"
-
+		haddr := "http://" + addr + "/gateway/upload/" + bucketName + "/" + objectName
 		hreq, err := http.NewRequest("POST", haddr, &pr)
 		if err != nil {
 			return err
 		}
-
-		header.Add("bucket", bucketName)
-		header.Add("object", objectName)
 
 		hreq.Header = header.Clone()
 
