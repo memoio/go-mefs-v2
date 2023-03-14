@@ -109,9 +109,12 @@ var LfsCmd = &cli.Command{
 		getObjectCmd,
 		listObjectsCmd,
 		delObjectCmd,
-		downloadObjectCmd,
 		showStorageCmd,
 		orderGetProsCmd,
+
+		downloadCmd,
+		uploadCmd,
+		uploadMultiCmd,
 	},
 }
 

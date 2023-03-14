@@ -3,14 +3,19 @@ package lfs
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/etag"
@@ -294,4 +299,49 @@ func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *o
 	logger.Debugf("object %d rename to: %s in bucket: %s %d", object.ObjectID, object.GetName(), bucket.GetName(), op.OpID)
 
 	return nil
+}
+
+// todo: handle form data
+func (l *LfsService) PutFile(w http.ResponseWriter, r *http.Request) {
+	poo := types.DefaultUploadOption()
+
+	vars := mux.Vars(r)
+	bucketName := vars["bucket"]
+	objectName := vars["object"]
+
+	if bucketName == "" || objectName == "" {
+		r.ParseMultipartForm(16 << 20)
+		bucketName = r.Form.Get("bucket")
+		objectName = r.Form.Get("object")
+		file, handler, err := r.FormFile("file")
+		if err != nil {
+			return
+		}
+		defer file.Close()
+
+		ftype := mime.TypeByExtension(filepath.Ext(handler.Filename))
+
+		if ftype != "" {
+			poo.UserDefined["content-type"] = ftype
+		}
+
+		obj, err := l.PutObject(r.Context(), bucketName, objectName, file, poo)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		json.NewEncoder(w).Encode(&obj)
+		return
+	}
+
+	obj, err := l.PutObject(r.Context(), bucketName, objectName, r.Body, poo)
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	json.NewEncoder(w).Encode(&obj)
 }

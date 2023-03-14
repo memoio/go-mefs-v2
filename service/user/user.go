@@ -171,11 +171,13 @@ func (u *UserNode) ServeRemote() func(w http.ResponseWriter, r *http.Request) {
 func (u *UserNode) ServeRemoteHTTP(w http.ResponseWriter, r *http.Request) {
 	mux := mux.NewRouter()
 
-	mux.HandleFunc("/gateway/state", u.LfsService.GetState).Methods("GET")
-	mux.HandleFunc("/gateway/cid/{cid}", u.LfsService.GetFileByCID).Methods("GET")
-	mux.HandleFunc("/gateway/cid/{cid}/{st}/{le}", u.LfsService.GetFileByCID).Methods("GET")
-	mux.HandleFunc("/gateway/{bn}/{on}", u.LfsService.GetFile).Methods("GET")
-	mux.HandleFunc("/gateway/{bn}/{on}/{st}/{le}", u.LfsService.GetFile).Methods("GET")
+	mux.HandleFunc("/gateway/upload", u.LfsService.PutFile).Methods("POST")
+	mux.HandleFunc("/gateway/upload/{bucket}/{object}", u.LfsService.PutFile).Methods("POST")
+
+	mux.HandleFunc("/gateway/download", u.LfsService.DownloadFile).Methods("GET", "POST")
+
+	mux.HandleFunc("/gateway/etag/{etag}", u.LfsService.GetFile).Methods("GET")
+	mux.HandleFunc("/gateway/object/{bucket}/{object}", u.LfsService.GetFile).Methods("GET")
 
 	mux.ServeHTTP(w, r)
 }

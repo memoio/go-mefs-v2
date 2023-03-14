@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
+	lru "github.com/hashicorp/golang-lru"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -45,7 +46,8 @@ type LfsService struct {
 	readyChan  chan struct{}
 	msgChan    chan *tx.Message
 
-	segloc map[uint64]bool
+	users    map[uint64]*ghost
+	tagCache *lru.ARCCache
 }
 
 func New(ctx context.Context, userID uint64, encryptKey []byte, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
@@ -56,6 +58,11 @@ func New(ctx context.Context, userID uint64, encryptKey []byte, keyset pdpcommon
 		if err == nil && wtv > 100 {
 			wt = wtv
 		}
+	}
+
+	tCache, err := lru.NewARC(1024 * 1024)
+	if err != nil {
+		return nil, err
 	}
 
 	ls := &LfsService{
@@ -80,7 +87,8 @@ func New(ctx context.Context, userID uint64, encryptKey []byte, keyset pdpcommon
 		bucketChan: make(chan uint64),
 		msgChan:    make(chan *tx.Message, 128),
 
-		segloc: make(map[uint64]bool),
+		users:    make(map[uint64]*ghost),
+		tagCache: tCache,
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()

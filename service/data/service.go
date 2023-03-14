@@ -123,25 +123,7 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 		return seg, err
 	}
 
-	pri, err := d.RoleGet(ctx, from, false)
-	if err != nil {
-		return seg, err
-	}
-
-	fromAddr, err := address.NewAddress(pri.ChainVerifyKey)
-	if err != nil {
-		return seg, err
-	}
-
-	readPrice := big.NewInt(types.DefaultReadPrice)
-	readPrice.Mul(readPrice, big.NewInt(build.DefaultSegSize))
-
-	sig, err := d.is.Pay(fromAddr, readPrice)
-	if err != nil {
-		return seg, err
-	}
-
-	return d.GetSegmentRemote(ctx, sid, from, sig)
+	return d.GetSegmentRemote(ctx, sid, from)
 }
 
 func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.SegmentID) (uint64, error) {
@@ -173,8 +155,27 @@ func (d *dataService) DeleteSegmentLocation(ctx context.Context, sid segment.Seg
 }
 
 // GetSegmentFrom get segmemnt over network
-func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error) {
+func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error) {
 	logger.Debug("get segment from remote: ", sid, from)
+
+	pri, err := d.RoleGet(ctx, from, false)
+	if err != nil {
+		return nil, err
+	}
+
+	fromAddr, err := address.NewAddress(pri.ChainVerifyKey)
+	if err != nil {
+		return nil, err
+	}
+
+	readPrice := big.NewInt(types.DefaultReadPrice)
+	readPrice.Mul(readPrice, big.NewInt(build.DefaultSegSize))
+
+	sig, err := d.is.Pay(fromAddr, readPrice)
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), sig)
 	if err != nil {
 		return nil, err
