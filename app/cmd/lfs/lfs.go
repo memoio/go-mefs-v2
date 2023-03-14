@@ -114,6 +114,7 @@ var LfsCmd = &cli.Command{
 
 		downloadCmd,
 		uploadCmd,
+		uploadMultiCmd,
 	},
 }
 
