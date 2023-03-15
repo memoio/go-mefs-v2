@@ -128,7 +128,13 @@ func (m *OrderMgr) checkBalance() {
 		return
 	}
 
+	bal.FsValue.Add(bal.FsValue, bal.LockValue)
+
 	if bal.FsValue.Cmp(needPay) < 0 {
+		needPay.Sub(needPay, bal.FsValue)
+		if bal.ErcValue.Cmp(needPay) < 0 {
+			needPay.Set(bal.ErcValue)
+		}
 		m.is.SettleCharge(m.ctx, needPay)
 	}
 
