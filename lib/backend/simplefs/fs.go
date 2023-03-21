@@ -33,11 +33,25 @@ func NewSimpleFs(dir string) (*SimpleFs, error) {
 	sf := &SimpleFs{
 		basedir: dir,
 	}
-	sf.walk(dir)
+	sf.getSize(dir)
 
 	logger.Info("create simplefs at:", dir, sf.size)
 
 	return sf, nil
+}
+
+func (sf *SimpleFs) getSize(baseDir string) {
+	rd, err := ioutil.ReadDir(baseDir)
+	if err != nil {
+		return
+	}
+
+	for _, fi := range rd {
+		if fi.IsDir() {
+			sf.size += fi.Size()
+			continue
+		}
+	}
 }
 
 func (sf *SimpleFs) walk(baseDir string) {
