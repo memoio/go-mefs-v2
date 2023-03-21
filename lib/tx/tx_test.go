@@ -1,6 +1,7 @@
 package tx
 
 import (
+	"io/ioutil"
 	"math/big"
 	"testing"
 
@@ -99,4 +100,32 @@ func TestBlock(t *testing.T) {
 	}
 
 	t.Fatal(bid.String(), nid.String(), b.PrevID.String(), nb.PrevID.String())
+}
+
+func TestParas(t *testing.T) {
+	omv := ObjMetaValue{
+		Offset: 13,
+	}
+
+	buf, err := omv.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ioutil.WriteFile("/tmp/testparas", buf, 0755)
+}
+
+func TestParasLoad(t *testing.T) {
+	omv := new(ObjMetaValue)
+
+	buf, _ := ioutil.ReadFile("/tmp/testparas")
+
+	err := omv.Deserialize(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(omv)
+
+	t.Fatal("load err")
 }

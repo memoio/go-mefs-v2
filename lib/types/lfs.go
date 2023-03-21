@@ -66,7 +66,7 @@ type ObjectInfo struct {
 }
 
 func (oi ObjectInfo) String() string {
-	return fmt.Sprintf("Name: %s, BucketID: %d, ObjectID: %d, ETag: %s, CreationTime: %s, ModifyTime: %s, Size: %s, EncMethod: %s, State: %s",
+	return fmt.Sprintf("Name: %s, BucketID: %d, ObjectID: %d, ETag: %s, CreationTime: %s, ModifyTime: %s, Size: %s, Encryption: %s, State: %s",
 		ansi.Color(oi.Name, "green"),
 		oi.BucketID,
 		oi.ObjectID,
@@ -137,3 +137,5 @@ func CidUploadOption() PutObjectOptions {
 	poo.UserDefined["etag"] = "cid"
 	return poo
 }
+
+const HeadObjectKey = "HeadObjectOptions"

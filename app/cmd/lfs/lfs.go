@@ -8,10 +8,10 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/code"
+	"github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -109,9 +109,12 @@ var LfsCmd = &cli.Command{
 		getObjectCmd,
 		listObjectsCmd,
 		delObjectCmd,
-		downloadObjectCmd,
 		showStorageCmd,
 		orderGetProsCmd,
+
+		downloadCmd,
+		uploadCmd,
+		uploadMultiCmd,
 	},
 }
 

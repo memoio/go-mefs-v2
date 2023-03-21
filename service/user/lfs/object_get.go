@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"io"
-	"math"
 	"net/http"
 	"strconv"
 
@@ -15,10 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
-	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
 )
 
 // read at most one stripe
@@ -42,7 +37,7 @@ func (l *LfsService) GetObject(ctx context.Context, bucketName, objectName strin
 
 	buf := new(bytes.Buffer)
 	if bucketName == "" && objectName != "" {
-		err := l.getObjectByCID(ctx, objectName, buf, opts)
+		err := l.getObjectByEtag(ctx, objectName, buf, opts)
 		if err != nil {
 			return nil, xerrors.Errorf("object %s download fail %s", objectName, err)
 		}
@@ -76,22 +71,12 @@ func (l *LfsService) downloadObject(ctx context.Context, userID uint64, bi types
 		return xerrors.Errorf("out of object size %d", object.Size)
 	}
 
-	dp, ok := l.dps[bi.BucketID]
-	if !ok && userID == l.userID {
-		ndp, err := l.newDataProcess(ctx, userID, bi.BucketID, &bi.BucketOption)
-		if err != nil {
-			return err
-		}
-		dp = ndp
+	dp, err := l.getDataProcess(ctx, userID, bi.BucketID, &bi.BucketOption)
+	if err != nil {
+		return err
 	}
 
 	if userID != l.userID {
-		ndp, err := l.newDataProcess(ctx, userID, bi.BucketID, &bi.BucketOption)
-		if err != nil {
-			return err
-		}
-		dp = ndp
-
 		if opts.UserDefined != nil && opts.UserDefined["decrypt"] != "" {
 			dec, err := hex.DecodeString(opts.UserDefined["decrypt"])
 			if err == nil {
@@ -184,10 +169,10 @@ func (l *LfsService) getObject(ctx context.Context, bucketName, objectName strin
 	return nil
 }
 
-func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, writer io.Writer, opts types.DownloadObjectOptions) error {
-	odi, ok := l.sb.etagCache.Get(cidName)
+func (l *LfsService) getObjectByEtag(ctx context.Context, etagName string, writer io.Writer, opts types.DownloadObjectOptions) error {
+	odi, ok := l.sb.etagCache.Get(etagName)
 	if !ok {
-		return l.downloadOtherObjectByCID(ctx, cidName, writer, opts)
+		return l.downloadOtherObjectByEtag(ctx, etagName, writer, opts)
 	}
 
 	od, ok := odi.(*objectDigest)
@@ -212,157 +197,21 @@ func (l *LfsService) getObjectByCID(ctx context.Context, cidName string, writer 
 	return l.downloadObject(ctx, l.userID, bucket.BucketInfo, object, writer, opts)
 }
 
-func (l *LfsService) getOther(ctx context.Context, cidName string, opts types.DownloadObjectOptions) (*tx.ObjMetaKey, error) {
-	tag, err := etag.ToByte(cidName)
+func (l *LfsService) DownloadFile(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
 	if err != nil {
-		return nil, err
+		w.WriteHeader(500)
+		return
 	}
 
-	omv := &tx.ObjMetaKey{
-		UserID:   math.MaxUint64,
-		BucketID: math.MaxUint64,
-		ObjectID: math.MaxUint64,
-	}
+	etagName := r.Form.Get("etag")
 
-	if opts.UserDefined != nil {
-		if opts.UserDefined["userID"] != "" {
-			omv.UserID, _ = strconv.ParseUint(opts.UserDefined["userID"], 10, 0)
-		}
-		if opts.UserDefined["bucketID"] != "" {
-			omv.BucketID, _ = strconv.ParseUint(opts.UserDefined["bucketID"], 10, 0)
-		}
-		if opts.UserDefined["objectID"] != "" {
-			omv.ObjectID, _ = strconv.ParseUint(opts.UserDefined["objectID"], 10, 0)
-		}
-	}
-
-	if omv.UserID != math.MaxUint64 && omv.BucketID != math.MaxUint64 && omv.ObjectID != math.MaxUint64 {
-		return omv, nil
-	}
-
-	i := uint64(0)
-	for {
-		omk, err := l.StateGetObjMetaKey(ctx, tag, i)
-		if err != nil {
-			return nil, err
-		}
-
-		if omv.UserID != math.MaxUint64 {
-			if omv.UserID == omk.UserID {
-				if omv.BucketID != math.MaxUint64 {
-					if omv.BucketID == omk.BucketID {
-						return omk, nil
-					}
-				} else {
-					return omk, nil
-				}
-			}
-		} else {
-			return omk, nil
-		}
-		i++
-	}
-}
-
-func (l *LfsService) getOtherBucket(ctx context.Context, omk *tx.ObjMetaKey) (types.BucketInfo, error) {
-	bopt, err := l.StateGetBucOpt(ctx, omk.UserID, omk.BucketID)
-	if err != nil {
-		return types.BucketInfo{}, err
-	}
-
-	bmp, err := l.StateGetBucMeta(ctx, omk.UserID, omk.BucketID)
-	if err != nil {
-		return types.BucketInfo{}, err
-	}
-
-	bi := types.BucketInfo{
-		BucketOption: *bopt,
-		BucketInfo: pb.BucketInfo{
-			BucketID: omk.BucketID,
-			Name:     bmp.Name,
-		},
-	}
-
-	return bi, nil
-}
-
-func (l *LfsService) getOtherObject(ctx context.Context, omk *tx.ObjMetaKey, ename string) (*object, error) {
-	omv, err := l.StateGetObjMeta(ctx, omk.UserID, omk.BucketID, omk.ObjectID)
-	if err != nil {
-		return nil, err
-	}
-
-	tag, err := etag.ToByte(ename)
-	if err != nil {
-		return nil, err
-	}
-
-	if !bytes.Equal(tag, omv.ETag) {
-		return nil, xerrors.Errorf("uncompatible etag and userID-bucketID-objectID")
-	}
-
-	poi := pb.ObjectInfo{
-		ObjectID:    omk.ObjectID,
-		BucketID:    omk.BucketID,
-		Name:        omv.Name,
-		Encryption:  omv.Encrypt,
-		UserDefined: make(map[string]string),
-	}
-
-	poi.UserDefined["nencryption"] = omv.NEncrypt
-
-	object := &object{
-		ObjectInfo: types.ObjectInfo{
-			ObjectInfo: poi,
-			Size:       omv.Length,
-			ETag:       omv.ETag,
-			Parts:      make([]*pb.ObjectPartInfo, 0, 1),
-		},
-		ops:      make([]uint64, 0, 2),
-		deletion: false,
-	}
-
-	opi := &pb.ObjectPartInfo{
-		Offset: omv.Offset,
-		Length: omv.Length,
-		ETag:   omv.ETag,
-	}
-
-	object.Parts = append(object.Parts, opi)
-
-	return object, nil
-}
-
-func (l *LfsService) downloadOtherObjectByCID(ctx context.Context, cidName string, writer io.Writer, opts types.DownloadObjectOptions) error {
-	omk, err := l.getOther(ctx, cidName, opts)
-	if err != nil {
-		return err
-	}
-
-	bi, err := l.getOtherBucket(ctx, omk)
-	if err != nil {
-		return err
-	}
-
-	object, err := l.getOtherObject(ctx, omk, cidName)
-	if err != nil {
-		return err
-	}
-
-	return l.downloadObject(ctx, omk.UserID, bi, object, writer, opts)
-}
-
-func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	bucketName := vars["bn"]
-	objectName := vars["on"]
-
-	start, err := strconv.ParseInt(vars["st"], 10, 64)
+	start, err := strconv.ParseInt(r.Form.Get("start"), 10, 64)
 	if err != nil {
 		start = 0
 	}
 
-	length, err := strconv.ParseInt(vars["le"], 10, 64)
+	length, err := strconv.ParseInt(r.Form.Get("length"), 10, 64)
 	if err != nil {
 		length = -1
 	}
@@ -371,12 +220,25 @@ func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 		length = -1
 	}
 
-	logger.Debug("getfile : ", bucketName, objectName, start, length)
-
 	doo := types.DownloadObjectOptions{
 		Start:  start,
 		Length: length,
 	}
+
+	if etagName != "" {
+		logger.Debug("getfile : ", etagName, start, length)
+		err = l.getObjectByEtag(r.Context(), etagName, w, doo)
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		return
+	}
+
+	bucketName := r.Form.Get("bucket")
+	objectName := r.Form.Get("object")
+
+	logger.Debug("getfile : ", bucketName, objectName, start, length)
 
 	//w.Header().Set("Content-Type", "application/octet-stream")
 	err = l.getObject(r.Context(), bucketName, objectName, w, doo)
@@ -386,43 +248,34 @@ func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (l *LfsService) GetFileByCID(w http.ResponseWriter, r *http.Request) {
+func (l *LfsService) GetFile(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	cid := vars["cid"]
-	start, err := strconv.ParseInt(vars["st"], 10, 64)
-	if err != nil {
-		start = 0
-	}
 
-	length, err := strconv.ParseInt(vars["le"], 10, 64)
-	if err != nil {
-		length = -1
-	}
+	etagName := vars["etag"]
 
-	if length == 0 {
-		length = -1
-	}
-
-	logger.Debug("getfile : ", cid, start, length)
 	doo := types.DownloadObjectOptions{
-		Start:  start,
-		Length: length,
+		Start:  0,
+		Length: -1,
 	}
-	//w.Header().Set("Content-Type", "application/octet-stream")
-	err = l.getObjectByCID(r.Context(), cid, w, doo)
+
+	if etagName != "" {
+		logger.Debug("getfile : ", etagName)
+		err := l.getObjectByEtag(r.Context(), etagName, w, doo)
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		return
+	}
+
+	bucketName := vars["bucket"]
+	objectName := vars["object"]
+
+	logger.Debug("getfile : ", bucketName, objectName)
+
+	err := l.getObject(r.Context(), bucketName, objectName, w, doo)
 	if err != nil {
 		w.WriteHeader(500)
 		return
 	}
-
-}
-
-func (l *LfsService) GetState(w http.ResponseWriter, r *http.Request) {
-
-	gi, err := l.LfsGetInfo(r.Context(), false)
-	if err != nil {
-		w.WriteHeader(500)
-	}
-
-	json.NewEncoder(w).Encode(&gi)
 }

@@ -3,16 +3,21 @@ package lfscmd
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
 	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
@@ -21,8 +26,9 @@ import (
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/utils/etag"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var listObjectsCmd = &cli.Command{
@@ -192,6 +198,8 @@ var putObjectCmd = &cli.Command{
 		switch etagFlag {
 		case "cid":
 			poo = types.CidUploadOption()
+		default:
+			poo.UserDefined["etag"] = etagFlag
 		}
 
 		poo.UserDefined["encryption"] = encFlag
@@ -300,7 +308,7 @@ var getObjectCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "decrypt",
-			Usage: "decrypt",
+			Usage: "decryption key",
 		},
 		&cli.StringFlag{
 			Name:  "userID",
@@ -330,21 +338,34 @@ var getObjectCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
-		cidName := cctx.String("cid")
+		etagName := cctx.String("etag")
 		path := cctx.String("path")
 
 		start := cctx.Int64("start")
 		length := cctx.Int64("length")
 
-		if cidName != "" {
+		if etagName != "" {
 			bucketName = ""
-			objectName = cidName
+			objectName = etagName
+			var sb strings.Builder
+			sb.WriteString(etagName)
+			sb.WriteString("/")
+			sb.WriteString(cctx.String("userID"))
+			sb.WriteString("/")
+			sb.WriteString(cctx.String("bucketID"))
+			sb.WriteString("/")
+			sb.WriteString(cctx.String("objectID"))
+			etagName = sb.String()
+		} else {
+			etagName = objectName
 		}
 
-		objInfo, err := napi.HeadObject(cctx.Context, bucketName, objectName)
+		objInfo, err := napi.HeadObject(cctx.Context, bucketName, etagName)
 		if err != nil {
 			return err
 		}
+
+		fmt.Println(FormatObjectInfo(objInfo))
 
 		if objInfo.Size == 0 {
 			return xerrors.Errorf("empty file")
@@ -372,7 +393,32 @@ var getObjectCmd = &cli.Command{
 		defer f.Close()
 
 		h := md5.New()
-		tr := etag.NewTree()
+		if len(objInfo.ETag) != md5.Size {
+
+			_, ecid, err := cid.CidFromBytes(objInfo.ETag)
+			if err != nil {
+				return err
+			}
+
+			c := &etag.Config{
+				BlockSize: build.DefaultSegSize,
+				HashType:  int(ecid.Prefix().MhType),
+			}
+
+			if objInfo.UserDefined != nil {
+				etags := objInfo.UserDefined["etag"]
+				if strings.HasPrefix(etags, "cid") {
+					etagss := strings.Split(etags, "-")
+					if len(etagss) > 1 {
+						c.BlockSize = int(utils.HumanStringLoaded(etagss[1]))
+						if c.BlockSize < 1024 {
+							c.BlockSize = build.DefaultSegSize
+						}
+					}
+				}
+			}
+			h = etag.NewTreeWithConfig(c)
+		}
 
 		stepLen := int64(build.DefaultSegSize * 16)
 		stepAccMax := 16
@@ -387,6 +433,14 @@ var getObjectCmd = &cli.Command{
 			stepLen = int64(build.DefaultSegSize * buInfo.DataCount)
 		}
 
+		doo := types.DownloadObjectOptions{
+			UserDefined: make(map[string]string),
+		}
+		doo.UserDefined["userID"] = cctx.String("userID")
+		doo.UserDefined["bucketID"] = cctx.String("bucketID")
+		doo.UserDefined["objectID"] = cctx.String("objectID")
+		doo.UserDefined["decrypt"] = cctx.String("decrypt")
+
 		startOffset := start
 		end := start + length
 		stepacc := 1
@@ -399,15 +453,8 @@ var getObjectCmd = &cli.Command{
 				readLen = end - startOffset
 			}
 
-			doo := types.DownloadObjectOptions{
-				Start:       startOffset,
-				Length:      readLen,
-				UserDefined: make(map[string]string),
-			}
-			doo.UserDefined["userID"] = cctx.String("userID")
-			doo.UserDefined["bucketID"] = cctx.String("bucketID")
-			doo.UserDefined["objectID"] = cctx.String("objectID")
-			doo.UserDefined["decrypt"] = cctx.String("decrypt")
+			doo.Start = startOffset
+			doo.Length = readLen
 
 			data, err := napi.GetObject(cctx.Context, bucketName, objectName, doo)
 			if err != nil {
@@ -415,23 +462,7 @@ var getObjectCmd = &cli.Command{
 			}
 
 			bar.Add64(readLen)
-
-			if len(objInfo.ETag) == md5.Size {
-				h.Write(data)
-			} else {
-				for start := int64(0); start < readLen; {
-					stepLen := int64(build.DefaultSegSize)
-					if start+stepLen > readLen {
-						stepLen = readLen - start
-					}
-					cid := etag.NewCidFromData(data[start : start+stepLen])
-
-					tr.AddCid(cid, uint64(stepLen))
-
-					start += stepLen
-				}
-			}
-
+			h.Write(data)
 			f.Write(data)
 
 			startOffset += readLen
@@ -440,14 +471,7 @@ var getObjectCmd = &cli.Command{
 
 		bar.Finish()
 
-		var etagb []byte
-		if len(objInfo.ETag) == md5.Size {
-			etagb = h.Sum(nil)
-		} else {
-			cidEtag := tr.Root()
-			etagb = cidEtag.Bytes()
-		}
-
+		etagb := h.Sum(nil)
 		gotEtag, err := etag.ToString(etagb)
 		if err != nil {
 			return err
@@ -460,6 +484,7 @@ var getObjectCmd = &cli.Command{
 
 		if start == 0 && length == int64(objInfo.Size) {
 			if !bytes.Equal(etagb, objInfo.ETag) {
+				fmt.Println("check your decryption key and etag method!")
 				return xerrors.Errorf("object content wrong, expect %s got %s", origEtag, gotEtag)
 			}
 		}
@@ -512,8 +537,8 @@ var delObjectCmd = &cli.Command{
 	},
 }
 
-var downloadObjectCmd = &cli.Command{
-	Name:  "downloadObject",
+var downloadCmd = &cli.Command{
+	Name:  "download",
 	Usage: "download object using rpc",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -527,8 +552,9 @@ var downloadObjectCmd = &cli.Command{
 			Usage:   "objectName",
 		},
 		&cli.StringFlag{
-			Name:  "cid",
-			Usage: "cid name",
+			Name:    "etag",
+			Aliases: []string{"cid", "md5"},
+			Usage:   "etag (cid or md5)",
 		},
 		&cli.Int64Flag{
 			Name:  "start",
@@ -552,7 +578,6 @@ var downloadObjectCmd = &cli.Command{
 			return err
 		}
 
-		cidName := cctx.String("cid")
 		path := cctx.String("path")
 
 		bar := progressbar.DefaultBytes(-1, "download:")
@@ -575,24 +600,24 @@ var downloadObjectCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		objectName := cctx.String("object")
+		etagName := cctx.String("etag")
 
-		start := cctx.Int64("start")
-		length := cctx.Int64("length")
+		form := url.Values{}
+		form.Set("bucket", bucketName)
+		form.Set("object", objectName)
+		form.Set("etag", etagName)
+		form.Set("start", strconv.FormatInt(cctx.Int64("start"), 10))
+		form.Set("length", strconv.FormatInt(cctx.Int64("length"), 10))
 
-		haddr := "http://" + addr + "/gateway/" + bucketName + "/" + objectName + "/" + strconv.FormatInt(start, 10) + "/" + strconv.FormatInt(length, 10)
-
-		if cidName != "" {
-			haddr = "http://" + addr + "/gateway/cid/" + cidName + "/" + strconv.FormatInt(start, 10) + "/" + strconv.FormatInt(length, 10)
-		} else {
-			cidName = bucketName + "/" + objectName
-		}
-
-		hreq, err := http.NewRequest("GET", haddr, nil)
+		haddr := "http://" + addr + "/gateway/download"
+		hreq, err := http.NewRequestWithContext(cctx.Context, "POST", haddr, strings.NewReader(form.Encode()))
 		if err != nil {
 			return err
 		}
 
 		hreq.Header = header.Clone()
+		hreq.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+		hreq.Header.Add("Content-Length", strconv.Itoa(len(form.Encode())))
 
 		defaultHTTPClient := &http.Client{
 			Transport: &http.Transport{
@@ -647,7 +672,245 @@ var downloadObjectCmd = &cli.Command{
 
 		bar.Finish()
 
-		fmt.Printf("object: %s is stored in: %s\n", cidName, p)
+		if etagName != "" {
+			fmt.Printf("object: %s is stored in: %s\n", etagName, p)
+		} else {
+			fmt.Printf("object: %s is stored in: %s\n", objectName, p)
+		}
+
+		return nil
+	},
+}
+
+var uploadCmd = &cli.Command{
+	Name:  "upload",
+	Usage: "upload object using rpc",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
+		},
+		&cli.StringFlag{
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
+		},
+		&cli.StringFlag{
+			Name:  "path",
+			Usage: "stored path of file",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, header, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		p, err := homedir.Expand(cctx.String("path"))
+		if err != nil {
+			return err
+		}
+
+		p, err = filepath.Abs(p)
+		if err != nil {
+			return err
+		}
+
+		pf, err := os.Open(p)
+		if err != nil {
+			return err
+		}
+		defer pf.Close()
+
+		fi, err := pf.Stat()
+		if err != nil {
+			return err
+		}
+
+		bar := progressbar.DefaultBytes(fi.Size(), "upload:")
+		pr := progressbar.NewReader(pf, bar)
+
+		bucketName := cctx.String("bucket")
+		objectName := cctx.String("object")
+
+		haddr := "http://" + addr + "/gateway/upload/" + bucketName + "/" + objectName
+		hreq, err := http.NewRequest("POST", haddr, &pr)
+		if err != nil {
+			return err
+		}
+
+		hreq.Header = header.Clone()
+
+		defaultHTTPClient := &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+					DualStack: true,
+				}).DialContext,
+				ForceAttemptHTTP2:     true,
+				WriteBufferSize:       16 << 10, // 16KiB moving up from 4KiB default
+				ReadBufferSize:        16 << 10, // 16KiB moving up from 4KiB default
+				MaxIdleConns:          100,
+				MaxIdleConnsPerHost:   100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				DisableCompression:    true,
+			},
+		}
+
+		resp, err := defaultHTTPClient.Do(hreq)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		res, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode != 200 {
+			return xerrors.Errorf("response: %s, msg: %s", resp.Status, res)
+		}
+
+		fmt.Printf("complete upload: %s to bucket: %s, object: %s\n", p, bucketName, objectName)
+
+		oi := new(types.ObjectInfo)
+		err = json.Unmarshal(res, oi)
+		if err != nil {
+			fmt.Println(err)
+			return nil
+		}
+
+		fmt.Println(FormatObjectInfo(*oi))
+
+		return nil
+	},
+}
+
+var uploadMultiCmd = &cli.Command{
+	Name:  "uploadMulti",
+	Usage: "upload object using multi part",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "bucket",
+			Aliases: []string{"bn"},
+			Usage:   "bucketName",
+		},
+		&cli.StringFlag{
+			Name:    "object",
+			Aliases: []string{"on"},
+			Usage:   "objectName",
+		},
+		&cli.StringFlag{
+			Name:  "path",
+			Usage: "stored path of file",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, header, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		p, err := homedir.Expand(cctx.String("path"))
+		if err != nil {
+			return err
+		}
+
+		p, err = filepath.Abs(p)
+		if err != nil {
+			return err
+		}
+
+		bucketName := cctx.String("bucket")
+		objectName := cctx.String("object")
+
+		ipr, ipw := io.Pipe()
+		mwriter := multipart.NewWriter(ipw)
+		go func() {
+			mwriter.WriteField("bucket", bucketName)
+			mwriter.WriteField("object", objectName)
+			defer ipw.Close()
+			defer mwriter.Close()
+
+			part, err := mwriter.CreateFormFile("file", p)
+			if err != nil {
+				return
+			}
+			pf, err := os.Open(p)
+			if err != nil {
+				return
+			}
+			defer pf.Close()
+
+			io.Copy(part, pf)
+		}()
+
+		bar := progressbar.DefaultBytes(-1, "upload:")
+		pr := progressbar.NewReader(ipr, bar)
+
+		haddr := "http://" + addr + "/gateway/upload"
+		hreq, err := http.NewRequest("POST", haddr, &pr)
+		if err != nil {
+			return err
+		}
+
+		hreq.Header = header.Clone()
+		hreq.Header.Add("Content-Type", mwriter.FormDataContentType())
+
+		defaultHTTPClient := &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+					DualStack: true,
+				}).DialContext,
+				ForceAttemptHTTP2:     true,
+				WriteBufferSize:       16 << 10, // 16KiB moving up from 4KiB default
+				ReadBufferSize:        16 << 10, // 16KiB moving up from 4KiB default
+				MaxIdleConns:          100,
+				MaxIdleConnsPerHost:   100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				DisableCompression:    true,
+			},
+		}
+
+		resp, err := defaultHTTPClient.Do(hreq)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		res, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode != 200 {
+			return xerrors.Errorf("response: %s, msg: %s", resp.Status, res)
+		}
+
+		fmt.Printf("\n")
+		fmt.Printf("complete upload: %s to bucket: %s, object: %s\n", p, bucketName, objectName)
+
+		oi := new(types.ObjectInfo)
+		err = json.Unmarshal(res, oi)
+		if err != nil {
+			fmt.Println(err)
+			return nil
+		}
+
+		fmt.Println(FormatObjectInfo(*oi))
 
 		return nil
 	},

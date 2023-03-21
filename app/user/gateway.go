@@ -30,8 +30,8 @@ import (
 
 	mclient "github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/user/mutipart"
+	metag "github.com/memoio/go-mefs-v2/lib/etag"
 	"github.com/memoio/go-mefs-v2/lib/utils"
-	metag "github.com/memoio/go-mefs-v2/lib/utils/etag"
 	miniogo "github.com/minio/minio-go/v7"
 )
 
