@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -48,9 +49,19 @@ func (sf *SimpleFs) walk(baseDir string) {
 	for _, fi := range rd {
 		if fi.IsDir() {
 			sf.walk(path.Join(baseDir, fi.Name()))
-		} else {
-			sf.size += fi.Size()
+			continue
 		}
+
+		if strings.HasSuffix(fi.Name(), ".tmp") {
+			os.Remove(fi.Name())
+			continue
+		}
+
+		if !strings.Contains(fi.Name(), "_") {
+			continue
+		}
+
+		sf.size += fi.Size()
 	}
 }
 
