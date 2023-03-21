@@ -31,6 +31,7 @@ type SimpleFs struct {
 }
 
 func NewSimpleFs(dir string) (*SimpleFs, error) {
+	logger.Infof("start simplefs at: %s", dir)
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return nil, err
@@ -44,9 +45,11 @@ func NewSimpleFs(dir string) (*SimpleFs, error) {
 	if err != nil {
 		sf.walk(dir)
 		sf.writeSize()
+	} else {
+		if len(ub) >= 8 {
+			sf.size = int64(binary.BigEndian.Uint64(ub))
+		}
 	}
-
-	sf.size = int64(binary.BigEndian.Uint64(ub))
 
 	logger.Infof("create simplefs at: %s %d", dir, sf.size)
 
@@ -115,9 +118,8 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 
 	sf.Lock()
 	sf.size += int64(len(val))
-	sf.Unlock()
-
 	sf.writeSize()
+	sf.Unlock()
 
 	return nil
 }
@@ -173,10 +175,9 @@ func (sf *SimpleFs) Delete(key []byte) error {
 	if !fi.IsDir() {
 		sf.Lock()
 		sf.size -= fi.Size()
+		sf.writeSize()
 		sf.Unlock()
 	}
-
-	sf.writeSize()
 
 	return nil
 }
@@ -202,5 +203,7 @@ func (sf *SimpleFs) writeSize() error {
 }
 
 func (sf *SimpleFs) Close() error {
+	sf.Lock()
+	defer sf.Unlock()
 	return sf.writeSize()
 }
