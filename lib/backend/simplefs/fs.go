@@ -1,9 +1,11 @@
 package simplefs
 
 import (
+	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -15,6 +17,10 @@ import (
 )
 
 var logger = logging.Logger("simplefs")
+
+type DiskUsage struct {
+	Size uint64
+}
 
 var _ store.FileStore = (*SimpleFs)(nil)
 
@@ -33,25 +39,18 @@ func NewSimpleFs(dir string) (*SimpleFs, error) {
 	sf := &SimpleFs{
 		basedir: dir,
 	}
-	sf.getSize(dir)
 
-	logger.Info("create simplefs at:", dir, sf.size)
+	ub, err := ioutil.ReadFile(filepath.Join(dir, "usage"))
+	if err != nil {
+		sf.walk(dir)
+		sf.writeSize()
+	}
+
+	sf.size = int64(binary.BigEndian.Uint64(ub))
+
+	logger.Infof("create simplefs at: %s %d", dir, sf.size)
 
 	return sf, nil
-}
-
-func (sf *SimpleFs) getSize(baseDir string) {
-	rd, err := ioutil.ReadDir(baseDir)
-	if err != nil {
-		return
-	}
-
-	for _, fi := range rd {
-		if fi.IsDir() {
-			sf.size += fi.Size()
-			continue
-		}
-	}
 }
 
 func (sf *SimpleFs) walk(baseDir string) {
@@ -118,6 +117,8 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 	sf.size += int64(len(val))
 	sf.Unlock()
 
+	sf.writeSize()
+
 	return nil
 }
 
@@ -175,6 +176,8 @@ func (sf *SimpleFs) Delete(key []byte) error {
 		sf.Unlock()
 	}
 
+	sf.writeSize()
+
 	return nil
 }
 
@@ -191,6 +194,13 @@ func (sf *SimpleFs) Size() store.DiskStats {
 	return ds
 }
 
+func (sf *SimpleFs) writeSize() error {
+	ub := make([]byte, 8)
+	binary.BigEndian.PutUint64(ub, uint64(sf.size))
+
+	return ioutil.WriteFile(filepath.Join(sf.basedir, "usage"), ub, 0644)
+}
+
 func (sf *SimpleFs) Close() error {
-	return nil
+	return sf.writeSize()
 }
