@@ -25,7 +25,7 @@ import (
 var logger = logging.Logger("data-service")
 
 type stat struct {
-	sync.Locker
+	sync.Mutex
 
 	cnt   uint64
 	total time.Duration
