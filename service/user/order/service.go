@@ -199,8 +199,35 @@ func (m *OrderMgr) load() error {
 				continue
 			}
 			size += si.Size
+
+			popi := new(types.OrderPayInfo)
+			key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, pid)
+			val, err := m.ds.Get(key)
+			if err == nil {
+				popi.Deserialize(val)
+			}
+
+			if popi.OnChainSize < si.Size || popi.ConfirmSize == 0 {
+				popi.OnChainSize = si.Size
+				if popi.ConfirmSize == 0 {
+					popi.ConfirmSize = si.Size
+				}
+				if popi.OnChainSize == popi.Size {
+					popi.Paid.Set(popi.NeedPay)
+				}
+
+				key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, pid)
+				val, _ := popi.Serialize()
+				m.ds.Put(key, val)
+			}
 		}
 		m.opi.OnChainSize = size
+		if m.opi.OnChainSize == m.opi.Size {
+			m.opi.Paid.Set(m.opi.NeedPay)
+		}
+		key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+		val, _ = m.opi.Serialize()
+		m.ds.Put(key, val)
 	}
 
 	key = store.NewKey(pb.MetaType_OrderProsKey, m.localID)
