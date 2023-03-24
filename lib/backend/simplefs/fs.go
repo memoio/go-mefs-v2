@@ -18,10 +18,6 @@ import (
 
 var logger = logging.Logger("simplefs")
 
-type DiskUsage struct {
-	Size uint64
-}
-
 var _ store.FileStore = (*SimpleFs)(nil)
 
 type SimpleFs struct {

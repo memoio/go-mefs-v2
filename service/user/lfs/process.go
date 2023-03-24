@@ -236,7 +236,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		for i := 0; i < (dp.dataCount + dp.parityCount); i++ {
 			segID.SetChunkID(uint32(i))
 
-			seg := segment.NewBaseSegment(encodedData[i], segID)
+			seg := segment.NewBaseSegment(segID, encodedData[i])
 
 			segData, err := seg.Content()
 			if err != nil {
