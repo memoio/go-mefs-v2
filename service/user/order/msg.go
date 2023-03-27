@@ -441,7 +441,7 @@ func (m *OrderMgr) updateSize(seq types.OrderSeq) {
 	}
 
 	m.lk.RLock()
-	of, ok := m.orders[seq.UserID]
+	of, ok := m.orders[seq.ProID]
 	m.lk.RUnlock()
 	if ok {
 		of.opi.ConfirmSize += size
@@ -807,6 +807,24 @@ func (m *OrderMgr) submitOrders() error {
 		if si.Nonce >= ns.Nonce {
 			continue
 		}
+
+		// adjust size and paid
+		m.sizelk.Lock()
+		m.lk.RLock()
+		po, ok := m.orders[proID]
+		m.lk.RUnlock()
+		if ok && po.opi.OnChainSize < si.Size {
+			subSize := si.Size - po.opi.OnChainSize
+			subP := new(big.Int).Sub(po.opi.NeedPay, po.opi.Paid)
+
+			po.opi.OnChainSize = si.Size
+			po.opi.Paid.Set(po.opi.NeedPay)
+
+			m.opi.OnChainSize += subSize
+			m.opi.Paid.Add(m.opi.Paid, subP)
+		}
+		m.sizelk.Unlock()
+
 		logger.Debugf("addOrder user %d pro %d nonce %d", m.localID, proID, si.Nonce)
 
 		// get orderFull from state db
@@ -833,31 +851,38 @@ func (m *OrderMgr) submitOrders() error {
 			err = m.is.SettleAddOrder(m.ctx, of)
 			if err != nil {
 				logger.Debug("addOrder fail to add order ", m.localID, of.ProID, err)
-			} else {
-				pay := new(big.Int).SetInt64(of.End - of.Start)
-				pay.Mul(pay, of.Price)
-
-				m.sizelk.Lock()
-
-				m.opi.Paid.Add(m.opi.Paid, pay)
-				m.opi.OnChainSize += of.Size
-
-				key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
-				val, _ := m.opi.Serialize()
-				m.ds.Put(key, val)
-
-				m.lk.RLock()
-				po, ok := m.orders[of.ProID]
-				m.lk.RUnlock()
-				if ok {
-					po.opi.OnChainSize += of.Size
-					po.opi.Paid.Add(po.opi.Paid, pay)
-					key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, of.ProID)
-					val, _ = po.opi.Serialize()
-					m.ds.Put(key, val)
-				}
-				m.sizelk.Unlock()
+				return
 			}
+
+			pay := new(big.Int).SetInt64(of.End - of.Start)
+			pay.Mul(pay, of.Price)
+
+			m.sizelk.Lock()
+
+			m.opi.Paid.Add(m.opi.Paid, pay)
+			if m.opi.Paid.Cmp(m.opi.NeedPay) > 0 {
+				m.opi.Paid.Set(m.opi.NeedPay)
+			}
+			m.opi.OnChainSize += of.Size
+
+			key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+			val, _ := m.opi.Serialize()
+			m.ds.Put(key, val)
+
+			m.lk.RLock()
+			po, ok := m.orders[of.ProID]
+			m.lk.RUnlock()
+			if ok {
+				po.opi.OnChainSize += of.Size
+				po.opi.Paid.Add(po.opi.Paid, pay)
+				if po.opi.Paid.Cmp(po.opi.NeedPay) > 0 {
+					po.opi.Paid.Set(po.opi.NeedPay)
+				}
+				key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, of.ProID)
+				val, _ = po.opi.Serialize()
+				m.ds.Put(key, val)
+			}
+			m.sizelk.Unlock()
 		}(&tof.SignedOrder, i)
 	}
 	wg.Wait()

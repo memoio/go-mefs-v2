@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/binary"
 	"math/big"
+	"sync"
+	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/xerrors"
@@ -22,6 +24,56 @@ import (
 
 var logger = logging.Logger("data-service")
 
+type stat struct {
+	sync.Mutex
+
+	cnt   uint64
+	total time.Duration
+	times [100]time.Duration
+
+	average int64
+	pCnt    uint32
+}
+
+func (s *stat) add() {
+	s.Lock()
+	defer s.Unlock()
+	s.pCnt++
+}
+
+func (s *stat) sub() {
+	s.Lock()
+	defer s.Unlock()
+	s.pCnt--
+}
+
+func (s *stat) addDurtion(d time.Duration) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.total += d
+	s.total -= s.times[s.cnt%100]
+	s.average = (s.total / time.Duration(100)).Milliseconds()
+	s.times[s.cnt%100] = d
+	s.cnt++
+}
+
+// wait 10 ms for low priority if
+// 1. more than 16 reads/writes
+// 2. average read latency larger than 10ms
+func (s *stat) wait() {
+	logger.Debug("background read wait: ", s.pCnt, s.average)
+	wait := 0
+	for wait < 10 {
+		if s.pCnt <= 16 && s.average <= 10 {
+			return
+		}
+
+		time.Sleep(time.Millisecond)
+		wait++
+	}
+}
+
 type dataService struct {
 	api.INetService // net for send
 	api.IRole
@@ -32,6 +84,8 @@ type dataService struct {
 	cache *lru.ARCCache
 
 	is readpay.ISender
+
+	st *stat
 }
 
 func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.IRole, is readpay.ISender) *dataService {
@@ -46,6 +100,7 @@ func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.
 		ds:          ds,
 		segStore:    ss,
 		cache:       cache,
+		st:          new(stat),
 	}
 
 	return d
@@ -58,6 +113,12 @@ func (d *dataService) API() *dataAPI {
 func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment) error {
 	logger.Debug("put segment to local: ", seg.SegmentID())
 	d.cache.Add(seg.SegmentID(), seg)
+
+	d.st.add()
+	defer func() {
+		d.st.sub()
+	}()
+
 	return d.segStore.Put(seg)
 }
 
@@ -68,7 +129,32 @@ func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.Segme
 		logger.Debugf("cache has segment: %s", sid.String())
 		return val.(*segment.BaseSegment), nil
 	}
-	return d.segStore.Get(sid)
+
+	return d.getSegment(ctx, sid)
+}
+
+func (d *dataService) getSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
+	logger.Debug("get segment from local store: ", sid)
+
+	d.st.add()
+	defer func() {
+		d.st.sub()
+	}()
+
+	// backgroup read limit;
+	// 1~2TB/day if read speed is slow
+	if ctx.Value("Priority") != "" {
+		d.st.wait()
+	}
+
+	nt := time.Now()
+	seg, err := d.segStore.Get(sid)
+	if err != nil {
+		return nil, err
+	}
+	d.st.addDurtion(time.Since(nt))
+
+	return seg, nil
 }
 
 func (d *dataService) HasSegment(ctx context.Context, sid segment.SegmentID) (bool, error) {

@@ -63,7 +63,7 @@ type BaseSegment struct {
 	data  []byte
 }
 
-func NewBaseSegment(data []byte, segID SegmentID) Segment {
+func NewBaseSegment(segID SegmentID, data []byte) Segment {
 	return &BaseSegment{
 		data:  data,
 		segID: segID,

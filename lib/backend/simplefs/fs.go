@@ -1,9 +1,12 @@
 package simplefs
 
 import (
+	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -24,6 +27,7 @@ type SimpleFs struct {
 }
 
 func NewSimpleFs(dir string) (*SimpleFs, error) {
+	logger.Infof("start simplefs at: %s", dir)
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return nil, err
@@ -32,9 +36,18 @@ func NewSimpleFs(dir string) (*SimpleFs, error) {
 	sf := &SimpleFs{
 		basedir: dir,
 	}
-	sf.walk(dir)
 
-	logger.Info("create simplefs at:", dir, sf.size)
+	ub, err := ioutil.ReadFile(filepath.Join(dir, "usage"))
+	if err != nil {
+		sf.walk(dir)
+		sf.writeSize()
+	} else {
+		if len(ub) >= 8 {
+			sf.size = int64(binary.BigEndian.Uint64(ub))
+		}
+	}
+
+	logger.Infof("create simplefs at: %s %d", dir, sf.size)
 
 	return sf, nil
 }
@@ -48,9 +61,19 @@ func (sf *SimpleFs) walk(baseDir string) {
 	for _, fi := range rd {
 		if fi.IsDir() {
 			sf.walk(path.Join(baseDir, fi.Name()))
-		} else {
-			sf.size += fi.Size()
+			continue
 		}
+
+		if strings.HasSuffix(fi.Name(), ".tmp") {
+			os.Remove(fi.Name())
+			continue
+		}
+
+		if !strings.Contains(fi.Name(), "_") {
+			continue
+		}
+
+		sf.size += fi.Size()
 	}
 }
 
@@ -91,6 +114,7 @@ func (sf *SimpleFs) Put(key, val []byte) error {
 
 	sf.Lock()
 	sf.size += int64(len(val))
+	sf.writeSize()
 	sf.Unlock()
 
 	return nil
@@ -147,6 +171,7 @@ func (sf *SimpleFs) Delete(key []byte) error {
 	if !fi.IsDir() {
 		sf.Lock()
 		sf.size -= fi.Size()
+		sf.writeSize()
 		sf.Unlock()
 	}
 
@@ -166,6 +191,15 @@ func (sf *SimpleFs) Size() store.DiskStats {
 	return ds
 }
 
+func (sf *SimpleFs) writeSize() error {
+	ub := make([]byte, 8)
+	binary.BigEndian.PutUint64(ub, uint64(sf.size))
+
+	return ioutil.WriteFile(filepath.Join(sf.basedir, "usage"), ub, 0644)
+}
+
 func (sf *SimpleFs) Close() error {
-	return nil
+	sf.Lock()
+	defer sf.Unlock()
+	return sf.writeSize()
 }

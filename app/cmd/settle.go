@@ -139,9 +139,9 @@ var pledgeWithdrawCmd = &cli.Command{
 			pi.Value.Set(val)
 		}
 
-		fmt.Println("Withdraw: ", types.FormatMemo(pi.Value))
+		fmt.Println("Withdraw: ", types.FormatMemo(pi.Last))
 
-		err = api.SettlePledgeWithdraw(cctx.Context, pi.Value)
+		err = api.SettlePledgeWithdraw(cctx.Context, pi.Last)
 		if err != nil {
 			return err
 		}

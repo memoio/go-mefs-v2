@@ -144,7 +144,7 @@ func (n *BaseNode) StartLocal() error {
 	n.GenericService.Register(pb.NetMessage_SayHello, n.DefaultHandler)
 	n.MsgHandle.Register(pb.NetMessage_Get, n.HandleGet)
 
-	n.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
+	n.HttpHandle.Handle("/debug/metrics", metrics.NewExporter())
 	n.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 	return nil
 }

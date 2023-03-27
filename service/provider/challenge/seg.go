@@ -424,7 +424,8 @@ func (s *SegMgr) challenge(userID uint64) {
 
 						sid.SetStripeID(j)
 
-						segm, err := s.GetSegmentFromLocal(context.TODO(), sid)
+						ctx := context.WithValue(s.ctx, "Priority", "low")
+						segm, err := s.GetSegmentFromLocal(ctx, sid)
 						if err != nil {
 							logger.Debug("challenge not have chunk for stripe: ", userID, sid)
 							fault.Push(&types.AggSegs{
@@ -436,8 +437,6 @@ func (s *SegMgr) challenge(userID uint64) {
 							s.DeleteSegment(s.ctx, sid)
 							continue
 						}
-						// backgroup read limit
-						time.Sleep(10 * time.Millisecond)
 
 						segData, _ := segm.Content()
 						segTag, _ := segm.Tags()
@@ -543,7 +542,8 @@ func (s *SegMgr) challenge(userID uint64) {
 
 						sid.SetStripeID(j)
 
-						segm, err := s.GetSegmentFromLocal(context.TODO(), sid)
+						ctx := context.WithValue(s.ctx, "Priority", "low")
+						segm, err := s.GetSegmentFromLocal(ctx, sid)
 						if err != nil {
 							logger.Debug("challenge not have chunk for stripe: ", userID, sid)
 							fault.Push(&types.AggSegs{
@@ -554,9 +554,6 @@ func (s *SegMgr) challenge(userID uint64) {
 							})
 							continue
 						}
-
-						// backgroup read limit
-						time.Sleep(10 * time.Millisecond)
 
 						segData, err := segm.Content()
 						if err != nil {
