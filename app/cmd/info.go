@@ -387,14 +387,14 @@ var infoCmd = &cli.Command{
 		}
 
 		fmt.Println(ansi.Color("----------- Local Information -----------", "green"))
-		lm, err := api.LocalStoreGetMeta(cctx.Context)
+		lm, err := api.LocalStoreGetStat(cctx.Context, "kv")
 		if err != nil {
 			return err
 		}
 
 		fmt.Printf("Meta Usage: path %s, used %s, free %s\n", lm.Path, types.FormatBytes(lm.Used), types.FormatBytes(lm.Free))
 
-		dm, err := api.LocalStoreGetData(cctx.Context)
+		dm, err := api.LocalStoreGetStat(cctx.Context, "data")
 		if err != nil {
 			return err
 		}

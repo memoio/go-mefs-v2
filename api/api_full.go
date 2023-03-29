@@ -71,8 +71,8 @@ type IConfig interface {
 }
 
 type ILocalStore interface {
-	LocalStoreGetMeta(context.Context) (store.DiskStats, error)
-	LocalStoreGetData(context.Context) (store.DiskStats, error)
+	LocalStoreGetKey(context.Context, string, []byte) ([]byte, error)
+	LocalStoreGetStat(context.Context, string) (store.DiskStats, error)
 }
 
 // wallet ops
@@ -261,9 +261,7 @@ type IOrder interface {
 	OrderGetJobInfoAt(context.Context, uint64) (*OrderJobInfo, error)
 	OrderGetPayInfo(context.Context) ([]*types.OrderPayInfo, error)
 	OrderGetPayInfoAt(context.Context, uint64) (*types.OrderPayInfo, error)
-	OrderGetProsAt(context.Context, uint64) ([]uint64, error)
-
-	OrderGetDetail(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error)
+	OrderGetProsAt(context.Context, uint64) (*ProsInBucket, error)
 }
 
 type IRestrict interface {

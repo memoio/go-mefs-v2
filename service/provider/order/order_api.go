@@ -5,9 +5,7 @@ import (
 	"math/big"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
 
 	"golang.org/x/xerrors"
 )
@@ -58,23 +56,6 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, userID uint64) (*api.Ord
 	}
 
 	return nil, xerrors.Errorf("not found")
-}
-
-func (m *OrderMgr) OrderGetDetail(ctx context.Context, userID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
-
-	key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, userID, nonce, seqNum)
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return nil, err
-	}
-
-	sos := new(types.SignedOrderSeq)
-	err = sos.Deserialize(val)
-	if err != nil {
-		return nil, err
-	}
-
-	return sos, nil
 }
 
 func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.OrderPayInfo, error) {
@@ -132,7 +113,7 @@ func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, 
 	return res, nil
 }
 
-func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) ([]uint64, error) {
+func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) (*api.ProsInBucket, error) {
 
 	return nil, xerrors.Errorf("unimplemented")
 }

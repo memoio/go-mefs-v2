@@ -550,16 +550,32 @@ func (r *FSRepo) SetAPIToken(token []byte) error {
 	return ioutil.WriteFile(filepath.Join(r.path, "token"), token, 0600)
 }
 
-func (r *FSRepo) LocalStoreGetMeta(ctx context.Context) (store.DiskStats, error) {
-	mds := r.metaDs.Size()
-	sds := r.stateDs.Size()
-	sds.Used += mds.Used
-	sds.Path = r.path
-	return sds, nil
+func (r *FSRepo) LocalStoreGetStat(ctx context.Context, s string) (store.DiskStats, error) {
+	switch s {
+	case "state":
+		return r.stateDs.Size(), nil
+	case "meta":
+		return r.metaDs.Size(), nil
+	case "data":
+		return r.fileDs.Size(), nil
+	case "kv":
+		mds := r.metaDs.Size()
+		sds := r.stateDs.Size()
+		sds.Used += mds.Used
+		sds.Path = r.path
+		return sds, nil
+	}
+	return store.DiskStats{}, xerrors.Errorf("unsupported store type")
 }
 
-func (r *FSRepo) LocalStoreGetData(ctx context.Context) (store.DiskStats, error) {
-	return r.fileDs.Size(), nil
+func (r *FSRepo) LocalStoreGetKey(ctx context.Context, typ string, key []byte) ([]byte, error) {
+	switch typ {
+	case "meta":
+		return r.metaDs.Get(key)
+	case "state":
+		return r.stateDs.Get(key)
+	}
+	return nil, xerrors.Errorf("unsupported store type")
 }
 
 func (r *FSRepo) Repo() Repo {

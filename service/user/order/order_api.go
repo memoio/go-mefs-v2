@@ -5,9 +5,7 @@ import (
 	"math/big"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
 
 	"golang.org/x/xerrors"
 )
@@ -75,23 +73,6 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 	return nil, xerrors.Errorf("not found")
 }
 
-func (m *OrderMgr) OrderGetDetail(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
-
-	key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, proID, nonce, seqNum)
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return nil, err
-	}
-
-	sos := new(types.SignedOrderSeq)
-	err = sos.Deserialize(val)
-	if err != nil {
-		return nil, err
-	}
-
-	return sos, nil
-}
-
 func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.OrderPayInfo, error) {
 	m.sizelk.RLock()
 	defer m.sizelk.RUnlock()
@@ -149,14 +130,23 @@ func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, 
 	return res, nil
 }
 
-func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) ([]uint64, error) {
+func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) (*api.ProsInBucket, error) {
 	lp, ok := m.proMap[bid]
 	if ok {
 		lp.lk.RLock()
 		defer lp.lk.RUnlock()
-		res := make([]uint64, 0, len(lp.pros))
-		res = append(res, lp.pros...)
-		return lp.pros, nil
+		ppb := &api.ProsInBucket{
+			InUse:       make([]uint64, 0, len(lp.pros)),
+			Deleted:     make([]uint64, 0, len(lp.deleted)),
+			DelPerChunk: make([][]uint64, len(lp.delPerChunk)),
+		}
+		ppb.InUse = append(ppb.InUse, lp.pros...)
+		ppb.Deleted = append(ppb.Deleted, lp.deleted...)
+		for i := 0; i < len(lp.delPerChunk); i++ {
+			ppb.DelPerChunk[i] = make([]uint64, 0, len(lp.delPerChunk[i]))
+			ppb.DelPerChunk[i] = append(ppb.DelPerChunk[i], lp.delPerChunk[i]...)
+		}
+		return ppb, nil
 	}
 
 	return nil, xerrors.Errorf("no such bucket")

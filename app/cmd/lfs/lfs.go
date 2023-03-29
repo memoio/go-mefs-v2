@@ -323,12 +323,12 @@ var orderGetProsCmd = &cli.Command{
 		}
 		defer closer()
 
-		pros, err := api.OrderGetProsAt(cctx.Context, bid)
+		ppb, err := api.OrderGetProsAt(cctx.Context, bid)
 		if err != nil {
 			return err
 		}
 
-		fmt.Println("bucket", bid, "select providers: ", pros)
+		fmt.Println("bucket", bid, "providers:", ppb.InUse, ", deleted:", ppb.Deleted, ", deleted at each chunk:", ppb.DelPerChunk)
 
 		return nil
 	},

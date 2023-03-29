@@ -10,7 +10,11 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
+	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/memoio/go-mefs-v2/lib/utils"
+	"github.com/memoio/go-mefs-v2/service/user/order"
 	"github.com/modood/table"
 
 	"github.com/urfave/cli/v2"
@@ -24,8 +28,13 @@ var OrderCmd = &cli.Command{
 		orderListJobCmd,
 		orderListPayCmd,
 		orderGetCmd,
-		orderDetailCmd,
 		orderListProvidersCmd,
+
+		orderBaseCmd,
+		orderSeqCmd,
+
+		stateBaseCmd,
+		stateSeqCmd,
 	},
 }
 
@@ -306,9 +315,97 @@ var orderGetCmd = &cli.Command{
 	},
 }
 
-var orderDetailCmd = &cli.Command{
-	Name:      "detail",
-	Usage:     "get detail order seq info of one provider",
+var orderBaseCmd = &cli.Command{
+	Name:      "base",
+	Usage:     "get provider's order base info in local",
+	ArgsUsage: "[provider index required] [order nonce]",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 2 {
+			return xerrors.Errorf("need two parameters")
+		}
+
+		pid, err := strconv.ParseUint(cctx.Args().First(), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'pro indec' argument: %w", err)
+		}
+
+		nc, err := strconv.ParseUint(cctx.Args().Get(1), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'nonce' argument: %w", err)
+		}
+
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		pri, err := api.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		key := store.NewKey(pb.MetaType_OrderNonceKey, pri.RoleID, pid, nc)
+		val, err := api.LocalStoreGetKey(cctx.Context, "meta", key)
+		if err != nil {
+			return err
+		}
+
+		ns := new(order.NonceState)
+		err = ns.Deserialize(val)
+		if err != nil {
+			return err
+		}
+
+		key = store.NewKey(pb.MetaType_OrderSeqNumKey, pri.RoleID, pid, nc)
+		val, err = api.LocalStoreGetKey(cctx.Context, "meta", key)
+		if err != nil {
+			return err
+		}
+
+		ss := new(order.SeqState)
+		err = ss.Deserialize(val)
+		if err != nil {
+			return err
+		}
+
+		key = store.NewKey(pb.MetaType_OrderBaseKey, pri.RoleID, pid, nc)
+		val, err = api.LocalStoreGetKey(cctx.Context, "meta", key)
+		if err != nil {
+			return err
+		}
+
+		oi := new(types.SignedOrder)
+		err = oi.Deserialize(val)
+		if err != nil {
+			return err
+		}
+
+		type outPutInfo struct {
+			UserID uint64
+			ProID  uint64
+			Nonce  uint64
+			Size   uint64
+			State  string
+			SeqNum uint32
+			SState string
+		}
+
+		tmp := []outPutInfo{{oi.UserID, oi.ProID, oi.Nonce, oi.Size, string(ns.State), ss.Number, string(ss.State)}}
+		table.Output(tmp)
+		return nil
+	},
+}
+
+var orderSeqCmd = &cli.Command{
+	Name:      "seq",
+	Usage:     "get provider's order seq info in local",
 	ArgsUsage: "[provider index required] [order nonce] [seq number]",
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 3 {
@@ -342,12 +439,25 @@ var orderDetailCmd = &cli.Command{
 		}
 		defer closer()
 
-		oi, err := api.OrderGetDetail(cctx.Context, pid, nc, uint32(sn))
+		pri, err := api.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		key := store.NewKey(pb.MetaType_OrderSeqKey, pri.RoleID, pid, nc, uint32(sn))
+		val, err := api.LocalStoreGetKey(cctx.Context, "meta", key)
+		if err != nil {
+			return err
+		}
+
+		oi := new(types.SignedOrderSeq)
+		err = oi.Deserialize(val)
 		if err != nil {
 			return err
 		}
 
 		type outPutInfo struct {
+			UserID     uint64
 			ProID      uint64
 			Nonce      uint64
 			SeqNum     uint32
@@ -355,7 +465,126 @@ var orderDetailCmd = &cli.Command{
 			SegmentNum int
 		}
 
-		tmp := []outPutInfo{{oi.ProID, oi.Nonce, oi.SeqNum, oi.Size, oi.Segments.Len()}}
+		tmp := []outPutInfo{{oi.UserID, oi.ProID, oi.Nonce, oi.SeqNum, oi.Size, oi.Segments.Len()}}
+		table.Output(tmp)
+		table.Output(oi.Segments)
+
+		return nil
+	},
+}
+
+var stateBaseCmd = &cli.Command{
+	Name:      "sbase",
+	Usage:     "get provider's order base info in state",
+	ArgsUsage: "[provider index required] [order nonce]",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 2 {
+			return xerrors.Errorf("need two parameters")
+		}
+
+		pid, err := strconv.ParseUint(cctx.Args().First(), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'pro indec' argument: %w", err)
+		}
+
+		nc, err := strconv.ParseUint(cctx.Args().Get(1), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'nonce' argument: %w", err)
+		}
+
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		pri, err := api.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		oi, err := api.StateGetOrder(cctx.Context, pri.RoleID, pid, nc)
+		if err != nil {
+			return err
+		}
+
+		type outPutInfo struct {
+			UserID uint64
+			ProID  uint64
+			Nonce  uint64
+			SeqNum uint32
+			Size   uint64
+		}
+
+		tmp := []outPutInfo{{oi.UserID, oi.ProID, oi.Nonce, oi.SeqNum, oi.Size}}
+		table.Output(tmp)
+
+		return nil
+	},
+}
+
+var stateSeqCmd = &cli.Command{
+	Name:      "sseq",
+	Usage:     "get provider's seq info in state",
+	ArgsUsage: "[provider index required] [order nonce] [seq number]",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 3 {
+			return xerrors.Errorf("need three parameters")
+		}
+
+		pid, err := strconv.ParseUint(cctx.Args().First(), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'pro indec' argument: %w", err)
+		}
+
+		nc, err := strconv.ParseUint(cctx.Args().Get(1), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'nonce' argument: %w", err)
+		}
+
+		sn, err := strconv.ParseUint(cctx.Args().Get(2), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'seq number' argument: %w", err)
+		}
+
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		pri, err := api.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		oi, err := api.StateGetOrderSeq(cctx.Context, pri.RoleID, pid, nc, uint32(sn))
+		if err != nil {
+			return err
+		}
+
+		type outPutInfo struct {
+			UserID     uint64
+			ProID      uint64
+			Nonce      uint64
+			SeqNum     uint32
+			Size       uint64
+			SegmentNum int
+		}
+
+		tmp := []outPutInfo{{oi.UserID, oi.ProID, oi.Nonce, oi.SeqNum, oi.Size, oi.Segments.Len()}}
 		table.Output(tmp)
 		table.Output(oi.Segments)
 

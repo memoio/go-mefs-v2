@@ -28,8 +28,8 @@ type CommonStruct struct {
 		ConfigSet func(context.Context, string, string) error        `perm:"write"`
 		ConfigGet func(context.Context, string) (interface{}, error) `perm:"read"`
 
-		LocalStoreGetMeta func(context.Context) (store.DiskStats, error) `perm:"read"`
-		LocalStoreGetData func(context.Context) (store.DiskStats, error) `perm:"read"`
+		LocalStoreGetKey  func(context.Context, string, []byte) ([]byte, error)  `perm:"read"`
+		LocalStoreGetStat func(context.Context, string) (store.DiskStats, error) `perm:"read"`
 
 		WalletNew    func(context.Context, types.KeyType) (address.Address, error)          `perm:"write"`
 		WalletSign   func(context.Context, address.Address, []byte) ([]byte, error)         `perm:"sign"`
@@ -152,12 +152,12 @@ func (s *CommonStruct) ConfigGet(ctx context.Context, key string) (interface{}, 
 	return s.Internal.ConfigGet(ctx, key)
 }
 
-func (s *CommonStruct) LocalStoreGetMeta(ctx context.Context) (store.DiskStats, error) {
-	return s.Internal.LocalStoreGetMeta(ctx)
+func (s *CommonStruct) LocalStoreGetKey(ctx context.Context, str string, key []byte) ([]byte, error) {
+	return s.Internal.LocalStoreGetKey(ctx, str, key)
 }
 
-func (s *CommonStruct) LocalStoreGetData(ctx context.Context) (store.DiskStats, error) {
-	return s.Internal.LocalStoreGetData(ctx)
+func (s *CommonStruct) LocalStoreGetStat(ctx context.Context, str string) (store.DiskStats, error) {
+	return s.Internal.LocalStoreGetStat(ctx, str)
 }
 
 func (s *CommonStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
@@ -492,9 +492,7 @@ type ProviderNodeStruct struct {
 		OrderGetJobInfoAt func(ctx context.Context, proID uint64) (*OrderJobInfo, error) `perm:"read"`
 		OrderGetPayInfo   func(context.Context) ([]*types.OrderPayInfo, error)           `perm:"read"`
 		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
-		OrderGetProsAt    func(context.Context, uint64) ([]uint64, error)                `perm:"read"`
-
-		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
+		OrderGetProsAt    func(context.Context, uint64) (*ProsInBucket, error)           `perm:"read"`
 
 		RestrictStat   func(context.Context) (bool, error)     `perm:"read"`
 		RestrictEnable func(context.Context, bool) error       `perm:"write"`
@@ -521,16 +519,12 @@ func (s *ProviderNodeStruct) OrderGetPayInfoAt(ctx context.Context, proID uint64
 	return s.Internal.OrderGetPayInfoAt(ctx, proID)
 }
 
-func (s *ProviderNodeStruct) OrderGetProsAt(ctx context.Context, bID uint64) ([]uint64, error) {
+func (s *ProviderNodeStruct) OrderGetProsAt(ctx context.Context, bID uint64) (*ProsInBucket, error) {
 	return s.Internal.OrderGetProsAt(ctx, bID)
 }
 
 func (s *ProviderNodeStruct) OrderList(ctx context.Context) ([]uint64, error) {
 	return s.Internal.OrderList(ctx)
-}
-
-func (s *ProviderNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
-	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
 }
 
 func (s *ProviderNodeStruct) RestrictStat(ctx context.Context) (bool, error) {
@@ -580,9 +574,7 @@ type UserNodeStruct struct {
 		OrderGetJobInfoAt func(ctx context.Context, proID uint64) (*OrderJobInfo, error) `perm:"read"`
 		OrderGetPayInfo   func(context.Context) ([]*types.OrderPayInfo, error)           `perm:"read"`
 		OrderGetPayInfoAt func(context.Context, uint64) (*types.OrderPayInfo, error)     `perm:"read"`
-		OrderGetProsAt    func(context.Context, uint64) ([]uint64, error)                `perm:"read"`
-
-		OrderGetDetail func(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) `perm:"read"`
+		OrderGetProsAt    func(context.Context, uint64) (*ProsInBucket, error)           `perm:"read"`
 
 		RestrictStat   func(context.Context) (bool, error)     `perm:"read"`
 		RestrictEnable func(context.Context, bool) error       `perm:"write"`
@@ -661,12 +653,8 @@ func (s *UserNodeStruct) OrderGetPayInfoAt(ctx context.Context, proID uint64) (*
 	return s.Internal.OrderGetPayInfoAt(ctx, proID)
 }
 
-func (s *UserNodeStruct) OrderGetProsAt(ctx context.Context, proID uint64) ([]uint64, error) {
+func (s *UserNodeStruct) OrderGetProsAt(ctx context.Context, proID uint64) (*ProsInBucket, error) {
 	return s.Internal.OrderGetProsAt(ctx, proID)
-}
-
-func (s *UserNodeStruct) OrderGetDetail(ctx context.Context, id, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
-	return s.Internal.OrderGetDetail(ctx, id, nonce, seqNum)
 }
 
 func (s *UserNodeStruct) RestrictStat(ctx context.Context) (bool, error) {
