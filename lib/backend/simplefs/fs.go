@@ -20,6 +20,8 @@ var logger = logging.Logger("simplefs")
 
 var _ store.FileStore = (*SimpleFs)(nil)
 
+const usage = "usage"
+
 type SimpleFs struct {
 	sync.RWMutex
 	size    int64
@@ -37,14 +39,13 @@ func NewSimpleFs(dir string) (*SimpleFs, error) {
 		basedir: dir,
 	}
 
-	ub, err := ioutil.ReadFile(filepath.Join(dir, "usage"))
-	if err != nil {
+	ub, err := ioutil.ReadFile(filepath.Join(dir, usage))
+	if err == nil && len(ub) >= 8 {
+		sf.size = int64(binary.BigEndian.Uint64(ub))
+	} else {
+		logger.Infof("calculate usage by walking simplefs: %s", dir)
 		sf.walk(dir)
 		sf.writeSize()
-	} else {
-		if len(ub) >= 8 {
-			sf.size = int64(binary.BigEndian.Uint64(ub))
-		}
 	}
 
 	logger.Infof("create simplefs at: %s %d", dir, sf.size)
@@ -180,12 +181,8 @@ func (sf *SimpleFs) Delete(key []byte) error {
 
 func (sf *SimpleFs) Size() store.DiskStats {
 	ds, _ := utils.GetDiskStatus(sf.basedir)
-	if sf.size > 0 {
-		sf.RLock()
+	if sf.size >= 0 {
 		ds.Used = uint64(sf.size)
-		sf.RUnlock()
-	} else {
-		ds.Used = 0
 	}
 
 	return ds
@@ -195,7 +192,7 @@ func (sf *SimpleFs) writeSize() error {
 	ub := make([]byte, 8)
 	binary.BigEndian.PutUint64(ub, uint64(sf.size))
 
-	return ioutil.WriteFile(filepath.Join(sf.basedir, "usage"), ub, 0644)
+	return ioutil.WriteFile(filepath.Join(sf.basedir, usage), ub, 0644)
 }
 
 func (sf *SimpleFs) Close() error {
