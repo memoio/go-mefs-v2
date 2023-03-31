@@ -571,7 +571,13 @@ func (r *FSRepo) LocalStoreGetStat(ctx context.Context, s string) (store.DiskSta
 func (r *FSRepo) LocalStoreGetKey(ctx context.Context, typ string, key []byte) ([]byte, error) {
 	switch typ {
 	case "meta":
-		return r.metaDs.Get(key)
+		res, err := r.metaDs.Get(key)
+		if err != nil {
+			return nil, err
+		}
+
+		logger.Debugf("%s value has length: %d", string(key), len(res))
+		return res, nil
 	case "state":
 		return r.stateDs.Get(key)
 	}

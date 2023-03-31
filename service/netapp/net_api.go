@@ -98,7 +98,7 @@ func (c *NetServiceImpl) SendMetaRequest(ctx context.Context, id uint64, typ pb.
 					c.lk.Lock()
 					c.wants[id] = time.Now()
 					c.lk.Unlock()
-					c.FindPeerID(ctx, id)
+					go c.FindPeerID(ctx, id)
 				}
 
 				time.Sleep(1 * time.Second)

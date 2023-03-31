@@ -16,6 +16,38 @@ type SegJob struct {
 	ChunkID  uint32
 }
 
+/*
+func (sj *SegJob) Serialize() ([]byte, error) {
+	buf, err := cbor.Marshal(sj)
+	if err != nil {
+		return nil, err
+	}
+
+	enc, err := zstd.NewWriter(nil)
+	if err != nil {
+		return nil, err
+	}
+	defer enc.Close()
+
+	return enc.EncodeAll(buf, nil), nil
+}
+
+func (sj *SegJob) Deserialize(b []byte) error {
+	dec, err := zstd.NewReader(nil)
+	if err != nil {
+		return err
+	}
+	defer dec.Close()
+
+	out, err := dec.DecodeAll(b, nil)
+	if err != nil {
+		cbor.Unmarshal(b, sj)
+	}
+
+	return cbor.Unmarshal(out, sj)
+}
+*/
+
 func (sj *SegJob) Serialize() ([]byte, error) {
 	return cbor.Marshal(sj)
 }

@@ -29,6 +29,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.16.0
 	github.com/jbenet/goprocess v0.1.4
 	github.com/kilic/bls12-381 v0.1.0
+	github.com/klauspost/compress v1.14.4
 	github.com/klauspost/reedsolomon v1.9.15
 	github.com/libp2p/go-libp2p v0.18.0
 	github.com/libp2p/go-libp2p-core v0.15.1

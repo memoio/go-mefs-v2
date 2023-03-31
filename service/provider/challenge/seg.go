@@ -424,7 +424,7 @@ func (s *SegMgr) challenge(userID uint64) {
 
 						sid.SetStripeID(j)
 
-						ctx := context.WithValue(s.ctx, "Priority", "low")
+						ctx := context.WithValue(s.ctx, "MEFS_Priority", "low")
 						segm, err := s.GetSegmentFromLocal(ctx, sid)
 						if err != nil {
 							logger.Debug("challenge not have chunk for stripe: ", userID, sid)
@@ -542,7 +542,7 @@ func (s *SegMgr) challenge(userID uint64) {
 
 						sid.SetStripeID(j)
 
-						ctx := context.WithValue(s.ctx, "Priority", "low")
+						ctx := context.WithValue(s.ctx, "MEFS_Priority", "low")
 						segm, err := s.GetSegmentFromLocal(ctx, sid)
 						if err != nil {
 							logger.Debug("challenge not have chunk for stripe: ", userID, sid)

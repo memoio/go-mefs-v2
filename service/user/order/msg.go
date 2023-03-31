@@ -186,7 +186,14 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 					logger.Debug("confirm jobs in order seq: ", msg.From, msg.To, seq.Nonce, seq.SeqNum)
 
 					m.ReplaceSegWithLoc(seq.OrderSeq)
-					m.updateSize(seq.OrderSeq)
+
+					m.lk.RLock()
+					of, ok := m.orders[seq.ProID]
+					m.lk.RUnlock()
+					if ok {
+						m.updateConfirmSize(of, seq.OrderSeq, true)
+					}
+
 				default:
 				}
 			} else {
@@ -205,42 +212,40 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	}
 
 	if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+		of.opi.NeedPay.SetInt64(0)
+		of.opi.Size = 0
+		of.opi.ConfirmSize = 0
+
 		logger.Debug("clean stale data: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
-		sid, err := segment.NewSegmentID(m.fsID, 0, 0, 0)
-		if err != nil {
-			return err
-		}
 		for i := uint64(0); i <= ns.Nonce; i++ {
-			ss := new(SeqState)
-			key := store.NewKey(pb.MetaType_OrderSeqNumKey, of.localID, of.pro, i)
-			val, err := m.ds.Get(key)
+			or, err := m.StateGetOrder(m.ctx, of.localID, of.pro, i)
 			if err != nil {
 				continue
 			}
-			err = ss.Deserialize(val)
-			if err != nil {
-				continue
-			}
-			for j := uint32(0); j <= ss.Number; j++ {
+
+			m.updateBaseSize(of, &or.SignedOrder, false)
+
+			for j := uint32(0); j <= or.SeqNum; j++ {
 				sos, err := m.StateGetOrderSeq(m.ctx, of.localID, of.pro, i, j)
 				if err != nil {
 					continue
 				}
 
-				for _, seg := range sos.Segments {
-					sid.SetBucketID(seg.BucketID)
-					sid.SetChunkID(seg.ChunkID)
-					for k := seg.Start; k < seg.Start+seg.Length; k++ {
-						sid.SetStripeID(k)
-
-						has, err := m.HasSegment(m.ctx, sid)
-						if err == nil && has {
-							m.PutSegmentLocation(m.ctx, sid, of.pro)
-							m.DeleteSegment(m.ctx, sid)
-						}
-					}
-				}
+				m.ReplaceSegWithLoc(sos.OrderSeq)
+				m.updateConfirmSize(of, sos.OrderSeq, false)
 			}
+		}
+
+		key := store.NewKey(pb.MetaType_OrderPayInfoKey, of.localID, of.pro)
+		val, err := of.opi.Serialize()
+		if err == nil {
+			m.ds.Put(key, val)
+		}
+
+		key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+		val, err = m.opi.Serialize()
+		if err == nil {
+			m.ds.Put(key, val)
 		}
 	}
 
@@ -254,21 +259,23 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 			if ns.Nonce > nval.Nonce || (ns.Nonce == nval.Nonce && ns.SeqNum > nval.SeqNum) {
 				key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, nval.Nonce, nval.SeqNum)
 				data, err := m.ds.Get(key)
-				if err != nil {
-					return xerrors.Errorf("found %s error %d", string(key), err)
-				}
-				seq := new(types.SignedOrderSeq)
-				err = seq.Deserialize(data)
-				if err != nil {
-					return err
-				}
+				if err == nil {
+					seq := new(types.SignedOrderSeq)
+					err = seq.Deserialize(data)
+					if err == nil {
+						logger.Debug("re-confirm jobs in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 
-				logger.Debug("re-confirm jobs in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
-
-				m.ReplaceSegWithLoc(seq.OrderSeq)
-				m.updateSize(seq.OrderSeq)
+						m.ReplaceSegWithLoc(seq.OrderSeq)
+						m.updateConfirmSize(of, seq.OrderSeq, true)
+					}
+				}
 			}
 		}
+	}
+
+	if ns.Nonce > of.nonce {
+		logger.Warnf("pro %d nonce %d is smaller than data chain %d", of.pro, of.nonce, ns.Nonce)
+		of.failCnt = minFailCnt + 1
 	}
 
 	logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
@@ -408,7 +415,7 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	return nil
 }
 
-func (m *OrderMgr) updateSize(seq types.OrderSeq) {
+func (m *OrderMgr) updateConfirmSize(of *OrderFull, seq types.OrderSeq, save bool) {
 	logger.Debug("confirm jobs: updateSize in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 
 	key := store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
@@ -434,21 +441,22 @@ func (m *OrderMgr) updateSize(seq types.OrderSeq) {
 	m.sizelk.Lock()
 	m.opi.ConfirmSize += size
 
-	key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
-	val, err = m.opi.Serialize()
-	if err == nil {
-		m.ds.Put(key, val)
-	}
-
-	m.lk.RLock()
-	of, ok := m.orders[seq.ProID]
-	m.lk.RUnlock()
-	if ok {
-		of.opi.ConfirmSize += size
-		key := store.NewKey(pb.MetaType_OrderPayInfoKey, seq.UserID, seq.ProID)
-		val, err = of.opi.Serialize()
+	if save {
+		key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+		val, err = m.opi.Serialize()
 		if err == nil {
 			m.ds.Put(key, val)
+		}
+	}
+
+	if of != nil {
+		of.opi.ConfirmSize += size
+		if save {
+			key := store.NewKey(pb.MetaType_OrderPayInfoKey, seq.UserID, seq.ProID)
+			val, err = of.opi.Serialize()
+			if err == nil {
+				m.ds.Put(key, val)
+			}
 		}
 	}
 	m.sizelk.Unlock()
@@ -468,6 +476,38 @@ func (m *OrderMgr) updateSize(seq types.OrderSeq) {
 	logger.Debug("confirm jobs: updateSize done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum, size)
 }
 
+func (m *OrderMgr) updateBaseSize(of *OrderFull, so *types.SignedOrder, save bool) {
+	logger.Debug("updateSize in order: ", so.UserID, so.ProID, so.Nonce)
+	m.sizelk.Lock()
+	defer m.sizelk.Unlock()
+	pay := new(big.Int).SetInt64(so.End - so.Start)
+	pay.Mul(pay, so.Price)
+
+	if of != nil {
+		of.opi.Size += so.Size
+		of.opi.NeedPay.Add(of.opi.NeedPay, pay)
+		if save {
+			key := store.NewKey(pb.MetaType_OrderPayInfoKey, so.UserID, so.ProID)
+			val, err := of.opi.Serialize()
+			if err == nil {
+				m.ds.Put(key, val)
+			}
+		}
+	}
+
+	m.opi.Size += so.Size
+	m.opi.NeedPay.Add(m.opi.NeedPay, pay)
+	if save {
+		key := store.NewKey(pb.MetaType_OrderPayInfoKey, so.UserID)
+		val, err := m.opi.Serialize()
+		if err == nil {
+			m.ds.Put(key, val)
+		}
+	}
+
+	logger.Debug("updateSize done in order: ", so.UserID, so.ProID, so.Nonce)
+}
+
 // remove segment from local when commit
 // todo: re-handle at boot
 func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
@@ -484,9 +524,12 @@ func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
 			sid.SetStripeID(j)
 
-			m.PutSegmentLocation(m.ctx, sid, seq.ProID)
-			// delete from local
-			m.DeleteSegment(m.ctx, sid)
+			has, err := m.HasSegment(m.ctx, sid)
+			if err == nil && has {
+				m.PutSegmentLocation(m.ctx, sid, seq.ProID)
+				// delete from local
+				m.DeleteSegment(m.ctx, sid)
+			}
 		}
 	}
 

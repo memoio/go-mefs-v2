@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -32,6 +33,7 @@ var OrderCmd = &cli.Command{
 
 		orderBaseCmd,
 		orderSeqCmd,
+		orderJobCmd,
 
 		stateBaseCmd,
 		stateSeqCmd,
@@ -468,6 +470,67 @@ var orderSeqCmd = &cli.Command{
 		tmp := []outPutInfo{{oi.UserID, oi.ProID, oi.Nonce, oi.SeqNum, oi.Size, oi.Segments.Len()}}
 		table.Output(tmp)
 		table.Output(oi.Segments)
+
+		return nil
+	},
+}
+
+var orderJobCmd = &cli.Command{
+	Name:      "job",
+	Usage:     "get provider's order job info in local",
+	ArgsUsage: "[provider index required] [order nonce] [seq number]",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 3 {
+			return xerrors.Errorf("need three parameters")
+		}
+
+		pid, err := strconv.ParseUint(cctx.Args().First(), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'pro indec' argument: %w", err)
+		}
+
+		nc, err := strconv.ParseUint(cctx.Args().Get(1), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'nonce' argument: %w", err)
+		}
+
+		sn, err := strconv.ParseUint(cctx.Args().Get(2), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'seq number' argument: %w", err)
+		}
+
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		pri, err := api.RoleSelf(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		key := store.NewKey(pb.MetaType_OrderSeqJobKey, pri.RoleID, pid, nc, uint32(sn))
+		val, err := api.LocalStoreGetKey(cctx.Context, "meta", key)
+		if err != nil {
+			return err
+		}
+
+		sjq := new(types.SegJobsQueue)
+		err = sjq.Deserialize(val)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("has job: ", sjq.Len())
+
+		table.Output(*sjq)
 
 		return nil
 	},

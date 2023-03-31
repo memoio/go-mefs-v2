@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"sort"
 	"testing"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 func TestAggSegs(t *testing.T) {
@@ -81,4 +83,54 @@ func TestAggSegs(t *testing.T) {
 	t.Log(hex.EncodeToString(md5val[:]))
 
 	t.Fatal(asq[0].Length, asq.Len(), asq)
+}
+
+func TestSegJob(t *testing.T) {
+	sjq := new(SegJobsQueue)
+
+	for i := uint64(0); i < 131000; i++ {
+		nsj := &SegJob{
+			BucketID: 1,
+			JobID:    i,
+			Start:    17*i + 1,
+			Length:   i % 16,
+			ChunkID:  15,
+		}
+
+		sjq.Push(nsj)
+	}
+
+	sb, err := sjq.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nsjq := new(SegJobsQueue)
+	err = nsjq.Deserialize(sb)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//bestLevel := zstd.WithEncoderLevel(zstd.SpeedBetterCompression)
+
+	enc, err := zstd.NewWriter(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer enc.Close()
+
+	cbf := enc.EncodeAll(sb, nil)
+
+	dec, err := zstd.NewReader(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dec.Close()
+
+	out, err := dec.DecodeAll(cbf, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Fatal(len(sb), len(out), len(cbf), len(cbf)*10000/len(sb))
 }

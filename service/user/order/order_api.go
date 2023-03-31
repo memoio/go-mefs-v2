@@ -32,10 +32,12 @@ func (m *OrderMgr) OrderGetJobInfo(ctx context.Context) ([]*api.OrderJobInfo, er
 }
 
 func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.OrderJobInfo, error) {
+	logger.Debug("get jobinfo at: ", proID)
 	m.lk.RLock()
-	defer m.lk.RUnlock()
 	of, ok := m.orders[proID]
+	m.lk.RUnlock()
 	if ok {
+		logger.Debug("get jobinfo at: ", proID)
 		oi := &api.OrderJobInfo{
 			ID: proID,
 
@@ -48,7 +50,7 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 			SeqTime:  of.seqTime,
 			SeqState: string(of.seqState),
 
-			Jobs: of.segCount(),
+			Jobs: of.jobCount(),
 
 			Ready:  of.ready,
 			InStop: of.inStop,
@@ -62,6 +64,7 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 			oi.SeqNum = of.seq.SeqNum
 		}
 
+		logger.Debug("get jobinfo at: ", proID)
 		pid, err := m.ns.GetPeerIDAt(m.ctx, proID)
 		if err == nil {
 			oi.PeerID = pid.Pretty()
@@ -74,15 +77,15 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 }
 
 func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.OrderPayInfo, error) {
-	m.sizelk.RLock()
-	defer m.sizelk.RUnlock()
 	pi := new(types.OrderPayInfo)
 	if pid == 0 {
+		m.sizelk.RLock()
 		pi.Size = m.opi.Size // may be less than
 		pi.ConfirmSize = m.opi.ConfirmSize
 		pi.OnChainSize = m.opi.OnChainSize
 		pi.NeedPay = new(big.Int).Set(m.opi.NeedPay)
 		pi.Paid = new(big.Int).Set(m.opi.Paid)
+		m.sizelk.RUnlock()
 
 		bi, err := m.is.SettleGetBalanceInfo(ctx, m.localID)
 		if err != nil {
@@ -96,11 +99,13 @@ func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.Or
 		m.lk.RUnlock()
 		if ok {
 			pi.ID = pid
+			m.sizelk.RLock()
 			pi.Size = of.opi.Size
 			pi.ConfirmSize = of.opi.ConfirmSize
 			pi.OnChainSize = of.opi.OnChainSize
 			pi.NeedPay = new(big.Int).Set(of.opi.NeedPay)
 			pi.Paid = new(big.Int).Set(of.opi.Paid)
+			m.sizelk.RUnlock()
 
 			if of.seq != nil {
 				pi.Size += of.seq.Size

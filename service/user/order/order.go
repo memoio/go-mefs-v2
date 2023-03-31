@@ -112,12 +112,18 @@ type OrderFull struct {
 	inflight bool // data is sending
 	buckets  []uint64
 	jobs     map[uint64]*bucketJob // buf and persist?
+	jobCnt   int
 
 	failCnt  int // TODO: retry > 128; change pro?
 	failSent int
 
 	ready  bool // ready for service; network is ok
 	inStop bool // stop receiving data; duo to high price
+
+	quoChan       chan *types.Quotation   // to init
+	orderChan     chan *types.SignedOrder // confirm new order
+	seqNewChan    chan *orderSeqPro       // confirm new seq
+	seqFinishChan chan *orderSeqPro       // confirm current seq
 }
 
 func filterProList(id uint64) bool {
@@ -182,10 +188,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 		prevEnd: time.Now().Unix(),
 
-		opi: &types.OrderPayInfo{
-			NeedPay: big.NewInt(0),
-			Paid:    big.NewInt(0),
-		},
+		opi: new(types.OrderPayInfo),
 
 		orderState: Order_Init,
 		seqState:   OrderSeq_Init,
@@ -193,6 +196,11 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 
 		buckets: make([]uint64, 0, 8),
 		jobs:    make(map[uint64]*bucketJob),
+
+		quoChan:       make(chan *types.Quotation, 8),
+		orderChan:     make(chan *types.SignedOrder, 8),
+		seqNewChan:    make(chan *orderSeqPro, 8),
+		seqFinishChan: make(chan *orderSeqPro, 8),
 	}
 
 	ri, err := m.RoleGet(m.ctx, id, true)
@@ -211,13 +219,23 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		m.getSeqRemote(id)
 	}
 
-	go m.sendData(op)
-
 	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, id)
 	val, err := m.ds.Get(key)
 	if err == nil {
 		op.opi.Deserialize(val)
 	} // recal iter all orders
+
+	if op.opi.NeedPay == nil {
+		op.opi.NeedPay = new(big.Int)
+	}
+
+	if op.opi.Paid == nil {
+		op.opi.Paid = new(big.Int)
+	}
+
+	if op.opi.Balance == nil {
+		op.opi.Balance = new(big.Int)
+	}
 
 	ns := new(NonceState)
 	key = store.NewKey(pb.MetaType_OrderNonceKey, m.localID, id)
@@ -300,7 +318,7 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 func (m *OrderMgr) check(o *OrderFull) {
 	nt := time.Now().Unix()
 
-	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.segCount(), o.ready, o.inStop)
+	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.jobCount(), o.ready, o.inStop)
 
 	if o.inStop {
 		return
@@ -339,12 +357,10 @@ func (m *OrderMgr) check(o *OrderFull) {
 
 	switch o.orderState {
 	case Order_Init:
-		o.RLock()
-		if o.hasSeg() {
+		if o.hasJob() {
 			o.orderTime = time.Now().Unix()
 			go m.getQuotation(o.pro)
 		}
-		o.RUnlock()
 	case Order_Wait:
 		if nt-o.orderTime > defaultAckWaiting {
 			o.failCnt++
@@ -363,16 +379,13 @@ func (m *OrderMgr) check(o *OrderFull) {
 		}
 		switch o.seqState {
 		case OrderSeq_Init:
-			o.RLock()
-			if o.hasSeg() {
+			if o.hasJob() {
 				err := m.createSeq(o)
-				o.RUnlock()
 				if err != nil {
 					logger.Debugf("%d order fail due to create seq %d %s", o.pro, o.failCnt, err)
 				}
 				return
 			}
-			o.RUnlock()
 		case OrderSeq_Prepare:
 			// not receive callback
 			if nt-o.seqTime > defaultAckWaiting {
@@ -426,11 +439,9 @@ func (m *OrderMgr) check(o *OrderFull) {
 			}
 		}
 	case Order_Done:
-		o.RLock()
-		if o.hasSeg() {
+		if o.hasJob() {
 			o.orderState = Order_Init
 		}
-		o.RUnlock()
 	}
 }
 
@@ -480,6 +491,9 @@ func saveSeqState(o *OrderFull, ds store.KVStore) error {
 	if err != nil {
 		return err
 	}
+	ds.Put(key, val)
+
+	key = store.NewKey(pb.MetaType_OrderSeqNumKey, o.localID, o.pro, o.base.Nonce, o.seq.SeqNum)
 	return ds.Put(key, val)
 }
 
@@ -495,12 +509,9 @@ func saveSeqJob(o *OrderFull, ds store.KVStore) error {
 // create a new order
 func (m *OrderMgr) createOrder(o *OrderFull, quo *types.Quotation) error {
 	logger.Debug("handle create order sat: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
-	o.RLock()
 	if o.inStop {
-		o.RUnlock()
 		return xerrors.Errorf("%d is stop", o.pro)
 	}
-	o.RUnlock()
 
 	if o.orderState == Order_Init {
 		// compare to set price
@@ -754,10 +765,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	o.orderTime = time.Now().Unix()
 
 	// save nonce state
-	err = saveOrderState(o, m.ds)
-	if err != nil {
-		return err
-	}
+	saveOrderState(o, m.ds)
 
 	// save and reset
 	o.orderState = Order_Init
@@ -770,22 +778,7 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	o.seq.SeqNum = 0
 	saveSeqState(o, m.ds)
 
-	m.sizelk.Lock()
-	pay := new(big.Int).SetInt64(o.base.End - o.base.Start)
-	pay.Mul(pay, o.base.Price)
-
-	o.opi.Size += o.base.Size
-	o.opi.NeedPay.Add(o.opi.NeedPay, pay)
-	key := store.NewKey(pb.MetaType_OrderPayInfoKey, o.localID, o.pro)
-	val, _ := o.opi.Serialize()
-	m.ds.Put(key, val)
-
-	m.opi.Size += o.base.Size
-	m.opi.NeedPay.Add(m.opi.NeedPay, pay)
-	key = store.NewKey(pb.MetaType_OrderPayInfoKey, o.localID)
-	val, _ = m.opi.Serialize()
-	m.ds.Put(key, val)
-	m.sizelk.Unlock()
+	m.updateBaseSize(o, o.base, true)
 
 	o.base = nil
 	o.seq = nil
@@ -793,13 +786,14 @@ func (m *OrderMgr) doneOrder(o *OrderFull) error {
 	o.seqNum = 0
 
 	// trigger a new order
-	if o.hasSeg() && !o.inStop {
+	if o.hasJob() && !o.inStop {
 		go m.getQuotation(o.pro)
 	}
 
 	return nil
 }
 
+// clean up has some bugs
 func (m *OrderMgr) stopOrder(o *OrderFull) error {
 	logger.Debug("handle stop order sat: ", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState)
 	o.Lock()
@@ -811,8 +805,11 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 	}
 
 	o.inStop = true
+	o.Unlock()
 
 	cnt := uint64(0)
+	nsjq := make([]*types.SegJob, 0, 128)
+
 	// add redo current seq
 	if o.sjq != nil {
 		// should not, TODO: fix
@@ -821,7 +818,8 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 
 		for i := 0; i < sLen; i++ {
 			cnt += ss[i].Length
-			m.redoSegJob(ss[i])
+			nsjq = append(nsjq, ss[i])
+			//m.redoSegJob(ss[i])
 		}
 
 		o.sjq = new(types.SegJobsQueue)
@@ -830,22 +828,23 @@ func (m *OrderMgr) stopOrder(o *OrderFull) error {
 		}
 	}
 
+	o.Lock()
 	for _, bid := range o.buckets {
 		bjob, ok := o.jobs[bid]
-		if ok {
-			for _, seg := range bjob.jobs {
-				m.redoSegJob(seg)
-			}
+		if ok && len(bjob.jobs) > 0 {
+			nsjq = append(nsjq, bjob.jobs...)
+			bjob.jobs = bjob.jobs[:0]
 		}
-		bjob.jobs = bjob.jobs[:0]
+	}
+	o.Unlock()
+
+	for _, seq := range nsjq {
+		m.segRedoChan <- seq
 	}
 
 	if o.base == nil {
-		o.Unlock()
 		return xerrors.Errorf("order is empty at: %d", o.nonce)
 	}
-
-	o.Unlock()
 
 	// size is added to base, so reduce it here
 	if o.seqState == OrderSeq_Commit && len(o.seq.UserDataSig.Data) != 0 {
@@ -899,7 +898,7 @@ func (m *OrderMgr) createSeq(o *OrderFull) error {
 
 	if o.seqState == OrderSeq_Init {
 		// verify again
-		if !o.hasSeg() {
+		if !o.hasJob() {
 			return nil
 		}
 
