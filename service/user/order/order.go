@@ -213,12 +213,6 @@ func (m *OrderMgr) loadProOrder(id uint64) *OrderFull {
 		op.ready = true
 	}
 
-	// TODO: add getOrderRemote, getSeqRemote if local has missing
-	if false {
-		m.getOrderRemote(id)
-		m.getSeqRemote(id)
-	}
-
 	key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, id)
 	val, err := m.ds.Get(key)
 	if err == nil {

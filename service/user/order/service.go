@@ -187,6 +187,7 @@ func (m *OrderMgr) load() error {
 		m.opi.Deserialize(val)
 	}
 
+	// load size from settle chain
 	size := uint64(0)
 	pros, err := m.StateGetProsAt(context.TODO(), m.localID)
 	if err == nil {
@@ -214,8 +215,10 @@ func (m *OrderMgr) load() error {
 				}
 
 				key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID, pid)
-				val, _ := popi.Serialize()
-				m.ds.Put(key, val)
+				val, err := popi.Serialize()
+				if err == nil {
+					m.ds.Put(key, val)
+				}
 			}
 		}
 		m.opi.OnChainSize = size
@@ -223,11 +226,14 @@ func (m *OrderMgr) load() error {
 			m.opi.Paid.Set(m.opi.NeedPay)
 		}
 		key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
-		val, _ = m.opi.Serialize()
-		m.ds.Put(key, val)
+		val, err = m.opi.Serialize()
+		if err == nil {
+			m.ds.Put(key, val)
+		}
 	}
 
 	if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+		// reset for later reget
 		m.opi.Size = 0
 		m.opi.NeedPay = new(big.Int)
 		m.opi.ConfirmSize = 0

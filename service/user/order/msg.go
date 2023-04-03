@@ -216,16 +216,20 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 		of.opi.Size = 0
 		of.opi.ConfirmSize = 0
 
-		logger.Debug("clean stale data: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
+		logger.Debug("handle data-chain: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
 		for i := uint64(0); i <= ns.Nonce; i++ {
-			or, err := m.StateGetOrder(m.ctx, of.localID, of.pro, i)
+			sor, err := m.StateGetOrder(m.ctx, of.localID, of.pro, i)
 			if err != nil {
 				continue
 			}
 
-			m.updateBaseSize(of, &or.SignedOrder, false)
+			// not add last one
+			if i != ns.Nonce {
+				m.updateBaseSize(of, &sor.SignedOrder, false)
+			}
 
-			for j := uint32(0); j <= or.SeqNum; j++ {
+			// handle confirmed seq
+			for j := uint32(0); j < sor.SeqNum; j++ {
 				sos, err := m.StateGetOrderSeq(m.ctx, of.localID, of.pro, i, j)
 				if err != nil {
 					continue
@@ -242,31 +246,38 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 			m.ds.Put(key, val)
 		}
 
+		m.sizelk.Lock()
+		if m.opi.OnChainSize == m.opi.Size {
+			m.opi.Paid.Set(m.opi.NeedPay)
+		}
+
 		key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
 		val, err = m.opi.Serialize()
 		if err == nil {
 			m.ds.Put(key, val)
 		}
-	}
-
-	logger.Debug("re-confirm jobs: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
-	key := store.NewKey(pb.MetaType_OrderSeqJobKey, of.localID, of.pro)
-	nData, err := m.ds.Get(key)
-	if err == nil {
-		nval := new(types.NonceSeq)
-		err = nval.Deserialize(nData)
+		m.sizelk.Unlock()
+	} else {
+		// handle last order seq
+		logger.Debug("re-confirm jobs in last order seq: ", of.localID, of.pro, ns.Nonce, ns.SeqNum)
+		key := store.NewKey(pb.MetaType_OrderSeqJobKey, of.localID, of.pro)
+		nData, err := m.ds.Get(key)
 		if err == nil {
-			if ns.Nonce > nval.Nonce || (ns.Nonce == nval.Nonce && ns.SeqNum > nval.SeqNum) {
-				key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, nval.Nonce, nval.SeqNum)
-				data, err := m.ds.Get(key)
-				if err == nil {
-					seq := new(types.SignedOrderSeq)
-					err = seq.Deserialize(data)
+			nval := new(types.NonceSeq)
+			err = nval.Deserialize(nData)
+			if err == nil {
+				if ns.Nonce > nval.Nonce || (ns.Nonce == nval.Nonce && ns.SeqNum > nval.SeqNum) {
+					key := store.NewKey(pb.MetaType_OrderSeqKey, of.localID, of.pro, nval.Nonce, nval.SeqNum)
+					data, err := m.ds.Get(key)
 					if err == nil {
-						logger.Debug("re-confirm jobs in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+						seq := new(types.SignedOrderSeq)
+						err = seq.Deserialize(data)
+						if err == nil {
+							logger.Debug("re-confirm jobs in last order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 
-						m.ReplaceSegWithLoc(seq.OrderSeq)
-						m.updateConfirmSize(of, seq.OrderSeq, true)
+							m.ReplaceSegWithLoc(seq.OrderSeq)
+							m.updateConfirmSize(of, seq.OrderSeq, true)
+						}
 					}
 				}
 			}
@@ -274,14 +285,21 @@ func (m *OrderMgr) loadUnfinished(of *OrderFull) error {
 	}
 
 	if ns.Nonce > of.nonce {
+		// todo: reget from datachain and providers
+		// TODO: add getOrderRemote, getSeqRemote if local has missing
+		if false {
+			m.getOrderRemote(of.pro)
+			m.getSeqRemote(of.pro)
+		}
 		logger.Warnf("pro %d nonce %d is smaller than data chain %d", of.pro, of.nonce, ns.Nonce)
 		of.failCnt = minFailCnt + 1
 	}
 
 	logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
 
+	// local has stale order/seq; need push
 	for ns.Nonce < of.nonce {
-		// add order base
+		// push order base
 		if ns.SeqNum == 0 {
 			_, err := m.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce)
 			if err != nil {
@@ -536,6 +554,7 @@ func (m *OrderMgr) ReplaceSegWithLoc(seq types.OrderSeq) {
 	logger.Debug("confirm jobs: ReplaceSegWithLoc done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 }
 
+// check local seq is valid: has two valid signs; contain no duplicate chunks
 func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 	logger.Debug("check order seq: ", userID, proID, nonce, seqNum)
 	key := store.NewKey(pb.MetaType_OrderSeqKey, userID, proID, nonce, seqNum)

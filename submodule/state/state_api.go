@@ -346,6 +346,7 @@ func (s *StateMgr) StateGetAccPostIncome(ctx context.Context, proID uint64) (*ty
 	return nil, xerrors.Errorf("not found")
 }
 
+// current nonce; next seqNum
 func (s *StateMgr) StateGetOrderNonce(ctx context.Context, userID, proID uint64, epoch uint64) (*types.NonceSeq, error) {
 	s.lk.RLock()
 	defer s.lk.RUnlock()
