@@ -6,8 +6,6 @@ import (
 	"math/big"
 	"sort"
 	"testing"
-
-	"github.com/klauspost/compress/zstd"
 )
 
 func TestAggSegs(t *testing.T) {
@@ -100,7 +98,12 @@ func TestSegJob(t *testing.T) {
 		sjq.Push(nsj)
 	}
 
-	sb, err := sjq.Serialize()
+	sb, err := sjq.LegacySerialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	csb, err := sjq.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,26 +114,5 @@ func TestSegJob(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	//bestLevel := zstd.WithEncoderLevel(zstd.SpeedBetterCompression)
-
-	enc, err := zstd.NewWriter(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer enc.Close()
-
-	cbf := enc.EncodeAll(sb, nil)
-
-	dec, err := zstd.NewReader(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dec.Close()
-
-	out, err := dec.DecodeAll(cbf, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Fatal(len(sb), len(out), len(cbf), len(cbf)*10000/len(sb))
+	t.Fatal(len(sb), len(csb)*10000/len(sb))
 }
