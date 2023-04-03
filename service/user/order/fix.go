@@ -4,11 +4,11 @@ import (
 	"math"
 	"math/big"
 	"os"
+	"time"
 
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/build"
-	"github.com/memoio/go-mefs-v2/lib/code"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/tx"
@@ -31,22 +31,69 @@ func (m *OrderMgr) handleMissing(of *proInst) error {
 		return err
 	}
 
-	if ns.Nonce > of.nonce || (ns.Nonce == of.nonce && ns.SeqNum > of.seqNum) {
-		if os.Getenv("MEFS_RECOVERY_MODE") == "" {
-			logger.Warnf("pro %d nonce %d is smaller than data chain %d", of.pro, of.nonce, ns.Nonce)
-			of.failCnt = minFailCnt + 1
-			return nil
+	logger.Debug("fix order for: ", of.pro, ", want than: ", ns.Nonce, ns.SeqNum, ", has: ", of.nonce, of.seqNum, of.orderState, of.seqState)
+
+	if ns.Nonce+1 < of.nonce || (ns.Nonce+1 == of.nonce && ns.SeqNum <= of.seqNum) || (ns.Nonce == of.nonce && ns.SeqNum == of.seqNum && ns.SeqNum == 0) {
+		return nil
+	}
+
+	if os.Getenv("MEFS_RECOVERY_MODE") == "" {
+		logger.Warnf("stop pro %d, nonce %d is smaller than data chain %d", of.pro, of.nonce, ns.Nonce)
+		of.failCnt = minFailCnt + 1
+		return nil
+	}
+
+	// if provider advance more than one step
+	// not handle it due to miss too many
+	// caused by fail to save local and fail to commit
+
+	// reget from datachain if local has missing
+	// 1. get base from datachain if seqNum == 0
+	// 2. commit current order if size > 0
+
+	sor, err := m.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce)
+	if err != nil {
+		return err
+	}
+
+	of.base = &sor.SignedOrder
+	of.prevEnd = sor.End
+
+	of.nonce = sor.Nonce + 1
+	of.orderState = Order_Running
+	of.orderTime = time.Now().Unix()
+
+	of.seqNum = ns.SeqNum
+	of.seqState = OrderSeq_Init
+	of.seqTime = time.Now().Unix()
+
+	if ns.SeqNum > 0 {
+		// can close
+		if sor.Size > 0 {
+			of.orderState = Order_Closing
+			of.seqState = OrderSeq_Finish
 		}
 
-		// if provider advance more than one step
-		// not handle it due to miss too many
-		// caused by fail to save local and fail to commit
+		sos, err := m.StateGetOrderSeq(m.ctx, of.localID, of.pro, ns.Nonce, ns.SeqNum-1)
+		if err != nil {
+			return err
+		}
 
-		// todo: reget from datachain if local has missing
-		// 1. commit current order if seqNum > 0
-		// 2. get base from datachain if seqNum == 0
+		of.seq = &types.SignedOrderSeq{
+			OrderSeq:   sos.OrderSeq,
+			ProDataSig: sor.Psign, // in case seqnum check
+		}
 
+		of.sjq = new(types.SegJobsQueue)
+
+		// save seq state
+		saveSeqState(of, m.ds)
+
+		of.seqState = OrderSeq_Init
 	}
+
+	saveOrderBase(of, m.ds)
+	saveOrderState(of, m.ds)
 
 	return nil
 }
@@ -141,7 +188,7 @@ func (m *OrderMgr) handleUnPush(of *proInst) error {
 		return err
 	}
 
-	logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum)
+	logger.Debug("resend message for: ", of.pro, ", has: ", ns.Nonce, ns.SeqNum, ", want: ", of.nonce, of.seqNum, of.orderState, of.seqState)
 
 	// local has stale order/seq; need push
 	for ns.Nonce < of.nonce {
@@ -277,127 +324,6 @@ func (m *OrderMgr) handleUnPush(of *proInst) error {
 	}
 
 	return nil
-}
-
-func (m *OrderMgr) updateConfirmSize(of *proInst, seq types.OrderSeq, save bool) {
-	logger.Debug("confirm jobs: updateSize in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
-
-	key := store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return
-	}
-
-	sjq := new(types.SegJobsQueue)
-	err = sjq.Deserialize(val)
-	if err != nil {
-		return
-	}
-	ss := *sjq
-	sLen := sjq.Len()
-	size := uint64(0)
-	for i := 0; i < sLen; i++ {
-		m.segConfirmChan <- ss[i]
-		size += ss[i].Length * code.DefaultSegSize
-	}
-
-	// update size
-	m.sizelk.Lock()
-	m.opi.ConfirmSize += size
-
-	if save {
-		key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
-		val, err = m.opi.Serialize()
-		if err == nil {
-			m.ds.Put(key, val)
-		}
-	}
-
-	if of != nil {
-		of.opi.ConfirmSize += size
-		if save {
-			key := store.NewKey(pb.MetaType_OrderPayInfoKey, seq.UserID, seq.ProID)
-			val, err = of.opi.Serialize()
-			if err == nil {
-				m.ds.Put(key, val)
-			}
-		}
-	}
-	m.sizelk.Unlock()
-
-	key = store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID)
-	nData, err := m.ds.Get(key)
-	if err == nil {
-		nval := new(types.NonceSeq)
-		err = nval.Deserialize(nData)
-		if err == nil {
-			if seq.Nonce == nval.Nonce && seq.SeqNum == nval.SeqNum {
-				m.ds.Delete(key)
-			}
-		}
-	}
-
-	logger.Debug("confirm jobs: updateSize done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum, size)
-}
-
-func (m *OrderMgr) updateBaseSize(of *proInst, so *types.SignedOrder, save bool) {
-	logger.Debug("updateSize in order: ", so.UserID, so.ProID, so.Nonce)
-	m.sizelk.Lock()
-	defer m.sizelk.Unlock()
-	pay := new(big.Int).SetInt64(so.End - so.Start)
-	pay.Mul(pay, so.Price)
-
-	if of != nil {
-		of.opi.Size += so.Size
-		of.opi.NeedPay.Add(of.opi.NeedPay, pay)
-		if save {
-			key := store.NewKey(pb.MetaType_OrderPayInfoKey, so.UserID, so.ProID)
-			val, err := of.opi.Serialize()
-			if err == nil {
-				m.ds.Put(key, val)
-			}
-		}
-	}
-
-	m.opi.Size += so.Size
-	m.opi.NeedPay.Add(m.opi.NeedPay, pay)
-	if save {
-		key := store.NewKey(pb.MetaType_OrderPayInfoKey, so.UserID)
-		val, err := m.opi.Serialize()
-		if err == nil {
-			m.ds.Put(key, val)
-		}
-	}
-
-	logger.Debug("updateSize done in order: ", so.UserID, so.ProID, so.Nonce)
-}
-
-// remove segment from local when commit
-// todo: re-handle at boot
-func (m *OrderMgr) replaceSegWithLoc(seq types.OrderSeq) {
-	logger.Debug("confirm jobs: ReplaceSegWithLoc in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
-
-	sid, err := segment.NewSegmentID(m.fsID, 0, 0, 0)
-	if err != nil {
-		return
-	}
-
-	for _, seg := range seq.Segments {
-		sid.SetBucketID(seg.BucketID)
-		sid.SetChunkID(seg.ChunkID)
-		for j := seg.Start; j < seg.Start+seg.Length; j++ {
-			sid.SetStripeID(j)
-
-			has, err := m.HasSegment(m.ctx, sid)
-			if err == nil && has {
-				m.PutSegmentLocation(m.ctx, sid, seq.ProID)
-				// delete from local
-				m.DeleteSegment(m.ctx, sid)
-			}
-		}
-	}
-
-	logger.Debug("confirm jobs: ReplaceSegWithLoc done in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 }
 
 // check local seq is valid: has two valid signs; contain no duplicate chunks
