@@ -18,7 +18,32 @@ import (
 )
 
 // jobs
+// add segjob
+func (m *OrderMgr) runSegSched() {
+	st := time.NewTicker(10 * time.Second)
+	defer st.Stop()
 
+	for {
+		// handle data
+		select {
+		case <-m.ctx.Done():
+			return
+		case sj := <-m.segAddChan:
+			m.addSegJob(sj)
+		case sj := <-m.segRedoChan:
+			m.redoSegJob(sj)
+		case sj := <-m.segSentChan:
+			m.finishSegJob(sj)
+		case sj := <-m.segConfirmChan:
+			m.confirmSegJob(sj)
+		case <-st.C:
+			// dispatch to each pro
+			m.dispatch()
+		}
+	}
+}
+
+// external api
 // get job state
 func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (totalcnt, discnt, donecnt, confirmCnt int) {
 	seg, err := m.loadSegJob(bucketID, opID)
@@ -36,7 +61,7 @@ func (m *OrderMgr) GetSegJogState(bucketID, opID uint64) (totalcnt, discnt, done
 	return totalcnt, discnt, donecnt, confirmCnt
 }
 
-// external api
+// add seg job to order service
 func (m *OrderMgr) AddSegJob(sj *types.SegJob) {
 	m.segAddChan <- sj
 }
@@ -46,9 +71,9 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 		time.Sleep(time.Second)
 	}
 
+	// todo: why?
 	time.Sleep(30 * time.Second)
 
-	// TODO: from begin
 	opckey := store.NewKey(pb.MetaType_LFS_OpCountKey, m.localID, bucketID)
 	opDoneCount := uint64(0)
 	val, err := m.ds.Get(opckey)
@@ -309,7 +334,9 @@ func (m *OrderMgr) dispatch() {
 
 		pros, ok := prom[seg.BucketID]
 		if !ok {
-			lp, ok := m.proMap[seg.BucketID]
+			m.lk.RLock()
+			lp, ok := m.bucMap[seg.BucketID]
+			m.lk.RUnlock()
 			if !ok {
 				logger.Debug("fail dispatch for bucket: ", seg.BucketID)
 				continue
@@ -336,7 +363,7 @@ func (m *OrderMgr) dispatch() {
 				continue
 			}
 			m.lk.RLock()
-			or, ok := m.orders[pid]
+			or, ok := m.pInstMap[pid]
 			m.lk.RUnlock()
 			if !ok {
 				logger.Debug("fail dispatch to pro: ", pid)
@@ -374,7 +401,7 @@ func (m *OrderMgr) dispatch() {
 }
 
 // dispatch seg chunk to provider
-func (o *OrderFull) addSeg(sj *types.SegJob) error {
+func (o *proInst) addSeg(sj *types.SegJob) error {
 	o.Lock()
 	defer o.Unlock()
 
@@ -402,30 +429,24 @@ func (o *OrderFull) addSeg(sj *types.SegJob) error {
 }
 
 // jobs on each provider
-func (o *OrderFull) hasJob() bool {
-	o.RLock()
-	defer o.RUnlock()
-	return o.jobCnt > 0
-}
-
-func (o *OrderFull) jobCount() int {
+func (o *proInst) jobCount() int {
 	o.RLock()
 	defer o.RUnlock()
 	return o.jobCnt
 }
 
 // send chunk to provider
-func (m *OrderMgr) sendChunk(o *OrderFull) {
+func (m *OrderMgr) sendChunk(o *proInst) {
 	i := 0
 	for {
 		select {
 		case <-m.ctx.Done():
-			logger.Info("exit send data")
+			logger.Info("exit send chunk")
 			return
 		default:
 			if o.inStop {
 				time.Sleep(10 * time.Minute)
-				logger.Info("cancle send data duo to stop at: ", o.pro)
+				logger.Info("cancle send chunk duo to stop at: ", o.pro)
 				continue
 			}
 
@@ -444,7 +465,7 @@ func (m *OrderMgr) sendChunk(o *OrderFull) {
 				continue
 			}
 
-			if !o.hasJob() {
+			if o.jobCount() == 0 {
 				time.Sleep(time.Second)
 				continue
 			}

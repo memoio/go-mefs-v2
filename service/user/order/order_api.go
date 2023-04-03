@@ -34,7 +34,7 @@ func (m *OrderMgr) OrderGetJobInfo(ctx context.Context) ([]*api.OrderJobInfo, er
 func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.OrderJobInfo, error) {
 	logger.Debug("get jobinfo at: ", proID)
 	m.lk.RLock()
-	of, ok := m.orders[proID]
+	of, ok := m.pInstMap[proID]
 	m.lk.RUnlock()
 	if ok {
 		logger.Debug("get jobinfo at: ", proID)
@@ -95,7 +95,7 @@ func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.Or
 		pi.Balance.Add(pi.Balance, bi.FsValue)
 	} else {
 		m.lk.RLock()
-		of, ok := m.orders[pid]
+		of, ok := m.pInstMap[pid]
 		m.lk.RUnlock()
 		if ok {
 			pi.ID = pid
@@ -136,7 +136,9 @@ func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, 
 }
 
 func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) (*api.ProsInBucket, error) {
-	lp, ok := m.proMap[bid]
+	m.lk.RLock()
+	lp, ok := m.bucMap[bid]
+	m.lk.RUnlock()
 	if ok {
 		lp.lk.RLock()
 		defer lp.lk.RUnlock()

@@ -12,7 +12,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
-// update providers in bucket
+// manage providers in each bucket
 
 type lastProsPerBucket struct {
 	lk          sync.RWMutex
@@ -21,6 +21,43 @@ type lastProsPerBucket struct {
 	pros        []uint64 // update and save to local
 	deleted     []uint64 // add del pro here
 	delPerChunk [][]uint64
+}
+
+func (m *OrderMgr) runBucketSched() {
+	st := time.NewTicker(30 * time.Minute)
+	defer st.Stop()
+
+	for {
+		select {
+		case lp := <-m.bucketChan:
+			logger.Debug("add bucket: ", lp.bucketID)
+			m.lk.Lock()
+			_, ok := m.bucMap[lp.bucketID]
+			if !ok {
+				m.buckets = append(m.buckets, lp.bucketID)
+				m.bucMap[lp.bucketID] = lp
+			}
+			m.lk.Unlock()
+		case <-st.C:
+			logger.Debug("update pros in bucket")
+			for _, bid := range m.buckets {
+				m.lk.RLock()
+				lp, ok := m.bucMap[bid]
+				m.lk.RUnlock()
+				if ok {
+					m.updateProsForBucket(lp)
+					for _, pid := range lp.pros {
+						if pid == math.MaxUint64 {
+							m.expand = true
+							break
+						}
+					}
+				}
+			}
+		case <-m.ctx.Done():
+			return
+		}
+	}
 }
 
 // TODO: change pro when quotation price is too high
@@ -44,9 +81,10 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 	// load all pros used in bucket
 	for _, pid := range lp.pros {
-		go m.newProOrder(pid)
+		go m.createProOrder(pid)
 	}
 
+	// wait pro order start
 	time.Sleep(30 * time.Second)
 
 	m.updateProsForBucket(lp)
@@ -55,7 +93,7 @@ func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOpti
 
 	m.bucketChan <- lp
 
-	// wait order suc
+	// load jobs
 	m.loadUnfinishedSegJobs(bucketID, nextOpID)
 }
 
@@ -78,7 +116,7 @@ func (m *OrderMgr) loadLastProsPerBucket(bucketID uint64, cnt int) ([]uint64, []
 	for i := 0; i < len(val)/8 && i < cnt; i++ {
 		pid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
 		if pid != math.MaxUint64 {
-			go m.newProOrder(pid)
+			go m.createProOrder(pid)
 		}
 
 		res[i] = pid
@@ -178,12 +216,10 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		}
 
 		m.lk.RLock()
-		or, ok := m.orders[pid]
+		or, ok := m.pInstMap[pid]
 		m.lk.RUnlock()
-		if ok {
-			if !or.inStop {
-				cnt++
-			}
+		if ok && !or.inStop {
+			cnt++
 		}
 	}
 
@@ -193,7 +229,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 		return
 	}
 
-	// expand providers
+	// renew providers into bucket
 
 	cloudPros := make([]uint64, 0, len(m.pros))
 	personPros := make([]uint64, 0, len(m.pros))
@@ -232,15 +268,13 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 
 		// not have
 		m.lk.RLock()
-		or, ok := m.orders[pid]
+		or, ok := m.pInstMap[pid]
 		m.lk.RUnlock()
-		if ok {
-			if or.ready && !or.inStop {
-				if or.location == "cloud" {
-					cloudPros = append(cloudPros, pid)
-				} else {
-					personPros = append(personPros, pid)
-				}
+		if ok && or.isGood() {
+			if or.location == "cloud" {
+				cloudPros = append(cloudPros, pid)
+			} else {
+				personPros = append(personPros, pid)
 			}
 		}
 	}
@@ -260,12 +294,10 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 			pid := lp.pros[i]
 			if pid != math.MaxUint64 {
 				m.lk.RLock()
-				or, ok := m.orders[pid]
+				or, ok := m.pInstMap[pid]
 				m.lk.RUnlock()
-				if ok {
-					if !or.inStop {
-						continue
-					}
+				if ok && !or.inStop {
+					continue
 				}
 			}
 
@@ -273,19 +305,16 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				npid := cloudPros[j]
 				j++
 				m.lk.RLock()
-				or, ok := m.orders[npid]
+				or, ok := m.pInstMap[npid]
 				m.lk.RUnlock()
-				if ok {
-					// choose good ones
-					if or.isGood() {
-						change = true
-						lp.pros[i] = npid
-						if pid != math.MaxUint64 {
-							lp.deleted = append(lp.deleted, pid)
-							lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
-						}
-						break
+				if ok && or.isGood() {
+					change = true
+					lp.pros[i] = npid
+					if pid != math.MaxUint64 {
+						lp.deleted = append(lp.deleted, pid)
+						lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
 					}
+					break
 				}
 			}
 		}
@@ -295,12 +324,10 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 			pid := lp.pros[i]
 			if pid != math.MaxUint64 {
 				m.lk.RLock()
-				or, ok := m.orders[pid]
+				or, ok := m.pInstMap[pid]
 				m.lk.RUnlock()
-				if ok {
-					if !or.inStop {
-						continue
-					}
+				if ok && !or.inStop {
+					continue
 				}
 			}
 
@@ -308,18 +335,16 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				npid := personPros[j]
 				j++
 				m.lk.RLock()
-				or, ok := m.orders[npid]
+				or, ok := m.pInstMap[npid]
 				m.lk.RUnlock()
-				if ok {
-					if or.isGood() {
-						change = true
-						lp.pros[i] = npid
-						if pid != math.MaxUint64 {
-							lp.deleted = append(lp.deleted, pid)
-							lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
-						}
-						break
+				if ok && or.isGood() {
+					change = true
+					lp.pros[i] = npid
+					if pid != math.MaxUint64 {
+						lp.deleted = append(lp.deleted, pid)
+						lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
 					}
+					break
 				}
 			}
 		}
@@ -335,12 +360,10 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 			pid := lp.pros[i]
 			if pid != math.MaxUint64 {
 				m.lk.RLock()
-				or, ok := m.orders[pid]
+				or, ok := m.pInstMap[pid]
 				m.lk.RUnlock()
-				if ok {
-					if !or.inStop {
-						continue
-					}
+				if ok && !or.inStop {
+					continue
 				}
 			}
 
@@ -348,19 +371,16 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 				npid := cloudPros[j]
 				j++
 				m.lk.RLock()
-				or, ok := m.orders[npid]
+				or, ok := m.pInstMap[npid]
 				m.lk.RUnlock()
-				if ok {
-					if or.isGood() {
-						change = true
-						lp.pros[i] = npid
-						if pid != math.MaxUint64 {
-							lp.deleted = append(lp.deleted, pid)
-							lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
-						}
-
-						break
+				if ok && or.isGood() {
+					change = true
+					lp.pros[i] = npid
+					if pid != math.MaxUint64 {
+						lp.deleted = append(lp.deleted, pid)
+						lp.delPerChunk[i] = append(lp.delPerChunk[i], pid)
 					}
+					break
 				}
 			}
 		}
@@ -374,7 +394,7 @@ func (m *OrderMgr) updateProsForBucket(lp *lastProsPerBucket) {
 	logger.Debug("order bucket: ", lp.bucketID, lp.pros, lp.deleted, lp.delPerChunk)
 }
 
-func (o *OrderFull) isGood() bool {
+func (o *proInst) isGood() bool {
 	if !o.inStop && o.ready && o.failCnt < 30 && o.failSent < 30 {
 		return true
 	}

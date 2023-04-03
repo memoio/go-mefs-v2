@@ -13,6 +13,55 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
+// handle msg over net, then dispatch to provider order
+func (m *OrderMgr) runNetSched() {
+	for {
+		select {
+		case pid := <-m.updateChan:
+			logger.Debug("update pro time: ", pid)
+			m.lk.RLock()
+			of, ok := m.pInstMap[pid]
+			m.lk.RUnlock()
+			if ok {
+				of.availTime = time.Now().Unix()
+			} else {
+				go m.createProOrder(pid)
+			}
+		// handle order state
+		case quo := <-m.quoChan:
+			m.lk.RLock()
+			of, ok := m.pInstMap[quo.ProID]
+			m.lk.RUnlock()
+			if ok {
+				of.quoChan <- quo
+			}
+		case ob := <-m.orderChan:
+			m.lk.RLock()
+			of, ok := m.pInstMap[ob.ProID]
+			m.lk.RUnlock()
+			if ok {
+				of.orderChan <- ob
+			}
+		case s := <-m.seqNewChan:
+			m.lk.RLock()
+			of, ok := m.pInstMap[s.proID]
+			m.lk.RUnlock()
+			if ok {
+				of.seqNewChan <- s
+			}
+		case s := <-m.seqFinishChan:
+			m.lk.RLock()
+			of, ok := m.pInstMap[s.proID]
+			m.lk.RUnlock()
+			if ok {
+				of.seqFinishChan <- s
+			}
+		case <-m.ctx.Done():
+			return
+		}
+	}
+}
+
 func (m *OrderMgr) connect(proID uint64) error {
 	logger.Debug("try connect pro: ", proID)
 	// test remote service is ready or not

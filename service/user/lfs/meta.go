@@ -33,6 +33,7 @@ type superBlock struct {
 	etagCache      *lru.ARCCache     // from etags -> objectDigest
 }
 
+// todo: add readonly if lose local meta
 type bucket struct {
 	sync.RWMutex
 	types.BucketInfo
