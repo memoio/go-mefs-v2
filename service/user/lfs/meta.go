@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -41,7 +42,8 @@ type bucket struct {
 	objectTree *rbtree.Tree       // store objects; key is object name; chekc before insert
 	objects    map[uint64]*object // key is objectID
 
-	dirty bool
+	writable bool
+	dirty    bool
 }
 
 type object struct {
@@ -239,7 +241,6 @@ func (bu *bucket) load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, userID, bucketID)
 	data, err := ds.Get(key)
 	if err != nil {
-		// if miss; init?
 		return err
 	}
 
@@ -252,7 +253,6 @@ func (bu *bucket) load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	key = store.NewKey(pb.MetaType_LFS_BucketInfoKey, userID, bucketID)
 	data, err = ds.Get(key)
 	if err != nil {
-		// if miss; init?
 		return err
 	}
 
@@ -505,6 +505,7 @@ func (l *LfsService) load() error {
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
 		bu := new(bucket)
 		bu.Deletion = true
+		bu.BucketID = i
 
 		l.sb.buckets[i] = bu
 
@@ -513,9 +514,14 @@ func (l *LfsService) load() error {
 		if err != nil {
 			bu.Unlock()
 			logger.Warn("fail to load bucketID: ", i, err)
+
+			// get from state
+			l.getBucketOptsFromState(bu)
+
 			continue
 		}
 
+		bu.writable = true
 		logger.Debug("load bucket: ", i, bu.BucketInfo)
 
 		if !bu.BucketInfo.Deletion {
@@ -573,6 +579,102 @@ func (l *LfsService) load() error {
 		bu.Unlock()
 	}
 	return nil
+}
+
+func (l *LfsService) getBucketOptsFromState(bu *bucket) error {
+	// from state
+	bo, err := l.StateGetBucOpt(l.ctx, l.userID, bu.BucketID)
+	if err != nil {
+		return err
+	}
+
+	bmp, err := l.StateGetBucMeta(l.ctx, l.userID, bu.BucketID)
+	if err == nil {
+		bu.Name = bmp.Name
+		l.sb.bucketNameToID[bu.Name] = bu.BucketID
+	}
+
+	bi := types.BucketInfo{
+		BucketOption: *bo,
+	}
+
+	bu.BucketInfo = bi
+	bu.objectTree = rbtree.NewTree()
+	bu.objects = make(map[uint64]*object)
+
+	go l.getObjectFromState(bu)
+
+	return nil
+}
+
+func (l *LfsService) getObjectFromState(bu *bucket) {
+	if os.Getenv("MEFS_RECOVERY_MODE") == "" {
+		return
+	}
+	for i := uint64(0); ; i++ {
+		omv, err := l.StateGetObjMeta(l.ctx, l.userID, bu.BucketID, i)
+		if err != nil {
+			return
+		}
+
+		poi := pb.ObjectInfo{
+			ObjectID:    i,
+			BucketID:    bu.BucketID,
+			Name:        omv.Name,
+			Encryption:  omv.Encrypt,
+			UserDefined: make(map[string]string),
+		}
+
+		poi.UserDefined["nencryption"] = omv.NEncrypt
+
+		if len(omv.Extra) >= 8 {
+			csize := binary.BigEndian.Uint64(omv.Extra[:8])
+			poi.UserDefined["etag"] = "cid-" + strconv.FormatUint(csize, 10)
+		}
+
+		obj := &object{
+			ObjectInfo: types.ObjectInfo{
+				ObjectInfo: poi,
+				Size:       omv.Length,
+				ETag:       omv.ETag,
+				Parts:      make([]*pb.ObjectPartInfo, 0, 1),
+				State:      fmt.Sprintf("user: %d", l.userID),
+			},
+			ops:      make([]uint64, 0, 2),
+			deletion: false,
+			pin:      true,
+		}
+
+		opi := &pb.ObjectPartInfo{
+			Offset: omv.Offset,
+			Length: omv.Length,
+			ETag:   omv.ETag,
+		}
+
+		obj.Parts = append(obj.Parts, opi)
+
+		if obj.Name == "" {
+			newName, err := etag.ToString(obj.ETag)
+			if err != nil {
+				continue
+			}
+			obj.Name = newName
+		}
+
+		ename, err := etag.ToString(obj.ETag)
+		if err == nil {
+			od := &objectDigest{
+				bucketID: obj.BucketID,
+				objectID: obj.ObjectID,
+			}
+			l.sb.etagCache.Add(ename, od)
+		}
+
+		bu.objects[obj.ObjectID] = obj
+		if bu.objectTree.Find(MetaName(obj.Name)) == nil {
+			bu.objectTree.Insert(MetaName(obj.Name), obj)
+		}
+	}
 }
 
 func (l *LfsService) save() error {
