@@ -43,6 +43,7 @@ type bucket struct {
 	objects    map[uint64]*object // key is objectID
 
 	writable bool
+	partial  bool
 	dirty    bool
 }
 
@@ -79,12 +80,13 @@ func newSuperBlock() *superBlock {
 	}
 }
 
+// todo: load from state
 func (sbl *superBlock) load(userID uint64, ds store.KVStore) error {
 	// from local
 	key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, userID)
 	data, err := ds.Get(key)
 	if err != nil {
-		// if miss; init?
+		// load from state
 		return err
 	}
 
@@ -499,7 +501,11 @@ func (l *LfsService) load() error {
 	l.sb.Lock()
 	defer l.sb.Unlock()
 	// 1. load super block
-	l.sb.load(l.userID, l.ds)
+	err := l.sb.load(l.userID, l.ds)
+	if err != nil {
+		logger.Warn("fail to load super block: ", err)
+		l.getSBFromState()
+	}
 
 	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
@@ -521,7 +527,6 @@ func (l *LfsService) load() error {
 			continue
 		}
 
-		bu.writable = true
 		logger.Debug("load bucket: ", i, bu.BucketInfo)
 
 		if !bu.BucketInfo.Deletion {
@@ -581,6 +586,17 @@ func (l *LfsService) load() error {
 	return nil
 }
 
+func (l *LfsService) getSBFromState() error {
+	nextBucket, err := l.StateGetBucketAt(l.ctx, l.userID)
+	if err != nil || nextBucket == 0 {
+		return err
+	}
+
+	l.sb.NextBucketID = nextBucket
+	l.sb.buckets = make([]*bucket, nextBucket)
+	return nil
+}
+
 func (l *LfsService) getBucketOptsFromState(bu *bucket) error {
 	// from state
 	bo, err := l.StateGetBucOpt(l.ctx, l.userID, bu.BucketID)
@@ -588,17 +604,18 @@ func (l *LfsService) getBucketOptsFromState(bu *bucket) error {
 		return err
 	}
 
+	bu.BucketInfo.BucketOption = *bo
+	bu.Deletion = false
+	bu.partial = true
+
+	bu.Name = fmt.Sprintf("bucket-%d", bu.BucketID)
 	bmp, err := l.StateGetBucMeta(l.ctx, l.userID, bu.BucketID)
-	if err == nil {
+	if err == nil && bmp.Name != "" {
 		bu.Name = bmp.Name
-		l.sb.bucketNameToID[bu.Name] = bu.BucketID
 	}
 
-	bi := types.BucketInfo{
-		BucketOption: *bo,
-	}
+	l.sb.bucketNameToID[bu.Name] = bu.BucketID
 
-	bu.BucketInfo = bi
 	bu.objectTree = rbtree.NewTree()
 	bu.objects = make(map[uint64]*object)
 
@@ -674,6 +691,13 @@ func (l *LfsService) getObjectFromState(bu *bucket) {
 		if bu.objectTree.Find(MetaName(obj.Name)) == nil {
 			bu.objectTree.Insert(MetaName(obj.Name), obj)
 		}
+		bu.NextObjectID = obj.ObjectID + 1
+
+		if bu.DataCount != 0 {
+			stripeCnt := (omv.Length-1)/(build.DefaultSegSize*uint64(bu.DataCount)) + 1
+			bu.Length += stripeCnt * uint64(bu.DataCount) * build.DefaultSegSize
+			bu.UsedBytes += stripeCnt * uint64(bu.DataCount+bu.ParityCount) * build.DefaultSegSize
+		}
 	}
 }
 
@@ -715,14 +739,22 @@ func (l *LfsService) persistMeta() {
 				bu := l.sb.buckets[bid]
 				bu.Confirmed = true
 				// register in order
-				go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+				go l.registerBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+			}
+			l.sb.Unlock()
+		case bid := <-l.bucketReadyChan:
+			logger.Debugf("lfs bucket %d is ready for wirte", bid)
+			l.sb.Lock()
+			bu := l.sb.buckets[bid]
+			if !bu.partial {
+				bu.writable = true
 			}
 			l.sb.Unlock()
 		case <-tick.C:
 			if l.Writeable() {
 				err := l.save()
 				if err != nil {
-					logger.Warn("Cannot Persist Meta: ", err)
+					logger.Warn("cannot persist meta: ", err)
 				}
 			}
 		case <-ltick.C:
@@ -739,6 +771,11 @@ func (l *LfsService) persistMeta() {
 			return
 		}
 	}
+}
+
+func (l *LfsService) registerBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
+	l.OrderMgr.RegisterBucket(bucketID, nextOpID, bopt)
+	l.bucketReadyChan <- bucketID
 }
 
 func (l *LfsService) getPayInfo() {

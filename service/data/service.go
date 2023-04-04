@@ -143,7 +143,7 @@ func (d *dataService) getSegment(ctx context.Context, sid segment.SegmentID) (se
 
 	// backgroup read limit;
 	// 1~2TB/day if read speed is slow
-	if ctx.Value("MEFS_Priority") != "" {
+	if ctx.Value("MEFS_Priority") == "low" {
 		d.st.wait()
 	}
 

@@ -128,7 +128,7 @@ func (m *OrderMgr) runOrderSched(of *proInst) {
 func (m *OrderMgr) check(o *proInst) {
 	nt := time.Now().Unix()
 
-	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.jobCount(), o.ready, o.inStop)
+	logger.Debugf("check state pro:%d, nonce: %d, seq: %d, order state: %s, seq state: %s, jobs: %d, failCnt: %d, ready: %t, stop: %t", o.pro, o.nonce, o.seqNum, o.orderState, o.seqState, o.jobCount(), o.failCnt, o.ready, o.inStop)
 
 	if o.inStop {
 		return
@@ -155,13 +155,13 @@ func (m *OrderMgr) check(o *proInst) {
 		}
 	}
 
-	if !o.ready {
-		return
-	}
-
 	if o.failCnt > minFailCnt || o.failSent > minFailCnt {
 		err := m.stopOrder(o)
 		logger.Warnf("stop order %d due to fail too many times %s", o.pro, err)
+		return
+	}
+
+	if !o.ready {
 		return
 	}
 
@@ -646,6 +646,7 @@ func (m *OrderMgr) stopOrder(o *proInst) error {
 			bjob.jobs = bjob.jobs[:0]
 		}
 	}
+	o.jobCnt = 0
 	o.Unlock()
 
 	for _, seq := range nsjq {

@@ -32,7 +32,7 @@ var infoCmd = &cli.Command{
 		},
 		&cli.BoolFlag{
 			Name:    "all",
-			Aliases: []string{"a"},
+			Aliases: []string{"a", "v"},
 			Value:   false, //默认值为空，要么手动输入，要么从本地keystore读取（需指定路径和密码）
 			Usage:   "show all info",
 		},

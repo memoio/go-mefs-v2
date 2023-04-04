@@ -136,9 +136,10 @@ var orderListJobCmd = &cli.Command{
 	Usage: "list jobs of all pros",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
-			Name:  "verbose",
-			Usage: "filter output",
-			Value: false,
+			Name:    "verbose",
+			Aliases: []string{"v"},
+			Usage:   "filter output",
+			Value:   false,
 		},
 	},
 	Action: func(cctx *cli.Context) error {

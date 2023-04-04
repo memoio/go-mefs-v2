@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/lib/code"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -138,19 +138,19 @@ func (m *OrderMgr) createProOrder(id uint64) {
 	}
 
 	m.lk.Lock()
-	_, has := m.pInstMap[id]
-	if has {
-		m.lk.Unlock()
-		return
-	}
-
 	_, ok := m.inCreation[id]
 	if ok {
 		m.lk.Unlock()
 		return
 	}
 
-	m.inCreation[id] = struct{}{}
+	_, has := m.pInstMap[id]
+	if has {
+		m.lk.Unlock()
+		return
+	}
+
+	m.inCreation[id] = time.Now()
 	m.lk.Unlock()
 
 	logger.Debug("create proInst sat: ", id)
@@ -322,32 +322,19 @@ func (m *OrderMgr) startProInst(of *proInst) {
 func (m *OrderMgr) updateConfirmSize(of *proInst, seq types.OrderSeq, save bool) {
 	logger.Debug("confirm jobs: updateSize in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 
-	key := store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return
-	}
-
-	sjq := new(types.SegJobsQueue)
-	err = sjq.Deserialize(val)
-	if err != nil {
-		return
-	}
-	ss := *sjq
-	sLen := sjq.Len()
-	size := uint64(0)
-	for i := 0; i < sLen; i++ {
-		m.segConfirmChan <- ss[i]
-		size += ss[i].Length * code.DefaultSegSize
-	}
-
 	// update size
+	size := uint64(0)
+	for _, seg := range seq.Segments {
+		size += seg.Length
+	}
+	size *= build.DefaultSegSize
+
 	m.sizelk.Lock()
 	m.opi.ConfirmSize += size
 
 	if save {
-		key = store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
-		val, err = m.opi.Serialize()
+		key := store.NewKey(pb.MetaType_OrderPayInfoKey, m.localID)
+		val, err := m.opi.Serialize()
 		if err == nil {
 			m.ds.Put(key, val)
 		}
@@ -357,13 +344,28 @@ func (m *OrderMgr) updateConfirmSize(of *proInst, seq types.OrderSeq, save bool)
 		of.opi.ConfirmSize += size
 		if save {
 			key := store.NewKey(pb.MetaType_OrderPayInfoKey, seq.UserID, seq.ProID)
-			val, err = of.opi.Serialize()
+			val, err := of.opi.Serialize()
 			if err == nil {
 				m.ds.Put(key, val)
 			}
 		}
 	}
 	m.sizelk.Unlock()
+
+	// re-confirm jobs
+	key := store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
+	val, err := m.ds.Get(key)
+	if err == nil {
+		sjq := new(types.SegJobsQueue)
+		err = sjq.Deserialize(val)
+		if err == nil {
+			ss := *sjq
+			sLen := sjq.Len()
+			for i := 0; i < sLen; i++ {
+				m.segConfirmChan <- ss[i]
+			}
+		}
+	}
 
 	key = store.NewKey(pb.MetaType_OrderSeqJobKey, seq.UserID, seq.ProID)
 	nData, err := m.ds.Get(key)

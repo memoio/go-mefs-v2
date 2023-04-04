@@ -30,15 +30,21 @@ type ghost struct {
 }
 
 func (l *LfsService) getGhost(ctx context.Context, userID uint64) (*ghost, error) {
-	if userID == l.userID {
-		return &ghost{
-			keyset: l.keyset,
-			fsID:   l.keyset.VerifyKey().Hash(),
-		}, nil
-	}
-
 	g, ok := l.users[userID]
 	if ok {
+		return g, nil
+	}
+
+	if userID == l.userID {
+		g = &ghost{
+			keyset: l.keyset,
+			fsID:   l.keyset.VerifyKey().Hash(),
+		}
+
+		l.Lock()
+		l.users[userID] = g
+		l.Unlock()
+
 		return g, nil
 	}
 
@@ -271,27 +277,19 @@ func (l *LfsService) downloadOtherObjectByEtag(ctx context.Context, etagName str
 }
 
 func (l *LfsService) addSegLoc(ctx context.Context, userID uint64) error {
-	for {
-		l.Lock()
-		g, ok := l.users[userID]
-		if !ok {
-			l.Unlock()
-			return xerrors.Errorf("no such user: %d", userID)
-		}
-
-		if !g.segloc {
-			g.segloc = true
-			l.Unlock()
-			break
-		}
-		l.Unlock()
-		logger.Debug("wait retrieve seg location at: ", userID)
-		time.Sleep(time.Second)
+	g, err := l.getGhost(ctx, userID)
+	if err != nil {
+		return xerrors.Errorf("no such user: %d", userID)
 	}
 
+	if g.segloc {
+		logger.Warnf("wait retrieve seg location at: ", userID)
+		return xerrors.Errorf("%d is retrieving seg location", userID)
+	}
+
+	g.segloc = true
 	defer func() {
 		l.Lock()
-		g := l.users[userID]
 		g.segloc = false
 		l.Unlock()
 	}()
@@ -374,16 +372,12 @@ func (l *LfsService) addSegLoc(ctx context.Context, userID uint64) error {
 }
 
 func (l *LfsService) getSegment(ctx context.Context, userID uint64, segID segment.SegmentID) (segment.Segment, error) {
-	if userID == l.userID {
-		return l.OrderMgr.GetSegment(ctx, segID)
-	}
-
 	seg, err := l.OrderMgr.GetSegmentFromLocal(ctx, segID)
 	if err == nil {
 		return seg, nil
 	}
 
-	pid, err := l.getSegmentLocation(ctx, userID, segID.GetBucketID(), segID.GetStripeID(), segID.GetChunkID())
+	pid, err := l.getSegmentLocation(ctx, userID, segID)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +385,18 @@ func (l *LfsService) getSegment(ctx context.Context, userID uint64, segID segmen
 	return l.OrderMgr.GetSegmentRemote(ctx, segID, pid)
 }
 
-func (l *LfsService) getSegmentLocation(ctx context.Context, userID uint64, bucketID, stripeID uint64, chunkID uint32) (uint64, error) {
+func (l *LfsService) getSegmentLocation(ctx context.Context, userID uint64, segID segment.SegmentID) (uint64, error) {
+	if l.userID == userID {
+		pid, err := l.OrderMgr.GetSegmentLocation(ctx, segID)
+		if err == nil {
+			return pid, nil
+		}
+	}
+
+	bucketID := segID.GetBucketID()
+	stripeID := segID.GetStripeID()
+	chunkID := segID.GetChunkID()
+
 	pros, err := l.StateGetProsAt(ctx, userID)
 	if err != nil {
 		return 0, err

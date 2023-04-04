@@ -21,7 +21,7 @@ func (m *OrderMgr) fix(of *proInst) {
 	logger.Debug("handle re-confirm order sat: ", of.pro, err)
 	err = m.handleUnPush(of)
 	logger.Debug("handle re-push order sat: ", of.pro, err)
-	m.handleMissing(of)
+	err = m.handleMissing(of)
 	logger.Debug("handle missing order sat: ", of.pro, err)
 }
 
@@ -43,6 +43,8 @@ func (m *OrderMgr) handleMissing(of *proInst) error {
 		return nil
 	}
 
+	logger.Warn("try fix order for: ", of.pro, ", want than: ", ns.Nonce, ns.SeqNum, ", has: ", of.nonce, of.seqNum, of.orderState, of.seqState)
+
 	// if provider advance more than one step
 	// not handle it due to miss too many
 	// caused by fail to save local and fail to commit
@@ -53,14 +55,22 @@ func (m *OrderMgr) handleMissing(of *proInst) error {
 
 	sor, err := m.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce)
 	if err != nil {
-		return err
+		if ns.Nonce > 0 && ns.SeqNum == 0 {
+			sor, err = m.StateGetOrder(m.ctx, of.localID, of.pro, ns.Nonce-1)
+			if err != nil {
+				return err
+			}
+			of.orderState = Order_Init
+		} else {
+			return err
+		}
+	} else {
+		of.base = &sor.SignedOrder
+		of.orderState = Order_Running
 	}
 
-	of.base = &sor.SignedOrder
 	of.prevEnd = sor.End
-
 	of.nonce = sor.Nonce + 1
-	of.orderState = Order_Running
 	of.orderTime = time.Now().Unix()
 
 	of.seqNum = ns.SeqNum
@@ -92,8 +102,10 @@ func (m *OrderMgr) handleMissing(of *proInst) error {
 		of.seqState = OrderSeq_Init
 	}
 
-	saveOrderBase(of, m.ds)
-	saveOrderState(of, m.ds)
+	if of.base != nil {
+		saveOrderBase(of, m.ds)
+		saveOrderState(of, m.ds)
+	}
 
 	return nil
 }
@@ -105,7 +117,7 @@ func (m *OrderMgr) handleUnConfirm(of *proInst) error {
 		return err
 	}
 
-	if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+	if os.Getenv("MEFS_RECOVERY_MODE") == "rebuild" {
 		of.opi.NeedPay.SetInt64(0)
 		of.opi.Size = 0
 		of.opi.ConfirmSize = 0
@@ -389,7 +401,7 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 		}
 
 		i := uint32(ss.Number)
-		if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+		if os.Getenv("MEFS_RECOVERY_MODE") == "rebuild" {
 			i = 0
 		}
 
@@ -425,7 +437,7 @@ func (m *OrderMgr) checkSeg(userID, proID, nonce uint64, seqNum uint32) error {
 
 	if seqNum > 0 {
 		i := uint32(seqNum - 1)
-		if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+		if os.Getenv("MEFS_RECOVERY_MODE") == "rebuild" {
 			i = 0
 		}
 		for ; i < seqNum; i++ {

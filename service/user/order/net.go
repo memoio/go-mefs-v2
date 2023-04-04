@@ -27,6 +27,16 @@ func (m *OrderMgr) runNetSched() {
 			} else {
 				go m.createProOrder(pid)
 			}
+		case pid := <-m.failChan:
+			logger.Debug("pro request fail: ", pid)
+			m.lk.RLock()
+			of, ok := m.pInstMap[pid]
+			m.lk.RUnlock()
+			if ok {
+				of.failCnt += 10
+			} else {
+				go m.createProOrder(pid)
+			}
 		// handle order state
 		case quo := <-m.quoChan:
 			m.lk.RLock()
@@ -286,6 +296,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
+		m.failChan <- proID
 		logger.Debug("fail get new order ack from: ", proID, string(resp.GetData().MsgInfo))
 		return xerrors.Errorf("get new order ack from %d fail %s", proID, resp.GetData().MsgInfo)
 	}
@@ -339,6 +350,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
+		m.failChan <- proID
 		logger.Debug("fail get new seq ack from: ", proID, string(resp.GetData().MsgInfo))
 		return xerrors.Errorf("get new seq ack from %d fail %s", proID, resp.GetData().MsgInfo)
 	}

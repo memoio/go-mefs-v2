@@ -67,13 +67,6 @@ func (m *OrderMgr) AddSegJob(sj *types.SegJob) {
 }
 
 func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
-	for !m.ready {
-		time.Sleep(time.Second)
-	}
-
-	// todo: why?
-	time.Sleep(30 * time.Second)
-
 	opckey := store.NewKey(pb.MetaType_LFS_OpCountKey, m.localID, bucketID)
 	opDoneCount := uint64(0)
 	val, err := m.ds.Get(opckey)
@@ -81,7 +74,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 		opDoneCount = binary.BigEndian.Uint64(val) + 1
 	}
 
-	if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+	if os.Getenv("MEFS_RECOVERY_MODE") == "rebuild" {
 		opDoneCount = 0
 	}
 

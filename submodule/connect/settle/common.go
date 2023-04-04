@@ -140,7 +140,7 @@ func TransferMemoTo(endPoint, sk string, tAddr, addr common.Address, val *big.In
 		deltaVal := big.NewInt(0)
 		deltaVal.Sub(newVal, oldVal)
 		if deltaVal.Cmp(big.NewInt(0)) > 0 {
-			logger.Infof("transfer memo %d ok, %s has memo %d now", deltaVal, addr, newVal)
+			logger.Infof("transfer memo %d ok, %s has memo %d AttoMemo now", deltaVal, addr, newVal)
 			return nil
 		}
 

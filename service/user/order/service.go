@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"os"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/semaphore"
 
@@ -48,7 +49,7 @@ type OrderMgr struct {
 	opi    *types.OrderPayInfo
 
 	lk         sync.RWMutex // lock orders and bucMap update
-	inCreation map[uint64]struct{}
+	inCreation map[uint64]time.Time
 	pros       []uint64
 	pInstMap   map[uint64]*proInst // key: proID
 	buckets    []uint64
@@ -59,7 +60,8 @@ type OrderMgr struct {
 	proChan    chan *proInst           // provider add chan
 	bucketChan chan *lastProsPerBucket // bucket create chan
 
-	updateChan    chan uint64             // network update chan
+	updateChan    chan uint64 // network update chan
+	failChan      chan uint64
 	quoChan       chan *types.Quotation   // to create new order
 	orderChan     chan *types.SignedOrder // confirm new order
 	seqNewChan    chan *orderSeqPro       // confirm new seq
@@ -128,7 +130,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 			Paid:    big.NewInt(0),
 		},
 
-		inCreation: make(map[uint64]struct{}),
+		inCreation: make(map[uint64]time.Time),
 		pros:       make([]uint64, 0, 128),
 		pInstMap:   make(map[uint64]*proInst),
 		buckets:    make([]uint64, 0, 16),
@@ -140,6 +142,7 @@ func NewOrderMgr(ctx context.Context, roleID uint64, fsID []byte, price, orderDu
 
 		proChan:       make(chan *proInst, 128),
 		updateChan:    make(chan uint64, 128),
+		failChan:      make(chan uint64, 128),
 		quoChan:       make(chan *types.Quotation, 128),
 		orderChan:     make(chan *types.SignedOrder, 128),
 		seqNewChan:    make(chan *orderSeqPro, 128),
@@ -233,7 +236,7 @@ func (m *OrderMgr) load() error {
 		}
 	}
 
-	if os.Getenv("MEFS_RECOVERY_MODE") != "" {
+	if os.Getenv("MEFS_RECOVERY_MODE") == "rebuild" {
 		// reset for later reget
 		m.opi.Size = 0
 		m.opi.NeedPay = new(big.Int)

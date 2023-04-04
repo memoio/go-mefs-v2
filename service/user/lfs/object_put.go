@@ -80,7 +80,7 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	defer bucket.Unlock()
 
 	if !bucket.writable {
-		return oi, xerrors.Errorf("bucket %d is read only", bucket.BucketID)
+		return oi, xerrors.Errorf("bucket %d is read only now", bucket.BucketID)
 	}
 
 	// create new object and insert into rbtree
