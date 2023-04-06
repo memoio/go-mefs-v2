@@ -471,7 +471,7 @@ func (m *OrderMgr) HandleFinishSeq(userID uint64, b []byte) ([]byte, error) {
 			if !rHash.Equal(lHash) {
 				logger.Debug("handle seq md5: ", lHash.String(), " and ", rHash.String())
 
-				// TODO: load missing or reget
+				// todo: load missing or reget
 				if !or.seq.Segments.Equal(os.Segments) {
 					logger.Debug("handle seqIn local: ", or.seq.Segments.Len(), or.seq)
 					logger.Debug("handle seqIn remote: ", os.Segments.Len(), os)

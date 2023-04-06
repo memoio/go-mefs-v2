@@ -60,9 +60,6 @@ func (m *OrderMgr) runBucketSched() {
 	}
 }
 
-// TODO: change pro when quotation price is too high
-// TODO: fix order duplicated due to pro change
-
 func (m *OrderMgr) RegisterBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
 	logger.Info("register order for bucket: ", bucketID, nextOpID)
 

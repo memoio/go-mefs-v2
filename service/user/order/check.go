@@ -622,7 +622,6 @@ func (m *OrderMgr) stopOrder(o *proInst) error {
 
 	// add redo current seq
 	if o.sjq != nil {
-		// should not, TODO: fix
 		sLen := o.sjq.Len()
 		ss := *o.sjq
 

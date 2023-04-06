@@ -536,8 +536,6 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	return s.root, nil
 }
 
-// TODO: modify s.tds.put() to smt.put()
-// and s.tds.get() to smt.get()
 func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
 	if msg == nil {
 		return s.root, nil

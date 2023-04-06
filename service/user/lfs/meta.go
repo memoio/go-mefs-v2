@@ -34,7 +34,6 @@ type superBlock struct {
 	etagCache      *lru.ARCCache     // from etags -> objectDigest
 }
 
-// todo: add readonly if lose local meta
 type bucket struct {
 	sync.RWMutex
 	types.BucketInfo
@@ -42,8 +41,8 @@ type bucket struct {
 	objectTree *rbtree.Tree       // store objects; key is object name; chekc before insert
 	objects    map[uint64]*object // key is objectID
 
-	writable bool
-	partial  bool
+	writable bool // false if partial = true
+	partial  bool // true if lose local meta
 	dirty    bool
 }
 
@@ -80,7 +79,6 @@ func newSuperBlock() *superBlock {
 	}
 }
 
-// todo: load from state
 func (sbl *superBlock) load(userID uint64, ds store.KVStore) error {
 	// from local
 	key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, userID)

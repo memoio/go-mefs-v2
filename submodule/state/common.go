@@ -17,7 +17,7 @@ import (
 
 var logger = logging.Logger("data-state")
 
-// TODO: add msg fee here
+// todo: add msg fee here
 type roleInfo struct {
 	base *pb.RoleInfo
 	val  *roleValue

@@ -55,7 +55,7 @@ type proInst struct {
 	jobs     map[uint64]*bucketJob // buf and persist?
 	jobCnt   int
 
-	failCnt  int // TODO: retry > 128; change pro?
+	failCnt  int // change pro?
 	failSent int
 
 	ready  bool // ready for service; network is ok
@@ -415,7 +415,7 @@ func (m *OrderMgr) updateBaseSize(of *proInst, so *types.SignedOrder, save bool)
 }
 
 // remove segment from local when commit
-// todo: re-handle at boot
+// re-handle at boot
 func (m *OrderMgr) replaceSegWithLoc(seq types.OrderSeq) {
 	logger.Debug("confirm jobs: ReplaceSegWithLoc in order seq: ", seq.UserID, seq.ProID, seq.Nonce, seq.SeqNum)
 

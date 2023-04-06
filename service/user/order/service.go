@@ -29,7 +29,7 @@ type OrderMgr struct {
 
 	is api.ISettle
 
-	// TODO: remove
+	// todo: remove
 	ns *netapp.NetServiceImpl
 	ds store.KVStore // save order info
 
@@ -69,7 +69,7 @@ type OrderMgr struct {
 
 	// add data
 	segAddChan     chan *types.SegJob // add new segjob
-	segRedoChan    chan *types.SegJob // todo: check
+	segRedoChan    chan *types.SegJob // redo segjob when load or stop
 	segSentChan    chan *types.SegJob // segjob is sent
 	segConfirmChan chan *types.SegJob // segjob is confirmed
 

@@ -277,7 +277,7 @@ func (pp *PushPool) PushSignedMessage(ctx context.Context, sm *tx.SignedMessage)
 	}
 
 	// replace it; if exist
-	// TODO compare GasPrice?
+	// todo: compare GasPrice?
 	lp.msgto[sm.Nonce] = &msgTo{
 		ctime: time.Now(),
 		mtime: time.Now(),

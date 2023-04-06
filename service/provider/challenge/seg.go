@@ -250,8 +250,8 @@ func (s *SegMgr) removeExpiredChunk() {
 	}
 }
 
-// TODO: add repair after check before challenge
-// TODO: should cancle when epoch passed
+// todo: add repair after check before challenge
+// todo: should cancle when epoch passed
 func (s *SegMgr) challenge(userID uint64) {
 	logger.Debug("challenge for user: ", userID)
 	if s.epoch < 2 {
@@ -484,7 +484,7 @@ func (s *SegMgr) challenge(userID uint64) {
 	}
 
 	if ns.Nonce > 0 {
-		// TODO: choose some from [0, ns.Nonce)
+		// todo: choose some from [0, ns.Nonce)
 		for i := ns.SubNonce; i < ns.Nonce; i++ {
 			so, err := s.StateGetOrder(s.ctx, userID, s.localID, i)
 			if err != nil {

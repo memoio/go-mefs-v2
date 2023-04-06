@@ -231,8 +231,8 @@ func (m *OrderMgr) createOrder(op *OrderFull) {
 	op.ready = true
 }
 
-// TODO: load from data chain
-// TODO: fix missing if provider has fault
+// todo: load from data chain
+// todo: fix missing if provider has fault
 func (m *OrderMgr) getOrder(userID uint64) *OrderFull {
 	m.lk.Lock()
 	op, ok := m.orders[userID]
