@@ -138,8 +138,14 @@ var orderListJobCmd = &cli.Command{
 		&cli.BoolFlag{
 			Name:    "verbose",
 			Aliases: []string{"v"},
-			Usage:   "filter output",
+			Usage:   "output all",
 			Value:   false,
+		},
+		&cli.StringFlag{
+			Name:    "filter",
+			Aliases: []string{"f"},
+			Usage:   "filter output by keyword: 'job' means has jobs; 'running' means OrderState, 'stop' means InStop",
+			Value:   "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -163,6 +169,7 @@ var orderListJobCmd = &cli.Command{
 		sort.Slice(ois, func(i, j int) bool { return ois[i].ID < ois[j].ID })
 
 		verbose := cctx.Bool("verbose")
+		filter := cctx.String("filter")
 
 		type outPutOrderJobInfo struct {
 			ID         uint64
@@ -185,9 +192,26 @@ var orderListJobCmd = &cli.Command{
 		var tmp outPutOrderJobInfo
 
 		for _, oi := range ois {
+			switch filter {
+			case "job":
+				if oi.Jobs == 0 {
+					continue
+				}
+			case "running":
+				if oi.OrderState != "running" {
+					continue
+				}
+			case "stop":
+				verbose = true
+				if !oi.InStop {
+					continue
+				}
+			}
+
 			if !verbose && oi.InStop || oi.OrderTime == 0 {
 				continue
 			}
+
 			tmp = outPutOrderJobInfo{oi.ID, oi.Jobs, oi.Nonce, oi.OrderState, time.Unix(int64(oi.OrderTime), 0).Format(utils.SHOWTIME), oi.SeqNum, oi.SeqState, oi.Ready, oi.InStop, time.Unix(int64(oi.AvailTime), 0).Format(utils.SHOWTIME)}
 			switch oi.OrderState {
 			case "wait":
