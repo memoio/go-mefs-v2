@@ -74,7 +74,7 @@ func (m *OrderMgr) loadUnfinishedSegJobs(bucketID, opID uint64) {
 		opDoneCount = binary.BigEndian.Uint64(val) + 1
 	}
 
-	if os.Getenv("MEFS_RECOVERY_MODE") == "rebuild" {
+	if os.Getenv("MEFS_RECOVERY_MODE") != "" {
 		opDoneCount = 0
 	}
 
@@ -538,8 +538,6 @@ func (m *OrderMgr) sendChunk(o *proInst) {
 					o.jobCnt--
 					o.inflight = false
 					o.Unlock()
-
-					time.Sleep(1 * time.Second)
 
 					continue
 				}

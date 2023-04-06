@@ -151,7 +151,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, ver uint32, 
 	if err != nil {
 		return nil, err
 	}
-	logger.Debugf("%s has memo %d", eAddr, erc20i.BalanceOf(eAddr))
+	logger.Debugf("%s has memo %d AttoMemo", eAddr, erc20i.BalanceOf(eAddr))
 
 	cm.ercIns = erc20i
 

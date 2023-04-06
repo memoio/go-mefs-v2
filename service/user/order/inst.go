@@ -430,12 +430,9 @@ func (m *OrderMgr) replaceSegWithLoc(seq types.OrderSeq) {
 		for j := seg.Start; j < seg.Start+seg.Length; j++ {
 			sid.SetStripeID(j)
 
-			has, err := m.HasSegment(m.ctx, sid)
-			if err == nil && has {
-				m.PutSegmentLocation(m.ctx, sid, seq.ProID)
-				// delete from local
-				m.DeleteSegment(m.ctx, sid)
-			}
+			m.PutSegmentLocation(m.ctx, sid, seq.ProID)
+			// delete from local
+			m.DeleteSegment(m.ctx, sid)
 		}
 	}
 
