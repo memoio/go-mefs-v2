@@ -291,7 +291,10 @@ func (m *OrderMgr) redoSegJob(sj *types.SegJob) {
 
 	for i := uint64(0); i < sj.Length; i++ {
 		id := uint(sj.Start+i-seg.Start)*uint(seg.ChunkID) + uint(sj.ChunkID)
-		if !seg.confirmBits.Test(id) {
+		if seg.confirmBits.Test(id) {
+			seg.dispatchBits.Set(id)
+			seg.doneBits.Set(id)
+		} else {
 			seg.dispatchBits.Clear(id)
 			seg.doneBits.Clear(id)
 		}

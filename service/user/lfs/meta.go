@@ -788,42 +788,6 @@ func (l *LfsService) getPayInfo() {
 	}
 }
 
-// put meta to remote?
-
-func (l *LfsService) broadcast(userID, bucketID, opID uint64) {
-	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bucketID, opID)
-	data, err := l.ds.Get(key)
-	if err != nil {
-		return
-	}
-
-	sr := &types.SignedRecord{
-		Record: types.Record{
-			Key:   key,
-			Value: data,
-		},
-	}
-
-	sig, err := l.RoleSign(l.ctx, l.userID, sr.Hash().Bytes(), types.SigSecp256k1)
-	if err != nil {
-		return
-	}
-
-	sr.Sign = sig
-
-	da, err := sr.Serialize()
-	if err != nil {
-		return
-	}
-
-	em := &pb.EventMessage{
-		Type: pb.EventMessage_LfsMeta,
-		Data: da,
-	}
-
-	l.INetService.PublishEvent(l.ctx, em)
-}
-
 // reconstruct related
 
 func (l *LfsService) Recontruct() error {

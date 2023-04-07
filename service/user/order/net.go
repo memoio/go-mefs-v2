@@ -167,62 +167,6 @@ func (m *OrderMgr) update(proID uint64) {
 	m.updateChan <- proID
 }
 
-func (m *OrderMgr) getOrderRemote(proID uint64) (*types.SignedOrder, error) {
-	logger.Debug("get orders from: ", proID)
-	// test remote service is ready or not
-	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_GetOrder, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.GetHeader().GetFrom() != proID {
-		return nil, xerrors.Errorf("wrong get order from expected %d, got %d", proID, resp.GetHeader().GetFrom())
-	}
-
-	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return nil, xerrors.Errorf("get order from %d fail %s", proID, resp.GetData().MsgInfo)
-	}
-
-	ob := new(types.SignedOrder)
-	err = ob.Deserialize(resp.GetData().GetMsgInfo())
-	if err != nil {
-		logger.Debug("fail get order from: ", proID, err)
-		return nil, err
-	}
-
-	// verify order
-
-	return ob, nil
-}
-
-func (m *OrderMgr) getSeqRemote(proID uint64) (*types.SignedOrderSeq, error) {
-	logger.Debug("get seq from: ", proID)
-	// test remote service is ready or not
-	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_GetOrder, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.GetHeader().GetFrom() != proID {
-		return nil, xerrors.Errorf("wrong get order seq from expected %d, got %d", proID, resp.GetHeader().GetFrom())
-	}
-
-	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return nil, xerrors.Errorf("get order seq from %d fail %s", proID, resp.GetData().MsgInfo)
-	}
-
-	os := new(types.SignedOrderSeq)
-	err = os.Deserialize(resp.GetData().GetMsgInfo())
-	if err != nil {
-		logger.Debug("fail get order seq: ", proID, err)
-		return nil, err
-	}
-
-	// verify order
-
-	return os, nil
-}
-
 func (m *OrderMgr) getQuotation(proID uint64) error {
 	logger.Debug("new quotation getr: ", proID)
 
