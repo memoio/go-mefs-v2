@@ -12,12 +12,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// todo: add content type
 const (
 	MsgIDHashCode = 0x4c
 	MsgIDHashLen  = 20
 	MsgLen        = 22
-
-	// TODO add type for content
 )
 
 func init() {

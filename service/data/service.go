@@ -90,7 +90,7 @@ type dataService struct {
 
 func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.IRole, is readpay.ISender) *dataService {
 	// 250MB
-	// TODO: from env
+	// todo: set size from env
 	cache, _ := lru.NewARC(1024)
 
 	d := &dataService{
@@ -143,7 +143,7 @@ func (d *dataService) getSegment(ctx context.Context, sid segment.SegmentID) (se
 
 	// backgroup read limit;
 	// 1~2TB/day if read speed is slow
-	if ctx.Value("Priority") != "" {
+	if ctx.Value("MEFS_Priority") == "low" {
 		d.st.wait()
 	}
 

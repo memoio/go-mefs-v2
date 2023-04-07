@@ -514,7 +514,6 @@ func (sp *SyncPool) SyncAddTxMessage(ctx context.Context, msg *tx.SignedMessage)
 			return xerrors.Errorf("msg is invalid")
 		}
 
-		// TODO: verify message use state, need?
 		ok, err := sp.RoleVerify(ctx, msg.From, mid.Bytes(), msg.Signature)
 		if err != nil {
 			return xerrors.Errorf("%d %d tx msg %s sign verify err %s", msg.From, msg.Nonce, mid, err)

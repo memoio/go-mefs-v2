@@ -13,6 +13,65 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
+// handle msg over net, then dispatch to provider order
+func (m *OrderMgr) runNetSched() {
+	for {
+		select {
+		case pid := <-m.updateChan:
+			logger.Debug("update pro time: ", pid)
+			m.lk.RLock()
+			of, ok := m.pInstMap[pid]
+			m.lk.RUnlock()
+			if ok {
+				of.availTime = time.Now().Unix()
+			} else {
+				go m.createProOrder(pid)
+			}
+		case pid := <-m.failChan:
+			logger.Debug("pro request fail: ", pid)
+			m.lk.RLock()
+			of, ok := m.pInstMap[pid]
+			m.lk.RUnlock()
+			if ok {
+				of.failCnt += 10
+			} else {
+				go m.createProOrder(pid)
+			}
+		// handle order state
+		case quo := <-m.quoChan:
+			m.lk.RLock()
+			of, ok := m.pInstMap[quo.ProID]
+			m.lk.RUnlock()
+			if ok {
+				of.quoChan <- quo
+			}
+		case ob := <-m.orderChan:
+			m.lk.RLock()
+			of, ok := m.pInstMap[ob.ProID]
+			m.lk.RUnlock()
+			if ok {
+				of.orderChan <- ob
+			}
+		case s := <-m.seqNewChan:
+			m.lk.RLock()
+			of, ok := m.pInstMap[s.proID]
+			m.lk.RUnlock()
+			if ok {
+				of.seqNewChan <- s
+			}
+		case s := <-m.seqFinishChan:
+			m.lk.RLock()
+			of, ok := m.pInstMap[s.proID]
+			m.lk.RUnlock()
+			if ok {
+				of.seqFinishChan <- s
+			}
+		case <-m.ctx.Done():
+			return
+		}
+	}
+}
+
 func (m *OrderMgr) connect(proID uint64) error {
 	logger.Debug("try connect pro: ", proID)
 	// test remote service is ready or not
@@ -28,7 +87,7 @@ func (m *OrderMgr) connect(proID uint64) error {
 	// otherwise get addr from declared address
 	pi, err := m.StateGetNetInfo(m.ctx, proID)
 	if err == nil {
-		// TODO: fix this
+		// todo: fix this
 		err := m.ns.Host().Connect(m.ctx, pi)
 		if err == nil {
 			m.ns.Host().Peerstore().SetAddrs(pi.ID, pi.Addrs, time.Duration(24*time.Hour))
@@ -108,62 +167,6 @@ func (m *OrderMgr) update(proID uint64) {
 	m.updateChan <- proID
 }
 
-func (m *OrderMgr) getOrderRemote(proID uint64) (*types.SignedOrder, error) {
-	logger.Debug("get orders from: ", proID)
-	// test remote service is ready or not
-	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_GetOrder, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.GetHeader().GetFrom() != proID {
-		return nil, xerrors.Errorf("wrong get order from expected %d, got %d", proID, resp.GetHeader().GetFrom())
-	}
-
-	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return nil, xerrors.Errorf("get order from %d fail %s", proID, resp.GetData().MsgInfo)
-	}
-
-	ob := new(types.SignedOrder)
-	err = ob.Deserialize(resp.GetData().GetMsgInfo())
-	if err != nil {
-		logger.Debug("fail get order from: ", proID, err)
-		return nil, err
-	}
-
-	// verify order
-
-	return ob, nil
-}
-
-func (m *OrderMgr) getSeqRemote(proID uint64) (*types.SignedOrderSeq, error) {
-	logger.Debug("get seq from: ", proID)
-	// test remote service is ready or not
-	resp, err := m.ns.SendMetaRequest(m.ctx, proID, pb.NetMessage_GetOrder, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.GetHeader().GetFrom() != proID {
-		return nil, xerrors.Errorf("wrong get order seq from expected %d, got %d", proID, resp.GetHeader().GetFrom())
-	}
-
-	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return nil, xerrors.Errorf("get order seq from %d fail %s", proID, resp.GetData().MsgInfo)
-	}
-
-	os := new(types.SignedOrderSeq)
-	err = os.Deserialize(resp.GetData().GetMsgInfo())
-	if err != nil {
-		logger.Debug("fail get order seq: ", proID, err)
-		return nil, err
-	}
-
-	// verify order
-
-	return os, nil
-}
-
 func (m *OrderMgr) getQuotation(proID uint64) error {
 	logger.Debug("new quotation getr: ", proID)
 
@@ -237,6 +240,7 @@ func (m *OrderMgr) getNewOrderAck(proID uint64, data []byte) error {
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
+		m.failChan <- proID
 		logger.Debug("fail get new order ack from: ", proID, string(resp.GetData().MsgInfo))
 		return xerrors.Errorf("get new order ack from %d fail %s", proID, resp.GetData().MsgInfo)
 	}
@@ -290,6 +294,7 @@ func (m *OrderMgr) getNewSeqAck(proID uint64, data []byte) error {
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
+		m.failChan <- proID
 		logger.Debug("fail get new seq ack from: ", proID, string(resp.GetData().MsgInfo))
 		return xerrors.Errorf("get new seq ack from %d fail %s", proID, resp.GetData().MsgInfo)
 	}

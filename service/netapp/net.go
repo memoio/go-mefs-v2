@@ -177,7 +177,7 @@ func (c *NetServiceImpl) AddNode(id uint64, par peer.AddrInfo) {
 		_, ok = c.wants[id]
 		if !ok {
 			c.wants[id] = time.Now()
-			c.FindPeerID(c.ctx, id)
+			go c.FindPeerID(c.ctx, id)
 		}
 	}
 }
@@ -208,8 +208,8 @@ func (c *NetServiceImpl) regularPeerFind(ctx context.Context) {
 				}
 				nt := time.Now()
 				if t.Add(30 * time.Second).Before(nt) {
-					c.FindPeerID(ctx, id)
 					c.wants[id] = nt
+					go c.FindPeerID(ctx, id)
 				}
 			}
 			c.lk.Unlock()

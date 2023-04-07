@@ -357,7 +357,6 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 
 	sizeReceived := 0
 
-	// TODO: parallel download stripe
 	breakFlag := false
 	for !breakFlag {
 		select {

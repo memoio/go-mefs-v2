@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/klauspost/compress/zstd"
 	"golang.org/x/xerrors"
 )
 
@@ -141,10 +142,40 @@ func (asq *SegJobsQueue) Merge() {
 }
 
 func (sjq *SegJobsQueue) Serialize() ([]byte, error) {
-	return cbor.Marshal(sjq)
+	buf, err := cbor.Marshal(sjq)
+	if err != nil {
+		return nil, err
+	}
+
+	enc, err := zstd.NewWriter(nil)
+	if err != nil {
+		return nil, err
+	}
+	defer enc.Close()
+
+	return enc.EncodeAll(buf, nil), nil
 }
 
 func (sjq *SegJobsQueue) Deserialize(b []byte) error {
+	dec, err := zstd.NewReader(nil)
+	if err != nil {
+		return err
+	}
+	defer dec.Close()
+
+	out, err := dec.DecodeAll(b, nil)
+	if err != nil {
+		return sjq.LegacyDeserialize(b)
+	}
+
+	return cbor.Unmarshal(out, sjq)
+}
+
+func (sjq *SegJobsQueue) LegacySerialize() ([]byte, error) {
+	return cbor.Marshal(sjq)
+}
+
+func (sjq *SegJobsQueue) LegacyDeserialize(b []byte) error {
 	return cbor.Unmarshal(b, sjq)
 }
 

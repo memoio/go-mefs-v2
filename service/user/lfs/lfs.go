@@ -42,9 +42,10 @@ type LfsService struct {
 
 	sw *semaphore.Weighted // manage resource
 
-	bucketChan chan uint64
-	readyChan  chan struct{}
-	msgChan    chan *tx.Message
+	bucketChan      chan uint64
+	bucketReadyChan chan uint64
+	readyChan       chan struct{}
+	msgChan         chan *tx.Message
 
 	users    map[uint64]*ghost
 	tagCache *lru.ARCCache
@@ -83,9 +84,10 @@ func New(ctx context.Context, userID uint64, encryptKey []byte, keyset pdpcommon
 		dps: make(map[uint64]*dataProcess),
 		sw:  semaphore.NewWeighted(int64(wt)),
 
-		readyChan:  make(chan struct{}, 1),
-		bucketChan: make(chan uint64),
-		msgChan:    make(chan *tx.Message, 128),
+		readyChan:       make(chan struct{}, 1),
+		bucketReadyChan: make(chan uint64),
+		bucketChan:      make(chan uint64),
+		msgChan:         make(chan *tx.Message, 128),
 
 		users:    make(map[uint64]*ghost),
 		tagCache: tCache,
@@ -209,13 +211,8 @@ func (l *LfsService) Start() error {
 	for i := 0; i < int(l.sb.NextBucketID); i++ {
 		bu := l.sb.buckets[i]
 		if !bu.Deletion {
-			go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+			go l.registerBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 		}
-	}
-
-	// wait load seg job
-	if l.sb.NextBucketID > 0 {
-		time.Sleep(60 * time.Second)
 	}
 
 	logger.Debug("start lfs for: ", l.userID, l.sb.write)

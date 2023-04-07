@@ -45,7 +45,7 @@ type Builder struct {
 }
 
 // construct build ops from repo
-// TODO: move some ops here
+// todo: move some ops here
 func OptionsFromRepo(r repo.Repo) ([]BuilderOpt, error) {
 	_, sk, err := network.GetSelfNetKey(r.KeyStore())
 	if err != nil {

@@ -78,7 +78,6 @@ func (s *StateMgr) ValidateBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 
 	s.newValidateRoot(b)
 
-	// TODO: should return executed root or no root
 	return s.validateRoot, nil
 }
 

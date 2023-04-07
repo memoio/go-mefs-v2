@@ -191,7 +191,7 @@ func (n *BaseNode) CheckSpace() {
 }
 
 func (n *BaseNode) checkSpace() error {
-	dms, err := n.Repo.LocalStoreGetMeta(n.ctx)
+	dms, err := n.Repo.LocalStoreGetStat(n.ctx, "kv")
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (n *BaseNode) checkSpace() error {
 		return xerrors.Errorf("caution: meta space is not enough, at least 1GB")
 	}
 
-	ds, err := n.Repo.LocalStoreGetData(n.ctx)
+	ds, err := n.Repo.LocalStoreGetStat(n.ctx, "data")
 	if err != nil {
 		return err
 	}

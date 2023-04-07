@@ -28,8 +28,8 @@ type Repo interface {
 
 	Path() (string, error)
 
-	LocalStoreGetMeta(context.Context) (store.DiskStats, error)
-	LocalStoreGetData(context.Context) (store.DiskStats, error)
+	LocalStoreGetStat(context.Context, string) (store.DiskStats, error)
+	LocalStoreGetKey(context.Context, string, []byte) ([]byte, error)
 
 	Close() error
 

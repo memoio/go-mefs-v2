@@ -32,7 +32,7 @@ var infoCmd = &cli.Command{
 		},
 		&cli.BoolFlag{
 			Name:    "all",
-			Aliases: []string{"a"},
+			Aliases: []string{"a", "v"},
 			Value:   false, //默认值为空，要么手动输入，要么从本地keystore读取（需指定路径和密码）
 			Usage:   "show all info",
 		},
@@ -387,14 +387,14 @@ var infoCmd = &cli.Command{
 		}
 
 		fmt.Println(ansi.Color("----------- Local Information -----------", "green"))
-		lm, err := api.LocalStoreGetMeta(cctx.Context)
+		lm, err := api.LocalStoreGetStat(cctx.Context, "kv")
 		if err != nil {
 			return err
 		}
 
 		fmt.Printf("Meta Usage: path %s, used %s, free %s\n", lm.Path, types.FormatBytes(lm.Used), types.FormatBytes(lm.Free))
 
-		dm, err := api.LocalStoreGetData(cctx.Context)
+		dm, err := api.LocalStoreGetStat(cctx.Context, "data")
 		if err != nil {
 			return err
 		}

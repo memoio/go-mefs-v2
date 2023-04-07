@@ -158,6 +158,12 @@ type OrderJobInfo struct {
 	InStop bool
 }
 
+type ProsInBucket struct {
+	InUse       []uint64 // update and save to local
+	Deleted     []uint64 // add del pro here
+	DelPerChunk [][]uint64
+}
+
 type SyncInfo struct {
 	Status       bool
 	Version      int

@@ -5,9 +5,7 @@ import (
 	"math/big"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
-	"github.com/memoio/go-mefs-v2/lib/types/store"
 
 	"golang.org/x/xerrors"
 )
@@ -34,10 +32,12 @@ func (m *OrderMgr) OrderGetJobInfo(ctx context.Context) ([]*api.OrderJobInfo, er
 }
 
 func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.OrderJobInfo, error) {
+	logger.Debug("get jobinfo at: ", proID)
 	m.lk.RLock()
-	defer m.lk.RUnlock()
-	of, ok := m.orders[proID]
+	of, ok := m.pInstMap[proID]
+	m.lk.RUnlock()
 	if ok {
+		logger.Debug("get jobinfo at: ", proID)
 		oi := &api.OrderJobInfo{
 			ID: proID,
 
@@ -50,7 +50,7 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 			SeqTime:  of.seqTime,
 			SeqState: string(of.seqState),
 
-			Jobs: of.segCount(),
+			Jobs: of.jobCount(),
 
 			Ready:  of.ready,
 			InStop: of.inStop,
@@ -64,6 +64,7 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 			oi.SeqNum = of.seq.SeqNum
 		}
 
+		logger.Debug("get jobinfo at: ", proID)
 		pid, err := m.ns.GetPeerIDAt(m.ctx, proID)
 		if err == nil {
 			oi.PeerID = pid.Pretty()
@@ -75,33 +76,16 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 	return nil, xerrors.Errorf("not found")
 }
 
-func (m *OrderMgr) OrderGetDetail(ctx context.Context, proID, nonce uint64, seqNum uint32) (*types.SignedOrderSeq, error) {
-
-	key := store.NewKey(pb.MetaType_OrderSeqKey, m.localID, proID, nonce, seqNum)
-	val, err := m.ds.Get(key)
-	if err != nil {
-		return nil, err
-	}
-
-	sos := new(types.SignedOrderSeq)
-	err = sos.Deserialize(val)
-	if err != nil {
-		return nil, err
-	}
-
-	return sos, nil
-}
-
 func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.OrderPayInfo, error) {
-	m.sizelk.RLock()
-	defer m.sizelk.RUnlock()
 	pi := new(types.OrderPayInfo)
 	if pid == 0 {
+		m.sizelk.RLock()
 		pi.Size = m.opi.Size // may be less than
 		pi.ConfirmSize = m.opi.ConfirmSize
 		pi.OnChainSize = m.opi.OnChainSize
 		pi.NeedPay = new(big.Int).Set(m.opi.NeedPay)
 		pi.Paid = new(big.Int).Set(m.opi.Paid)
+		m.sizelk.RUnlock()
 
 		bi, err := m.is.SettleGetBalanceInfo(ctx, m.localID)
 		if err != nil {
@@ -111,15 +95,17 @@ func (m *OrderMgr) OrderGetPayInfoAt(ctx context.Context, pid uint64) (*types.Or
 		pi.Balance.Add(pi.Balance, bi.FsValue)
 	} else {
 		m.lk.RLock()
-		of, ok := m.orders[pid]
+		of, ok := m.pInstMap[pid]
 		m.lk.RUnlock()
 		if ok {
 			pi.ID = pid
+			m.sizelk.RLock()
 			pi.Size = of.opi.Size
 			pi.ConfirmSize = of.opi.ConfirmSize
 			pi.OnChainSize = of.opi.OnChainSize
 			pi.NeedPay = new(big.Int).Set(of.opi.NeedPay)
 			pi.Paid = new(big.Int).Set(of.opi.Paid)
+			m.sizelk.RUnlock()
 
 			if of.seq != nil {
 				pi.Size += of.seq.Size
@@ -149,14 +135,25 @@ func (m *OrderMgr) OrderGetPayInfo(ctx context.Context) ([]*types.OrderPayInfo, 
 	return res, nil
 }
 
-func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) ([]uint64, error) {
-	lp, ok := m.proMap[bid]
+func (m *OrderMgr) OrderGetProsAt(ctx context.Context, bid uint64) (*api.ProsInBucket, error) {
+	m.lk.RLock()
+	lp, ok := m.bucMap[bid]
+	m.lk.RUnlock()
 	if ok {
 		lp.lk.RLock()
 		defer lp.lk.RUnlock()
-		res := make([]uint64, 0, len(lp.pros))
-		res = append(res, lp.pros...)
-		return lp.pros, nil
+		ppb := &api.ProsInBucket{
+			InUse:       make([]uint64, 0, len(lp.pros)),
+			Deleted:     make([]uint64, 0, len(lp.deleted)),
+			DelPerChunk: make([][]uint64, len(lp.delPerChunk)),
+		}
+		ppb.InUse = append(ppb.InUse, lp.pros...)
+		ppb.Deleted = append(ppb.Deleted, lp.deleted...)
+		for i := 0; i < len(lp.delPerChunk); i++ {
+			ppb.DelPerChunk[i] = make([]uint64, 0, len(lp.delPerChunk[i]))
+			ppb.DelPerChunk[i] = append(ppb.DelPerChunk[i], lp.delPerChunk[i]...)
+		}
+		return ppb, nil
 	}
 
 	return nil, xerrors.Errorf("no such bucket")

@@ -77,7 +77,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, ver uint32, 
 
 	base := common.HexToAddress(baseAddr)
 
-	// get contract addr from instance contract and create ins
+	// get contract addr from.pinstance contract and create ins
 	insti, err := inst.NewInstance(base, client)
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func NewContractMgr(ctx context.Context, endPoint, baseAddr string, ver uint32, 
 	if err != nil {
 		return nil, err
 	}
-	logger.Debugf("%s has memo %d", eAddr, erc20i.BalanceOf(eAddr))
+	logger.Debugf("%s has memo %d AttoMemo", eAddr, erc20i.BalanceOf(eAddr))
 
 	cm.ercIns = erc20i
 
@@ -331,7 +331,7 @@ func GetTokenAddr(endPoint string, baseAddr common.Address, hexSk string, ver ui
 		return res, xerrors.Errorf("not have tx fee on chain")
 	}
 
-	// get contract addr from instance contract and create ins
+	// get contract addr from.pinstance contract and create ins
 	insti, err := inst.NewInstance(baseAddr, client)
 	if err != nil {
 		return res, err
