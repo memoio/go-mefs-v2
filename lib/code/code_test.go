@@ -238,7 +238,7 @@ func BenchmarkAccVerify(b *testing.B) {
 
 	i := 0
 	segID.SetChunkID(uint32(i))
-	seg := segment.NewBaseSegment(datas[i], segID)
+	seg := segment.NewBaseSegment(segID, datas[i])
 	segData, err := seg.Serialize()
 	if err != nil {
 		b.Fatal(err)
@@ -477,7 +477,7 @@ func TestStripe(t *testing.T) {
 	dv.Reset()
 	for i := 0; i < dataCount+parityCount; i++ {
 		segID.SetChunkID(uint32(i))
-		seg := segment.NewBaseSegment(datas[i], segID)
+		seg := segment.NewBaseSegment(segID, datas[i])
 		segData, err := seg.Serialize()
 		if err != nil {
 			t.Fatal(err)

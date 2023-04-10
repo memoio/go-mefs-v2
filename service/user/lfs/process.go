@@ -236,7 +236,7 @@ func (l *LfsService) upload(ctx context.Context, bucket *bucket, object *object,
 		for i := 0; i < (dp.dataCount + dp.parityCount); i++ {
 			segID.SetChunkID(uint32(i))
 
-			seg := segment.NewBaseSegment(encodedData[i], segID)
+			seg := segment.NewBaseSegment(segID, encodedData[i])
 
 			segData, err := seg.Content()
 			if err != nil {
@@ -357,7 +357,6 @@ func (l *LfsService) download(ctx context.Context, dp *dataProcess, dv pdpcommon
 
 	sizeReceived := 0
 
-	// TODO: parallel download stripe
 	breakFlag := false
 	for !breakFlag {
 		select {

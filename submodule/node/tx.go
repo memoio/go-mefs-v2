@@ -3,13 +3,17 @@ package node
 import (
 	"context"
 
+	"go.opencensus.io/stats"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
 func (n *BaseNode) PushMessage(ctx context.Context, mes *tx.Message) (types.MsgID, error) {
+	stats.Record(context.TODO(), metrics.TxMessagePush.M(1))
+
 	if !n.isProxy {
 		logger.Info("push message local")
 		return n.LPP.PushMessage(ctx, mes)

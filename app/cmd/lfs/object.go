@@ -234,9 +234,10 @@ var headObjectCmd = &cli.Command{
 			Usage:   "objectName",
 		},
 		&cli.BoolFlag{
-			Name:  "all",
-			Usage: "show all information",
-			Value: false,
+			Name:    "all",
+			Aliases: []string{"a", "v"},
+			Usage:   "show all information",
+			Value:   false,
 		},
 	},
 	Action: func(cctx *cli.Context) error {

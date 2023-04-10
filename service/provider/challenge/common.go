@@ -18,12 +18,6 @@ type chalRes struct {
 	errCode uint16
 }
 
-type subRes struct {
-	userID  uint64
-	nonce   uint64
-	errCode uint16
-}
-
 type segInfo struct {
 	userID uint64
 	fsID   []byte

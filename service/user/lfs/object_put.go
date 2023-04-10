@@ -79,6 +79,10 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 	bucket.Lock()
 	defer bucket.Unlock()
 
+	if !bucket.writable {
+		return oi, xerrors.Errorf("bucket %d is read only now", bucket.BucketID)
+	}
+
 	// create new object and insert into rbtree
 	object, err := l.createObject(ctx, bucket, objectName, opts)
 	if err != nil {
@@ -142,7 +146,6 @@ func (l *LfsService) PutObject(ctx context.Context, bucketName, objectName strin
 				ObjectID: object.ObjectID,
 			}
 
-			// todo: add etag
 			if object.UserDefined != nil {
 				etags := opts.UserDefined["etag"]
 				if strings.HasPrefix(etags, "cid") {
@@ -301,7 +304,6 @@ func (l *LfsService) renameObject(ctx context.Context, bucket *bucket, object *o
 	return nil
 }
 
-// todo: handle form data
 func (l *LfsService) PutFile(w http.ResponseWriter, r *http.Request) {
 	poo := types.DefaultUploadOption()
 

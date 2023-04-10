@@ -52,7 +52,7 @@ func (cm *ContractMgr) AddOrder(so *types.SignedOrder) error {
 	if so.End%types.Day != 0 {
 		return xerrors.Errorf("end %d should be aligned to 86400(one day)", so.End)
 	}
-	// TODO: check uIndex,pIndex,gIndex,tIndex
+	// todo: check uIndex,pIndex,gIndex,tIndex
 
 	// check balance
 	avail, lock, _, err := cm.getIns.GetBalAt(so.UserID, uint8(so.TokenIndex))
@@ -99,7 +99,7 @@ func (cm *ContractMgr) SubOrder(so *types.SignedOrder) error {
 	if so.End%types.Day != 0 {
 		return xerrors.Errorf("end %d should be aligned to 86400(one day)", so.End)
 	}
-	// TODO: check uIndex,pIndex,gIndex,tIndex
+	// todo: check uIndex,pIndex,gIndex,tIndex
 
 	poi := inter.OrderIn{
 		UIndex: so.UserID,

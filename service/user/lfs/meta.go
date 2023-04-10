@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -40,7 +41,9 @@ type bucket struct {
 	objectTree *rbtree.Tree       // store objects; key is object name; chekc before insert
 	objects    map[uint64]*object // key is objectID
 
-	dirty bool
+	writable bool // false if partial = true
+	partial  bool // true if lose local meta
+	dirty    bool
 }
 
 type object struct {
@@ -81,7 +84,7 @@ func (sbl *superBlock) load(userID uint64, ds store.KVStore) error {
 	key := store.NewKey(pb.MetaType_LFS_SuperBlockInfoKey, userID)
 	data, err := ds.Get(key)
 	if err != nil {
-		// if miss; init?
+		// load from state
 		return err
 	}
 
@@ -238,7 +241,6 @@ func (bu *bucket) load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	key := store.NewKey(pb.MetaType_LFS_BucketOptionKey, userID, bucketID)
 	data, err := ds.Get(key)
 	if err != nil {
-		// if miss; init?
 		return err
 	}
 
@@ -251,7 +253,6 @@ func (bu *bucket) load(userID uint64, bucketID uint64, ds store.KVStore) error {
 	key = store.NewKey(pb.MetaType_LFS_BucketInfoKey, userID, bucketID)
 	data, err = ds.Get(key)
 	if err != nil {
-		// if miss; init?
 		return err
 	}
 
@@ -498,12 +499,17 @@ func (l *LfsService) load() error {
 	l.sb.Lock()
 	defer l.sb.Unlock()
 	// 1. load super block
-	l.sb.load(l.userID, l.ds)
+	err := l.sb.load(l.userID, l.ds)
+	if err != nil {
+		logger.Warn("fail to load super block: ", err)
+		l.getSBFromState()
+	}
 
 	// 2. load each bucket
 	for i := uint64(0); i < l.sb.NextBucketID; i++ {
 		bu := new(bucket)
 		bu.Deletion = true
+		bu.BucketID = i
 
 		l.sb.buckets[i] = bu
 
@@ -512,6 +518,10 @@ func (l *LfsService) load() error {
 		if err != nil {
 			bu.Unlock()
 			logger.Warn("fail to load bucketID: ", i, err)
+
+			// get from state
+			l.getBucketOptsFromState(bu)
+
 			continue
 		}
 
@@ -574,6 +584,121 @@ func (l *LfsService) load() error {
 	return nil
 }
 
+func (l *LfsService) getSBFromState() error {
+	nextBucket, err := l.StateGetBucketAt(l.ctx, l.userID)
+	if err != nil || nextBucket == 0 {
+		return err
+	}
+
+	l.sb.NextBucketID = nextBucket
+	l.sb.buckets = make([]*bucket, nextBucket)
+	return nil
+}
+
+func (l *LfsService) getBucketOptsFromState(bu *bucket) error {
+	// from state
+	bo, err := l.StateGetBucOpt(l.ctx, l.userID, bu.BucketID)
+	if err != nil {
+		return err
+	}
+
+	bu.BucketInfo.BucketOption = *bo
+	bu.Deletion = false
+	bu.partial = true
+
+	bu.Name = fmt.Sprintf("bucket-%d", bu.BucketID)
+	bmp, err := l.StateGetBucMeta(l.ctx, l.userID, bu.BucketID)
+	if err == nil && bmp.Name != "" {
+		bu.Name = bmp.Name
+	}
+
+	l.sb.bucketNameToID[bu.Name] = bu.BucketID
+
+	bu.objectTree = rbtree.NewTree()
+	bu.objects = make(map[uint64]*object)
+
+	go l.getObjectFromState(bu)
+
+	return nil
+}
+
+func (l *LfsService) getObjectFromState(bu *bucket) {
+	if os.Getenv("MEFS_RECOVERY_MODE") == "" {
+		return
+	}
+	for i := uint64(0); ; i++ {
+		omv, err := l.StateGetObjMeta(l.ctx, l.userID, bu.BucketID, i)
+		if err != nil {
+			return
+		}
+
+		poi := pb.ObjectInfo{
+			ObjectID:    i,
+			BucketID:    bu.BucketID,
+			Name:        omv.Name,
+			Encryption:  omv.Encrypt,
+			UserDefined: make(map[string]string),
+		}
+
+		poi.UserDefined["nencryption"] = omv.NEncrypt
+
+		if len(omv.Extra) >= 8 {
+			csize := binary.BigEndian.Uint64(omv.Extra[:8])
+			poi.UserDefined["etag"] = "cid-" + strconv.FormatUint(csize, 10)
+		}
+
+		obj := &object{
+			ObjectInfo: types.ObjectInfo{
+				ObjectInfo: poi,
+				Size:       omv.Length,
+				ETag:       omv.ETag,
+				Parts:      make([]*pb.ObjectPartInfo, 0, 1),
+				State:      fmt.Sprintf("user: %d", l.userID),
+			},
+			ops:      make([]uint64, 0, 2),
+			deletion: false,
+			pin:      true,
+		}
+
+		opi := &pb.ObjectPartInfo{
+			Offset: omv.Offset,
+			Length: omv.Length,
+			ETag:   omv.ETag,
+		}
+
+		obj.Parts = append(obj.Parts, opi)
+
+		if obj.Name == "" {
+			newName, err := etag.ToString(obj.ETag)
+			if err != nil {
+				continue
+			}
+			obj.Name = newName
+		}
+
+		ename, err := etag.ToString(obj.ETag)
+		if err == nil {
+			od := &objectDigest{
+				bucketID: obj.BucketID,
+				objectID: obj.ObjectID,
+			}
+			l.sb.etagCache.Add(ename, od)
+		}
+
+		bu.objects[obj.ObjectID] = obj
+		if bu.objectTree.Find(MetaName(obj.Name)) == nil {
+			bu.objectTree.Insert(MetaName(obj.Name), obj)
+		}
+		bu.NextObjectID = obj.ObjectID + 1
+
+		if bu.DataCount != 0 {
+			stripeCnt := (omv.Length-1)/(build.DefaultSegSize*uint64(bu.DataCount)) + 1
+			bu.Length += stripeCnt * uint64(bu.DataCount) * build.DefaultSegSize
+			bu.UsedBytes += stripeCnt * uint64(bu.DataCount+bu.ParityCount) * build.DefaultSegSize
+		}
+	}
+}
+
 func (l *LfsService) save() error {
 	err := l.sb.save(l.userID, l.ds)
 	if err != nil {
@@ -612,14 +737,22 @@ func (l *LfsService) persistMeta() {
 				bu := l.sb.buckets[bid]
 				bu.Confirmed = true
 				// register in order
-				go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+				go l.registerBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+			}
+			l.sb.Unlock()
+		case bid := <-l.bucketReadyChan:
+			logger.Debugf("lfs bucket %d is ready for wirte", bid)
+			l.sb.Lock()
+			bu := l.sb.buckets[bid]
+			if !bu.partial {
+				bu.writable = true
 			}
 			l.sb.Unlock()
 		case <-tick.C:
 			if l.Writeable() {
 				err := l.save()
 				if err != nil {
-					logger.Warn("Cannot Persist Meta: ", err)
+					logger.Warn("cannot persist meta: ", err)
 				}
 			}
 		case <-ltick.C:
@@ -638,6 +771,11 @@ func (l *LfsService) persistMeta() {
 	}
 }
 
+func (l *LfsService) registerBucket(bucketID, nextOpID uint64, bopt *pb.BucketOption) {
+	l.OrderMgr.RegisterBucket(bucketID, nextOpID, bopt)
+	l.bucketReadyChan <- bucketID
+}
+
 func (l *LfsService) getPayInfo() {
 	// query regular
 	pi, err := l.OrderMgr.OrderGetPayInfoAt(l.ctx, 0)
@@ -648,42 +786,6 @@ func (l *LfsService) getPayInfo() {
 		l.needPay.Set(np)
 		l.bal.Set(pi.Balance)
 	}
-}
-
-// put meta to remote?
-
-func (l *LfsService) broadcast(userID, bucketID, opID uint64) {
-	key := store.NewKey(pb.MetaType_LFS_OpInfoKey, userID, bucketID, opID)
-	data, err := l.ds.Get(key)
-	if err != nil {
-		return
-	}
-
-	sr := &types.SignedRecord{
-		Record: types.Record{
-			Key:   key,
-			Value: data,
-		},
-	}
-
-	sig, err := l.RoleSign(l.ctx, l.userID, sr.Hash().Bytes(), types.SigSecp256k1)
-	if err != nil {
-		return
-	}
-
-	sr.Sign = sig
-
-	da, err := sr.Serialize()
-	if err != nil {
-		return
-	}
-
-	em := &pb.EventMessage{
-		Type: pb.EventMessage_LfsMeta,
-		Data: da,
-	}
-
-	l.INetService.PublishEvent(l.ctx, em)
 }
 
 // reconstruct related

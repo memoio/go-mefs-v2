@@ -52,7 +52,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 		s.oInfo[okey] = oinfo
 	}
 
-	// TODO: add penalty if oinfo.prove < scp.Epoch?
+	// todo: add penalty if oinfo.prove < scp.Epoch?
 	if oinfo.prove > scp.Epoch {
 		return xerrors.Errorf("challenge proof submitted or missed at %d", scp.Epoch)
 	}
@@ -172,7 +172,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message) error {
 	}
 
 	if ns.Nonce > 0 {
-		// TODO: choose some from [0, ns.Nonce)
+		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.get(key)
@@ -480,7 +480,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	}
 
 	if ns.Nonce > 0 {
-		// TODO: choose some from [0, ns.Nonce)
+		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
 			data, err = s.get(key)

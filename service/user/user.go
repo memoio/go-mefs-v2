@@ -15,6 +15,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/service/data"
@@ -118,7 +119,8 @@ func (u *UserNode) Start(perm bool) error {
 		return err
 	}
 
-	// register net msg handle
+	// register handle
+	u.GenericService.Register(pb.NetMessage_GetSegment, u.handleGetSeg)
 
 	if u.Perm {
 		u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))

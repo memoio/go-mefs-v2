@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"io/ioutil"
 	"os"
+	"path"
+	"path/filepath"
 
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 	"github.com/mitchellh/go-homedir"
@@ -47,4 +50,39 @@ func GetDiskStatus(path string) (store.DiskStats, error) {
 
 	m.Used = m.Total - m.Free
 	return m, nil
+}
+
+func GetDirSize(dirPath string) int64 {
+	totalSize := int64(0)
+	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// If the file is not a directory, add its size to the total
+		if !info.IsDir() {
+			totalSize += info.Size()
+		}
+
+		return nil
+	})
+	return totalSize
+}
+
+func GetDirSizeRec(dirPath string) int64 {
+	totalSize := int64(0)
+	rd, err := ioutil.ReadDir(dirPath)
+	if err != nil {
+		return totalSize
+	}
+
+	for _, fi := range rd {
+		if fi.IsDir() {
+			totalSize += GetDirSizeRec(path.Join(dirPath, fi.Name()))
+		} else {
+			totalSize += fi.Size()
+		}
+	}
+
+	return totalSize
 }

@@ -33,6 +33,7 @@ var (
 	APIRequestDuration = stats.Float64("api/request_duration_ms", "Duration of API requests", stats.UnitMilliseconds)
 
 	// message
+	TxMessagePush         = stats.Int64("message/push", "Counter for total locally push messages", stats.UnitDimensionless)
 	TxMessagePublished    = stats.Int64("message/published", "Counter for total locally published messages", stats.UnitDimensionless)
 	TxMessageReceived     = stats.Int64("message/received", "Counter for total received messages", stats.UnitDimensionless)
 	TxMessageSuccess      = stats.Int64("message/success", "Counter for message received validation successes", stats.UnitDimensionless)
@@ -82,6 +83,10 @@ var (
 		Aggregation: view.LastValue(),
 	}
 
+	TxMessagePushView = &view.View{
+		Measure:     TxMessagePush,
+		Aggregation: view.Count(),
+	}
 	TxMessagePublishedView = &view.View{
 		Measure:     TxMessagePublished,
 		Aggregation: view.Count(),
@@ -196,6 +201,7 @@ var DefaultViews = func() []*view.View {
 		PeerCountView,
 		APIRequestDurationView,
 
+		TxMessagePushView,
 		TxMessagePublishedView,
 		TxMessageReceivedView,
 		TxMessageSuccessView,
