@@ -74,7 +74,31 @@ func (m *OrderMgr) pushMessage(msg *tx.Message) {
 					if ok {
 						m.updateConfirmSize(of, seq.OrderSeq, true)
 					}
+				case tx.CommitDataOrder:
+					ocp := new(tx.OrderCommitParas)
+					err := ocp.Deserialize(msg.Params)
+					if err != nil {
+						return
+					}
 
+					key := store.NewKey(pb.MetaType_OrderBaseKey, ocp.UserID, ocp.ProID, ocp.Nonce)
+					data, err := m.ds.Get(key)
+					if err != nil {
+						return
+					}
+
+					so := new(types.SignedOrder)
+					err = so.Deserialize(data)
+					if err != nil {
+						return
+					}
+
+					m.lk.RLock()
+					of, ok := m.pInstMap[msg.To]
+					m.lk.RUnlock()
+					if ok {
+						m.updateBaseSize(of, so, true)
+					}
 				default:
 				}
 			} else {
