@@ -588,8 +588,6 @@ func (m *OrderMgr) doneOrder(o *proInst) error {
 	o.seq.SeqNum = 0
 	saveSeqState(o, m.ds)
 
-	m.updateBaseSize(o, o.base, true)
-
 	o.base = nil
 	o.seq = nil
 	o.sjq = new(types.SegJobsQueue)
