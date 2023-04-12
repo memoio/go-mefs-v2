@@ -3,6 +3,7 @@ package hotstuff
 import (
 	"context"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -611,13 +612,15 @@ func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhaseNew, hsm.curView.phase)
 	}
 
-	// validate propose
-	sb := &tx.SignedBlock{
-		RawBlock: msg.Data,
-	}
-	err = hsm.app.OnPropose(sb)
-	if err != nil {
-		return err
+	if os.Getenv("MEFS_SKIP_CHECK_PROPOSE") != "" {
+		// validate propose
+		sb := &tx.SignedBlock{
+			RawBlock: msg.Data,
+		}
+		err = hsm.app.OnPropose(sb)
+		if err != nil {
+			return err
+		}
 	}
 
 	hsm.curView.phase = hs.PhasePrepare
