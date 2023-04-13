@@ -612,7 +612,7 @@ func (hsm *HotstuffManager) handlePrepareMsg(msg *hs.HotstuffMessage) error {
 		return xerrors.Errorf("phase state wrong, expected %d, got %d", hs.PhaseNew, hsm.curView.phase)
 	}
 
-	if os.Getenv("MEFS_SKIP_CHECK_PROPOSE") != "" {
+	if os.Getenv("MEFS_SKIP_CHECK_PROPOSE") == "" {
 		// validate propose
 		sb := &tx.SignedBlock{
 			RawBlock: msg.Data,
