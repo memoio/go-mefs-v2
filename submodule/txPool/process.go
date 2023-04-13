@@ -358,6 +358,7 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 					logger.Debug("block message invalid: ", m.From, m.Nonce, m.Method, err)
 					tr.Err = 1
 					tr.Extra = err.Error()
+					rLen += len(err.Error())
 				}
 
 				mSet.Root = nroot
@@ -365,6 +366,9 @@ func (mp *InPool) Propose(rh tx.RawHeader) (tx.MsgSet, error) {
 				mSet.Msgs = append(mSet.Msgs, *m)
 				mSet.Receipts = append(mSet.Receipts, tr)
 				msgCnt++
+
+				rLen += 128
+				rLen += len(m.Signature.Data)
 				rLen += len(m.Params)
 
 				if time.Since(nt).Seconds() > 10 {
