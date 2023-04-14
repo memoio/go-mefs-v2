@@ -471,13 +471,13 @@ func (sp *SyncPool) getTxBlockByHeight(ht uint64) {
 		//key := store.NewKey(pb.MetaType_Tx_BlockHeightKey, ht)
 		res, err := sp.INetService.Fetch(sp.ctx, key)
 		if err != nil {
-			logger.Debugf("get block id at height %d remote fail %s", bid, err)
+			logger.Debugf("get block id at height %d remote fail %s", ht, err)
 			return
 		}
 
 		bid, err = types.FromBytes(res)
 		if err != nil {
-			logger.Debug("get block id at height fail: ", err)
+			logger.Debugf("get block id at height %d fail %s", ht, err)
 			return
 		}
 

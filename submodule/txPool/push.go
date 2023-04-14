@@ -118,8 +118,12 @@ func (pp *PushPool) syncPush() {
 			pp.lk.Unlock()
 
 		case <-tc.C:
+			nt := time.Now()
 			pp.lk.Lock()
 			for _, lid := range pp.locals {
+				if time.Since(nt) > 15*time.Second {
+					break
+				}
 				lpending, ok := pp.pending[lid]
 				if ok {
 					res := make([]uint64, len(lpending.msgto))
@@ -128,6 +132,9 @@ func (pp *PushPool) syncPush() {
 					}
 
 					for _, nc := range res {
+						if time.Since(nt) > 15*time.Second {
+							break
+						}
 						pmsg, ok := lpending.msgto[nc]
 						if !ok {
 							continue
