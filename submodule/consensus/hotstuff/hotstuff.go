@@ -288,10 +288,7 @@ func (hsm *HotstuffManager) newView() error {
 			}
 
 			// apply last one
-			err := hsm.app.OnViewDone(sb)
-			if err != nil {
-				return err
-			}
+			hsm.app.OnViewDone(sb)
 			hsm.curView.phase = hs.PhaseFinal
 		}
 	} else if hsm.curView.header.Slot == hsm.curView.slot {
