@@ -309,9 +309,9 @@ func (hsm *HotstuffManager) newView() error {
 
 	hsm.curView.leader = rh.MinerID
 
-	// last one on commit
-	if hsm.curView.header.Height >= rh.Height && hsm.curView.phase == hs.PhaseCommit {
-		logger.Info("re-consensus at: ", hsm.curView.header.Height, hsm.curView.header.Slot, hsm.curView.slot)
+	// last one on commit; wait 10 minutes
+	if hsm.curView.header.Height >= rh.Height && hsm.curView.phase == hs.PhaseCommit && hsm.curView.slot < hsm.curView.header.Slot+20 {
+		logger.Warn("re-consensus at: ", hsm.curView.header.Height, hsm.curView.header.Slot, hsm.curView.slot)
 		hsm.curView.commitQuorum = types.NewMultiSignature(types.SigBLS)
 		hsm.curView.phase = hs.PhaseCommit
 
@@ -528,7 +528,7 @@ func (hsm *HotstuffManager) handleNewViewVoteMsg(msg *hs.HotstuffMessage) error 
 		return err
 	}
 
-	logger.Debugf("leader %d get new quorum %d, %d, %d", hsm.curView.header.Slot, hsm.curView.highQuorum.Len(), hsm.localID, hsm.curView.header.Height)
+	logger.Debugf("leader %d get new quorum %d, %d, %d", hsm.localID, hsm.curView.header.Slot, hsm.curView.highQuorum.Len(), hsm.curView.header.Height)
 
 	// in case leader disconnect at tryDecide; then commitQuorum just miss one
 	if hsm.curView.highQuorum.Len() >= hsm.app.GetQuorumSize()+1 {
