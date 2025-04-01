@@ -42,7 +42,7 @@ func (ss segStore) Get(segID SegmentID) (Segment, error) {
 		return nil, err
 	}
 
-	bs := NewBaseSegment(data, segID)
+	bs := NewBaseSegment(segID, data)
 
 	return bs, nil
 }

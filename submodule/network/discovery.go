@@ -7,7 +7,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p/p2p/discovery"
 )
 
 type discoveryHandler struct {
@@ -20,11 +19,12 @@ func (dh *discoveryHandler) HandlePeerFound(p peer.AddrInfo) {
 		return
 	}
 
-	//logger.Debug("connecting to discovered peer: ", p)
+	logger.Debug("connecting to discovered peer: ", p)
 	ctx, cancel := context.WithTimeout(dh.ctx, 5*time.Second)
 	defer cancel()
 
-	if err := dh.host.Connect(ctx, p); err != nil {
+	err := dh.host.Connect(ctx, p)
+	if err != nil {
 		logger.Debugf("failed to connect to peer %s found by discovery: %s", p.ID, err)
 	}
 }
@@ -34,14 +34,4 @@ func DiscoveryHandler(ctx context.Context, host host.Host) *discoveryHandler {
 		ctx:  ctx,
 		host: host,
 	}
-}
-
-func SetupDiscovery(ctx context.Context, host host.Host, handler *discoveryHandler) (discovery.Service, error) {
-	service, err := discovery.NewMdnsService(ctx, host, 60*time.Second, "mefs-discovery")
-	if err != nil {
-		logger.Error("create mdns error: ", err)
-		return service, nil
-	}
-	service.RegisterNotifee(handler)
-	return service, nil
 }

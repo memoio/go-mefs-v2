@@ -28,7 +28,6 @@ enum MetaType {
 	ST_UsersKey = 26;           // key: x/roleID; val: users
 	ST_ProsKey = 27;            // key: x/roleID; val: pros  
 	
-	
 	ST_PDPVerifyKey = 29;     // key: x/userID; val: Bls Prove verify key 
 	ST_RoleBaseKey = 30;      // key: x/roleID; val: pb.RoleInfo
 	ST_RoleValueKey = 31;     // key: x/roleID; val: nonce, val
@@ -48,6 +47,9 @@ enum MetaType {
 	ST_SegPayKey = 46;          // key: x/userID/proID; val: payinfo
 	ST_SegPayComfirmKey = 47;   // key: x/proID; val: payinfo  
 
+	ST_BucMetaKey = 48;          // key: x/userID/bucketID; val: bucketName
+	ST_ObjMetaKey = 49;          // key: x/userID/bucketID/objectID; val: objInfo  
+
 	// order 
 	OrderNonceKey = 50;      // key: x/userID/proID; value: nonce, OrderBaseState
 	OrderBaseKey = 51;       // key: x/userID/proID/nonce; value: OrderBase
@@ -56,6 +58,9 @@ enum MetaType {
 	OrderProsKey = 54;       // key: x/userID; value: pros; x/userID/bucketID
 	OrderUsersKey = 55;      // key: x/proID; value: users
 	OrderProsDeleteKey = 56; // key: x/userID/bucketID; val: deleted pros
+	OrderSeqJobKey= 57;      // key: x/userID/proID/nonce/seqnum; value: job
+	OrderPayInfoKey = 58;    // key: x/userID; value: order pay info
+	OrderExpiredKey = 59;    // key: x/userID/proID; value: order subNonce
 
 	// tx message and block
 	Tx_BlockSyncedKey = 60;   // key: x; value: blk height	
@@ -72,6 +77,12 @@ enum MetaType {
 	ConfirmPayKey = 73;      // key: x; val: epoch
 	Chal_UsersKey = 74;      // key: x/roleID; val: users
 	Chal_ProsKey = 75;       // key: x/roleID; val: pros  
+
+	OrderSegLocKey = 76;     // key: x/userID/proID; val: nonce/seq
+
+	// read pay 
+	ReadPay_NonceKey = 80;     // key: x/userAddr/proAddr; val: nonce
+	ReadPay_ChannelKey = 81;   // key: x/userAddr/proAddr/nonce; val: check
 }
 
 //    =============  lfs information  ================
@@ -104,7 +115,7 @@ message BucketInfo {
 	uint64 UsedBytes = 5;  // chunk_count * (segSize + prefix + tagCount*tagSize)
 	uint64 NextObjectID = 6;
 	uint64 NextOpID = 7;  
-	bool deletion = 8;
+	bool Deletion = 8;
 	string Name = 9;
 	bytes Root = 10;  // merkle root of ops; used for verify
 }
@@ -121,6 +132,7 @@ message ObjectInfo {
 	uint64 Expire = 4;
 	string Name = 5;
 	string Encryption = 6; // enc method
+	map<string, string> UserDefined = 7; 
 }
 
 // object delete information; when delete object 
@@ -129,14 +141,26 @@ message ObjectDeleteInfo {
     int64  Time     = 2;
 }
 
+message ObjectRenameInfo {
+    uint64  ObjectID = 1;
+    string  Name     = 2;
+	int64 Time = 3;
+}
+
 // opart informations, insert into object when add data to an existing object
 message ObjectPartInfo {
 	uint64 ObjectID = 1;          // 此分块所属的ObjectID
-	int64 Time = 2;               // append此Part的时间
-	uint64 Offset = 3;            // offset in bucket space; per stripe  
-	uint64 Length = 4;            // mod stripeSize; stripeCount
-	uint64 RawLength = 5;         // actual size of this part  
-	bytes ETag = 7;               // MD5 of this part
+	uint64 Length = 2;            // actual size of this part 
+	uint64 Offset = 3;            // offset in bucket space; per stripe
+	uint64 StoredBytes = 4;       // mod stripeSize; stripeCount
+	int64 Time = 5;               // append此Part的时间
+	bytes ETag = 6;               // MD5 of this part
+}
+
+message BucketNameInfo {
+	uint64 BucketID = 1;
+	int64  Time = 2;
+	string Name = 3;
 }
 
 // 'OpDoneKey'/fsID/bucketID
@@ -148,11 +172,14 @@ message OpRecord {
 	    CreateObject = 1;     // create an object; payload is ObjectInfo
 	    AddData = 2;          // add data to objec; payload is PartInfo
 	    DeleteObject = 3;     // delete an object; payload is DeleteObject
+		Rename = 4;
+		CreateOption = 11;  // set bucket ops
+		SetName = 12;       // set bucket name
     }
 
 	OpType Type = 1;
 	uint64 OpID = 2;
-	int64 Time = 3;  // time of this op, need ?
+	int64 Time = 3;  // time of this op, need?
 	bytes Payload = 4;    
 }
 

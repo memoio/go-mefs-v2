@@ -5,13 +5,15 @@ import (
 	"math/big"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/memoio/go-mefs-v2/lib/utils"
 	"golang.org/x/crypto/sha3"
+
+	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 type ChalEpoch struct {
 	Epoch uint64
-	Slot  uint64 // todo: need change to epoch
+	Slot  uint64
 	Seed  MsgID
 }
 
@@ -24,10 +26,11 @@ func (ce *ChalEpoch) Deserialize(b []byte) error {
 }
 
 type PostIncome struct {
-	UserID  uint64
-	ProID   uint64
-	Value   *big.Int // duo to income
-	Penalty *big.Int // due to delete
+	UserID     uint64
+	ProID      uint64
+	TokenIndex uint32
+	Value      *big.Int // duo to income
+	Penalty    *big.Int // due to delete
 }
 
 func (pi *PostIncome) Serialize() ([]byte, error) {
@@ -39,9 +42,10 @@ func (pi *PostIncome) Deserialize(b []byte) error {
 }
 
 type AccPostIncome struct {
-	ProID   uint64
-	Value   *big.Int // duo to income
-	Penalty *big.Int // due to delete
+	ProID      uint64
+	TokenIndex uint32
+	Value      *big.Int // duo to income
+	Penalty    *big.Int // due to delete
 }
 
 func (api *AccPostIncome) Hash() []byte {
@@ -49,6 +53,14 @@ func (api *AccPostIncome) Hash() []byte {
 	d := sha3.NewLegacyKeccak256()
 	binary.BigEndian.PutUint64(buf, api.ProID)
 	d.Write(buf)
+	if build.ContractVersion != 0 {
+		buf[0] = byte(uint8(api.TokenIndex))
+		d.Write(buf[:1])
+	} else {
+		binary.BigEndian.PutUint32(buf[:4], api.TokenIndex)
+		d.Write(buf[:4])
+	}
+
 	d.Write(utils.LeftPadBytes(api.Value.Bytes(), 32))
 	d.Write(utils.LeftPadBytes(api.Penalty.Bytes(), 32))
 	return d.Sum(nil)

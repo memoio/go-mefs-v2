@@ -17,11 +17,11 @@ import (
 func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 	var vk pdpcommon.VerifyKey
 	key := store.NewKey(pb.MetaType_ST_PDPVerifyKey, userID)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		// should remove this
 		key := store.NewKey(pb.MetaType_ST_PDPPublicKey, userID)
-		data, err := s.ds.Get(key)
+		data, err := s.get(key)
 		if err != nil {
 			return nil, err
 		}
@@ -33,7 +33,7 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 		vk = pk.VerifyKey()
 
 		key = store.NewKey(pb.MetaType_ST_PDPVerifyKey, userID)
-		err = s.ds.Put(key, vk.Serialize())
+		err = s.put(key, vk.Serialize())
 		if err != nil {
 			return nil, err
 		}
@@ -53,14 +53,14 @@ func (s *StateMgr) loadUser(userID uint64) (*segPerUser, error) {
 
 	// load bucket
 	key = store.NewKey(pb.MetaType_ST_BucketOptKey, userID)
-	data, err = s.ds.Get(key)
+	data, err = s.get(key)
 	if err == nil && len(data) >= 8 {
 		spu.nextBucket = binary.BigEndian.Uint64(data)
 	}
 	return spu, nil
 }
 
-func (s *StateMgr) addUser(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) addUser(msg *tx.Message) error {
 	pk, err := pdp.DeserializePublicKey(msg.Params)
 	if err != nil {
 		return err
@@ -105,31 +105,16 @@ func (s *StateMgr) addUser(msg *tx.Message, tds store.TxnStore) error {
 
 	// save user public key
 	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, msg.From)
-	err = tds.Put(key, pk.Serialize())
+	err = s.put(key, pk.Serialize())
 	if err != nil {
 		return err
 	}
 
 	// save user verify key
 	key = store.NewKey(pb.MetaType_ST_PDPVerifyKey, msg.From)
-	err = tds.Put(key, pk.VerifyKey().Serialize())
+	err = s.put(key, pk.VerifyKey().Serialize())
 	if err != nil {
 		return err
-	}
-
-	// save all users
-	key = store.NewKey(pb.MetaType_ST_UsersKey)
-	val, _ := tds.Get(key)
-	buf := make([]byte, len(val)+8)
-	copy(buf[:len(val)], val)
-	binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-	err = tds.Put(key, buf)
-	if err != nil {
-		return err
-	}
-
-	if s.handleAddUser != nil {
-		s.handleAddUser(msg.From)
 	}
 
 	return nil
@@ -143,7 +128,13 @@ func (s *StateMgr) canAddUser(msg *tx.Message) error {
 
 	_, ok := s.validateSInfo[msg.From]
 	if ok {
-		return nil
+		return xerrors.Errorf("%d has create fs already", msg.From)
+	}
+
+	key := store.NewKey(pb.MetaType_ST_PDPPublicKey, msg.From)
+	has, err := s.has(key)
+	if err == nil && has {
+		return xerrors.Errorf("%d has create fs already", msg.From)
 	}
 
 	ri, ok := s.validateRInfo[msg.From]

@@ -1,7 +1,7 @@
 package minit
 
 import (
-	"fmt"
+	"log"
 	_ "net/http/pprof"
 	"os"
 	"runtime/pprof"
@@ -31,16 +31,16 @@ func startProfiling() (func(), error) {
 		return nil, err
 	}
 
-	fmt.Println("start cpu profile")
+	//fmt.Println("start cpu profile")
 	err = pprof.StartCPUProfile(ofi)
 	if err != nil {
-		fmt.Println("pprof.StartCPUProfile(ofi) falied: ", err)
+		log.Println("start cpu profile falied: ", err)
 	}
 	go func() {
 		for range time.NewTicker(time.Second * 30).C {
 			err := writeHeapProfileToFile()
 			if err != nil {
-				fmt.Println(err)
+				log.Println("write profile falied: ", err)
 			}
 		}
 	}()
@@ -49,7 +49,7 @@ func startProfiling() (func(), error) {
 		pprof.StopCPUProfile()
 		err = ofi.Close()
 		if err != nil {
-			fmt.Println("ofi.Close() falied: ", err)
+			log.Println("stop cpu profile falied: ", err)
 		}
 	}
 	return stopProfiling, nil

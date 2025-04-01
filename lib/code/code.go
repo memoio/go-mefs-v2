@@ -2,6 +2,7 @@ package code
 
 import (
 	"github.com/klauspost/reedsolomon"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
@@ -34,7 +35,7 @@ func NewDataCoder(keyset pdpcommon.KeySet, version, policy, dataCount, parityCou
 		parityCount = dataCount + parityCount - 1
 		dataCount = 1
 	default:
-		return nil, ErrWrongPolicy
+		return nil, xerrors.Errorf("policy %d is not supported", policy)
 	}
 
 	pre := &segment.Prefix{
@@ -83,7 +84,7 @@ func (d *DataCoder) preCompute() error {
 	dc := int(d.DataCount)
 	pc := int(d.ParityCount)
 	if dc < 1 || pc < 1 {
-		return ErrWrongPolicy
+		return xerrors.Errorf("policy is not supported")
 	}
 
 	d.chunkCount = dc + pc
@@ -102,11 +103,15 @@ func (d *DataCoder) preCompute() error {
 
 // ncidPrefix为  fsID_bucketID_stripeID
 func (d *DataCoder) Encode(ncidPrefix segment.SegmentID, data []byte) ([][]byte, error) {
+	if len(data) == 0 {
+		return nil, xerrors.New("data length is wrong")
+	}
+
 	dc := int(d.DataCount)
 	pc := int(d.ParityCount)
 
-	if len(data) == 0 || len(data) > dc*int(d.SegSize) {
-		return nil, ErrDataLength
+	if len(data) > dc*int(d.SegSize) {
+		return nil, xerrors.New("data length is too large")
 	}
 
 	// 如果长度不够则填充
@@ -154,7 +159,7 @@ func (d *DataCoder) Encode(ncidPrefix segment.SegmentID, data []byte) ([][]byte,
 			return nil, err
 		}
 	default:
-		return nil, ErrWrongPolicy
+		return nil, xerrors.Errorf("policy %d is not supported", d.Prefix.Policy)
 	}
 
 	offset += int(d.SegSize)
@@ -191,7 +196,7 @@ func (d *DataCoder) Decode(name segment.SegmentID, stripe [][]byte) ([]byte, err
 	}
 
 	if scount < int(d.DataCount) {
-		return nil, ErrRecoverData
+		return nil, xerrors.New("the recovered data is incorrect")
 	}
 
 	if !ok {
@@ -212,7 +217,7 @@ func (d *DataCoder) Decode(name segment.SegmentID, stripe [][]byte) ([]byte, err
 // if name != "", verify tag
 func (d *DataCoder) VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool, int, error) {
 	if len(stripe) < int(d.DataCount) {
-		return false, 0, ErrDataBroken
+		return false, 0, xerrors.Errorf("stripe data is not enough")
 	}
 
 	good := 0
@@ -259,7 +264,7 @@ func (d *DataCoder) VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool,
 	}
 
 	if good < int(d.DataCount) {
-		return directRead, good, ErrRecoverData
+		return directRead, good, xerrors.New("the recovered data is incorrect")
 	}
 
 	if name != nil {
@@ -293,7 +298,7 @@ func (d *DataCoder) VerifyStripe(name segment.SegmentID, stripe [][]byte) (bool,
 
 func (d *DataCoder) VerifyChunk(name segment.SegmentID, data []byte) (bool, error) {
 	if len(data) < d.fragmentSize {
-		return false, ErrDataLength
+		return false, xerrors.Errorf("data length %d is shorter than %d", len(data), d.fragmentSize)
 	}
 
 	seg := data[d.prefixSize : d.prefixSize+int(d.SegSize)]
@@ -309,7 +314,7 @@ func (d *DataCoder) Recover(name segment.SegmentID, stripe [][]byte) error {
 	}
 
 	if scount < int(d.DataCount) {
-		return ErrRecoverData
+		return xerrors.New("the recovered data is incorrect")
 	}
 
 	fieldStripe := make([][]byte, d.chunkCount)
@@ -391,7 +396,7 @@ func (d *DataCoder) recoverField(name segment.SegmentID, stripe [][]byte) error 
 
 		ok, err := d.dv.Result()
 		if !ok || err != nil {
-			return ErrRecoverData
+			return xerrors.New("the recovered data is incorrect")
 		}
 	} else {
 		for i := range fault {
@@ -439,7 +444,7 @@ func (d *DataCoder) recoverData(data [][]byte, dc, pc int) error {
 			}
 
 			if !ok {
-				return ErrDataBroken
+				return xerrors.Errorf("data is broken")
 			}
 		}
 		return nil
@@ -452,7 +457,7 @@ func (d *DataCoder) recoverData(data [][]byte, dc, pc int) error {
 		}
 
 		if i == d.chunkCount {
-			return ErrRecoverData
+			return xerrors.New("the recovered data is incorrect")
 		}
 
 		for j := 0; j < d.chunkCount; j++ {
@@ -463,6 +468,6 @@ func (d *DataCoder) recoverData(data [][]byte, dc, pc int) error {
 		}
 		return nil
 	default:
-		return ErrWrongPolicy
+		return xerrors.Errorf("policy is not supported")
 	}
 }

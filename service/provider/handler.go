@@ -14,7 +14,7 @@ import (
 )
 
 func (p *ProviderNode) handleGetSeg(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle get segment from:", mes.GetHeader().From)
+	logger.Debug("handle get segment from: ", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -27,7 +27,7 @@ func (p *ProviderNode) handleGetSeg(ctx context.Context, pid peer.ID, mes *pb.Ne
 	pc := new(readpay.Paycheck)
 	err := pc.Deserialize(mes.GetData().Sign)
 	if err != nil {
-		logger.Debug("readpay fail:", err)
+		logger.Debug("readpay fail: ", err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -37,7 +37,7 @@ func (p *ProviderNode) handleGetSeg(ctx context.Context, pid peer.ID, mes *pb.Ne
 	readPrice.Mul(readPrice, big.NewInt(build.DefaultSegSize))
 	err = p.rp.Verify(pc, readPrice)
 	if err != nil {
-		logger.Debug("readpay fail:", err)
+		logger.Debug("readpay fail: ", err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -70,7 +70,7 @@ func (p *ProviderNode) handleGetSeg(ctx context.Context, pid peer.ID, mes *pb.Ne
 }
 
 func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle quotation from:", mes.GetHeader().From)
+	logger.Debug("handle quotation from: ", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -81,8 +81,16 @@ func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb
 	}
 
 	if !p.ready {
-		logger.Debug("pro service not ready, fail handle quotation from:", mes.GetHeader().From)
+		logger.Debug("pro service not ready, fail handle quotation from: ", mes.GetHeader().From)
 		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	if !p.orderService {
+		logger.Debug("pro order service not ready, fail handle quotation from: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro order service not ready, no space left")
 		return resp, nil
 	}
 
@@ -116,8 +124,8 @@ func (p *ProviderNode) handleQuotation(ctx context.Context, pid peer.ID, mes *pb
 	return resp, nil
 }
 
-func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle segdata from:", mes.GetHeader().From)
+func (p *ProviderNode) handlePutSeg(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	logger.Debug("handle segdata from: ", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -146,6 +154,20 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 		}
 	*/
 
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle seg from: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	if !p.orderService {
+		logger.Debug("pro order service not ready, fail handle seg from: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro order service not ready, no space left")
+		return resp, nil
+	}
+
 	seg := new(segment.BaseSegment)
 	err := seg.Deserialize(mes.GetData().GetMsgInfo())
 	if err != nil {
@@ -154,23 +176,25 @@ func (p *ProviderNode) handleSegData(ctx context.Context, pid peer.ID, mes *pb.N
 		return resp, nil
 	}
 
-	has, err := p.HasSegment(p.ctx, seg.SegmentID())
-	if err != nil || !has {
-		err = p.PutSegmentToLocal(p.ctx, seg)
-		if err != nil {
-			resp.Header.Type = pb.NetMessage_Err
-			resp.Data.MsgInfo = []byte(err.Error())
-			return resp, nil
-		}
+	err = seg.IsValid(build.DefaultSegSize)
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
 	}
 
-	go p.OrderMgr.HandleData(mes.Header.From, seg)
+	err = p.OrderMgr.HandleData(mes.Header.From, seg)
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
 
 	return resp, nil
 }
 
 func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle create order from:", mes.GetHeader().From)
+	logger.Debug("handle create order sat: ", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -181,9 +205,16 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 	}
 
 	if !p.ready {
-		logger.Debug("pro service not ready, fail handle create order from:", mes.GetHeader().From)
+		logger.Debug("pro service not ready, fail handle create order sat: ", mes.GetHeader().From)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	if !p.orderService {
+		logger.Debug("pro order service not ready, fail handle create order sat: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro order service not ready, no space left")
 		return resp, nil
 	}
 
@@ -191,7 +222,7 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 	sigFrom := new(types.Signature)
 	err := sigFrom.Deserialize(mes.GetData().GetSign())
 	if err != nil {
-		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle create order sat: ", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -202,7 +233,7 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 
 	ok, err := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
 	if !ok {
-		logger.Debug("fail handle create order duo to verify from:", mes.GetHeader().From)
+		logger.Debug("fail handle create order duo to verify sat: ", mes.GetHeader().From)
 		resp.Header.Type = pb.NetMessage_Err
 		if err != nil {
 			resp.Data.MsgInfo = []byte(err.Error())
@@ -212,7 +243,7 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 
 	res, err := p.OrderMgr.HandleCreateOrder(dataFrom)
 	if err != nil {
-		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle create order sat: ", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -224,7 +255,7 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 
 	sigTo, err := p.RoleMgr.RoleSign(p.ctx, p.RoleID(), msg[:], types.SigSecp256k1)
 	if err != nil {
-		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle create order sat: ", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -232,7 +263,7 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 
 	sigByte, err := sigTo.Serialize()
 	if err != nil {
-		logger.Debug("fail handle create order from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle create order sat: ", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -240,11 +271,13 @@ func (p *ProviderNode) handleCreateOrder(ctx context.Context, pid peer.ID, mes *
 
 	resp.Data.Sign = sigByte
 
+	logger.Debug("handle create order end sat: ", mes.GetHeader().From)
+
 	return resp, nil
 }
 
 func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle create seq from:", mes.GetHeader().From)
+	logger.Debug("handle create seq sat: ", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -252,6 +285,20 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 			From:    p.RoleID(),
 		},
 		Data: &pb.NetMessage_MsgData{},
+	}
+
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle create seq sat: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	if !p.orderService {
+		logger.Debug("pro order service not ready, fail handle create seq sat: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro order service not ready, no space left")
+		return resp, nil
 	}
 
 	// verify sig
@@ -302,11 +349,13 @@ func (p *ProviderNode) handleCreateSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	resp.Data.Sign = sigByte
 
+	logger.Debug("handle create seq end sat: ", mes.GetHeader().From)
+
 	return resp, nil
 }
 
 func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle finish seq from:", mes.GetHeader().From)
+	logger.Debug("handle finish seq sat: ", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -316,11 +365,18 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 		Data: &pb.NetMessage_MsgData{},
 	}
 
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle finish seq sat: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
 	// verify sig
 	sigFrom := new(types.Signature)
 	err := sigFrom.Deserialize(mes.GetData().GetSign())
 	if err != nil {
-		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle finish seq sat: ", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -331,7 +387,7 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	ok, err := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
 	if !ok {
-		logger.Debug("fail handle finish seq from:", mes.GetHeader().From)
+		logger.Debug("fail handle finish seq sat: ", mes.GetHeader().From)
 		resp.Header.Type = pb.NetMessage_Err
 		if err != nil {
 			resp.Data.MsgInfo = []byte(err.Error())
@@ -341,7 +397,7 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	res, err := p.OrderMgr.HandleFinishSeq(mes.Header.From, dataFrom)
 	if err != nil {
-		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle finish seq sat: ", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -353,7 +409,7 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	sigTo, err := p.RoleMgr.RoleSign(p.ctx, p.RoleID(), msg[:], types.SigSecp256k1)
 	if err != nil {
-		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle finish seq sat: ", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
@@ -361,13 +417,86 @@ func (p *ProviderNode) handleFinishSeq(ctx context.Context, pid peer.ID, mes *pb
 
 	sigByte, err := sigTo.Serialize()
 	if err != nil {
-		logger.Debug("fail handle finish seq from:", mes.GetHeader().From, err)
+		logger.Debug("fail handle finish seq sat: ", mes.GetHeader().From, err)
 		resp.Header.Type = pb.NetMessage_Err
 		resp.Data.MsgInfo = []byte(err.Error())
 		return resp, nil
 	}
 
 	resp.Data.Sign = sigByte
+
+	logger.Debug("handle finish seq end sat: ", mes.GetHeader().From)
+
+	return resp, nil
+}
+
+func (p *ProviderNode) handleFixSeq(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
+	logger.Debug("handle fix seq sat: ", mes.GetHeader().From)
+	resp := &pb.NetMessage{
+		Header: &pb.NetMessage_MsgHeader{
+			Version: 1,
+			Type:    mes.GetHeader().GetType(),
+			From:    p.RoleID(),
+		},
+		Data: &pb.NetMessage_MsgData{},
+	}
+
+	if !p.ready {
+		logger.Debug("pro service not ready, fail handle finish seq sat: ", mes.GetHeader().From)
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte("pro service not ready")
+		return resp, nil
+	}
+
+	// verify sig
+	sigFrom := new(types.Signature)
+	err := sigFrom.Deserialize(mes.GetData().GetSign())
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
+
+	dataFrom := mes.GetData().GetMsgInfo()
+	msgFrom := blake3.Sum256(dataFrom)
+
+	ok, err := p.RoleMgr.RoleVerify(p.ctx, mes.Header.From, msgFrom[:], *sigFrom)
+	if !ok {
+		resp.Header.Type = pb.NetMessage_Err
+		if err != nil {
+			resp.Data.MsgInfo = []byte(err.Error())
+		}
+		return resp, nil
+	}
+
+	res, err := p.OrderMgr.HandleFixSeq(mes.Header.From, dataFrom)
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
+
+	resp.Data.MsgInfo = res
+
+	msg := blake3.Sum256(res)
+
+	sigTo, err := p.RoleMgr.RoleSign(p.ctx, p.RoleID(), msg[:], types.SigSecp256k1)
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
+
+	sigByte, err := sigTo.Serialize()
+	if err != nil {
+		resp.Header.Type = pb.NetMessage_Err
+		resp.Data.MsgInfo = []byte(err.Error())
+		return resp, nil
+	}
+
+	resp.Data.Sign = sigByte
+
+	logger.Debug("handle fix seq end sat: ", mes.GetHeader().From)
 
 	return resp, nil
 }

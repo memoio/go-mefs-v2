@@ -1,10 +1,12 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/multiformats/go-multiaddr"
@@ -14,6 +16,23 @@ import (
 	"github.com/memoio/go-mefs-v2/api/httpio"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 )
+
+func CreateMemoClientInfo(api, token string) (string, http.Header, error) {
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+strings.TrimSpace(token))
+
+	apima, err := multiaddr.NewMultiaddr(strings.TrimSpace(api))
+	if err != nil {
+		return "", nil, err
+	}
+	_, addr, err := manet.DialArgs(apima)
+	if err != nil {
+		return "", nil, err
+	}
+
+	//addr = "http://" + addr + "/rpc/v0"
+	return addr, headers, nil
+}
 
 func GetMemoClientInfo(repoDir string) (string, http.Header, error) {
 	repoPath, err := utils.GetRepoPath(repoDir)
@@ -26,20 +45,20 @@ func GetMemoClientInfo(repoDir string) (string, http.Header, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	tokenBytes = bytes.TrimSpace(tokenBytes)
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+string(tokenBytes))
 
 	rpcPath := path.Join(repoPath, "api")
 	rpcBytes, err := ioutil.ReadFile(rpcPath)
 	if err != nil {
 		return "", nil, err
 	}
-
-	headers := http.Header{}
-	headers.Add("Authorization", "Bearer "+string(tokenBytes))
+	rpcBytes = bytes.TrimSpace(rpcBytes)
 	apima, err := multiaddr.NewMultiaddr(string(rpcBytes))
 	if err != nil {
 		return "", nil, err
 	}
-
 	_, addr, err := manet.DialArgs(apima)
 	if err != nil {
 		return "", nil, err
@@ -57,6 +76,7 @@ func NewGenericNode(ctx context.Context, addr string, requestHeader http.Header)
 	return &res, closer, err
 }
 
+// create an user node with package api
 func NewUserNode(ctx context.Context, addr string, requestHeader http.Header) (api.UserNode, jsonrpc.ClientCloser, error) {
 	var res api.UserNodeStruct
 	re := httpio.ReaderParamEncoder("http://" + addr + "/rpc/streams/v0/push")

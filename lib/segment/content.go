@@ -12,10 +12,6 @@ const (
 	DefaultPrefixLen = 24
 )
 
-var (
-	ErrDataLength = xerrors.New("data length is wrong")
-)
-
 type Prefix struct {
 	Version     uint32
 	Policy      uint32
@@ -42,7 +38,7 @@ func (p Prefix) Size() int {
 
 func DeserializePrefix(data []byte) (*Prefix, int, error) {
 	if len(data) < DefaultPrefixLen {
-		return nil, 0, ErrDataLength
+		return nil, 0, xerrors.Errorf("data length %d is shorter than %d", len(data), DefaultPrefixLen)
 	}
 
 	version := binary.BigEndian.Uint32(data[:4])
@@ -67,7 +63,7 @@ type BaseSegment struct {
 	data  []byte
 }
 
-func NewBaseSegment(data []byte, segID SegmentID) Segment {
+func NewBaseSegment(segID SegmentID, data []byte) Segment {
 	return &BaseSegment{
 		data:  data,
 		segID: segID,
@@ -95,6 +91,11 @@ func (bs *BaseSegment) Content() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if len(bs.data) < preLen+int(pre.SegSize) {
+		return nil, xerrors.Errorf("invalid seg length should at least %d got %d", preLen+int(pre.SegSize), len(bs.data))
+	}
+
 	seg := make([]byte, pre.SegSize)
 	copy(seg, bs.data[preLen:])
 	return seg, nil
@@ -107,11 +108,14 @@ func (bs *BaseSegment) Tags() ([][]byte, error) {
 	}
 
 	if pre.DataCount < 1 || pre.ParityCount < 1 {
-		return nil, ErrDataLength
+		return nil, xerrors.Errorf("policy is not supported")
 	}
 
 	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
 	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
+	if preLen+int(pre.SegSize)+tagCount*tagLen != len(bs.data) {
+		return nil, xerrors.Errorf("invalid tag length should at least %d got %d", preLen+int(pre.SegSize)+tagCount*tagLen, len(bs.data))
+	}
 
 	tag := make([][]byte, tagCount)
 	for i := 0; i < tagCount; i++ {
@@ -131,7 +135,7 @@ func (bs *BaseSegment) Serialize() ([]byte, error) {
 
 func (bs *BaseSegment) Deserialize(b []byte) error {
 	if len(b) < 40 {
-		return ErrDataLength
+		return xerrors.Errorf("data length %d is shorter than 40", len(b))
 	}
 
 	segID, err := FromBytes(b[:40])
@@ -139,13 +143,46 @@ func (bs *BaseSegment) Deserialize(b []byte) error {
 		return err
 	}
 
-	_, _, err = DeserializePrefix(b[40:])
+	pre, preSize, err := DeserializePrefix(b[40:])
 	if err != nil {
 		return err
 	}
 
+	if pre.DataCount < 1 || pre.ParityCount < 1 {
+		return xerrors.Errorf("data/parity count is wrong")
+	}
+
+	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
+	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
+	if 40+preSize+int(pre.SegSize)+tagCount*tagLen != len(b) {
+		return xerrors.Errorf("invalid segment size should %d got %d", 40+preSize+int(pre.SegSize)+tagCount*tagLen, len(b))
+	}
+
 	bs.segID = segID
 	bs.data = b[40:]
+
+	return nil
+}
+
+func (bs *BaseSegment) IsValid(size int) error {
+	pre, preSize, err := DeserializePrefix(bs.data)
+	if err != nil {
+		return err
+	}
+
+	if size != int(pre.SegSize) {
+		return xerrors.Errorf("segment raw size is wrong, expect %d got %d", size, pre.SegSize)
+	}
+
+	if pre.DataCount < 1 || pre.ParityCount < 1 {
+		return xerrors.Errorf("data/parity count is wrong")
+	}
+
+	tagLen := pdpcommon.TagMap[int(pre.TagFlag)]
+	tagCount := 2 + int((pre.ParityCount-1)/pre.DataCount)
+	if preSize+int(pre.SegSize)+tagCount*tagLen != len(bs.data) {
+		return xerrors.Errorf("segment size is wrong")
+	}
 
 	return nil
 }

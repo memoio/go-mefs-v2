@@ -3,14 +3,12 @@ package pdpcommon
 import "golang.org/x/xerrors"
 
 var (
-	ErrInvalidElem       = xerrors.New("invalid elem or zero")
-	ErrKeyIsNil          = xerrors.New("the key is nil")
-	ErrInvalidSettings   = xerrors.New("setting is invalid")
-	ErrNumOutOfRange     = xerrors.New("numOfAtoms is out of range")
-	ErrDeserializeFailed = xerrors.New("deserialize failed")
-	ErrSegmentSize       = xerrors.New("the size of the segment is wrong")
-	ErrVersionUnmatch    = xerrors.New("version unmatch")
-	ErrVerifyFailed      = xerrors.New("verification failed")
+	ErrKeyIsNil        = xerrors.New("the key is nil")
+	ErrInvalidSettings = xerrors.New("setting is invalid")
+	ErrNumOutOfRange   = xerrors.New("numOfAtoms is out of range")
+	ErrSegmentSize     = xerrors.New("the size of the segment is wrong")
+	ErrVersionUnmatch  = xerrors.New("version unmatch")
+	ErrVerifyFailed    = xerrors.New("verification failed")
 )
 
 // Tag constants

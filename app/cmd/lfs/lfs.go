@@ -1,17 +1,20 @@
 package lfscmd
 
 import (
-	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/lib/code"
+	"github.com/memoio/go-mefs-v2/lib/etag"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils"
 	"github.com/mgutz/ansi"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -31,27 +34,67 @@ func FormatPolicy(policy uint32) string {
 	return "unknown"
 }
 
-func FormatBucketInfo(bucket *types.BucketInfo) string {
+func FormatBucketInfo(bucket types.BucketInfo) string {
+	// get reliability with dc and pc
+	reliability := ReliabilityLevel(bucket.DataCount, bucket.ParityCount)
+
 	return fmt.Sprintf(
 		`Name: %s
-BucketID: %d
-CTime: %s
-MTime: %s
-ObjectCount: %d
+Bucket ID: %d
 Policy: %s
-DataCount: %d
-ParityCount: %d
-Used: %s`,
+Data Count: %d
+Parity Count: %d
+Reliability: %s
+Confirmed: %t
+Object Count: %d
+Size: %s
+Used Bytes: %s
+Creation Time: %s
+Modify Time: %s`,
 		ansi.Color(bucket.Name, "green"),
 		bucket.BucketID,
-		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),
-		time.Unix(int64(bucket.MTime), 0).Format(utils.SHOWTIME),
-		bucket.NextObjectID,
 		FormatPolicy(bucket.Policy),
 		bucket.DataCount,
 		bucket.ParityCount,
+		reliability,
+		bucket.Confirmed,
+		bucket.NextObjectID,
+		utils.FormatBytes(int64(bucket.Length)),
 		utils.FormatBytes(int64(bucket.UsedBytes)),
+		time.Unix(int64(bucket.CTime), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(bucket.MTime), 0).Format(utils.SHOWTIME),
 	)
+}
+
+func FormatObjectInfo(object types.ObjectInfo) string {
+	setag, _ := etag.ToString(object.ETag)
+	return fmt.Sprintf(
+		`Name: %s
+Bucket ID: %d
+Object ID: %d
+ETag: %s
+Size: %s
+UsedBytes: %s
+Enc Method: %s
+State: %s
+Creation Time: %s
+Modify Time: %s`,
+		ansi.Color(object.Name, "green"),
+		object.BucketID,
+		object.ObjectID,
+		setag,
+		utils.FormatBytes(int64(object.Size)),
+		utils.FormatBytes(int64(object.StoredBytes)),
+		object.Encryption,
+		object.State,
+		time.Unix(int64(object.Time), 0).Format(utils.SHOWTIME),
+		time.Unix(int64(object.Mtime), 0).Format(utils.SHOWTIME),
+	)
+}
+
+func FormatPartInfo(pi *pb.ObjectPartInfo) string {
+	setag, _ := etag.ToString(pi.ETag)
+	return fmt.Sprintf("ObjectID: %d, Size: %d, CreationTime: %s, Offset: %d, DataBytes: %d, ETag: %s", pi.ObjectID, pi.Length, time.Unix(int64(pi.Time), 0).Format(utils.SHOWTIME), pi.Offset, pi.StoredBytes, setag)
 }
 
 var LfsCmd = &cli.Command{
@@ -65,6 +108,13 @@ var LfsCmd = &cli.Command{
 		headObjectCmd,
 		getObjectCmd,
 		listObjectsCmd,
+		delObjectCmd,
+		showStorageCmd,
+		orderGetProsCmd,
+
+		downloadCmd,
+		uploadCmd,
+		uploadMultiCmd,
 	},
 }
 
@@ -111,7 +161,7 @@ var createBucketCmd = &cli.Command{
 
 		bucketName := cctx.String("bucket")
 		if bucketName == "" {
-			return errors.New("bucketname is nil")
+			return xerrors.New("bucketname is nil")
 		}
 
 		opts := code.DefaultBucketOptions()
@@ -124,8 +174,8 @@ var createBucketCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("create bucket: ", bi.BucketID, bi.Name)
 		fmt.Println(FormatBucketInfo(bi))
+
 		return nil
 	},
 }
@@ -161,7 +211,7 @@ var listBucketsCmd = &cli.Command{
 
 		fmt.Println("List buckets: ")
 		for _, bi := range bs {
-			fmt.Printf("\n")
+			fmt.Printf("-------\n")
 			fmt.Println(FormatBucketInfo(bi))
 		}
 
@@ -201,6 +251,84 @@ var headBucketCmd = &cli.Command{
 
 		fmt.Println("Head bucket: ")
 		fmt.Println(FormatBucketInfo(bi))
+
+		return nil
+	},
+}
+
+var showStorageCmd = &cli.Command{
+	Name:  "showStorage",
+	Usage: "show storage info",
+	Action: func(cctx *cli.Context) error {
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		napi, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ss, err := napi.ShowStorage(cctx.Context)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Lfs has storage: ", utils.FormatBytes(int64(ss)))
+
+		return nil
+	},
+}
+
+// get security level from dataCount and parityCount
+func ReliabilityLevel(dataCount uint32, parityCount uint32) string {
+	reLevel := "Risky"
+
+	// assume each node reliabilty is 0.9
+	res := utils.CalReliabilty(int(dataCount+parityCount), int(dataCount), 0.9)
+	if res > 0.9999 {
+		reLevel = "High"
+	} else if res > 0.99 {
+		reLevel = "Medium"
+	}
+
+	return reLevel
+}
+
+var orderGetProsCmd = &cli.Command{
+	Name:      "getPros",
+	Usage:     "get pros of bucket",
+	ArgsUsage: "[bucket id required]",
+	Action: func(cctx *cli.Context) error {
+		if !cctx.Args().Present() {
+			return xerrors.Errorf("need bucket id")
+		}
+		bid, err := strconv.ParseUint(cctx.Args().First(), 10, 0)
+		if err != nil {
+			return xerrors.Errorf("parsing 'bucketID' argument: %w", err)
+		}
+
+		repoDir := cctx.String(cmd.FlagNodeRepo)
+		addr, headers, err := client.GetMemoClientInfo(repoDir)
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := client.NewUserNode(cctx.Context, addr, headers)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ppb, err := api.OrderGetProsAt(cctx.Context, bid)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("bucket", bid, "providers:", ppb.InUse, ", deleted:", ppb.Deleted, ", deleted at each chunk:", ppb.DelPerChunk)
 
 		return nil
 	},

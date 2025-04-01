@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
 	"golang.org/x/xerrors"
 )
 
@@ -19,10 +21,41 @@ var Validators = map[string]func(string, string) error{
 type Config struct {
 	Identity  IdentityConfig  `json:"identity"`
 	Wallet    WalletConfig    `json:"wallet"`
+	Genesis   GenesisConfig   `json:"genesis"`
 	Net       SwarmConfig     `json:"net"`
 	API       APIConfig       `json:"api"`
 	Bootstrap BootstrapConfig `json:"bootstrap"`
 	Data      StorePathConfig `json:"data"`
+	Contract  ContractConfig  `json:"contract"`
+	Order     OrderConfig     `json:"order"`
+	Sync      SyncConfig      `json:"sync"`
+}
+
+type ContractConfig struct {
+	Version      uint32 `json:"version,omitempty"`
+	EndPoint     string `json:"endPoint"`
+	RoleContract string `json:"roleContract"`
+}
+
+func newDefaultContractConfig() ContractConfig {
+	return ContractConfig{
+		EndPoint:     settle.EndPoint,
+		RoleContract: settle.RoleContract,
+	}
+}
+
+type SyncConfig struct {
+	API   string `json:"api,omitempty"`
+	Token string `json:"token,omitempty"`
+}
+
+func newDefaultSyncConfig() SyncConfig {
+	return SyncConfig{}
+}
+
+type GenesisConfig struct {
+	SMTVersion uint32 `json:"smtVersion,omitempty"`
+	SMTHeight  uint64 `json:"smtHeight,omitempty"`
 }
 
 type WalletConfig struct {
@@ -48,7 +81,7 @@ type SwarmConfig struct {
 
 	EnableRelay bool `json:"enableRelay"`
 
-	PublicRelayAddress string `json:"public_relay_address,omitempty"`
+	PublicRelayAddress string `json:"publicRelayAddress,omitempty"`
 }
 
 func newDefaultSwarmConfig() SwarmConfig {
@@ -56,9 +89,6 @@ func newDefaultSwarmConfig() SwarmConfig {
 		Name: "devnet",
 		Addresses: []string{
 			"/ip4/0.0.0.0/tcp/7000",
-			"/ip6/::/tcp/7001",
-			"/ip4/0.0.0.0/udp/7000/quic",
-			"/ip6/::/udp/7001/quic",
 		},
 	}
 }
@@ -72,12 +102,12 @@ type APIConfig struct {
 
 func newDefaultAPIConfig() APIConfig {
 	return APIConfig{
-		Address: "/ip4/127.0.0.1/tcp/8000",
+		Address: "/ip4/127.0.0.1/tcp/5001",
 		AccessControlAllowOrigin: []string{
-			"http://localhost:8000",
-			"https://localhost:8000",
-			"http://127.0.0.1:8000",
-			"https://127.0.0.1:8000",
+			"http://localhost:5001",
+			"https://localhost:5001",
+			"http://127.0.0.1:5001",
+			"https://127.0.0.1:5001",
 		},
 		AccessControlAllowMethods: []string{"GET", "POST", "PUT"},
 	}
@@ -88,34 +118,49 @@ type BootstrapConfig struct {
 }
 
 // TODO: provide bootstrap node addresses
-func newDefaultBootstrapConfig() BootstrapConfig {
-	return BootstrapConfig{
-		Addresses: []string{
-			"/ip4/121.37.158.192/tcp/23456/p2p/12D3KooWHXmKSneyGqE8fPrTmNTBs2rR9pWTdNcgVG3Tt5htJef7",
-			"/ip4/192.168.1.46/tcp/4201/p2p/12D3KooWB5yMrUL6NG6wHrdR9V114mUDkpJ5Mp3c1sLPHwiFi6DN",
-		},
-	}
+var DefaultBootstrapConfig = BootstrapConfig{
+	Addresses: []string{
+		"/ip4/121.37.158.192/tcp/23456/p2p/12D3KooWHXmKSneyGqE8fPrTmNTBs2rR9pWTdNcgVG3Tt5htJef7", // group1
+		"/ip4/121.36.243.236/tcp/2222/p2p/12D3KooWKHeDhgLExibUcofNPtwMKEsjxf18KmKoyzyRftZiRWLb",  // group2
+		"/ip4/192.168.1.46/tcp/4201/p2p/12D3KooWB5yMrUL6NG6wHrdR9V114mUDkpJ5Mp3c1sLPHwiFi6DN",
+	},
 }
 
 type StorePathConfig struct {
-	MetaPath        string   `json:"metaPath"`
-	DataPath        string   `json:"dataPath"`
-	VolumeIndexPath string   `json:"volumeIndexPath"`
-	VolumeDataPath  []string `json:"volumeDataPath"`
+	MetaPath string `json:"metaPath"`
+	DataPath string `json:"dataPath"`
 }
 
 func newDefaultStorePathConfig() StorePathConfig {
 	return StorePathConfig{}
 }
 
-func NewDefaultConfig() *Config {
+type OrderConfig struct {
+	Stop     bool   `json:"stop"` // stop accept order
+	Price    uint64 `json:"price"`
+	Duration uint64 `json:"duration"` // day
+	Wait     uint64 `json:"wait"`     // seconds
+}
 
+func newDefaultOrderConfig() OrderConfig {
+	return OrderConfig{
+		Stop:     false,
+		Price:    build.DefaultSegPrice.Uint64(),
+		Duration: 1000,      // 100 day
+		Wait:     3600 * 12, // 12 hour
+	}
+}
+
+func NewDefaultConfig() *Config {
 	return &Config{
 		Identity:  newDefaultIdentityConfig(),
 		API:       newDefaultAPIConfig(),
-		Bootstrap: newDefaultBootstrapConfig(),
+		Contract:  newDefaultContractConfig(),
+		Bootstrap: DefaultBootstrapConfig,
 		Data:      newDefaultStorePathConfig(),
 		Net:       newDefaultSwarmConfig(),
+		Order:     newDefaultOrderConfig(),
+		Sync:      newDefaultSyncConfig(),
 	}
 }
 
@@ -136,13 +181,8 @@ func (cfg *Config) WriteFile(file string) error {
 }
 
 func ReadFile(file string) (*Config, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-
 	cfg := NewDefaultConfig()
-	rawConfig, err := ioutil.ReadAll(f)
+	rawConfig, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +204,8 @@ func (cfg *Config) Set(dottedKey string, jsonString string) error {
 		jsonString = string(jsonBytes)
 	}
 
-	if err := validate(dottedKey, jsonString); err != nil {
+	err := validate(dottedKey, jsonString)
+	if err != nil {
 		return err
 	}
 
@@ -211,17 +252,20 @@ OUTER:
 // to use for each key.
 func validate(dottedKey string, jsonString string) error {
 	var obj interface{}
-	if err := json.Unmarshal([]byte(jsonString), &obj); err != nil {
+	err := json.Unmarshal([]byte(jsonString), &obj)
+	if err != nil {
 		return err
 	}
 	// recursively validate sub-keys by partially unmarshalling
 	if reflect.ValueOf(obj).Kind() == reflect.Map {
 		var obj map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(jsonString), &obj); err != nil {
+		err := json.Unmarshal([]byte(jsonString), &obj)
+		if err != nil {
 			return err
 		}
 		for key := range obj {
-			if err := validate(dottedKey+"."+key, string(obj[key])); err != nil {
+			err := validate(dottedKey+"."+key, string(obj[key]))
+			if err != nil {
 				return err
 			}
 		}

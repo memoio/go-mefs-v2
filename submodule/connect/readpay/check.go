@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"math/big"
+
+	"github.com/memoio/go-mefs-v2/lib/pb"
+	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/memoio/go-mefs-v2/lib/utils"
+	b58 "github.com/mr-tron/base58/base58"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/xerrors"
 )
@@ -31,6 +34,10 @@ func (c *Check) Serialize() ([]byte, error) {
 
 func (c *Check) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, c)
+}
+
+func (c *Check) String() string {
+	return b58.Encode(c.Hash())
 }
 
 func (c *Check) Hash() []byte {
@@ -56,13 +63,13 @@ func (c *Check) Equal(c2 *Check) (bool, error) {
 	}
 
 	if c.ContractAddr != c2.ContractAddr {
-		return false, xerrors.New("from not equal")
+		return false, xerrors.New("contract not equal")
 	}
 	if c.OwnerAddr != c2.OwnerAddr {
-		return false, xerrors.New("from not equal")
+		return false, xerrors.New("owner not equal")
 	}
 	if c.ToAddr != c2.ToAddr {
-		return false, xerrors.New("from not equal")
+		return false, xerrors.New("to not equal")
 	}
 	if c.Value.Cmp(c2.Value) != 0 {
 		return false, xerrors.New("value not equal")
@@ -84,9 +91,11 @@ func (c *Check) Verify() (bool, error) {
 	// pub key to common.address
 	recAddr := utils.ToEthAddress(pubKey)
 
-	fmt.Printf("readpay: got %s expect %s", hex.EncodeToString(recAddr), hex.EncodeToString(c.OwnerAddr.Bytes()))
+	if !bytes.Equal(recAddr, c.OwnerAddr.Bytes()) {
+		return false, xerrors.Errorf("readpay: got %s expect %s", hex.EncodeToString(recAddr), hex.EncodeToString(c.OwnerAddr.Bytes()))
+	}
 
-	return bytes.Equal(recAddr, c.OwnerAddr.Bytes()), nil
+	return true, nil
 }
 
 // Paycheck is an auto generated low-level Go binding around an user-defined struct.
@@ -140,7 +149,28 @@ func (p *Paycheck) Verify() (bool, error) {
 	// pub key to common.address
 	recAddr := utils.ToEthAddress(pubKey)
 
-	fmt.Printf("readpay paycheck: got %s expect %s", hex.EncodeToString(recAddr), hex.EncodeToString(p.FromAddr.Bytes()))
+	if !bytes.Equal(recAddr, p.FromAddr.Bytes()) {
+		return false, xerrors.Errorf("readpay paycheck: got %s expect %s", hex.EncodeToString(recAddr), hex.EncodeToString(p.FromAddr.Bytes()))
+	}
 
-	return bytes.Equal(recAddr, p.FromAddr.Bytes()), nil
+	return true, nil
+}
+
+func (p *Paycheck) Save(ds store.KVStore) error {
+	key := store.NewKey(pb.MetaType_ReadPay_ChannelKey, p.ContractAddr.String(), p.FromAddr.String(), p.ToAddr.String(), p.Nonce)
+
+	data, err := p.Serialize()
+	if err != nil {
+		return err
+	}
+	err = ds.Put(key, data)
+	if err != nil {
+		return err
+	}
+
+	key = store.NewKey(pb.MetaType_ReadPay_NonceKey, p.ContractAddr.String(), p.FromAddr.String(), p.ToAddr.String())
+
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, p.Nonce)
+	return ds.Put(key, buf)
 }

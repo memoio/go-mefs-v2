@@ -8,13 +8,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var (
-	ErrWrongType      = xerrors.New("mismatch type")
-	ErrIllegalKey     = xerrors.New("this key is illegal")
-	ErrWrongKeyLength = xerrors.New("this key's length is wrong")
-	ErrIllegalValue   = xerrors.New("this metavalue is illegal")
-)
-
 const SEGMENTID_LEN = 40
 const FSID_LEN = 20
 
@@ -78,7 +71,7 @@ func (bm *BaseSegmentID) ShortString() string {
 
 func NewSegmentID(fid []byte, bid, sid uint64, cid uint32) (SegmentID, error) {
 	if len(fid) != FSID_LEN {
-		return nil, ErrWrongKeyLength
+		return nil, xerrors.New("segment length is wrong")
 	}
 
 	segID := make([]byte, SEGMENTID_LEN)
@@ -104,7 +97,7 @@ func FromString(key string) (SegmentID, error) {
 // FromBytes convert bytes to segmentID
 func FromBytes(b []byte) (SegmentID, error) {
 	if len(b) != SEGMENTID_LEN {
-		return nil, ErrWrongKeyLength
+		return nil, xerrors.New("segment length is wrong")
 	}
 
 	return &BaseSegmentID{buf: b}, nil

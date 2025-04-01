@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"context"
+
 	"github.com/ipfs/go-datastore"
 
 	"github.com/memoio/go-mefs-v2/config"
@@ -25,6 +27,9 @@ type Repo interface {
 	SetAPIToken(token []byte) error
 
 	Path() (string, error)
+
+	LocalStoreGetStat(context.Context, string) (store.DiskStats, error)
+	LocalStoreGetKey(context.Context, string, []byte) ([]byte, error)
 
 	Close() error
 

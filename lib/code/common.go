@@ -19,17 +19,6 @@ const (
 	DefaultSegSize   = pdpv2.DefaultSegSize
 )
 
-var (
-	ErrWrongCoder   = xerrors.New("coder is not supported")
-	ErrWrongVersion = xerrors.New("version is not supported")
-	ErrWrongTagFlag = xerrors.New("no such tag flag")
-	ErrWrongPolicy  = xerrors.New("policy is not supported")
-	ErrDataLength   = xerrors.New("data length is wrong")
-	ErrDataBroken   = xerrors.New("datais broken")
-	ErrRepairCrash  = xerrors.New("repair crash")
-	ErrRecoverData  = xerrors.New("the recovered data is incorrect")
-)
-
 type Codec interface {
 	// name is fsID_bucketID_stripeID
 	Encode(name segment.SegmentID, data []byte) ([][]byte, error)
@@ -44,12 +33,12 @@ type Codec interface {
 }
 
 // DefaultBucketOptions is default bucket option
-func DefaultBucketOptions() *pb.BucketOption {
-	return &pb.BucketOption{
+func DefaultBucketOptions() pb.BucketOption {
+	return pb.BucketOption{
 		Version:     1,
 		Policy:      RsPolicy,
-		DataCount:   3,
-		ParityCount: 2,
+		DataCount:   5,
+		ParityCount: 5,
 		SegSize:     DefaultSegSize,
 		TagFlag:     DefaultTagFlag,
 	}
@@ -66,7 +55,7 @@ func (d *DataCoder) VerifyPrefix(pre *segment.Prefix) bool {
 //VerifyChunkLength verify length of a chunk
 func VerifyChunkLength(data []byte) error {
 	if data == nil {
-		return ErrDataLength
+		return xerrors.New("data length is zero")
 	}
 	pre, preLen, err := segment.DeserializePrefix(data)
 	if err != nil {
@@ -74,15 +63,15 @@ func VerifyChunkLength(data []byte) error {
 	}
 
 	if preLen != pre.Size() {
-		return ErrDataLength
+		return xerrors.New("data length is wrong")
 	}
 
 	if pre.Version != 1 {
-		return ErrWrongVersion
+		return xerrors.Errorf("version %d is not supported", pre.Version)
 	}
 
 	if pre.DataCount == 0 {
-		return ErrWrongPolicy
+		return xerrors.Errorf("policy is not supported")
 	}
 
 	tagLen, ok := pdpcommon.TagMap[int(pre.TagFlag)]
@@ -93,7 +82,7 @@ func VerifyChunkLength(data []byte) error {
 	fragSize := int(pre.SegSize) + tagLen*int(2+(pre.ParityCount-1)/pre.DataCount) + pre.Size()
 
 	if len(data) != fragSize {
-		return ErrDataLength
+		return xerrors.New("data length is wrong")
 	}
 
 	return nil

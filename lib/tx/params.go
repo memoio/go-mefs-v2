@@ -121,3 +121,81 @@ func (ocp *OrderCommitParas) Serialize() ([]byte, error) {
 func (ocp *OrderCommitParas) Deserialize(b []byte) error {
 	return cbor.Unmarshal(b, ocp)
 }
+
+type OrderSubParas struct {
+	UserID uint64
+	ProID  uint64
+	Nonce  uint64
+}
+
+func (osp *OrderSubParas) Serialize() ([]byte, error) {
+	return cbor.Marshal(osp)
+}
+
+func (osp *OrderSubParas) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, osp)
+}
+
+// minimum meta for finding an object
+
+type BucMetaParas struct {
+	BucketID uint64
+	Name     string
+	NEncrypt string // for decrypt name
+}
+
+func (bmp *BucMetaParas) Serialize() ([]byte, error) {
+	return cbor.Marshal(bmp)
+}
+
+func (bmp *BucMetaParas) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, bmp)
+}
+
+type ObjMetaKey struct {
+	UserID   uint64
+	BucketID uint64
+	ObjectID uint64
+}
+
+func (omk *ObjMetaKey) Serialize() ([]byte, error) {
+	return cbor.Marshal(omk)
+}
+
+func (omk *ObjMetaKey) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, omk)
+}
+
+type ObjMetaValue struct {
+	Offset   uint64
+	Length   uint64
+	ETag     []byte
+	Encrypt  string // decrypt obj content
+	Name     string
+	NEncrypt string // decrypt name
+	Extra    []byte // extra information, for search/file market
+}
+
+func (omv *ObjMetaValue) Serialize() ([]byte, error) {
+	return cbor.Marshal(omv)
+}
+
+func (omv *ObjMetaValue) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, omv)
+}
+
+// minimum meta for finding an object
+
+type ObjMetaParas struct {
+	ObjMetaValue
+	BucketID uint64
+	ObjectID uint64
+}
+
+func (omp *ObjMetaParas) Serialize() ([]byte, error) {
+	return cbor.Marshal(omp)
+}
+
+func (omp *ObjMetaParas) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, omp)
+}

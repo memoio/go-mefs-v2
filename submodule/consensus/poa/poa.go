@@ -51,7 +51,7 @@ func (m *PoAManager) MineBlock() {
 			logger.Debug("mine block done")
 			return
 		case <-tc.C:
-			trh, err := m.app.CreateBlockHeader()
+			trh, err := m.app.CreateBlockHeader(0)
 			if err != nil {
 				logger.Debug("create block header: ", err)
 				continue
@@ -74,7 +74,7 @@ func (m *PoAManager) MineBlock() {
 				tb.MsgSet = txs
 			}
 
-			logger.Debugf("create block propose cost %d", time.Since(nt))
+			logger.Debugf("create block propose cost %s", time.Since(nt))
 
 			err = m.app.OnPropose(tb)
 			if err != nil {
@@ -82,7 +82,7 @@ func (m *PoAManager) MineBlock() {
 				continue
 			}
 
-			logger.Debugf("create block OnPropose cost %d", time.Since(nt))
+			logger.Debugf("create block OnPropose cost %s", time.Since(nt))
 
 			if trh.MinerID == m.localID {
 				sig, err := m.RoleSign(m.ctx, m.localID, hs.CalcHash(tb.Hash().Bytes(), hs.PhaseCommit), types.SigSecp256k1)
@@ -94,7 +94,7 @@ func (m *PoAManager) MineBlock() {
 				tb.MultiSignature.Add(m.localID, sig)
 			}
 
-			logger.Debugf("create block sign cost %d", time.Since(nt))
+			logger.Debugf("create block sign cost %s", time.Since(nt))
 
 			err = m.app.OnViewDone(tb)
 			if err != nil {

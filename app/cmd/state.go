@@ -2,17 +2,17 @@ package cmd
 
 import (
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var StateCmd = &cli.Command{
+var stateCmd = &cli.Command{
 	Name:  "state",
 	Usage: "Interact with state manager",
 	Subcommands: []*cli.Command{
@@ -43,17 +43,18 @@ var statePostIncomeCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Println("post income: ", nid.ID)
-
-		users := napi.StateGetUsersAt(cctx.Context, nid.ID)
-		fmt.Println("post income: ", nid.ID, users)
+		users, err := napi.StateGetUsersAt(cctx.Context, nid.RoleID)
+		if err != nil {
+			return err
+		}
+		fmt.Println("post income: ", nid.RoleID, users)
 
 		for _, uid := range users {
-			pi, err := napi.StateGetPostIncome(cctx.Context, uid, nid.ID)
+			pi, err := napi.StateGetPostIncome(cctx.Context, uid, nid.RoleID)
 			if err != nil {
 				continue
 			}
-			fmt.Printf("post income: proID %d, userID %d, value: %s, penalty: %s \n", nid.ID, uid, types.FormatWei(pi.Value), types.FormatWei(pi.Penalty))
+			fmt.Printf("post income: proID %d, userID %d, value: %s, penalty: %s \n", nid.RoleID, uid, types.FormatMemo(pi.Value), types.FormatMemo(pi.Penalty))
 		}
 
 		return nil
@@ -83,28 +84,26 @@ var statePayCmd = &cli.Command{
 
 		switch nid.Type {
 		case pb.RoleInfo_Provider:
-			fmt.Println("pay info: ", nid.ID)
-
-			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.ID)
+			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
+			fmt.Printf("pay info: pro %d, income value %s, penalty %s, signer: %d \n", nid.RoleID, types.FormatMemo(spi.Value), types.FormatMemo(spi.Penalty), spi.Sig.Signer)
 
-			bi, err := napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bi, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("pay info max: proID %d, expected income: %s, has balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
+			fmt.Printf("pay info max: proID %d, expected income: %s, has balance: %s \n", nid.RoleID, types.FormatMemo(bi.FsValue), types.FormatMemo(bi.ErcValue))
 		default:
-			bi, err := napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bi, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("pay info max: roleID %d, expected income: %s, has balance: %s \n", nid.ID, types.FormatWei(bi.FsValue), types.FormatWei(bi.ErcValue))
+			fmt.Printf("pay info max: roleID %d, expected income: %s, has balance: %s \n", nid.RoleID, types.FormatMemo(bi.FsValue), types.FormatMemo(bi.ErcValue))
 		}
 
 		return nil
@@ -113,7 +112,7 @@ var statePayCmd = &cli.Command{
 
 var stateWithdrawCmd = &cli.Command{
 	Name:  "withdraw",
-	Usage: "withdraw balance",
+	Usage: "provider income of storing data",
 	Action: func(cctx *cli.Context) error {
 		repoDir := cctx.String(FlagNodeRepo)
 		addr, headers, err := client.GetMemoClientInfo(repoDir)
@@ -136,29 +135,28 @@ var stateWithdrawCmd = &cli.Command{
 
 		switch nid.Type {
 		case pb.RoleInfo_Provider:
-			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.ID)
+			spi, err := napi.StateGetAccPostIncome(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
 
-			fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.ID, types.FormatWei(spi.Value), types.FormatWei(spi.Penalty), spi.Sig.Signer)
+			fmt.Printf("withdraw info: pro %d, income value %s, penalty %s, signer: %d \n", nid.RoleID, types.FormatMemo(spi.Value), types.FormatMemo(spi.Penalty), spi.Sig.Signer)
 
 			ksign := make([][]byte, spi.Sig.Len())
+			kindex := make([]uint64, spi.Sig.Len())
 			for i := 0; i < spi.Sig.Len(); i++ {
 				ksign[i] = spi.Sig.Data[65*i : 65*(i+1)]
+				kindex[i] = spi.Sig.Signer[i]
 			}
 
-			// for test
-			spi.Penalty = big.NewInt(1)
-
-			err = napi.SettleWithdraw(cctx.Context, spi.Value, spi.Penalty, ksign)
+			err = napi.SettleProIncome(cctx.Context, spi.Value, spi.Penalty, kindex, ksign)
 			if err != nil {
 				fmt.Println("withdraw fail", err)
 				return err
@@ -166,34 +164,14 @@ var stateWithdrawCmd = &cli.Command{
 
 			time.Sleep(10 * time.Second)
 
-			bal, err = napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
+			bal, err = napi.SettleGetBalanceInfo(cctx.Context, nid.RoleID)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+			fmt.Printf("%d has tx fee %s, balance %s %s \n", nid.RoleID, types.FormatEth(bal.Value), types.FormatMemo(bal.ErcValue), types.FormatMemo(bal.FsValue))
 		default:
-			bal, err := napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
-
-			err = napi.SettleWithdraw(cctx.Context, big.NewInt(1_000_000_000), big.NewInt(0), nil)
-			if err != nil {
-				fmt.Println("withdraw fail", err)
-				return err
-			}
-
-			time.Sleep(10 * time.Second)
-
-			bal, err = napi.SettleGetBalanceInfo(cctx.Context, nid.ID)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("%d has balance %s %s %s \n", nid.ID, types.FormatWei(bal.Value), types.FormatWei(bal.ErcValue), types.FormatWei(bal.FsValue))
+			return xerrors.Errorf("should be provider")
 		}
 
 		return nil

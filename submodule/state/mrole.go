@@ -18,7 +18,7 @@ func (s *StateMgr) loadVal(roleID uint64) *roleValue {
 		Value: big.NewInt(0),
 	}
 	key := store.NewKey(pb.MetaType_ST_RoleValueKey, roleID)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		return rb
 	}
@@ -27,13 +27,13 @@ func (s *StateMgr) loadVal(roleID uint64) *roleValue {
 	return rb
 }
 
-func (s *StateMgr) saveVal(roleID uint64, rv *roleValue, tds store.TxnStore) error {
+func (s *StateMgr) saveVal(roleID uint64, rv *roleValue) error {
 	key := store.NewKey(pb.MetaType_ST_RoleValueKey, roleID)
 	data, err := rv.Serialize()
 	if err != nil {
 		return err
 	}
-	return tds.Put(key, data)
+	return s.put(key, data)
 }
 
 func (s *StateMgr) loadRole(roleID uint64) *roleInfo {
@@ -42,7 +42,7 @@ func (s *StateMgr) loadRole(roleID uint64) *roleInfo {
 	}
 
 	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, roleID)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err == nil && len(data) > 0 {
 		base := new(pb.RoleInfo)
 		err := proto.Unmarshal(data, base)
@@ -54,41 +54,41 @@ func (s *StateMgr) loadRole(roleID uint64) *roleInfo {
 	return ri
 }
 
-func (s *StateMgr) addRole(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) addRole(msg *tx.Message) error {
 	pri := new(pb.RoleInfo)
 	err := proto.Unmarshal(msg.Params, pri)
 	if err != nil {
 		return err
 	}
 
-	if pri.ID != msg.From {
-		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.ID, msg.From)
+	if pri.RoleID != msg.From {
+		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.RoleID, msg.From)
 	}
 
 	// has?
-	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.ID)
-	ok, err := tds.Has(key)
+	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.RoleID)
+	ok, err := s.has(key)
 	if err == nil && ok {
-		return xerrors.Errorf("local already has role: %d", pri.ID)
+		return xerrors.Errorf("local already has role: %d", pri.RoleID)
 	}
 
-	ri, ok := s.rInfo[pri.ID]
+	ri, ok := s.rInfo[pri.RoleID]
 	if ok {
 		if ri.base != nil {
-			return xerrors.Errorf("already has role: %d", pri.ID)
+			return xerrors.Errorf("already has role: %d", pri.RoleID)
 		}
 
 		ri.base = pri
 	} else {
 		ri = &roleInfo{
 			base: pri,
-			val:  s.loadVal(pri.ID),
+			val:  s.loadVal(pri.RoleID),
 		}
-		s.rInfo[pri.ID] = ri
+		s.rInfo[pri.RoleID] = ri
 	}
 
 	// save
-	err = tds.Put(key, msg.Params)
+	err = s.put(key, msg.Params)
 	if err != nil {
 		return err
 	}
@@ -98,40 +98,36 @@ func (s *StateMgr) addRole(msg *tx.Message, tds store.TxnStore) error {
 	case pb.RoleInfo_Keeper:
 		s.keepers = append(s.keepers, msg.From)
 		key = store.NewKey(pb.MetaType_ST_KeepersKey)
-		val, _ := tds.Get(key)
+		val, _ := s.tds.Get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		err = tds.Put(key, buf)
+		err = s.tds.Put(key, buf)
 		if err != nil {
 			return err
 		}
 	case pb.RoleInfo_Provider:
 		s.pros = append(s.pros, msg.From)
 		key = store.NewKey(pb.MetaType_ST_ProsKey)
-		val, _ := tds.Get(key)
+		val, _ := s.tds.Get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		err = tds.Put(key, buf)
+		err = s.tds.Put(key, buf)
 		if err != nil {
 			return err
 		}
 	case pb.RoleInfo_User:
 		s.users = append(s.users, msg.From)
 		key = store.NewKey(pb.MetaType_ST_UsersKey)
-		val, _ := tds.Get(key)
+		val, _ := s.tds.Get(key)
 		buf := make([]byte, len(val)+8)
 		copy(buf[:len(val)], val)
 		binary.BigEndian.PutUint64(buf[len(val):len(val)+8], msg.From)
-		err = tds.Put(key, buf)
+		err = s.tds.Put(key, buf)
 		if err != nil {
 			return err
 		}
-	}
-
-	if s.handleAddRole != nil {
-		s.handleAddRole(pri.ID, pri.Type)
 	}
 
 	return nil
@@ -144,30 +140,30 @@ func (s *StateMgr) canAddRole(msg *tx.Message) error {
 		return err
 	}
 
-	if pri.ID != msg.From {
-		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.ID, msg.From)
+	if pri.RoleID != msg.From {
+		return xerrors.Errorf("wrong roleinfo for %d, expected: %d", pri.RoleID, msg.From)
 	}
 
 	// has?
-	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.ID)
-	ok, err := s.ds.Has(key)
+	key := store.NewKey(pb.MetaType_ST_RoleBaseKey, pri.RoleID)
+	ok, err := s.has(key)
 	if err == nil && ok {
-		return xerrors.Errorf("local already has role: %d", pri.ID)
+		return xerrors.Errorf("local already has role: %d", pri.RoleID)
 	}
 
-	ri, ok := s.validateRInfo[pri.ID]
+	ri, ok := s.validateRInfo[pri.RoleID]
 	if ok {
 		if ri.base != nil {
-			return xerrors.Errorf("already has role: %d", pri.ID)
+			return xerrors.Errorf("already has role: %d", pri.RoleID)
 		}
 
 		ri.base = pri
 		return nil
 	}
 
-	s.validateRInfo[pri.ID] = &roleInfo{
+	s.validateRInfo[pri.RoleID] = &roleInfo{
 		base: pri,
-		val:  s.loadVal(pri.ID),
+		val:  s.loadVal(pri.RoleID),
 	}
 
 	return nil

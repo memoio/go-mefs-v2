@@ -1,17 +1,17 @@
 package store
 
-type Statistics struct {
-	Count       uint64 // number of needles
-	Size        uint64 // total size used > content.Size()
-	ContentSize uint64
+type DiskStats struct {
+	Path  string `json:"path"`
+	Total uint64 `json:"all"`
+	Used  uint64 `json:"used"`
+	Free  uint64 `json:"free"`
 }
-
 type Store interface {
 	Put(key, value []byte) error
 	Get(key []byte) ([]byte, error)
 	Has(key []byte) (bool, error)
 	Delete(key []byte) error
-	Size() int64
+	Size() DiskStats
 	Close() error
 }
 
@@ -31,6 +31,14 @@ type TxnStore interface {
 	Store
 	Commit() error
 	Discard()
+}
+
+type SMTStore interface {
+	Store
+	Root() []byte
+	SetRoot([]byte)
+	Rewind([]byte, []byte, [][]byte) error
+	CleanHistory([]byte, [][]byte) error
 }
 
 type FileStore interface {

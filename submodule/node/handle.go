@@ -4,25 +4,28 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
-// todo: remove it
+// for test
 func (n *BaseNode) TxMsgHandler(ctx context.Context, mes *tx.SignedMessage) error {
-	logger.Debug("received pub message:", mes.From, mes.Nonce, mes.Method)
+	logger.Debug("received pub message: ", mes.From, mes.Nonce, mes.Method)
 	//return n.SyncPool.AddTxMsg(ctx, mes)
 	return nil
 }
 
 func (n *BaseNode) TxBlockHandler(ctx context.Context, blk *tx.SignedBlock) error {
-	logger.Debug("received pub block:", blk.MinerID, blk.Height)
-	return n.SyncPool.AddTxBlock(blk)
+	logger.Debug("received pub block: ", blk.MinerID, blk.Height)
+	err := n.SyncAddTxBlock(ctx, blk)
+	logger.Debug("handle pub block: ", blk.MinerID, blk.Height, err)
+	return err
 }
 
 func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
@@ -47,6 +50,12 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 	}
 
 	if bytes.HasPrefix(key, []byte("tx")) {
+		if n.isProxy {
+			resp.Header.Type = pb.NetMessage_Err
+			resp.Data.MsgInfo = []byte("no state")
+			return resp, nil
+		}
+
 		val, err := n.StateStore().Get(key)
 		if err != nil {
 			resp.Header.Type = pb.NetMessage_Err
@@ -108,7 +117,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 }
 
 func (n *BaseNode) Register() error {
-	_, err := n.PushPool.GetRoleBaseInfo(n.RoleID())
+	_, err := n.StateGetRoleInfo(n.ctx, n.RoleID())
 	if err != nil {
 		ri, err := n.RoleSelf(n.ctx)
 		if err != nil {
@@ -128,25 +137,27 @@ func (n *BaseNode) Register() error {
 		}
 
 		for {
-			mid, err := n.PushPool.PushMessage(n.ctx, msg)
+			mid, err := n.PushMessage(n.ctx, msg)
 			if err != nil {
-				time.Sleep(5 * time.Second)
+				time.Sleep(30 * time.Second)
 				continue
 			}
 
-			ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
-			defer cancle()
 			for {
-				st, err := n.PushPool.SyncGetTxMsgStatus(ctx, mid)
+				st, err := n.SyncGetTxMsgStatus(n.ctx, mid)
 				if err != nil {
+					_, err := n.StateGetRoleInfo(n.ctx, n.RoleID())
+					if err == nil {
+						return nil
+					}
 					time.Sleep(10 * time.Second)
 					continue
 				}
 
 				if st.Status.Err == 0 {
-					logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+					logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 				} else {
-					logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+					logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 				}
 				break
 			}
@@ -165,13 +176,51 @@ func (n *BaseNode) UpdateNetAddr() error {
 		return err
 	}
 
-	opi, err := n.PushPool.GetNetInfo(n.ctx, n.RoleID())
+	opi, err := n.StateGetNetInfo(n.ctx, n.RoleID())
 	if err == nil {
 		if pi.ID == opi.ID {
-			logger.Debug("net addr has been on chain")
-			return nil
+			if n.Config().Net.EnableRelay {
+				for _, addr := range opi.Addrs {
+					if strings.Contains(addr.String(), n.Config().Net.PublicRelayAddress) {
+						logger.Debug("net addr has been on chain")
+						return nil
+					}
+				}
+			} else {
+				logger.Debug("net addr has been on chain")
+				return nil
+			}
 		}
 	}
+
+	addrs := make([]ma.Multiaddr, 0, len(pi.Addrs))
+	for _, maddr := range pi.Addrs {
+		if strings.Contains(maddr.String(), "/127.0.0.1/") {
+			continue
+		}
+
+		if strings.Contains(maddr.String(), "/::1/") {
+			continue
+		}
+
+		if strings.Contains(maddr.String(), "udp") {
+			continue
+		}
+
+		addrs = append(addrs, maddr)
+	}
+
+	if n.Config().Net.EnableRelay {
+		maddr, err := ma.NewMultiaddr(n.Config().Net.PublicRelayAddress + "/p2p-circuit/")
+		if err != nil {
+			return err
+		}
+		addrs = append(addrs, maddr)
+	}
+
+	pi.Addrs = addrs
+
+	logger.Info("update net addr to: ", pi.String())
 
 	data, err := pi.MarshalJSON()
 	if err != nil {
@@ -186,32 +235,34 @@ func (n *BaseNode) UpdateNetAddr() error {
 	}
 
 	for {
-		mid, err := n.PushPool.PushMessage(n.ctx, msg)
+		mid, err := n.PushMessage(n.ctx, msg)
 		if err != nil {
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		ctx, cancle := context.WithTimeout(n.ctx, 10*time.Minute)
-		defer cancle()
 		for {
-			st, err := n.PushPool.SyncGetTxMsgStatus(ctx, mid)
+			st, err := n.SyncGetTxMsgStatus(n.ctx, mid)
 			if err != nil {
+				_, err := n.StateGetNetInfo(n.ctx, n.RoleID())
+				if err == nil {
+					return nil
+				}
 				time.Sleep(10 * time.Second)
 				continue
 			}
 
 			if st.Status.Err == 0 {
-				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 			} else {
-				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 			}
 			break
 		}
 		break
 	}
 
-	logger.Debug("role is registered")
+	logger.Debug("net addr is updated to: ", pi.String())
 
 	return nil
 }
@@ -248,7 +299,7 @@ func (n *BaseNode) TestHanderPutPeer(ctx context.Context, p peer.ID, mes *pb.Net
 	}
 
 	go n.RoleMgr.AddRoleInfo(ri)
-	go n.NetServiceImpl.AddNode(ri.ID, p)
+	go n.NetServiceImpl.AddNode(ri.RoleID, peer.AddrInfo{ID: p})
 
 	resp := new(pb.NetMessage)
 

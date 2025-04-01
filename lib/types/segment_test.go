@@ -82,3 +82,37 @@ func TestAggSegs(t *testing.T) {
 
 	t.Fatal(asq[0].Length, asq.Len(), asq)
 }
+
+func TestSegJob(t *testing.T) {
+	sjq := new(SegJobsQueue)
+
+	for i := uint64(0); i < 131000; i++ {
+		nsj := &SegJob{
+			BucketID: 1,
+			JobID:    i,
+			Start:    17*i + 1,
+			Length:   i % 16,
+			ChunkID:  15,
+		}
+
+		sjq.Push(nsj)
+	}
+
+	sb, err := sjq.LegacySerialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	csb, err := sjq.Serialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nsjq := new(SegJobsQueue)
+	err = nsjq.Deserialize(sb)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Fatal(len(sb), len(csb)*10000/len(sb))
+}

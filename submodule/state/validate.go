@@ -1,14 +1,18 @@
 package state
 
 import (
+	"time"
+
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 func (s *StateMgr) reset() {
+	s.validateVersion = s.version
 	s.validateHeight = s.height
 	s.validateSlot = s.slot
 	s.validateRoot = s.root
@@ -26,9 +30,15 @@ func (s *StateMgr) reset() {
 }
 
 func (s *StateMgr) newValidateRoot(b []byte) {
+	if s.validateVersion >= build.SMTVersion {
+		sum := blake3.Sum256(b)
+		b = sum[:]
+	}
+
 	h := blake3.New()
 	h.Write(s.validateRoot.Bytes())
 	h.Write(b)
+
 	res := h.Sum(nil)
 	s.validateRoot = types.NewMsgID(res)
 }
@@ -79,7 +89,7 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		return s.validateRoot, nil
 	}
 
-	logger.Debug("validate message:", s.validateHeight, msg.From, msg.Nonce, msg.Method, s.validateRoot)
+	nt := time.Now()
 
 	ri, ok := s.validateRInfo[msg.From]
 	if !ok {
@@ -137,6 +147,11 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
+	case tx.SubDataOrder:
+		err := s.canSubOrder(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	case tx.SegmentFault:
 		err := s.canRemoveSeg(msg)
 		if err != nil {
@@ -162,9 +177,21 @@ func (s *StateMgr) ValidateMsg(msg *tx.Message) (types.MsgID, error) {
 		if err != nil {
 			return s.validateRoot, err
 		}
+	case tx.AddBucMeta:
+		err := s.canAddBucMeta(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
+	case tx.AddObjMeta:
+		err := s.canAddObjMeta(msg)
+		if err != nil {
+			return s.validateRoot, err
+		}
 	default:
 		return s.validateRoot, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}
+
+	logger.Debug("validate message: ", s.validateHeight, msg.From, msg.Nonce, msg.Method, s.validateRoot, time.Since(nt))
 
 	return s.validateRoot, nil
 }

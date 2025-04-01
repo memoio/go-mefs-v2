@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/binary"
 	"math/big"
+	"sync"
+	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/xerrors"
@@ -22,6 +24,56 @@ import (
 
 var logger = logging.Logger("data-service")
 
+type stat struct {
+	sync.Mutex
+
+	cnt   uint64
+	total time.Duration
+	times [100]time.Duration
+
+	average int64
+	pCnt    uint32
+}
+
+func (s *stat) add() {
+	s.Lock()
+	defer s.Unlock()
+	s.pCnt++
+}
+
+func (s *stat) sub() {
+	s.Lock()
+	defer s.Unlock()
+	s.pCnt--
+}
+
+func (s *stat) addDurtion(d time.Duration) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.total += d
+	s.total -= s.times[s.cnt%100]
+	s.average = (s.total / time.Duration(100)).Milliseconds()
+	s.times[s.cnt%100] = d
+	s.cnt++
+}
+
+// wait 10 ms for low priority if
+// 1. more than 16 reads/writes
+// 2. average read latency larger than 10ms
+func (s *stat) wait() {
+	logger.Debug("background read wait: ", s.pCnt, s.average)
+	wait := 0
+	for wait < 10 {
+		if s.pCnt <= 16 && s.average <= 10 {
+			return
+		}
+
+		time.Sleep(time.Millisecond)
+		wait++
+	}
+}
+
 type dataService struct {
 	api.INetService // net for send
 	api.IRole
@@ -32,9 +84,13 @@ type dataService struct {
 	cache *lru.ARCCache
 
 	is readpay.ISender
+
+	st *stat
 }
 
 func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.IRole, is readpay.ISender) *dataService {
+	// 250MB
+	// todo: set size from env
 	cache, _ := lru.NewARC(1024)
 
 	d := &dataService{
@@ -44,6 +100,7 @@ func New(ds store.KVStore, ss segment.SegmentStore, ins api.INetService, ir api.
 		ds:          ds,
 		segStore:    ss,
 		cache:       cache,
+		st:          new(stat),
 	}
 
 	return d
@@ -56,21 +113,53 @@ func (d *dataService) API() *dataAPI {
 func (d *dataService) PutSegmentToLocal(ctx context.Context, seg segment.Segment) error {
 	logger.Debug("put segment to local: ", seg.SegmentID())
 	d.cache.Add(seg.SegmentID(), seg)
+
+	d.st.add()
+	defer func() {
+		d.st.sub()
+	}()
+
 	return d.segStore.Put(seg)
 }
 
 func (d *dataService) GetSegmentFromLocal(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
 	logger.Debug("get segment from local: ", sid)
-	val, has := d.cache.Get(sid)
+	val, has := d.cache.Get(sid.String())
 	if has {
-		return val.(segment.Segment), nil
+		logger.Debugf("cache has segment: %s", sid.String())
+		return val.(*segment.BaseSegment), nil
 	}
-	return d.segStore.Get(sid)
+
+	return d.getSegment(ctx, sid)
+}
+
+func (d *dataService) getSegment(ctx context.Context, sid segment.SegmentID) (segment.Segment, error) {
+	logger.Debug("get segment from local store: ", sid)
+
+	d.st.add()
+	defer func() {
+		d.st.sub()
+	}()
+
+	// backgroup read limit;
+	// 1~2TB/day if read speed is slow
+	if ctx.Value("MEFS_Priority") == "low" {
+		d.st.wait()
+	}
+
+	nt := time.Now()
+	seg, err := d.segStore.Get(sid)
+	if err != nil {
+		return nil, err
+	}
+	d.st.addDurtion(time.Since(nt))
+
+	return seg, nil
 }
 
 func (d *dataService) HasSegment(ctx context.Context, sid segment.SegmentID) (bool, error) {
-	logger.Debug("has segment from local: ", sid)
-	has := d.cache.Contains(sid)
+	//logger.Debug("has segment from local: ", sid)
+	has := d.cache.Contains(sid.String())
 	if has {
 		return true, nil
 	}
@@ -90,7 +179,7 @@ func (d *dataService) SendSegment(ctx context.Context, seg segment.Segment, to u
 	}
 
 	if resp.GetHeader().GetType() == pb.NetMessage_Err {
-		return xerrors.Errorf("send to %d fails %d", to, string(resp.GetData().MsgInfo))
+		return xerrors.Errorf("send to %d fails %s", to, string(resp.GetData().MsgInfo))
 	}
 
 	return nil
@@ -100,7 +189,8 @@ func (d *dataService) SendSegmentByID(ctx context.Context, sid segment.SegmentID
 	// load segment from local
 	seg, err := d.GetSegmentFromLocal(ctx, sid)
 	if err != nil {
-		return err
+		// only no such or all err?
+		return xerrors.Errorf("missing chunk %s", err)
 	}
 
 	return d.SendSegment(ctx, seg, to)
@@ -119,25 +209,7 @@ func (d *dataService) GetSegment(ctx context.Context, sid segment.SegmentID) (se
 		return seg, err
 	}
 
-	pri, err := d.RoleGet(context.TODO(), from)
-	if err != nil {
-		return seg, err
-	}
-
-	fromAddr, err := address.NewAddress(pri.ChainVerifyKey)
-	if err != nil {
-		return seg, err
-	}
-
-	readPrice := big.NewInt(types.DefaultReadPrice)
-	readPrice.Mul(readPrice, big.NewInt(build.DefaultSegSize))
-
-	sig, err := d.is.Pay(fromAddr, readPrice)
-	if err != nil {
-		return seg, err
-	}
-
-	return d.GetSegmentRemote(ctx, sid, from, sig)
+	return d.GetSegmentRemote(ctx, sid, from)
 }
 
 func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.SegmentID) (uint64, error) {
@@ -154,11 +226,42 @@ func (d *dataService) GetSegmentLocation(ctx context.Context, sid segment.Segmen
 	return binary.BigEndian.Uint64(val), nil
 }
 
-// todo: add readpay sign here
+func (d *dataService) PutSegmentLocation(ctx context.Context, sid segment.SegmentID, pid uint64) error {
+	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+	val := make([]byte, 8)
+
+	binary.BigEndian.PutUint64(val[:8], pid)
+	return d.ds.Put(key, val)
+}
+
+func (d *dataService) DeleteSegmentLocation(ctx context.Context, sid segment.SegmentID) error {
+	key := store.NewKey(pb.MetaType_SegLocationKey, sid.ToString())
+
+	return d.ds.Delete(key)
+}
 
 // GetSegmentFrom get segmemnt over network
-func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64, sig []byte) (segment.Segment, error) {
+func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentID, from uint64) (segment.Segment, error) {
 	logger.Debug("get segment from remote: ", sid, from)
+
+	pri, err := d.RoleGet(ctx, from, false)
+	if err != nil {
+		return nil, err
+	}
+
+	fromAddr, err := address.NewAddress(pri.ChainVerifyKey)
+	if err != nil {
+		return nil, err
+	}
+
+	readPrice := big.NewInt(types.DefaultReadPrice)
+	readPrice.Mul(readPrice, big.NewInt(build.DefaultSegSize))
+
+	sig, err := d.is.Pay(fromAddr, readPrice)
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := d.SendMetaRequest(ctx, from, pb.NetMessage_GetSegment, sid.Bytes(), sig)
 	if err != nil {
 		return nil, err
@@ -178,7 +281,7 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 		return nil, xerrors.Errorf("segment is not required, expected %s, got %s", sid, bs.SegmentID())
 	}
 
-	d.cache.Add(bs.SegmentID(), bs)
+	d.cache.Add(bs.SegmentID().String(), bs)
 
 	// save to local? or after valid it?
 
@@ -186,6 +289,11 @@ func (d *dataService) GetSegmentRemote(ctx context.Context, sid segment.SegmentI
 }
 
 func (d *dataService) DeleteSegment(ctx context.Context, sid segment.SegmentID) error {
-	d.cache.Remove(sid)
+	logger.Debug("delete segment in local: ", sid)
+	d.cache.Remove(sid.String())
 	return d.segStore.Delete(sid)
+}
+
+func (d *dataService) Size() store.DiskStats {
+	return d.segStore.Size()
 }

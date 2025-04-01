@@ -39,23 +39,24 @@ func NewJwtAuth(rp repo.Repo) (*JwtAuth, error) {
 			SecretKey: sk,
 		}
 
-		if err := rp.KeyStore().Put(jwtSecetName, jwtSecetName, key); err != nil {
+		err = rp.KeyStore().Put(jwtSecetName, jwtSecetName, key)
+		if err != nil {
 			return nil, xerrors.Errorf("writing API secret: %w", err)
 		}
+	}
 
-		p := jwtPayload{
-			Allow: api.AllPermissions,
-		}
+	p := jwtPayload{
+		Allow: api.AllPermissions,
+	}
 
-		cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.SecretKey))
-		if err != nil {
-			return nil, err
-		}
+	cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.SecretKey))
+	if err != nil {
+		return nil, err
+	}
 
-		err = rp.SetAPIToken(cliToken)
-		if err != nil {
-			return nil, err
-		}
+	err = rp.SetAPIToken(cliToken)
+	if err != nil {
+		return nil, err
 	}
 
 	return &JwtAuth{

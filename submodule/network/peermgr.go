@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +34,7 @@ type IPeerMgr interface {
 var _ IPeerMgr = &PeerMgr{}
 
 type PeerMgr struct {
+	netName       string
 	bootstrappers []peer.AddrInfo
 
 	peersLk sync.Mutex
@@ -52,12 +54,21 @@ type PeerMgr struct {
 	done chan struct{}
 }
 
-type NewPeer struct {
-	Id peer.ID //nolint
+type PeerEvtType int
+
+const (
+	AddPeerEvt PeerEvtType = iota
+	RemovePeerEvt
+)
+
+type PeerEvt struct {
+	Type PeerEvtType
+	ID   peer.ID
 }
 
-func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*PeerMgr, error) {
+func NewPeerMgr(netName string, h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*PeerMgr, error) {
 	pm := &PeerMgr{
+		netName:       netName,
 		h:             h,
 		dht:           dht,
 		bootstrappers: bootstrap,
@@ -71,7 +82,7 @@ func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*Peer
 		done: make(chan struct{}),
 	}
 
-	emitter, err := h.EventBus().Emitter(new(NewPeer))
+	emitter, err := h.EventBus().Emitter(new(PeerEvt))
 	if err != nil {
 		return nil, xerrors.Errorf("creating NewPeer emitter: %w", err)
 	}
@@ -89,7 +100,7 @@ func NewPeerMgr(h host.Host, dht *dht.IpfsDHT, bootstrap []peer.AddrInfo) (*Peer
 }
 
 func (pmgr *PeerMgr) AddPeer(p peer.ID) {
-	_ = pmgr.peerEmitter.Emit(NewPeer{Id: p}) //nolint:errcheck
+	_ = pmgr.peerEmitter.Emit(PeerEvt{Type: AddPeerEvt, ID: p}) //nolint:errcheck
 	pmgr.peersLk.Lock()
 	defer pmgr.peersLk.Unlock()
 	pmgr.peers[p] = time.Duration(0)
@@ -112,10 +123,17 @@ func (pmgr *PeerMgr) SetPeerLatency(p peer.ID, latency time.Duration) {
 }
 
 func (pmgr *PeerMgr) Disconnect(p peer.ID) {
+	disconnected := false
 	if pmgr.h.Network().Connectedness(p) == net.NotConnected {
 		pmgr.peersLk.Lock()
-		defer pmgr.peersLk.Unlock()
-		delete(pmgr.peers, p)
+		_, disconnected = pmgr.peers[p]
+		if disconnected {
+			delete(pmgr.peers, p)
+		}
+		pmgr.peersLk.Unlock()
+	}
+	if disconnected {
+		_ = pmgr.peerEmitter.Emit(PeerEvt{Type: RemovePeerEvt, ID: p}) //nolint:errcheck
 	}
 }
 
@@ -145,18 +163,35 @@ func (pmgr *PeerMgr) Run(ctx context.Context) {
 			stats.Record(ctx, metrics.PeerCount.M(int64(pmgr.getPeerCount())))
 		case <-ltick.C:
 			if len(pmgr.bootstrappers) == 0 {
-				logger.Warn("no peers connected, and no bootstrappers configured")
+				//logger.Warn("no peers connected, and no bootstrappers configured")
 				return
 			}
 
-			logger.Info("connecting to bootstrap peers")
-
+			//logger.Info("connecting to bootstrap peers")
 			for _, bsp := range pmgr.bootstrappers {
 				ctx, cancel := context.WithTimeout(ctx, time.Second*3)
-				if err := pmgr.h.Connect(ctx, bsp); err != nil {
-					logger.Warnf("failed to connect to bootstrap peer: %s", err)
-				}
+				err := pmgr.h.Connect(ctx, bsp)
 				cancel()
+				if err != nil {
+					continue
+				}
+				protos, err := pmgr.h.Peerstore().GetProtocols(bsp.ID)
+				if err != nil {
+					continue
+				}
+
+				has := false
+				for _, pro := range protos {
+					if strings.Contains(pro, pmgr.netName) {
+						has = true
+						break
+					}
+				}
+
+				if !has {
+					pmgr.h.Network().ClosePeer(bsp.ID)
+				}
+
 			}
 		case <-pmgr.done:
 			logger.Warn("exiting peermgr run")
@@ -192,20 +227,40 @@ func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 	pcount := pmgr.getPeerCount()
 	if pcount == 0 {
 		if len(pmgr.bootstrappers) == 0 {
-			logger.Warn("no peers connected, and no bootstrappers configured")
+			//logger.Warn("no peers connected, and no bootstrappers configured")
 			return
 		}
 
-		logger.Info("connecting to bootstrap peers")
+		//logger.Info("connecting to bootstrap peers")
 		for _, bsp := range pmgr.bootstrappers {
-			if err := pmgr.h.Connect(ctx, bsp); err != nil {
-				logger.Warnf("failed to connect to bootstrap peer: %s", err)
+			ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+			err := pmgr.h.Connect(ctx, bsp)
+			cancel()
+			if err != nil {
+				continue
+			}
+			protos, err := pmgr.h.Peerstore().GetProtocols(bsp.ID)
+			if err != nil {
+				continue
+			}
+
+			has := false
+			for _, pro := range protos {
+				if strings.Contains(pro, pmgr.netName) {
+					has = true
+					break
+				}
+			}
+
+			if !has {
+				pmgr.h.Network().ClosePeer(bsp.ID)
 			}
 		}
 		return
 	}
 
-	if err := pmgr.dht.Bootstrap(ctx); err != nil {
+	err := pmgr.dht.Bootstrap(ctx)
+	if err != nil {
 		logger.Warnf("dht bootstrapping failed: %s", err)
 	}
 }

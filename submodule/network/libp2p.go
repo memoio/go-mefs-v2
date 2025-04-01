@@ -31,19 +31,19 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 			return peer.ID(""), nil, xerrors.Errorf("failed to get peer ID %w", err)
 		}
 
-		logger.Info("load local peerID: ", p.Pretty())
+		logger.Info("load local peer: ", p.Pretty())
 
 		return p, sk, nil
 	}
 
 	// ed25519 30% faster than secp256k1
-	logger.Info("generating ED25519 keypair for p2p network...")
+	logger.Debug("generating ED25519 keypair for p2p network...")
 	sk, _, err := crypto.GenerateEd25519Key(rand.Reader)
 	if err != nil {
 		return peer.ID(""), nil, xerrors.Errorf("failed to create peer key %w", err)
 	}
 
-	data, err := sk.Bytes()
+	data, err := crypto.MarshalPrivateKey(sk)
 	if err != nil {
 		return peer.ID(""), nil, err
 	}
@@ -53,7 +53,8 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 		Type:      types.Ed25519,
 	}
 
-	if err := store.Put(SelfNetKey, SelfNetKey, nki); err != nil {
+	err = store.Put(SelfNetKey, SelfNetKey, nki)
+	if err != nil {
 		return peer.ID(""), nil, xerrors.Errorf("failed to store private key %w", err)
 	}
 
@@ -62,6 +63,6 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 		return peer.ID(""), nil, xerrors.Errorf("failed to get peer ID %w", err)
 	}
 
-	logger.Info("generated peerID: ", p.Pretty())
+	logger.Info("generated p2p network peer: ", p.Pretty())
 	return p, sk, nil
 }

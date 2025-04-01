@@ -5,14 +5,38 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/memoio/go-mefs-v2/app/minit"
 	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	ma "github.com/multiformats/go-multiaddr"
 )
+
+func TestMaddr(t *testing.T) {
+	maddr, err := ma.NewMultiaddr("/ip4/124.221.166.102/tcp/4001/p2p/12D3KooWG98oNm1c6MGxRMN2tLxpGApj6G79vRsxFbdYE5FsTGc2" + "/p2p-circuit/")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	saddr := maddr.String()
+
+	if strings.HasSuffix(saddr, "p2p-circuit") {
+		saddr = strings.TrimSuffix(saddr, "p2p-circuit")
+		t.Log(saddr)
+		rpai, err := peer.AddrInfoFromString(saddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log(rpai.String())
+	}
+
+	t.Fatal(maddr.String())
+}
 
 func TestBaseNode(t *testing.T) {
 	ctx := context.Background()
@@ -85,7 +109,7 @@ func TestBaseNode(t *testing.T) {
 				return
 			}
 
-			log.Println("receive:", received.GetSignature())
+			log.Println("receive: ", received.GetSignature())
 
 		}
 	}()
@@ -114,16 +138,18 @@ func TestBaseNode(t *testing.T) {
 }
 
 func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *BaseNode {
-	rp, err := repo.NewFSRepo(repoDir, cfg)
+	rp, err := repo.NewFSRepo(repoDir, cfg, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := minit.Create(context.Background(), rp, "memoriae"); err != nil {
+	err = minit.Create(context.Background(), rp, "memoriae", "")
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := rp.ReplaceConfig(rp.Config()); err != nil {
+	err = rp.ReplaceConfig(rp.Config())
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -139,7 +165,7 @@ func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *BaseNode {
 		t.Fatal(err)
 	}
 
-	err = bn.Start()
+	err = bn.Start(true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +181,7 @@ func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *BaseNode {
 	}
 	sort.Strings(lisAddrs)
 	for _, addr := range lisAddrs {
-		fmt.Printf("Swarm listening on %s\n", addr)
+		logger.Info("Swarm listening on: ", addr)
 	}
 
 	return bn

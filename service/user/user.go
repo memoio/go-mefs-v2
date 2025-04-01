@@ -2,14 +2,22 @@ package user
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"sync"
-	"time"
+
+	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/gorilla/mux"
+	"github.com/zeebo/blake3"
 
 	"github.com/memoio/go-mefs-v2/api"
 	"github.com/memoio/go-mefs-v2/lib/address"
+	"github.com/memoio/go-mefs-v2/lib/crypto/pdp"
+	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/service/data"
 	"github.com/memoio/go-mefs-v2/service/user/lfs"
 	uorder "github.com/memoio/go-mefs-v2/service/user/order"
@@ -32,6 +40,8 @@ type UserNode struct {
 	api.IDataService
 
 	ctx context.Context
+
+	ready bool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
@@ -47,11 +57,6 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
-	keyset, err := bn.RoleMgr.RoleGetKeyset(bn.RoleID())
-	if err != nil {
-		return nil, err
-	}
-
 	pri, err := bn.RoleMgr.RoleSelf(ctx)
 	if err != nil {
 		return nil, err
@@ -62,13 +67,31 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		return nil, err
 	}
 
+	ki, err := bn.WalletExport(ctx, localAddr, bn.PassWord())
+	if err != nil {
+		return nil, err
+	}
+
+	privBytes := ki.SecretKey
+
+	encryptBytes := blake3.Sum256(privBytes)
+
+	privBytes = append(privBytes, byte(types.PDP))
+
+	keyset, err := pdp.GenerateKeyWithSeed(pdpcommon.PDPV2, privBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	sp := readpay.NewSender(localAddr, bn.LocalWallet, ds)
 
 	ids := data.New(ds, segStore, bn.NetServiceImpl, bn.RoleMgr, sp)
 
-	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), ds, bn.PushPool, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ContractMgr)
+	oc := bn.Repo.Config().Order
 
-	ls, err := lfs.New(ctx, bn.RoleID(), keyset, ds, segStore, om)
+	om := uorder.NewOrderMgr(ctx, bn.RoleID(), keyset.VerifyKey().Hash(), oc.Price, oc.Duration*86400, oc.Wait, ds, bn, bn.RoleMgr, ids, bn.NetServiceImpl, bn.ISettle)
+
+	ls, err := lfs.New(ctx, bn.RoleID(), encryptBytes[:32], keyset, ds, segStore, om)
 	if err != nil {
 		return nil, err
 	}
@@ -80,56 +103,83 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*UserNode, error) {
 		ctx:          ctx,
 	}
 
-	un.RegisterAddSeqFunc(om.AddOrderSeq)
-	un.RegisterDelSegFunc(om.RemoveSeg)
-
 	return un, nil
 }
 
 // start service related
-func (u *UserNode) Start() error {
-	if u.Repo.Config().Net.Name == "test" {
-		go u.OpenTest()
-	} else {
-		u.RoleMgr.Start()
+func (u *UserNode) Start(perm bool) error {
+	u.Perm = perm
+
+	u.RoleType = "user"
+
+	u.HttpHandle.PathPrefix("/gateway").HandlerFunc(u.ServeRemote())
+
+	err := u.BaseNode.StartLocal()
+	if err != nil {
+		return err
 	}
 
-	// register net msg handle
-	u.GenericService.Register(pb.NetMessage_SayHello, u.DefaultHandler)
-	u.GenericService.Register(pb.NetMessage_Get, u.HandleGet)
+	// register handle
+	u.GenericService.Register(pb.NetMessage_GetSegment, u.handleGetSeg)
 
-	u.TxMsgHandle.Register(u.BaseNode.TxMsgHandler)
-	u.BlockHandle.Register(u.BaseNode.TxBlockHandler)
-
-	u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))
+	if u.Perm {
+		u.RPCServer.Register("Memoriae", api.PermissionedUserAPI(metrics.MetricedUserAPI(u)))
+	} else {
+		u.RPCServer.Register("Memoriae", metrics.MetricedUserAPI(u))
+	}
 
 	go func() {
 		// wait for sync
-		u.PushPool.Start()
-		for {
-			if u.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				time.Sleep(5 * time.Second)
-			}
-		}
+		u.BaseNode.WaitForSync()
 
 		// wait for register
 		err := u.Register()
 		if err != nil {
-			return
+			panic(err)
 		}
+
+		u.ready = true
 
 		// start lfs service and its ordermgr service
 		u.LfsService.Start()
 	}()
 
-	logger.Info("start user for: ", u.RoleID())
+	logger.Info("start user: ", u.RoleID())
 	return nil
 }
 
 func (u *UserNode) Shutdown(ctx context.Context) error {
 	u.LfsService.Stop()
 	return u.BaseNode.Shutdown(ctx)
+}
+
+func (u *UserNode) Ready(ctx context.Context) bool {
+	return u.ready
+}
+
+func (u *UserNode) ServeRemote() func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if u.Perm {
+			if !auth.HasPerm(r.Context(), nil, api.PermAdmin) {
+				w.WriteHeader(401)
+				_ = json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})
+				return
+			}
+		}
+		u.ServeRemoteHTTP(w, r)
+	}
+}
+
+func (u *UserNode) ServeRemoteHTTP(w http.ResponseWriter, r *http.Request) {
+	mux := mux.NewRouter()
+
+	mux.HandleFunc("/gateway/upload", u.LfsService.PutFile).Methods("POST")
+	mux.HandleFunc("/gateway/upload/{bucket}/{object}", u.LfsService.PutFile).Methods("POST")
+
+	mux.HandleFunc("/gateway/download", u.LfsService.DownloadFile).Methods("GET", "POST")
+
+	mux.HandleFunc("/gateway/etag/{etag}", u.LfsService.GetFile).Methods("GET")
+	mux.HandleFunc("/gateway/object/{bucket}/{object}", u.LfsService.GetFile).Methods("GET")
+
+	mux.ServeHTTP(w, r)
 }

@@ -5,6 +5,7 @@ import (
 	"hash/crc32"
 
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	"golang.org/x/xerrors"
 )
 
 //GenTagForSegment 根据指定段大小生成标签，index是生成BLS-tag的需要
@@ -12,10 +13,6 @@ func (d *DataCoder) GenTag(index, data []byte) ([]byte, error) {
 	switch d.Prefix.TagFlag {
 	case pdpcommon.CRC32:
 		return uint32ToBytes(crc32.ChecksumIEEE(data)), nil
-	case pdpcommon.BLS:
-		return nil, ErrWrongTagFlag
-	case pdpcommon.PDPV0:
-		return nil, ErrWrongTagFlag
 	case pdpcommon.PDPV2:
 		res, err := d.blsKey.GenTag(index, data, 0, true)
 		if err != nil {
@@ -23,7 +20,7 @@ func (d *DataCoder) GenTag(index, data []byte) ([]byte, error) {
 		}
 		return res, nil
 	default:
-		return nil, ErrWrongTagFlag
+		return nil, xerrors.Errorf("tag flag %d is not supported", d.Prefix.TagFlag)
 	}
 }
 

@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/binary"
 	"math/big"
+	"time"
 
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
@@ -16,7 +17,8 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types/store"
 )
 
-func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) addSegProof(msg *tx.Message) error {
+	nt := time.Now()
 	scp := new(tx.SegChalParams)
 	err := scp.Deserialize(msg.Params)
 	if err != nil {
@@ -80,7 +82,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		SeqNum: oinfo.ns.SeqNum,
 	}
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, scp.Epoch)
-	data, err := tds.Get(key)
+	data, err := s.get(key)
 	if err == nil {
 		ns.Deserialize(data)
 	}
@@ -94,7 +96,11 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	}
 
 	if ns.Nonce != scp.OrderEnd {
-		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
+		return xerrors.Errorf("chal has wrong order end %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
+	}
+
+	if ns.SubNonce != scp.OrderStart {
+		logger.Debugf("%d chal has wrong order start %d, expected %d at epoch: %d ", scp.OrderStart, ns.SubNonce, s.ceInfo.epoch)
 	}
 
 	chalStart := build.BaseTime + int64(s.ceInfo.previous.Slot*build.SlotDuration)
@@ -115,7 +121,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	if ns.SeqNum > 0 {
 		// load order
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
-		data, err = tds.Get(key)
+		data, err = s.get(key)
 		if err != nil {
 			return err
 		}
@@ -138,7 +144,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
-				data, err = tds.Get(key)
+				data, err = s.get(key)
 				if err != nil {
 					return err
 				}
@@ -157,8 +163,9 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 				if i == ns.SeqNum-1 {
 					totalSize += sf.Size
-					totalSize -= delSize
-					totalPrice.Add(totalPrice, sf.Price)
+					price.Set(sf.Price)
+					price.Mul(price, big.NewInt(orderDur))
+					totalPrice.Add(totalPrice, price)
 				}
 			}
 		}
@@ -168,7 +175,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
-			data, err = tds.Get(key)
+			data, err = s.get(key)
 			if err != nil {
 				return err
 			}
@@ -192,11 +199,13 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 			price.Mul(price, big.NewInt(orderDur))
 			totalPrice.Add(totalPrice, price)
 			totalSize += of.Size
-			totalSize -= of.DelPart.Size
+			delSize += of.DelPart.Size
 
 			chal.Add(bls.SubFr(of.AccFr, of.DelPart.AccFr))
 		}
 	}
+
+	totalSize -= delSize
 
 	if totalSize != scp.Size {
 		return xerrors.Errorf("wrong challenge proof: %d %d %d %d %d, size expected: %d, got %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, scp.Size)
@@ -219,11 +228,11 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 
 	oinfo.income.Value.Add(oinfo.income.Value, totalPrice)
 
-	logger.Debugf("apply challenge proof: user %d, pro %d, epoch %d, order nonce %d, seqnum %d, size %d, price %d, total income %d, penalty %d", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice, oinfo.income.Value, oinfo.income.Penalty)
+	logger.Debugf("apply challenge proof: user %d, pro %d, epoch %d, order nonce %d, seqnum %d, size %d, price %d, total income %d, penalty %d, cost %s", okey.userID, okey.proID, scp.Epoch, ns.Nonce, ns.SeqNum, totalSize, totalPrice, oinfo.income.Value, oinfo.income.Penalty, time.Since(nt))
 
 	// save proof result
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID, scp.Epoch)
-	err = tds.Put(key, msg.Params)
+	err = s.put(key, msg.Params)
 	if err != nil {
 		return err
 	}
@@ -231,7 +240,7 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	key = store.NewKey(pb.MetaType_ST_SegProofKey, okey.userID, okey.proID)
 	buf = make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, oinfo.prove)
-	err = tds.Put(key, buf)
+	err = s.put(key, buf)
 	if err != nil {
 		return err
 	}
@@ -242,20 +251,21 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 		return err
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	// save postincome at this epoch
 	pi := &types.PostIncome{
-		UserID:  okey.userID,
-		ProID:   okey.proID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
+		UserID:     okey.userID,
+		ProID:      okey.proID,
+		TokenIndex: 0,
+		Value:      big.NewInt(0),
+		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.userID, okey.proID, scp.Epoch)
-	data, err = tds.Get(key)
+	data, err = s.get(key)
 	if err == nil {
 		pi.Deserialize(data)
 	}
@@ -264,19 +274,20 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	// save acc income of this pro
 	spi := &types.AccPostIncome{
-		ProID:   okey.proID,
-		Value:   big.NewInt(0),
-		Penalty: big.NewInt(0),
+		ProID:      okey.proID,
+		TokenIndex: 0,
+		Value:      big.NewInt(0),
+		Penalty:    big.NewInt(0),
 	}
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, okey.proID)
-	data, err = tds.Get(key)
+	data, err = s.get(key)
 	if err == nil {
 		spi.Deserialize(data)
 	}
@@ -285,13 +296,13 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_SegPayKey, 0, okey.proID, scp.Epoch)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -302,14 +313,9 @@ func (s *StateMgr) addSegProof(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
-	}
-
-	// keeper handle callback income
-	if s.handleAddPay != nil {
-		s.handleAddPay(okey.userID, okey.proID, scp.Epoch, oinfo.income.Value, oinfo.income.Penalty)
 	}
 
 	return nil
@@ -384,7 +390,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 
 	// load
 	key := store.NewKey(pb.MetaType_ST_OrderStateKey, okey.userID, okey.proID, scp.Epoch)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err == nil {
 		ns.Deserialize(data)
 	}
@@ -398,7 +404,11 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	}
 
 	if ns.Nonce != scp.OrderEnd {
-		return xerrors.Errorf("chal has wrong orders %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
+		return xerrors.Errorf("chal has wrong order end %d, expected %d at epoch: %d ", scp.OrderEnd, ns.Nonce, s.ceInfo.epoch)
+	}
+
+	if ns.SubNonce != scp.OrderStart {
+		logger.Debugf("%d chal has wrong order start %d, expected %d at epoch: %d ", scp.OrderStart, ns.SubNonce, s.ceInfo.epoch)
 	}
 
 	chalStart := build.BaseTime + int64(s.validateCeInfo.previous.Slot*build.SlotDuration)
@@ -419,7 +429,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 	if ns.SeqNum > 0 {
 		// load order
 		key = store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, ns.Nonce)
-		data, err = s.ds.Get(key)
+		data, err = s.get(key)
 		if err != nil {
 			return err
 		}
@@ -442,7 +452,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 
 			for i := uint32(0); i < ns.SeqNum; i++ {
 				key = store.NewKey(pb.MetaType_ST_OrderSeqKey, okey.userID, okey.proID, ns.Nonce, i)
-				data, err = s.ds.Get(key)
+				data, err = s.get(key)
 				if err != nil {
 					return err
 				}
@@ -461,7 +471,9 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 
 				if i == ns.SeqNum-1 {
 					totalSize += sf.Size
-					totalPrice.Add(totalPrice, sf.Price)
+					price.Set(sf.Price)
+					price.Mul(price, big.NewInt(orderDur))
+					totalPrice.Add(totalPrice, price)
 				}
 			}
 		}
@@ -471,7 +483,7 @@ func (s *StateMgr) canAddSegProof(msg *tx.Message) error {
 		// todo: choose some from [0, ns.Nonce)
 		for i := scp.OrderStart; i < scp.OrderEnd; i++ {
 			key := store.NewKey(pb.MetaType_ST_OrderBaseKey, okey.userID, okey.proID, i)
-			data, err = s.ds.Get(key)
+			data, err = s.get(key)
 			if err != nil {
 				return err
 			}

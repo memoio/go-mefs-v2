@@ -1,7 +1,5 @@
 package types
 
-import "golang.org/x/xerrors"
-
 type KeyType = byte
 
 const (
@@ -13,12 +11,6 @@ const (
 	PDP
 	Ed25519
 	Hmac
-)
-
-var (
-	ErrKeyInfoNotFound = xerrors.New("key info not found")
-	ErrKeyExists       = xerrors.New("key already exists")
-	ErrKeyFormat       = xerrors.New("key format is wrong")
 )
 
 // KeyInfo is used for storing keys in KeyStore

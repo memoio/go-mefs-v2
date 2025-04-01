@@ -53,6 +53,12 @@ const (
 	KeeperDeposit = Token
 )
 
+type DiskStats struct {
+	Total uint64 `json:"all"`
+	Used  uint64 `json:"used"`
+	Free  uint64 `json:"free"`
+}
+
 // FormatBytes convert bytes to human readable string. Like 2 MiB, 64.2 KiB, 52 B
 func FormatBytes(i uint64) string {
 	switch {
@@ -85,12 +91,25 @@ func FormatBytesDec(i int64) string {
 	}
 }
 
-func FormatWei(i *big.Int) string {
+func FormatMemo(i *big.Int) string {
 	f := new(big.Float).SetInt(i)
 	res, _ := f.Float64()
 	switch {
 	case res >= Token:
-		return fmt.Sprintf("%.02f Token", res/Token)
+		return fmt.Sprintf("%.02f Memo", res/Token)
+	case res >= GWei:
+		return fmt.Sprintf("%.02f NanoMemo", res/GWei)
+	default:
+		return fmt.Sprintf("%d AttoMemo", i.Int64())
+	}
+}
+
+func FormatEth(i *big.Int) string {
+	f := new(big.Float).SetInt(i)
+	res, _ := f.Float64()
+	switch {
+	case res >= Token:
+		return fmt.Sprintf("%.02f Eth", res/Token)
 	case res >= GWei:
 		return fmt.Sprintf("%.02f Gwei", res/GWei)
 	default:
@@ -140,7 +159,7 @@ func FormatReadPrice(i *big.Int) (result string) {
 	return
 }
 
-func ParsetValue(s string) (*big.Int, error) {
+func ParsetEthValue(s string) (*big.Int, error) {
 	if len(s) > 32 {
 		return nil, fmt.Errorf("string length too large: %d", len(s))
 	}
@@ -160,6 +179,33 @@ func ParsetValue(s string) (*big.Int, error) {
 	case "gwei":
 		r.Mul(r, big.NewRat(1_000_000_000, 1))
 	case "wei":
+	default:
+		return nil, fmt.Errorf("unrecognized suffix: %q", suffix)
+	}
+
+	return r.Num(), nil
+}
+
+func ParsetValue(s string) (*big.Int, error) {
+	if len(s) > 32 {
+		return nil, fmt.Errorf("string length too large: %d", len(s))
+	}
+
+	suffix := strings.TrimLeft(s, "-.1234567890")
+	s = s[:len(s)-len(suffix)]
+	r, ok := new(big.Rat).SetString(s)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse %q as a decimal number", s)
+	}
+
+	norm := strings.ToLower(strings.TrimSpace(suffix))
+	switch norm {
+	case "", "memo":
+		r.Mul(r, big.NewRat(1_000_000_000, 1))
+		r.Mul(r, big.NewRat(1_000_000_000, 1))
+	case "nanomemo":
+		r.Mul(r, big.NewRat(1_000_000_000, 1))
+	case "attomemo":
 	default:
 		return nil, fmt.Errorf("unrecognized suffix: %q", suffix)
 	}

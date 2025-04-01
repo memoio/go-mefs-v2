@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"log"
-	"net/http"
 	"sort"
 	"strconv"
 
@@ -12,7 +11,9 @@ import (
 	"github.com/libp2p/go-libp2p"
 	"golang.org/x/xerrors"
 
+	"github.com/memoio/go-mefs-v2/api/client"
 	"github.com/memoio/go-mefs-v2/api/httpio"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/address"
 	"github.com/memoio/go-mefs-v2/lib/backend/wrap"
 	"github.com/memoio/go-mefs-v2/lib/pb"
@@ -22,7 +23,6 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/auth"
 	mconfig "github.com/memoio/go-mefs-v2/submodule/config"
 	"github.com/memoio/go-mefs-v2/submodule/connect/settle"
-	"github.com/memoio/go-mefs-v2/submodule/metrics"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 	"github.com/memoio/go-mefs-v2/submodule/role"
 	"github.com/memoio/go-mefs-v2/submodule/state"
@@ -56,9 +56,11 @@ func OptionsFromRepo(r repo.Repo) ([]BuilderOpt, error) {
 	cfgopts := []BuilderOpt{
 		// Libp2pOptions can only be called once, so add all options here.
 		Libp2pOptions(
+			libp2p.UserAgent("memoriae-"+build.UserVersion()),
 			libp2p.ListenAddrStrings(cfg.Net.Addresses...),
 			libp2p.Identity(sk),
 			libp2p.DisableRelay(),
+			libp2p.Ping(true),
 		),
 	}
 
@@ -157,7 +159,8 @@ func New(ctx context.Context, opts ...BuilderOpt) (*BaseNode, error) {
 
 	// apply builder options
 	for _, o := range opts {
-		if err := o(builder); err != nil {
+		err := o(builder)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -180,19 +183,21 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 
 	lw := wallet.New(b.walletPassword, b.repo.KeyStore())
-	ki, err := lw.WalletExport(ctx, defaultAddr)
+	ki, err := lw.WalletExport(ctx, defaultAddr, b.walletPassword)
 	if err != nil {
 		return nil, err
 	}
 
-	cm, err := settle.NewContractMgr(ctx, ki.SecretKey)
-	if err != nil {
-		return nil, err
+	// load genesis
+	if cfg.Genesis.SMTVersion > 0 && cfg.Genesis.SMTHeight > 0 {
+		build.SMTVersion = cfg.Genesis.SMTVersion
+		build.UpdateMap[build.SMTVersion] = cfg.Genesis.SMTHeight
+		build.ChalDurMap[build.SMTVersion] = build.ChalDuration2
 	}
 
-	err = cm.Start(pb.RoleInfo_Unknown, b.groupID)
-	if err != nil {
-		return nil, err
+	if cfg.Contract.Version > 0 {
+		build.ContractVersion = cfg.Contract.Version
+		build.SMTVersion = 0 // use smt default
 	}
 
 	// create the node
@@ -201,12 +206,25 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 		Repo:         b.repo,
 		roleID:       b.roleID,
 		groupID:      b.groupID,
-		ContractMgr:  cm,
+		pw:           b.walletPassword,
+		version:      build.UserVersion(),
 		LocalWallet:  lw,
 		shutdownChan: make(chan struct{}),
 	}
 
-	networkName := cfg.Net.Name + "/group" + strconv.FormatInt(int64(b.groupID), 10)
+	cm, err := settle.NewContractMgr(ctx, cfg.Contract.EndPoint, cfg.Contract.RoleContract, cfg.Contract.Version, ki.SecretKey)
+	if err != nil {
+		logger.Errorf("Please configure the correct contract version(0,2,3) in config.json.")
+		return nil, err
+	}
+
+	err = cm.Start(pb.RoleInfo_Unknown, b.groupID)
+	if err != nil {
+		return nil, err
+	}
+	nd.ISettle = cm
+
+	networkName := cfg.Contract.RoleContract[2:10] + "/" + strconv.FormatUint(b.groupID, 10)
 
 	logger.Debug("networkName is: ", networkName)
 
@@ -226,7 +244,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	}
 	sort.Strings(lisAddrs)
 	for _, addr := range lisAddrs {
-		logger.Debug("Swarm listening on %s", addr)
+		logger.Info("Swarm listening on: ", addr)
 	}
 
 	nd.isOnline = true
@@ -249,7 +267,7 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.NetServiceImpl = cs
 
 	// role mgr
-	rm, err := role.New(ctx, b.roleID, nd.groupID, nd.MetaStore(), nd.LocalWallet, nd.ContractMgr)
+	rm, err := role.New(ctx, b.roleID, nd.groupID, nd.MetaStore(), nd.LocalWallet, nd.ISettle)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create role service %w", err)
 	}
@@ -263,24 +281,54 @@ func (b *Builder) build(ctx context.Context) (*BaseNode, error) {
 	nd.Store = txs
 
 	// state mgr
-	stDB := state.NewStateMgr(settle.RoleAddr.Bytes(), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
+	stDB := state.NewStateMgr(nd.ISettle.SettleGetBaseAddr(ctx), b.groupID, nd.SettleGetThreshold(ctx), nd.StateStore(), rm)
 
 	// sync pool
 	sp := txPool.NewSyncPool(ctx, b.groupID, nd.SettleGetThreshold(ctx), stDB, txs, cs)
 
 	// push pool
-	nd.PushPool = txPool.NewPushPool(ctx, sp)
+	nd.LPP = txPool.NewPushPool(ctx, sp)
+
+	if nd.Config().Sync.API != "" && nd.Config().Sync.Token != "" {
+		addr, header, err := client.CreateMemoClientInfo(nd.Config().Sync.API, nd.Config().Sync.Token)
+		if err != nil {
+			return nd, err
+		}
+
+		nodeapi, closer, err := client.NewGenericNode(nd.ctx, addr, header)
+		if err != nil {
+			return nd, err
+		}
+
+		si, err := nodeapi.SyncGetInfo(nd.ctx)
+		if err != nil {
+			return nd, err
+		}
+
+		if si.Version != build.ApiVersion {
+			return nil, xerrors.Errorf("api version not equal, need %d, got %d", build.ApiVersion, si.Version)
+		}
+
+		nd.isProxy = true
+		nd.IChainSync = nodeapi
+		nd.ClientCloser = closer
+		nd.rcp = nodeapi
+	} else {
+		nd.IChainSync = nd.LPP
+	}
 
 	readerHandler, readerServerOpt := httpio.ReaderParamDecoder()
 
 	nd.RPCServer = jsonrpc.NewServer(readerServerOpt)
 
-	nd.httpHandle = mux.NewRouter()
+	nd.HttpHandle = mux.NewRouter()
 
-	nd.httpHandle.Handle("/rpc/v0", nd.RPCServer)
-	nd.httpHandle.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
-	nd.httpHandle.Handle("/debug/metrics", metrics.Exporter())
-	nd.httpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
+	nd.HttpHandle.Handle("/rpc/v0", nd.RPCServer)
+	nd.HttpHandle.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
+
+	// move to Start()
+	//nd.HttpHandle.Handle("/debug/metrics", metrics.Exporter())
+	//nd.HttpHandle.PathPrefix("/").Handler(http.DefaultServeMux)
 
 	return nd, nil
 }

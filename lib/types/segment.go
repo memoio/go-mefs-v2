@@ -4,11 +4,8 @@ import (
 	"sort"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/klauspost/compress/zstd"
 	"golang.org/x/xerrors"
-)
-
-var (
-	ErrNotFound = xerrors.New("not found")
 )
 
 // sorted by bucketID and jobID
@@ -18,6 +15,168 @@ type SegJob struct {
 	Start    uint64
 	Length   uint64
 	ChunkID  uint32
+}
+
+func (sj *SegJob) Serialize() ([]byte, error) {
+	return cbor.Marshal(sj)
+}
+
+func (sj *SegJob) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, sj)
+}
+
+type SegJobsQueue []*SegJob
+
+func (sjq SegJobsQueue) Len() int {
+	return len(sjq)
+}
+
+func (asq SegJobsQueue) Less(i, j int) bool {
+	if asq[i].BucketID != asq[j].BucketID {
+		return asq[i].BucketID < asq[j].BucketID
+	}
+
+	if asq[i].JobID != asq[j].JobID {
+		return asq[i].JobID < asq[j].JobID
+	}
+
+	return asq[i].Start < asq[j].Start
+}
+
+func (sjq SegJobsQueue) Swap(i, j int) {
+	sjq[i], sjq[j] = sjq[j], sjq[i]
+}
+
+//  after sort
+func (sjq SegJobsQueue) Has(bucketID, jobID, stripeID uint64, chunkID uint32) bool {
+	for _, as := range sjq {
+		if as.BucketID < bucketID {
+			continue
+		}
+
+		if as.BucketID > bucketID {
+			break
+		}
+
+		if as.JobID < jobID {
+			continue
+		}
+
+		if as.JobID > jobID {
+			break
+		}
+
+		if as.Start > stripeID {
+			break
+		} else {
+			if as.Start <= stripeID && as.Start+as.Length > stripeID && as.ChunkID == chunkID {
+				return true
+			}
+		}
+
+	}
+
+	return false
+}
+
+func (sjq SegJobsQueue) Equal(old SegJobsQueue) bool {
+	if sjq.Len() != old.Len() {
+		return false
+	}
+
+	for i := 0; i < sjq.Len(); i++ {
+		if sjq[i].BucketID != old[i].BucketID || sjq[i].JobID != old[i].JobID || sjq[i].Start != old[i].Start || sjq[i].Length != old[i].Length {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (sjq *SegJobsQueue) Push(s *SegJob) {
+	if sjq.Len() == 0 {
+		*sjq = append(*sjq, s)
+		return
+	}
+
+	asqval := *sjq
+	last := asqval[sjq.Len()-1]
+	if last.BucketID == s.BucketID && last.JobID == s.JobID && last.Start+last.Length == s.Start {
+		last.Length += s.Length
+		*sjq = asqval
+	} else {
+		*sjq = append(*sjq, s)
+	}
+}
+
+func (asq *SegJobsQueue) Merge() {
+	sort.Sort(asq)
+	aLen := asq.Len()
+	asqval := *asq
+	for i := 0; i < aLen-1; {
+		j := i + 1
+		for ; j < aLen; j++ {
+			if asqval[i].BucketID == asqval[j].BucketID && asqval[i].JobID == asqval[j].JobID && asqval[i].Start+asqval[i].Length == asqval[j].Start {
+				asqval[i].Length += asqval[j].Length
+				asqval[j].Length = 0
+			} else {
+				break
+			}
+		}
+		i = j
+	}
+
+	j := 0
+	for i := 0; i < aLen; i++ {
+		if asqval[i].Length == 0 {
+			continue
+		}
+
+		asqval[j] = asqval[i]
+		j++
+	}
+
+	asqval = asqval[:j]
+
+	*asq = asqval
+}
+
+func (sjq *SegJobsQueue) Serialize() ([]byte, error) {
+	buf, err := cbor.Marshal(sjq)
+	if err != nil {
+		return nil, err
+	}
+
+	enc, err := zstd.NewWriter(nil)
+	if err != nil {
+		return nil, err
+	}
+	defer enc.Close()
+
+	return enc.EncodeAll(buf, nil), nil
+}
+
+func (sjq *SegJobsQueue) Deserialize(b []byte) error {
+	dec, err := zstd.NewReader(nil)
+	if err != nil {
+		return err
+	}
+	defer dec.Close()
+
+	out, err := dec.DecodeAll(b, nil)
+	if err != nil {
+		return sjq.LegacyDeserialize(b)
+	}
+
+	return cbor.Unmarshal(out, sjq)
+}
+
+func (sjq *SegJobsQueue) LegacySerialize() ([]byte, error) {
+	return cbor.Marshal(sjq)
+}
+
+func (sjq *SegJobsQueue) LegacyDeserialize(b []byte) error {
+	return cbor.Unmarshal(b, sjq)
 }
 
 // aggreated segs in order
@@ -30,8 +189,24 @@ type AggSegs struct {
 
 type AggSegsQueue []*AggSegs
 
+func (asq *AggSegsQueue) Serialize() ([]byte, error) {
+	return cbor.Marshal(asq)
+}
+
+func (asq *AggSegsQueue) Deserialize(b []byte) error {
+	return cbor.Unmarshal(b, asq)
+}
+
 func (asq AggSegsQueue) Len() int {
 	return len(asq)
+}
+
+func (asq AggSegsQueue) Size() int {
+	res := 0
+	for _, as := range asq {
+		res += int(as.Length)
+	}
+	return res
 }
 
 func (asq AggSegsQueue) Less(i, j int) bool {
@@ -88,7 +263,6 @@ func (asq *AggSegsQueue) Push(s *AggSegs) {
 	asqval := *asq
 	last := asqval[asq.Len()-1]
 	if last.BucketID == s.BucketID && last.Start+last.Length == s.Start {
-
 		last.Length += s.Length
 		*asq = asqval
 	} else {
@@ -192,7 +366,7 @@ func (sq StripeQueue) GetChunkID(stripeID uint64) (uint32, error) {
 		}
 	}
 
-	return 0, ErrNotFound
+	return 0, xerrors.Errorf("%d not found", stripeID)
 }
 
 func (sq StripeQueue) Equal(old StripeQueue) bool {

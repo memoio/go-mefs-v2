@@ -8,20 +8,19 @@ import (
 
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	"github.com/memoio/go-mefs-v2/app/minit"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
-
-var logger = logging.Logger("mefs-keeper")
 
 func main() {
 	local := make([]*cli.Command, 0, len(cmd.CommonCmd))
 	local = append(local, cmd.CommonCmd...)
+	local = append(local, cmd.TransferCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-keeper",
 		Usage:                "Memoriae decentralized storage network node",
-		Version:              "1.0.0",
+		Version:              build.UserVersion(),
 		EnableBashCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -47,7 +46,8 @@ func main() {
 
 	app.Setup()
 
-	if err := app.Run(os.Args); err != nil {
+	err := app.Run(os.Args)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n\n", err) // nolint:errcheck
 		os.Exit(1)
 	}

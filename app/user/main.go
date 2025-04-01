@@ -9,34 +9,35 @@ import (
 	"github.com/memoio/go-mefs-v2/app/cmd"
 	lfscmd "github.com/memoio/go-mefs-v2/app/cmd/lfs"
 	"github.com/memoio/go-mefs-v2/app/minit"
-	logging "github.com/memoio/go-mefs-v2/lib/log"
+	"github.com/memoio/go-mefs-v2/build"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
-
-var logger = logging.Logger("mefs-user")
 
 func main() {
 	local := make([]*cli.Command, 0, len(cmd.CommonCmd))
 	local = append(local, cmd.CommonCmd...)
 	local = append(local, lfscmd.LfsCmd)
 	local = append(local, OrderCmd)
+	local = append(local, GatewayCmd)
+	local = append(local, cmd.RestrictCmd)
+	local = append(local, cmd.TransferCmd)
 
 	app := &cli.App{
 		Name:                 "mefs-user",
 		Usage:                "Memoriae decentralized storage network node",
-		Version:              "1.0.0",
+		Version:              build.UserVersion(),
 		EnableBashCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    cmd.FlagNodeRepo,
 				EnvVars: []string{"MEFS_PATH"},
 				Value:   "~/.memo-user",
-				Usage:   "Specify memoriae path.",
+				Usage:   "specify memoriae path",
 			},
 			&cli.StringFlag{
 				Name:  cmd.FlagRoleType,
 				Value: pb.RoleInfo_User.String(),
-				Usage: "set role type.",
+				Usage: "set role type",
 			},
 			&cli.StringFlag{
 				Name:  minit.EnvEnableProfiling,
@@ -50,7 +51,8 @@ func main() {
 
 	app.Setup()
 
-	if err := app.Run(os.Args); err != nil {
+	err := app.Run(os.Args)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n\n", err) // nolint:errcheck
 		os.Exit(1)
 	}

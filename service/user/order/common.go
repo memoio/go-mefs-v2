@@ -10,12 +10,11 @@ import (
 var logger = logging.Logger("user-order")
 
 const (
-	defaultAckWaiting   = 30
-	defaultOrderLast    = 3600 // 1 day
-	defaultOrderSeqLast = 600  // 1 hour
+	defaultAckWaiting = 35
 
 	// parallel number of net send
-	defaultWeighted = 50
+	defaultWeighted = 32
+	minFailCnt      = 100
 )
 
 type orderSeqPro struct {
@@ -40,35 +39,39 @@ type segJob struct {
 type segJobState struct {
 	dispatchBits *bitset.BitSet
 	doneBits     *bitset.BitSet
-}
-
-func (sj *segJob) Serialize() ([]byte, error) {
-	sjs := &segJobStateStored{
-		SegJob:   sj.SegJob,
-		Dispatch: sj.dispatchBits.Bytes(),
-		Done:     sj.doneBits.Bytes(),
-	}
-
-	return cbor.Marshal(sjs)
-}
-
-func (sj *segJob) Deserialize(b []byte) error {
-	sjs := new(segJobStateStored)
-
-	err := cbor.Unmarshal(b, sjs)
-	if err != nil {
-		return err
-	}
-
-	sj.SegJob = sjs.SegJob
-	sj.dispatchBits = bitset.From(sjs.Dispatch)
-	sj.doneBits = bitset.From(sjs.Done)
-
-	return nil
+	confirmBits  *bitset.BitSet
 }
 
 type segJobStateStored struct {
 	types.SegJob
 	Dispatch []uint64
 	Done     []uint64
+	Confirm  []uint64
+}
+
+func (sj *segJob) Serialize() ([]byte, error) {
+	sjss := &segJobStateStored{
+		SegJob:   sj.SegJob,
+		Dispatch: sj.dispatchBits.Bytes(),
+		Done:     sj.doneBits.Bytes(),
+		Confirm:  sj.confirmBits.Bytes(),
+	}
+
+	return cbor.Marshal(sjss)
+}
+
+func (sj *segJob) Deserialize(b []byte) error {
+	sjss := new(segJobStateStored)
+
+	err := cbor.Unmarshal(b, sjss)
+	if err != nil {
+		return err
+	}
+
+	sj.SegJob = sjss.SegJob
+	sj.dispatchBits = bitset.From(sjss.Dispatch)
+	sj.doneBits = bitset.From(sjss.Done)
+	sj.confirmBits = bitset.From(sjss.Confirm)
+
+	return nil
 }

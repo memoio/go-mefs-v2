@@ -2,8 +2,8 @@ package readpay
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"math/big"
+	callconts "memoc/callcontracts"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -16,8 +16,15 @@ import (
 
 var (
 	// a local account, with enough money in it
-	opSk = "503f38a9c967ed597e47fe25643985f032b072db8075426a92110f82df48dfcb"
+	opSk         = "503f38a9c967ed597e47fe25643985f032b072db8075426a92110f82df48dfcb"
+	contractAddr = callconts.RoleAddr
+	opAddr       = callconts.RoleAddr
 )
+
+func init() {
+	opAddr, _ = skToAddr(opSk)
+	contractAddr = opAddr
+}
 
 func skToAddr(sk string) (common.Address, error) {
 	skECDSA, err := crypto.HexToECDSA(sk)
@@ -28,7 +35,7 @@ func skToAddr(sk string) (common.Address, error) {
 	pubKey := skECDSA.Public()
 	pubKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
 	if !ok {
-		return common.Address{}, errors.New("error casting public key to ECDSA")
+		return common.Address{}, xerrors.New("error casting public key to ECDSA")
 	}
 
 	addr := crypto.PubkeyToAddress(*pubKeyECDSA)
@@ -36,18 +43,13 @@ func skToAddr(sk string) (common.Address, error) {
 	return addr, nil
 }
 
-func generateCheck(fromAddr, toAddr common.Address) (*Check, error) {
-	opAddr, err := skToAddr(opSk)
-	if err != nil {
-		return nil, err
-	}
-
+func generateCheck(fromAddr, toAddr common.Address, nonce uint64) (*Check, error) {
 	c := &Check{
-		ContractAddr: opAddr,
+		ContractAddr: contractAddr,
 		OwnerAddr:    opAddr,
 		ToAddr:       toAddr,
-		Nonce:        0,
-		Value:        big.NewInt(types.DefaultReadPrice * build.DefaultSegSize * 1024),
+		Nonce:        nonce,
+		Value:        big.NewInt(types.DefaultReadPrice * build.DefaultSegSize * 1024 * 40),
 		FromAddr:     fromAddr,
 	}
 

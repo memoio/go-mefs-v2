@@ -17,7 +17,7 @@ import (
 
 type LocalWallet struct {
 	lw       sync.Mutex
-	password string // used for decrypt; todo plaintext is not good
+	password string // used for decrypt; todo: plaintext is not good
 	accounts map[address.Address]sig_common.PrivKey
 	keystore types.KeyStore // store
 }
@@ -169,8 +169,8 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) er
 	return nil
 }
 
-func (w *LocalWallet) WalletExport(ctx context.Context, addr address.Address) (*types.KeyInfo, error) {
-	ki, err := w.keystore.Get(addr.String(), w.password)
+func (w *LocalWallet) WalletExport(ctx context.Context, addr address.Address, pw string) (*types.KeyInfo, error) {
+	ki, err := w.keystore.Get(addr.String(), pw)
 	if err != nil {
 		return nil, err
 	}

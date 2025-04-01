@@ -3,7 +3,6 @@ package keeper
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/memoio/go-mefs-v2/api"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -30,6 +29,9 @@ type KeeperNode struct {
 	inp *txPool.InPool
 
 	bc bcommon.ConsensusMgr
+
+	inProcess bool
+	ready     bool
 }
 
 func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
@@ -38,7 +40,7 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		return nil, err
 	}
 
-	inp := txPool.NewInPool(ctx, bn.RoleID(), bn.PushPool.SyncPool)
+	inp := txPool.NewInPool(ctx, bn.RoleID(), bn.LPP.SyncPool)
 
 	kn := &KeeperNode{
 		BaseNode: bn,
@@ -46,10 +48,14 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 		inp:      inp,
 	}
 
-	if bn.GetThreshold(ctx) == 1 {
-		kn.bc = poa.NewPoAManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
+	thr, err := bn.StateGetThreshold(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if thr == 1 {
+		kn.bc = poa.NewPoAManager(ctx, bn.RoleID(), bn.RoleMgr, bn.NetServiceImpl, inp)
 	} else {
-		hm := hotstuff.NewHotstuffManager(ctx, bn.RoleID(), bn.IRole, bn.INetService, inp)
+		hm := hotstuff.NewHotstuffManager(ctx, bn.RoleID(), bn.RoleMgr, bn.NetServiceImpl, inp)
 
 		kn.bc = hm
 		kn.HsMsgHandle.Register(hm.HandleMessage)
@@ -59,57 +65,49 @@ func New(ctx context.Context, opts ...node.BuilderOpt) (*KeeperNode, error) {
 }
 
 // start service related
-func (k *KeeperNode) Start() error {
-	if k.Repo.Config().Net.Name == "test" {
-		go k.OpenTest()
-	} else {
-		k.RoleMgr.Start()
+func (k *KeeperNode) Start(perm bool) error {
+	k.Perm = perm
+	k.RoleType = "keeper"
+
+	err := k.BaseNode.StartLocal()
+	if err != nil {
+		return err
 	}
 
 	// register net msg handle
-	k.GenericService.Register(pb.NetMessage_SayHello, k.DefaultHandler)
-	k.GenericService.Register(pb.NetMessage_Get, k.HandleGet)
 
+	// handle received tx message
 	k.TxMsgHandle.Register(k.txMsgHandler)
-	k.BlockHandle.Register(k.BaseNode.TxBlockHandler)
 
-	k.StateMgr.RegisterAddUserFunc(k.AddUsers)
-	k.StateMgr.RegisterAddUPFunc(k.AddUP)
+	// handle event message; later
+	k.EventHandle.Register(pb.EventMessage_LfsMeta, k.putLfsMetaHandler)
 
-	k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
+	if k.Perm {
+		k.RPCServer.Register("Memoriae", api.PermissionedFullAPI(metrics.MetricedKeeperAPI(k)))
+	} else {
+		k.RPCServer.Register("Memoriae", metrics.MetricedKeeperAPI(k))
+	}
 
 	go func() {
-		// wait for sync
-		k.PushPool.Start()
-		retry := 0
-		for {
-			if k.PushPool.Ready() {
-				break
-			} else {
-				logger.Debug("wait for sync")
-				retry++
-				if retry > 12 {
-					// no more new block, set to ready
-					k.SyncPool.SetReady()
-				}
-				time.Sleep(5 * time.Second)
-			}
-		}
-
 		k.inp.Start()
 
 		go k.bc.MineBlock()
 
 		err := k.Register()
 		if err != nil {
-			return
+			panic(err)
 		}
 
 		go k.updateChalEpoch()
 		go k.updatePay()
 		go k.updateOrder()
+		k.ready = true
 	}()
 
-	logger.Info("start keeper for: ", k.RoleID())
+	logger.Info("start keeper: ", k.RoleID())
 	return nil
+}
+
+func (k *KeeperNode) Ready(ctx context.Context) bool {
+	return k.ready
 }

@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -14,21 +15,25 @@ import (
 	"github.com/libp2p/go-libp2p-core/routing"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	rcmgr "github.com/libp2p/go-libp2p-resource-manager"
 	swarm "github.com/libp2p/go-libp2p-swarm"
-	"github.com/libp2p/go-libp2p/p2p/discovery"
+	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
 	ma "github.com/multiformats/go-multiaddr"
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
-	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/config"
 	"github.com/memoio/go-mefs-v2/lib/repo"
+	"github.com/memoio/go-mefs-v2/lib/types"
 	"github.com/memoio/go-mefs-v2/lib/utils/net"
 )
 
 // NetworkSubmodule enhances the `Node` with networking capabilities.
 type NetworkSubmodule struct { //nolint
+	ctx context.Context
+
 	NetworkName string
 
 	RawHost host.Host
@@ -45,7 +50,7 @@ type NetworkSubmodule struct { //nolint
 	PeerMgr IPeerMgr
 
 	// find peer in local net
-	Discovery discovery.Service
+	Discovery mdns.Service
 
 	// metrics info
 	Reporter *metrics.BandwidthCounter
@@ -62,39 +67,68 @@ func (blankValidator) Validate(_ string, _ []byte) error        { return nil }
 func (blankValidator) Select(_ string, _ [][]byte) (int, error) { return 0, nil }
 
 // NewNetworkSubmodule creates a new network submodule.
-func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName string) (*NetworkSubmodule, error) {
+func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName string) (*NetworkSubmodule, error) {
 	bandwidthTracker := metrics.NewBandwidthCounter()
 
-	libP2pOpts := append(config.Libp2pOpts(), Transport())
+	libP2pOpts := nconfig.Libp2pOpts()
 	libP2pOpts = append(libP2pOpts, libp2p.BandwidthReporter(bandwidthTracker))
 	libP2pOpts = append(libP2pOpts, libp2p.EnableNATService())
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
-	libP2pOpts = append(libP2pOpts, Peerstore())
-	libP2pOpts = append(libP2pOpts, makeSmuxTransportOption())
-	libP2pOpts = append(libP2pOpts, Security(true, false))
+	libP2pOpts = append(libP2pOpts, libp2p.EnableRelay())
+
+	slimit := rcmgr.DefaultLimits
+	slimit.SystemMemory.MinMemory = 512 << 20
+	slimit.SystemMemory.MaxMemory = 4 << 30
+	limiter := rcmgr.NewStaticLimiter(slimit)
+	libp2p.SetDefaultServiceLimits(limiter)
+
+	rmgr, err := rcmgr.NewResourceManager(limiter)
+	if err != nil {
+		return nil, err
+	}
+
+	libP2pOpts = append(libP2pOpts, libp2p.ResourceManager(rmgr))
 
 	// set up host
 	rawHost, err := libp2p.New(
-		ctx,
-		libp2p.UserAgent("memoriae"),
 		libp2p.ChainOptions(libP2pOpts...),
-		libp2p.Ping(true),
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	cfg := nconfig.Repo().Config()
+
 	// setup dht
 	validator := blankValidator{}
-	bootNodes, err := net.ParseAddresses(config.Repo().Config().Bootstrap.Addresses)
+	bootNodes, err := net.ParseAddresses(cfg.Bootstrap.Addresses)
 	if err != nil {
 		return nil, err
 	}
 
+	cbootNodes, err := net.ParseAddresses(config.DefaultBootstrapConfig.Addresses)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cbn := range cbootNodes {
+		has := false
+		for _, bn := range bootNodes {
+			if bn.ID == cbn.ID {
+				has = true
+				break
+			}
+		}
+
+		if !has {
+			bootNodes = append(bootNodes, cbn)
+		}
+	}
+
 	dhtopts := []dht.Option{dht.Mode(dht.ModeAutoServer),
-		dht.Datastore(config.Repo().DhtStore()),
+		dht.Datastore(nconfig.Repo().DhtStore()),
 		dht.Validator(validator),
-		dht.ProtocolPrefix(build.MemoriaeDHT(networkName)),
+		dht.ProtocolPrefix(types.MemoriaeDHT(networkName)),
 		// uncomment these in mainnet
 		//dht.QueryFilter(dht.PublicQueryFilter),
 		//dht.RoutingTableFilter(dht.PublicRoutingTableFilter),
@@ -110,18 +144,12 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 
 	peerHost := routed.Wrap(rawHost, router)
 
-	peerMgr, err := NewPeerMgr(peerHost, router, bootNodes)
+	peerMgr, err := NewPeerMgr(networkName, peerHost, router, bootNodes)
 	if err != nil {
 		return nil, err
 	}
 
 	go peerMgr.Run(ctx)
-
-	mdnsdisc, err := SetupDiscovery(ctx, peerHost, DiscoveryHandler(ctx, peerHost))
-	if err != nil {
-		logger.Error("Setup Discovery falied, error:", err)
-		return nil, err
-	}
 
 	// Set up pubsub
 	topicdisc, err := TopicDiscovery(ctx, peerHost, router)
@@ -130,10 +158,10 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 	}
 
 	allowTopics := []string{
-		build.MsgTopic(networkName),
-		build.BlockTopic(networkName),
-		build.HSMsgTopic(networkName),
-		build.EventTopic(networkName),
+		types.MsgTopic(networkName),
+		types.BlockTopic(networkName),
+		types.HSMsgTopic(networkName),
+		types.EventTopic(networkName),
 	}
 
 	pubsub.GossipSubHeartbeatInterval = 100 * time.Millisecond
@@ -156,8 +184,12 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 		return nil, xerrors.Errorf("failed to set up gossip %w", err)
 	}
 
+	mds := mdns.NewMdnsService(rawHost, "mefs-discovery", DiscoveryHandler(ctx, rawHost))
+	mds.Start()
+
 	// build the network submdule
-	return &NetworkSubmodule{
+	ns := &NetworkSubmodule{
+		ctx:         ctx,
 		NetworkName: networkName,
 		RawHost:     rawHost,
 		Host:        peerHost,
@@ -165,8 +197,19 @@ func NewNetworkSubmodule(ctx context.Context, config networkConfig, networkName 
 		Pubsub:      gsub,
 		Reporter:    bandwidthTracker,
 		PeerMgr:     peerMgr,
-		Discovery:   mdnsdisc,
-	}, nil
+		Discovery:   mds,
+	}
+
+	if cfg.Net.EnableRelay {
+		logger.Info("start relay service at: ", cfg.Net.PublicRelayAddress)
+		sa, err := ma.NewMultiaddr(cfg.Net.PublicRelayAddress)
+		if err != nil {
+			return nil, err
+		}
+		go ns.startRelay(sa)
+	}
+
+	return ns, nil
 }
 
 func (ns *NetworkSubmodule) API() *networkAPI {
@@ -174,14 +217,18 @@ func (ns *NetworkSubmodule) API() *networkAPI {
 }
 
 func (ns *NetworkSubmodule) Stop(ctx context.Context) {
-	if err := ns.Host.Close(); err != nil {
-		logger.Errorf("error closing host: %s\n", err)
+	logger.Info("stop network...")
+	err := ns.Host.Close()
+	if err != nil {
+		logger.Errorf("error closing host: %s", err)
 	}
-	if err := ns.Discovery.Close(); err != nil {
-		logger.Errorf("error closing Discovery: %s\n", err)
+	err = ns.Discovery.Close()
+	if err != nil {
+		logger.Errorf("error closing Discovery: %s", err)
 	}
-	if err := ns.PeerMgr.Stop(ctx); err != nil {
-		logger.Errorf("error closing PeerMgr: %s\n", err)
+	err = ns.PeerMgr.Stop(ctx)
+	if err != nil {
+		logger.Errorf("error closing PeerMgr: %s", err)
 	}
 }
 
@@ -215,7 +262,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 		// find peer first
 		npi, err := ns.NetFindPeer(ctx, pai.ID)
 		if err != nil {
-			return nil
+			return err
 		}
 		pai = npi
 	}
@@ -226,7 +273,59 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 	}
 
 	swrm.Backoff().Clear(pai.ID)
-	return ns.Host.Connect(ctx, pai)
+
+	err := ns.Host.Connect(ctx, pai)
+	if err != nil {
+		relay := false
+		for _, maddr := range pai.Addrs {
+			saddr := maddr.String()
+			if strings.HasSuffix(saddr, "p2p-circuit") {
+				relay = true
+				saddr = strings.TrimSuffix(saddr, "p2p-circuit")
+				rpai, err := peer.AddrInfoFromString(saddr)
+				if err != nil {
+					return err
+				}
+
+				err = ns.Host.Connect(ctx, *rpai)
+				if err != nil {
+					return err
+				}
+
+				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit" + "/p2p/" + pai.ID.Pretty())
+				if err != nil {
+					return err
+				}
+
+				relayaddr := peer.AddrInfo{
+					ID:    pai.ID,
+					Addrs: []ma.Multiaddr{rmaddr},
+				}
+
+				err = ns.Host.Connect(ctx, relayaddr)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		if !relay {
+			return err
+		}
+	}
+
+	protos, err := ns.Host.Peerstore().GetProtocols(pai.ID)
+	if err != nil {
+		return err
+	}
+
+	for _, pro := range protos {
+		if strings.Contains(pro, ns.NetworkName) {
+			return nil
+		}
+	}
+
+	return ns.Host.Network().ClosePeer(pai.ID)
 }
 
 func (ns *NetworkSubmodule) NetDisconnect(ctx context.Context, p peer.ID) error {
@@ -279,14 +378,43 @@ func (ns *NetworkSubmodule) NetPeerInfo(ctx context.Context, p peer.ID) (*api.Ex
 
 func (ns *NetworkSubmodule) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 	conns := ns.Host.Network().Conns()
-	out := make([]peer.AddrInfo, len(conns))
+	out := make([]peer.AddrInfo, 0, len(conns))
+	hmap := make(map[peer.ID]int, len(conns))
 
-	for i, conn := range conns {
-		out[i] = peer.AddrInfo{
-			ID: conn.RemotePeer(),
-			Addrs: []ma.Multiaddr{
-				conn.RemoteMultiaddr(),
-			},
+	for _, conn := range conns {
+		id := conn.RemotePeer()
+		/*
+			protos, err := ns.Host.Peerstore().GetProtocols(id)
+			if err != nil {
+				continue
+			}
+
+
+				has := false
+				for _, pro := range protos {
+					if strings.Contains(pro, ns.NetworkName) {
+						has = true
+						break
+					}
+				}
+
+				if !has {
+					ns.Host.Network().ClosePeer(id)
+					continue
+				}
+		*/
+
+		pindex, ok := hmap[id]
+		if !ok {
+			hmap[id] = len(out)
+			out = append(out, peer.AddrInfo{
+				ID: id,
+				Addrs: []ma.Multiaddr{
+					conn.RemoteMultiaddr(),
+				},
+			})
+		} else {
+			out[pindex].Addrs = append(out[pindex].Addrs, conn.RemoteMultiaddr())
 		}
 	}
 

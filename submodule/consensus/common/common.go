@@ -9,7 +9,7 @@ type ConsensusMgr interface {
 }
 
 type PaceMaker interface {
-	CreateBlockHeader() (tx.RawHeader, error)
+	CreateBlockHeader(uint64) (tx.RawHeader, error)
 }
 
 // DecisionMaker decides 1. proposal 2. whether accepts a proposal

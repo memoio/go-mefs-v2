@@ -27,6 +27,7 @@ message NetMessage {
     	OrderSegment = 15;    // handle segment; by provider
 		GetOrder = 16;        // get order meta info from provider
 		GetSeq = 17;	      // get order seq meta info from provider
+		FixSeq = 18;          // fix seq due to duplicate
 	}
 
 	message MsgHeader {
@@ -51,6 +52,8 @@ message EventMessage {
 		Unknown = 0;
 		GetPeer = 1;  // data is roleID
 		PutPeer = 2;  // data is roleID + netID 
+
+		LfsMeta = 11;
 	}
 
 	Type type = 1;

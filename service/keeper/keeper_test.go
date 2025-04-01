@@ -135,16 +135,18 @@ func TestKeeperNode(t *testing.T) {
 const pw = "memoriae"
 
 func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode {
-	rp, err := repo.NewFSRepo(repoDir, cfg)
+	rp, err := repo.NewFSRepo(repoDir, cfg, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := minit.Create(context.Background(), rp, pw); err != nil {
+	err = minit.Create(context.Background(), rp, pw, "")
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := rp.ReplaceConfig(rp.Config()); err != nil {
+	err = rp.ReplaceConfig(rp.Config())
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -160,7 +162,7 @@ func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode
 		t.Fatal(err)
 	}
 
-	err = bn.Start()
+	err = bn.Start(true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +178,7 @@ func startBaseNode(repoDir string, cfg *config.Config, t *testing.T) *KeeperNode
 	}
 	sort.Strings(lisAddrs)
 	for _, addr := range lisAddrs {
-		fmt.Printf("Swarm listening on %s\n", addr)
+		logger.Info("Swarm listening on: ", addr)
 	}
 
 	return bn

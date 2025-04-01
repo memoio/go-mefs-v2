@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/zeebo/blake3"
@@ -11,6 +12,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/memoio/go-mefs-v2/api"
+	"github.com/memoio/go-mefs-v2/build"
+	"github.com/memoio/go-mefs-v2/lib/backend/smt"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
@@ -18,15 +21,24 @@ import (
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
-// key: pb.MetaType_ST_RootKey; val: root []byte
+// not in smt
+// store.NewKey(pb.MetaType_ST_BlockHeightKey), val: height
+// store.NewKey(pb.MetaType_ST_BlockHeightKey, height), val: // blk hash(20), slot(8)
+// store.NewKey(pb.MetaType_ST_RootKey), val: state hash
+// store.NewKey(pb.MetaType_ST_RootKey, height), val: state hash
+
+// store.NewKey(pb.MetaType_ST_KeepersKey)
+// store.NewKey(pb.MetaType_ST_ProsKey)
+// store.NewKey(pb.MetaType_ST_UsersKey)
+
 type StateMgr struct {
 	lk sync.RWMutex
 
 	api.IRole
 
-	// todo: add txn store
-	// need a different store
-	ds store.KVStore
+	ds  store.KVStore
+	smt store.SMTStore
+	tds store.TxnStore
 
 	genesisBlockID types.MsgID
 
@@ -36,32 +48,26 @@ type StateMgr struct {
 	threshold int
 	blkID     types.MsgID
 
-	height uint64 // next block height
-	slot   uint64 // logical time
-	ceInfo *chalEpochInfo
-	root   types.MsgID // for verify
-	oInfo  map[orderKey]*orderInfo
-	sInfo  map[uint64]*segPerUser // key: userID
-	rInfo  map[uint64]*roleInfo
+	version uint32
+	height  uint64 // next block height
+	slot    uint64 // logical time
+	ceInfo  *chalEpochInfo
+	root    types.MsgID // for verify
+	oInfo   map[orderKey]*orderInfo
+	sInfo   map[uint64]*segPerUser // key: userID
+	rInfo   map[uint64]*roleInfo
 
-	validateHeight uint64 // next block height
-	validateSlot   uint64 // logical time
-	validateCeInfo *chalEpochInfo
-	validateRoot   types.MsgID
-	validateOInfo  map[orderKey]*orderInfo
-	validateSInfo  map[uint64]*segPerUser
-	validateRInfo  map[uint64]*roleInfo
-
-	handleAddRole     HanderAddRoleFunc
-	handleAddUser     HandleAddUserFunc
-	handleAddUP       HandleAddUPFunc
-	handleAddPay      HandleAddPayFunc
-	handleAddSeq      HandleAddSeqFunc
-	handleDelSeg      HandleDelSegFunc
-	handleCommitOrder HandleCommitOrderFunc
+	validateVersion uint32
+	validateHeight  uint64 // next block height
+	validateSlot    uint64 // logical time
+	validateCeInfo  *chalEpochInfo
+	validateRoot    types.MsgID
+	validateOInfo   map[orderKey]*orderInfo
+	validateSInfo   map[uint64]*segPerUser
+	validateRInfo   map[uint64]*roleInfo
 }
 
-// todo: add role contract address here
+// base is role contract address
 func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api.IRole) *StateMgr {
 	buf := make([]byte, 8+len(base))
 	copy(buf[:len(base)], base)
@@ -70,6 +76,7 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 	s := &StateMgr{
 		IRole:          ir,
 		ds:             ds,
+		smt:            smt.NewSMTree(nil, ds, ds),
 		height:         0,
 		threshold:      thre,
 		keepers:        make([]uint64, 0, 16),
@@ -78,6 +85,7 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 		genesisBlockID: types.NewMsgID(buf),
 		blkID:          types.NewMsgID(buf),
 
+		version:      0,
 		root:         types.NewMsgID(buf),
 		validateRoot: types.NewMsgID(buf),
 		ceInfo: &chalEpochInfo{
@@ -89,6 +97,7 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 		sInfo: make(map[uint64]*segPerUser),
 		rInfo: make(map[uint64]*roleInfo),
 
+		validateVersion: 0,
 		validateCeInfo: &chalEpochInfo{
 			epoch:    0,
 			current:  newChalEpoch(types.NewMsgID(buf)),
@@ -103,92 +112,100 @@ func NewStateMgr(base []byte, groupID uint64, thre int, ds store.KVStore, ir api
 	return s
 }
 
-func (s *StateMgr) RegisterAddRoleFunc(h HanderAddRoleFunc) {
-	s.lk.Lock()
-	s.handleAddRole = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterAddUserFunc(h HandleAddUserFunc) {
-	s.lk.Lock()
-	s.handleAddUser = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterAddUPFunc(h HandleAddUPFunc) {
-	s.lk.Lock()
-	s.handleAddUP = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterAddSeqFunc(h HandleAddSeqFunc) {
-	s.lk.Lock()
-	s.handleAddSeq = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterDelSegFunc(h HandleDelSegFunc) {
-	s.lk.Lock()
-	s.handleDelSeg = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterAddPayFunc(h HandleAddPayFunc) {
-	s.lk.Lock()
-	s.handleAddPay = h
-	s.lk.Unlock()
-}
-
-func (s *StateMgr) RegisterCommitOrderFunc(h HandleCommitOrderFunc) {
-	s.lk.Lock()
-	s.handleCommitOrder = h
-	s.lk.Unlock()
-}
-
 func (s *StateMgr) API() *stateAPI {
 	return &stateAPI{s}
 }
 
 func (s *StateMgr) load() {
-	// load block height, epoch and uncompleted msgs
+	// load block height, epoch
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
 	val, err := s.ds.Get(key)
-	if err == nil && len(val) >= 16 {
-		s.height = binary.BigEndian.Uint64(val[:8]) + 1
-		s.slot = binary.BigEndian.Uint64(val[8:16])
-	}
-
-	logger.Debug("load: ", s.height, s.slot)
-
-	// load root
-	key = store.NewKey(pb.MetaType_ST_RootKey)
-	val, err = s.ds.Get(key)
 	if err == nil {
-		rt, err := types.FromBytes(val)
-		if err == nil {
-			s.root = rt
-			s.validateRoot = rt
+		if len(val) >= 8 {
+			s.height = binary.BigEndian.Uint64(val[:8]) + 1
+		}
+		if len(val) >= 16 {
+			s.slot = binary.BigEndian.Uint64(val[8:16])
 		}
 	}
 
-	// load blk root
+	for i, ue := range build.UpdateMap {
+		if s.height >= ue && s.version < i {
+			s.version = i
+		}
+	}
+	s.validateVersion = s.version
+
+	// load slot and blk root at some height
 	if s.height > 0 {
 		key = store.NewKey(pb.MetaType_ST_BlockHeightKey, s.height-1)
 		val, err = s.ds.Get(key)
 		if err == nil {
-			rt, err := types.FromBytes(val)
-			if err == nil {
-				s.blkID = rt
+			if len(val) >= types.MsgLen {
+				rt, err := types.FromBytes(val[:types.MsgLen])
+				if err == nil {
+					s.blkID = rt
+				}
+			}
+
+			if len(val) >= types.MsgLen+8 {
+				s.slot = binary.BigEndian.Uint64(val[types.MsgLen : types.MsgLen+8])
 			}
 		}
 	}
+
+	// load state
+	key = store.NewKey(pb.MetaType_ST_RootKey)
+	val, err = s.ds.Get(key)
+	if err == nil {
+		switch len(val) {
+		case 32:
+			s.root = types.NewMsgID(val)
+			// smt set root
+			s.smt.SetRoot(val)
+		default:
+			// 22
+			rt, err := types.FromBytes(val)
+			if err == nil {
+				s.root = rt
+			}
+		}
+	}
+
+	// load state at some height
+	if s.height > 0 {
+		key = store.NewKey(pb.MetaType_ST_RootKey, s.height-1)
+		val, err = s.ds.Get(key)
+		if err == nil {
+			switch len(val) {
+			case 32:
+				s.root = types.NewMsgID(val)
+				// smt set root
+				s.smt.SetRoot(val)
+			default:
+				rt, err := types.FromBytes(val)
+				if err == nil {
+					s.root = rt
+				}
+			}
+		}
+	}
+
+	s.validateRoot = s.root
+
+	logger.Debug("load state at: ", s.height, s.slot, s.root, s.blkID)
 
 	// load keepers
 	key = store.NewKey(pb.MetaType_ST_KeepersKey)
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
-			s.keepers = append(s.keepers, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+			kid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+			key := store.NewKey(pb.MetaType_ST_RoleBaseKey, kid)
+			ok, err := s.has(key)
+			if err == nil && ok {
+				s.keepers = append(s.keepers, kid)
+			}
 		}
 	}
 
@@ -197,7 +214,12 @@ func (s *StateMgr) load() {
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
-			s.pros = append(s.pros, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+			kid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+			key := store.NewKey(pb.MetaType_ST_RoleBaseKey, kid)
+			ok, err := s.has(key)
+			if err == nil && ok {
+				s.pros = append(s.pros, kid)
+			}
 		}
 	}
 
@@ -206,13 +228,18 @@ func (s *StateMgr) load() {
 	val, err = s.ds.Get(key)
 	if err == nil && len(val) >= 0 {
 		for i := 0; i < len(val)/8; i++ {
-			s.users = append(s.users, binary.BigEndian.Uint64(val[8*i:8*(i+1)]))
+			kid := binary.BigEndian.Uint64(val[8*i : 8*(i+1)])
+			key := store.NewKey(pb.MetaType_ST_RoleBaseKey, kid)
+			ok, err := s.has(key)
+			if err == nil && ok {
+				s.users = append(s.users, kid)
+			}
 		}
 	}
 
 	// load chal epoch
 	key = store.NewKey(pb.MetaType_ST_ChalEpochKey)
-	val, err = s.ds.Get(key)
+	val, err = s.get(key)
 	if err == nil && len(val) >= 8 {
 		s.ceInfo.epoch = binary.BigEndian.Uint64(val)
 	}
@@ -224,7 +251,7 @@ func (s *StateMgr) load() {
 	// load current chal
 	if s.ceInfo.epoch > 0 {
 		key = store.NewKey(pb.MetaType_ST_ChalEpochKey, s.ceInfo.epoch-1)
-		val, err = s.ds.Get(key)
+		val, err = s.get(key)
 		if err == nil {
 			s.ceInfo.current.Deserialize(val)
 		}
@@ -232,28 +259,85 @@ func (s *StateMgr) load() {
 
 	if s.ceInfo.epoch > 1 {
 		key = store.NewKey(pb.MetaType_ST_ChalEpochKey, s.ceInfo.epoch-2)
-		val, err = s.ds.Get(key)
+		val, err = s.get(key)
 		if err == nil {
 			s.ceInfo.previous.Deserialize(val)
 		}
 	}
 }
 
-func (s *StateMgr) newRoot(b []byte, tds store.TxnStore) error {
-	h := blake3.New()
-	h.Write(s.root.Bytes())
-	h.Write(b)
-	res := h.Sum(nil)
-	s.root = types.NewMsgID(res)
-
-	// store
+func (s *StateMgr) newRoot(b []byte) error {
 	key := store.NewKey(pb.MetaType_ST_RootKey)
-	err := tds.Put(key, s.root.Bytes())
-	if err != nil {
-		return err
+
+	if s.version < build.SMTVersion {
+		h := blake3.New()
+		h.Write(s.root.Bytes())
+		h.Write(b)
+		res := h.Sum(nil)
+		s.root = types.NewMsgID(res)
+
+		err := s.tds.Put(key, s.root.Bytes())
+		if err != nil {
+			return err
+		}
+	} else {
+		s.put(key, b)
 	}
 
 	return nil
+}
+
+func (s *StateMgr) saveRoot() error {
+	if s.version >= build.SMTVersion {
+		s.root = types.NewMsgID(s.smt.Root())
+		key := store.NewKey(pb.MetaType_ST_RootKey)
+		err := s.tds.Put(key, s.smt.Root())
+		if err != nil {
+			return err
+		}
+
+		key = store.NewKey(pb.MetaType_ST_RootKey, s.height)
+		err = s.tds.Put(key, s.smt.Root())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *StateMgr) put(key, value []byte) error {
+	if s.version < build.SMTVersion {
+		return s.tds.Put(key, value)
+	} else {
+		return s.smt.Put(key, value)
+	}
+}
+
+func (s *StateMgr) get(key []byte) ([]byte, error) {
+	val, err := s.smt.Get(key)
+	if err == nil {
+		return val, nil
+	}
+
+	if s.tds != nil {
+		return s.tds.Get(key)
+	} else {
+		return s.ds.Get(key)
+	}
+}
+
+func (s *StateMgr) has(key []byte) (bool, error) {
+	has, err := s.smt.Has(key)
+	if err == nil || has {
+		return has, nil
+	}
+
+	if s.tds != nil {
+		return s.tds.Has(key)
+	} else {
+		return s.ds.Has(key)
+	}
 }
 
 func (s *StateMgr) getThreshold() int {
@@ -271,27 +355,10 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	defer s.lk.Unlock()
 
 	if blk == nil {
-		// todo: commmit for apply all changes
 		return s.root, nil
 	}
 
-	if !blk.PrevID.Equal(s.blkID) {
-		logger.Errorf("apply wrong block at height %d, block prevID got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
-		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, s.root, blk.ParentRoot)
-	}
-
-	if !s.root.Equal(blk.ParentRoot) {
-		logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
-		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
-	}
-
-	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
-	// old txn may be put but not committed, which should be dropped
-	tds, err := s.ds.NewTxnStore(true)
-	if err != nil {
-		return s.root, xerrors.Errorf("create new txn fail: %w", err)
-	}
-	defer tds.Discard()
+	nt := time.Now()
 
 	if blk.Height != s.height {
 		return s.root, xerrors.Errorf("apply block height is wrong: got %d, expected %d", blk.Height, s.height)
@@ -300,6 +367,59 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	if blk.Slot <= s.slot {
 		return s.root, xerrors.Errorf("apply block epoch is wrong: got %d, expected larger than %d", blk.Slot, s.slot)
 	}
+
+	if !blk.PrevID.Equal(s.blkID) {
+		//logger.Errorf("apply wrong block at height %d, block prevID got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
+		// set height to previous one for smt recovery
+		if blk.Height > 0 && s.version >= build.SMTVersion {
+			key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
+			buf := make([]byte, 8)
+			newH := blk.Height - 1
+			if blk.Height > 1 {
+				newH = blk.Height - 2
+			}
+			binary.BigEndian.PutUint64(buf[:8], newH)
+			err := s.ds.Put(key, buf)
+			if err != nil {
+				return s.root, err
+			}
+		}
+
+		return s.root, xerrors.Errorf("apply wrong block at height %d, block got: %s, expected: %s", blk.Height, blk.PrevID, s.blkID)
+	}
+
+	if !s.root.Equal(blk.ParentRoot) {
+		//logger.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
+
+		// set height to previous one for smt recovery
+		if blk.Height > 0 && s.version >= build.SMTVersion {
+			key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
+			buf := make([]byte, 8)
+			newH := blk.Height - 1
+			if blk.Height > 1 {
+				newH = blk.Height - 2
+			}
+			binary.BigEndian.PutUint64(buf[:8], newH)
+			err := s.ds.Put(key, buf)
+			if err != nil {
+				return s.root, err
+			}
+		}
+
+		return s.root, xerrors.Errorf("apply wrong block at height %d, state got: %s, expected: %s", blk.Height, blk.ParentRoot, s.root)
+	}
+
+	// it is necessary to new a txn in ApplyBlock every time, cuz some values in
+	// old txn may be put but not committed, which should be dropped
+	var err error
+	s.tds, err = s.ds.NewTxnStore(true)
+	if err != nil {
+		return s.root, xerrors.Errorf("create new txn fail: %w", err)
+	}
+	defer func() {
+		s.tds.Discard()
+		s.tds = nil
+	}()
 
 	if blk.Height > 0 {
 		// verify sign
@@ -343,21 +463,27 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	}
 
 	key := store.NewKey(pb.MetaType_ST_BlockHeightKey)
-	buf := make([]byte, 16)
+	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf[:8], blk.Height)
-	binary.BigEndian.PutUint64(buf[8:16], blk.Slot)
-	err = tds.Put(key, buf)
-	if err != nil {
-		return s.root, err
-	}
-	blkID := blk.Hash()
-	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
-	err = tds.Put(key, blkID.Bytes())
+	err = s.tds.Put(key, buf)
 	if err != nil {
 		return s.root, err
 	}
 
-	err = s.newRoot(b, tds)
+	blkID := blk.Hash()
+	buf = make([]byte, types.MsgLen+8)
+	copy(buf[:types.MsgLen], blkID.Bytes())
+	binary.BigEndian.PutUint64(buf[types.MsgLen:types.MsgLen+8], blk.Slot)
+
+	// slot, blk hash
+	key = store.NewKey(pb.MetaType_ST_BlockHeightKey, blk.Height)
+	err = s.tds.Put(key, buf)
+	if err != nil {
+		return s.root, err
+	}
+
+	// change state root
+	err = s.newRoot(b)
 	if err != nil {
 		return s.root, err
 	}
@@ -365,21 +491,29 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	for i, msg := range blk.Msgs {
 		// apply message
 		msgDone := metrics.Timer(context.TODO(), metrics.TxMessageApply)
-		_, err = s.applyMsg(&msg.Message, &blk.Receipts[i], tds)
+		_, err = s.applyMsg(&msg.Message, &blk.Receipts[i])
 		if err != nil {
-			logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
-			return s.root, err
+			//logger.Error("apply message fail: ", msg.From, msg.Nonce, msg.Method, err)
+			return s.root, xerrors.Errorf("apply msg %d %d %d at height %d fail %s", msg.From, msg.Nonce, msg.Method, blk.Height, err)
 		}
 		msgDone()
 	}
 
-	if !s.root.Equal(blk.Root) {
-		logger.Error("apply block has wrong state end at height %d, state got: %s, expected: %s", blk.Height, blk.Root, s.root)
+	if s.version < build.SMTVersion && !s.root.Equal(blk.Root) {
+		logger.Errorf("apply block has wrong state end at height %d, state got: %s, expected: %s", blk.Height, blk.Root, s.root)
 		return s.root, xerrors.Errorf("apply has wrong state end at height %d, state got: %s, expected: %s", blk.Height, blk.Root, s.root)
 	}
 
-	// apply block ok, commit all changes
-	err = tds.Commit()
+	// apply block ok, commit smt and update new root
+	s.smt.SetRoot(s.smt.Root())
+
+	err = s.saveRoot()
+	if err != nil {
+		return s.root, xerrors.Errorf("save smt root fail %w", err)
+	}
+
+	// apply block and save root ok, commit s.tds
+	err = s.tds.Commit()
 	if err != nil {
 		return s.root, xerrors.Errorf("apply block txn commit fail %w", err)
 	}
@@ -388,15 +522,27 @@ func (s *StateMgr) ApplyBlock(blk *tx.SignedBlock) (types.MsgID, error) {
 	s.slot = blk.Slot
 	s.blkID = blkID
 
+	// after apply all msg, update version
+	nextVer := s.version + 1
+	ue, ok := build.UpdateMap[nextVer]
+	if ok {
+		if s.height >= ue {
+			s.version = nextVer
+		}
+	}
+
+	logger.Debug("block apply at: ", blk.Height, time.Since(nt))
+
 	return s.root, nil
 }
 
-func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore) (types.MsgID, error) {
+func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt) (types.MsgID, error) {
 	if msg == nil {
 		return s.root, nil
 	}
 
-	logger.Debug("block apply message:", msg.From, msg.Nonce, msg.Method, s.root)
+	nt := time.Now()
+	//logger.Debug("block apply message: ", msg.From, msg.Method, msg.Nonce, s.root)
 
 	ri, ok := s.rInfo[msg.From]
 	if !ok {
@@ -408,20 +554,22 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore)
 		return s.root, xerrors.Errorf("wrong nonce for: %d, expeted %d, got %d", msg.From, ri.val.Nonce, msg.Nonce)
 	}
 	ri.val.Nonce++
-	err := s.saveVal(msg.From, ri.val, tds)
+	err := s.saveVal(msg.From, ri.val)
 	if err != nil {
 		return s.root, err
 	}
 
-	err = s.newRoot(msg.Params, tds)
-	if err != nil {
-		return s.root, err
+	if s.version < build.SMTVersion {
+		err = s.newRoot(msg.Params)
+		if err != nil {
+			return s.root, err
+		}
 	}
 
 	// not apply wrong message; but update its nonce
 	if tr.Err != 0 {
 		stats.Record(context.TODO(), metrics.TxMessageApplyFailure.M(1))
-		logger.Debug("not apply wrong message")
+		//logger.Debug("not apply wrong message")
 		return s.root, nil
 	} else {
 		stats.Record(context.TODO(), metrics.TxMessageApplySuccess.M(1))
@@ -429,63 +577,80 @@ func (s *StateMgr) applyMsg(msg *tx.Message, tr *tx.Receipt, tds store.TxnStore)
 
 	switch msg.Method {
 	case tx.AddRole:
-		err := s.addRole(msg, tds)
+		err := s.addRole(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.CreateFs:
-		err := s.addUser(msg, tds)
+		err := s.addUser(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.CreateBucket:
-		err := s.addBucket(msg, tds)
+		err := s.addBucket(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.PreDataOrder:
-		err := s.createOrder(msg, tds)
+		err := s.createOrder(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.AddDataOrder:
-		err := s.addSeq(msg, tds)
+		err := s.addSeq(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.CommitDataOrder:
-		err := s.commitOrder(msg, tds)
+		err := s.commitOrder(msg)
+		if err != nil {
+			return s.root, err
+		}
+	case tx.SubDataOrder:
+		err := s.subOrder(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.SegmentFault:
-		err := s.removeSeg(msg, tds)
+		err := s.removeSeg(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.UpdateChalEpoch:
-		err := s.updateChalEpoch(msg, tds)
+		err := s.updateChalEpoch(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.SegmentProof:
-		err := s.addSegProof(msg, tds)
+		err := s.addSegProof(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.ConfirmPostIncome:
-		err := s.addPay(msg, tds)
+		err := s.addPay(msg)
 		if err != nil {
 			return s.root, err
 		}
 	case tx.UpdateNet:
-		err := s.updateNetAddr(msg, tds)
+		err := s.updateNetAddr(msg)
+		if err != nil {
+			return s.root, err
+		}
+	case tx.AddBucMeta:
+		err := s.addBucMeta(msg)
+		if err != nil {
+			return s.root, err
+		}
+	case tx.AddObjMeta:
+		err := s.addObjMeta(msg)
 		if err != nil {
 			return s.root, err
 		}
 	default:
 		return s.root, xerrors.Errorf("unsupported method: %d", msg.Method)
 	}
+
+	logger.Debug("block apply message: ", msg.From, msg.Method, msg.Nonce, s.root, time.Since(nt))
 
 	return s.root, nil
 }

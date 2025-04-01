@@ -2,11 +2,15 @@ package lfs
 
 import (
 	"context"
+	"math/big"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
 	"golang.org/x/sync/semaphore"
 
+	lru "github.com/hashicorp/golang-lru"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/segment"
@@ -25,6 +29,9 @@ type LfsService struct {
 	keyset pdpcommon.KeySet
 	ds     store.KVStore
 
+	needPay *big.Int
+	bal     *big.Int
+
 	userID     uint64
 	fsID       []byte // keyset的verifyKey的hash
 	encryptKey []byte
@@ -35,31 +42,62 @@ type LfsService struct {
 
 	sw *semaphore.Weighted // manage resource
 
-	bucketChan chan uint64
-	readyChan  chan struct{}
-	ready      bool
+	bucketChan      chan uint64
+	bucketReadyChan chan uint64
+	readyChan       chan struct{}
+	msgChan         chan *tx.Message
+
+	users    map[uint64]*ghost
+	tagCache *lru.ARCCache
 }
 
-func New(ctx context.Context, userID uint64, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
+func New(ctx context.Context, userID uint64, encryptKey []byte, keyset pdpcommon.KeySet, ds store.KVStore, ss segment.SegmentStore, OrderMgr *uorder.OrderMgr) (*LfsService, error) {
+	wt := defaultWeighted
+	wts := os.Getenv("MEFS_LFS_PARALLEL")
+	if wts != "" {
+		wtv, err := strconv.Atoi(wts)
+		if err == nil && wtv > 100 {
+			wt = wtv
+		}
+	}
+
+	tCache, err := lru.NewARC(1024 * 1024)
+	if err != nil {
+		return nil, err
+	}
+
 	ls := &LfsService{
 		ctx: ctx,
 
 		userID: userID,
 		fsID:   make([]byte, 20),
 
-		OrderMgr: OrderMgr,
-		ds:       ds,
-		keyset:   keyset,
+		OrderMgr:   OrderMgr,
+		ds:         ds,
+		encryptKey: encryptKey,
+		keyset:     keyset,
+
+		needPay: new(big.Int),
+		bal:     new(big.Int),
 
 		sb:  newSuperBlock(),
 		dps: make(map[uint64]*dataProcess),
-		sw:  semaphore.NewWeighted(defaultWeighted),
+		sw:  semaphore.NewWeighted(int64(wt)),
 
-		readyChan:  make(chan struct{}, 1),
-		bucketChan: make(chan uint64),
+		readyChan:       make(chan struct{}, 1),
+		bucketReadyChan: make(chan uint64),
+		bucketChan:      make(chan uint64),
+		msgChan:         make(chan *tx.Message, 128),
+
+		users:    make(map[uint64]*ghost),
+		tagCache: tCache,
 	}
 
 	ls.fsID = keyset.VerifyKey().Hash()
+	ls.getPayInfo()
+
+	// load lfs info first
+	ls.load()
 
 	return ls, nil
 }
@@ -68,20 +106,15 @@ func (l *LfsService) Start() error {
 	// start order manager
 	l.OrderMgr.Start()
 
-	// load lfs info first
-	err := l.load()
-	if err != nil {
-		return err
-	}
-
+	go l.runPush()
 	go l.persistMeta()
 
 	has := false
 
-	_, err = l.OrderMgr.StateGetPDPPublicKey(l.ctx, l.userID)
+	_, err := l.OrderMgr.StateGetPDPPublicKey(l.ctx, l.userID)
 	if err != nil {
 		time.Sleep(15 * time.Second)
-		logger.Debug("push create fs message for: ", l.userID)
+		logger.Info("create fs message for: ", l.userID)
 
 		msg := &tx.Message{
 			Version: 0,
@@ -91,43 +124,18 @@ func (l *LfsService) Start() error {
 			Params:  l.keyset.PublicKey().Serialize(),
 		}
 
-		var mid types.MsgID
-		for {
-			id, err := l.OrderMgr.PushMessage(l.ctx, msg)
-			if err != nil {
-				time.Sleep(5 * time.Second)
-				continue
-			}
-			mid = id
-			break
-		}
-
-		go func(mid types.MsgID, rc chan struct{}) {
-			ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
-			defer cancle()
-			for {
-				st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
-				if err != nil {
-					time.Sleep(5 * time.Second)
-					continue
-				}
-
-				if st.Status.Err == 0 {
-					logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
-				} else {
-					logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
-				}
-
-				break
-			}
-			rc <- struct{}{}
-		}(mid, l.readyChan)
+		l.msgChan <- msg
 	} else {
 		has = true
 	}
 
+	bun, err := l.OrderMgr.StateGetBucketAt(l.ctx, l.userID)
+	if err != nil {
+		return err
+	}
+
 	// load bucket
-	l.sb.bucketVerify = l.OrderMgr.GetBucket(l.ctx, l.userID)
+	l.sb.bucketVerify = bun
 
 	for bid := uint64(0); bid < l.sb.bucketVerify; bid++ {
 		if uint64(len(l.sb.buckets)) > bid {
@@ -154,6 +162,8 @@ func (l *LfsService) Start() error {
 		for bid := l.sb.bucketVerify; bid < l.sb.NextBucketID; bid++ {
 			logger.Debug("push create bucket message: ", bid)
 			bu := l.sb.buckets[bid]
+
+			// send bucket option
 			tbp := tx.BucketParams{
 				BucketOption: bu.BucketOption,
 				BucketID:     bid,
@@ -172,87 +182,75 @@ func (l *LfsService) Start() error {
 				Params:  data,
 			}
 
-			var mid types.MsgID
-			retry := 0
-			for retry < 60 {
-				retry++
-				id, err := l.OrderMgr.PushMessage(l.ctx, msg)
+			l.msgChan <- msg
+
+			// send buc meta
+			if os.Getenv("MEFS_META_UPLOAD") != "" {
+				bmp := tx.BucMetaParas{
+					BucketID: bid,
+					Name:     bu.GetName(),
+				}
+
+				data, err = bmp.Serialize()
 				if err != nil {
-					time.Sleep(10 * time.Second)
-					continue
+					return err
 				}
-				mid = id
-				break
+				msg = &tx.Message{
+					Version: 0,
+					From:    l.userID,
+					To:      l.userID,
+					Method:  tx.AddBucMeta,
+					Params:  data,
+				}
+
+				l.msgChan <- msg
 			}
-
-			go func(bucketID uint64, mid types.MsgID) {
-				ctx, cancle := context.WithTimeout(context.Background(), 10*time.Minute)
-				defer cancle()
-				logger.Debug("waiting tx message done: ", mid)
-
-				for {
-					st, err := l.OrderMgr.SyncGetTxMsgStatus(ctx, mid)
-					if err != nil {
-						time.Sleep(5 * time.Second)
-						continue
-					}
-
-					if st.Status.Err == 0 {
-						logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
-						l.bucketChan <- bucketID
-					} else {
-						logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
-					}
-
-					break
-				}
-			}(bid, mid)
 		}
 	}
 
 	for i := 0; i < int(l.sb.NextBucketID); i++ {
 		bu := l.sb.buckets[i]
 		if !bu.Deletion {
-			go l.OrderMgr.RegisterBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
+			go l.registerBucket(bu.BucketID, bu.NextOpID, &bu.BucketOption)
 		}
 	}
 
-	logger.Debug("start lfs for: ", l.userID, l.ready)
+	logger.Debug("start lfs for: ", l.userID, l.sb.write)
 	if has {
-		l.ready = true
+		l.sb.write = true
 	}
 
-	if l.ready {
-		logger.Debug("lfs is ready")
+	if l.sb.write {
+		logger.Debug("lfs is ready for write")
 	}
 
 	return nil
 }
 
 func (l *LfsService) Stop() error {
-	l.ready = false
+	logger.Info("stop lfs service...")
+	l.sb.write = false
 	l.OrderMgr.Stop()
 	return nil
 }
 
-func (l *LfsService) Ready() bool {
+func (l *LfsService) Writeable() bool {
 	if l.sb == nil || l.sb.bucketNameToID == nil {
 		return false
 	}
-	return l.ready
-}
-
-func (l *LfsService) Writeable() bool {
 	return l.sb.write
 }
 
-func (l *LfsService) LfsGetInfo(ctx context.Context) (*types.LfsInfo, error) {
+func (l *LfsService) LfsGetInfo(ctx context.Context, update bool) (types.LfsInfo, error) {
+	if update {
+		l.getPayInfo()
+	}
 	l.sb.RLock()
 	defer l.sb.RUnlock()
 
-	li := &types.LfsInfo{
-		Status: l.Ready(),
-		Bucket: l.sb.bucketVerify,
+	li := types.LfsInfo{
+		Status: l.Writeable(),
+		Bucket: uint64(len(l.sb.buckets)),
 		Used:   0,
 	}
 
@@ -271,17 +269,9 @@ func (l *LfsService) ShowStorage(ctx context.Context) (uint64, error) {
 	}
 	defer l.sw.Release(1)
 
-	if !l.Ready() { //只读不需要Online
-		return 0, ErrLfsServiceNotReady
-	}
-
 	var storageSpace uint64
 	for _, bucket := range l.sb.buckets {
-		bucketStorage, err := l.ShowBucketStorage(ctx, bucket.Name)
-		if err != nil {
-			continue
-		}
-		storageSpace += uint64(bucketStorage)
+		storageSpace += uint64(bucket.UsedBytes)
 	}
 
 	return storageSpace, nil
@@ -296,14 +286,19 @@ func (l *LfsService) ShowBucketStorage(ctx context.Context, bucketName string) (
 
 	bucket.RLock()
 	defer bucket.RUnlock()
+
 	var storageSpace uint64
-	objectIter := bucket.objects.Iterator()
-	for ; objectIter != nil; objectIter = objectIter.Next() {
-		object := objectIter.Value.(*object)
-		if object.deletion {
-			continue
+	if bucket.objectTree.Empty() {
+		return storageSpace, nil
+	}
+	objectIter := bucket.objectTree.Iterator()
+	for objectIter != nil {
+		object, ok := objectIter.Value.(*object)
+		if ok && !object.deletion {
+			storageSpace += uint64(object.Size)
 		}
-		storageSpace += uint64(object.Length)
+		objectIter = objectIter.Next()
+
 	}
 	return storageSpace, nil
 }

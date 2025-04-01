@@ -11,9 +11,9 @@ import (
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
 
-	"github.com/memoio/go-mefs-v2/build"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
-	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal/net"
+	"github.com/memoio/go-mefs-v2/lib/types"
+	"github.com/memoio/go-mefs-v2/service/netapp/generic/internal"
 	"github.com/memoio/go-mefs-v2/service/netapp/handler"
 	"github.com/memoio/go-mefs-v2/submodule/network"
 )
@@ -29,7 +29,7 @@ type GenericService struct {
 	ctx  context.Context
 	proc goprocess.Process
 
-	msgSender net.MessageSender
+	msgSender internal.MessageSender
 
 	// DHT protocols we query with. We'll only add peers to our routing
 	// table if they speak these protocols.
@@ -45,7 +45,7 @@ type GenericService struct {
 func New(ctx context.Context, ns *network.NetworkSubmodule) (*GenericService, error) {
 	var protocols, serverProtocols []protocol.ID
 
-	v1proto := build.MemoriaeNet(ns.NetworkName)
+	v1proto := types.MemoriaeNet(ns.NetworkName)
 
 	protocols = []protocol.ID{v1proto}
 	serverProtocols = []protocol.ID{v1proto}
@@ -67,7 +67,7 @@ func New(ctx context.Context, ns *network.NetworkSubmodule) (*GenericService, er
 	// the DHT context should be done when the process is closed
 	service.ctx = goprocessctx.WithProcessClosing(ctx, service.proc)
 
-	service.msgSender = net.NewMessageSenderImpl(ns.Host, service.protocols)
+	service.msgSender = internal.NewMessageSenderImpl(ns.Host, service.protocols)
 
 	for _, p := range service.serverProtocols {
 		ns.Host.SetStreamHandler(p, service.handleNewStream)

@@ -8,9 +8,9 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/segment"
 )
 
-// todo: need?
+// get used in repair later
 func (u *UserNode) handleGetSeg(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debug("handle get segment from:", mes.GetHeader().From)
+	logger.Debug("handle get segment from: ", mes.GetHeader().From)
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,

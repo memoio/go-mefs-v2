@@ -21,21 +21,29 @@ func NewCacheStore(db store.KVStore) store.KVStore {
 	}
 }
 
-// todo add cache ops
 func (c *cstore) Put(key, value []byte) error {
+	c.cache.Add(key, value)
 	return c.db.Put(key, value)
 }
 
 func (c *cstore) Get(key []byte) ([]byte, error) {
+	val, ok := c.cache.Get(key)
+	if ok {
+		return val.([]byte), nil
+	}
 	return c.db.Get(key)
 }
 
 func (c *cstore) Has(key []byte) (bool, error) {
-
+	has := c.cache.Contains(key)
+	if has {
+		return true, nil
+	}
 	return c.db.Has(key)
 }
 
 func (c *cstore) Delete(key []byte) error {
+	c.cache.Remove(key)
 	return c.db.Delete(key)
 }
 
@@ -54,7 +62,7 @@ func (c *cstore) NewTxnStore(update bool) (store.TxnStore, error) {
 	return c.db.NewTxnStore(update)
 }
 
-func (c *cstore) Size() int64 {
+func (c *cstore) Size() store.DiskStats {
 	return c.db.Size()
 }
 

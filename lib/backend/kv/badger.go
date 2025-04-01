@@ -5,12 +5,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	badger "github.com/dgraph-io/badger/v2"
+	"github.com/dgraph-io/badger/v2"
 	"go.uber.org/zap"
 	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/types/store"
+	"github.com/memoio/go-mefs-v2/lib/utils"
 )
 
 var logger = logging.Logger("badger")
@@ -29,8 +30,9 @@ func (logger *compatLogger) Warningf(format string, args ...interface{}) {
 var _ store.KVStore = (*BadgerStore)(nil)
 
 type BadgerStore struct {
-	db     *badger.DB
-	seqMap sync.Map
+	basedir string
+	db      *badger.DB
+	seqMap  sync.Map
 
 	closeLk   sync.RWMutex
 	closed    bool
@@ -117,6 +119,7 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 	}
 
 	ds := &BadgerStore{
+		basedir:        path,
 		db:             kv,
 		closing:        make(chan struct{}),
 		gcDiscardRatio: gcDiscardRatio,
@@ -130,7 +133,7 @@ func NewBadgerStore(path string, options *Options) (*BadgerStore, error) {
 		go ds.periodicGC()
 	}
 
-	logger.Info("start badger ds")
+	logger.Info("start badger ds at: ", ds.basedir)
 	return ds, nil
 }
 
@@ -252,13 +255,13 @@ func (d *BadgerStore) Get(key []byte) (value []byte, err error) {
 	var val []byte
 	err = d.db.View(func(txn *badger.Txn) error {
 		switch item, err := txn.Get(key); err {
-		//case badger.ErrKeyNotFound:
-		//	return nil
+		case badger.ErrKeyNotFound:
+			return xerrors.Errorf("%s not found", string(key))
 		case nil:
 			val, err = item.ValueCopy(nil)
 			return err
 		default:
-			return err
+			return xerrors.Errorf("get %s fail: %w", string(key), err)
 		}
 	})
 	return val, err
@@ -276,7 +279,7 @@ func (d *BadgerStore) Has(key []byte) (bool, error) {
 		_, err := txn.Get(key)
 		if err != nil {
 			if err != badger.ErrKeyNotFound {
-				return err
+				return xerrors.Errorf("%s not found", string(key))
 			}
 			return nil
 		} else {
@@ -301,8 +304,8 @@ func (d *BadgerStore) Iter(prefix []byte, fn func(k, v []byte) error) int64 {
 	var total int64
 	d.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		it := txn.NewIterator(opts)
 		opts.Prefix = prefix
+		it := txn.NewIterator(opts)
 		defer it.Close()
 		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()
@@ -311,7 +314,8 @@ func (d *BadgerStore) Iter(prefix []byte, fn func(k, v []byte) error) int64 {
 			if err != nil {
 				continue
 			}
-			if err := fn(key, val); err == nil {
+			err = fn(key, val)
+			if err == nil {
 				atomic.AddInt64(&total, 1)
 			}
 		}
@@ -332,7 +336,8 @@ func (d *BadgerStore) IterKeys(prefix []byte, fn func(k []byte) error) int64 {
 		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()
 			k := item.Key()
-			if err := fn(k); err == nil {
+			err := fn(k)
+			if err == nil {
 				atomic.AddInt64(&total, 1)
 			}
 		}
@@ -341,9 +346,11 @@ func (d *BadgerStore) IterKeys(prefix []byte, fn func(k []byte) error) int64 {
 	return atomic.LoadInt64(&total)
 }
 
-func (d *BadgerStore) Size() int64 {
+func (d *BadgerStore) Size() store.DiskStats {
 	lsmSize, vlogSize := d.db.Size()
-	return lsmSize + vlogSize
+	ds, _ := utils.GetDiskStatus(d.basedir)
+	ds.Used = uint64(lsmSize + vlogSize)
+	return ds
 }
 
 func (d *BadgerStore) Sync() error {

@@ -35,7 +35,7 @@ func (s *StateMgr) getBucketManage(spu *segPerUser, bucketID uint64) *bucketMana
 
 	pbo := new(pb.BucketOption)
 	key := store.NewKey(pb.MetaType_ST_BucketOptKey, spu.userID, bucketID)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		return bm
 	}
@@ -47,14 +47,14 @@ func (s *StateMgr) getBucketManage(spu *segPerUser, bucketID uint64) *bucketMana
 	bm.chunks = make([]*types.AggStripe, pbo.DataCount+pbo.ParityCount)
 	for i := uint32(0); i < pbo.DataCount+pbo.ParityCount; i++ {
 		key := store.NewKey(pb.MetaType_ST_SegLocKey, spu.userID, bucketID, i)
-		data, err := s.ds.Get(key)
+		data, err := s.get(key)
 		if err != nil || len(data) < 8 {
 			continue
 		}
 
 		stripeID := binary.BigEndian.Uint64(data)
 		key = store.NewKey(pb.MetaType_ST_SegLocKey, spu.userID, bucketID, i, stripeID)
-		data, err = s.ds.Get(key)
+		data, err = s.get(key)
 		if err != nil {
 			continue
 		}
@@ -77,7 +77,7 @@ func (s *StateMgr) getStripeBitMap(bm *bucketManage, userID, bucketID, proID uin
 	cm = bitset.New(1024)
 
 	key := store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID)
-	data, err := s.ds.Get(key)
+	data, err := s.get(key)
 	if err != nil {
 		bm.stripes[proID] = cm
 		return cm
@@ -96,7 +96,7 @@ func (s *StateMgr) getStripeBitMap(bm *bucketManage, userID, bucketID, proID uin
 	return ncm
 }
 
-func (s *StateMgr) addBucket(msg *tx.Message, tds store.TxnStore) error {
+func (s *StateMgr) addBucket(msg *tx.Message) error {
 	tbp := new(tx.BucketParams)
 	err := tbp.Deserialize(msg.Params)
 	if err != nil {
@@ -130,7 +130,7 @@ func (s *StateMgr) addBucket(msg *tx.Message, tds store.TxnStore) error {
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *StateMgr) addBucket(msg *tx.Message, tds store.TxnStore) error {
 	key = store.NewKey(pb.MetaType_ST_BucketOptKey, msg.From)
 	val := make([]byte, 8)
 	binary.BigEndian.PutUint64(val, uinfo.nextBucket)
-	err = tds.Put(key, val)
+	err = s.put(key, val)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (s *StateMgr) canAddBucket(msg *tx.Message) error {
 	return nil
 }
 
-func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32, tds store.TxnStore) error {
+func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, nonce uint64, chunkID uint32) error {
 	uinfo, ok := s.sInfo[userID]
 	if !ok {
 		var err error
@@ -231,13 +231,13 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
 
 	key = store.NewKey(pb.MetaType_ST_SegMapKey, userID, bucketID, proID, s.ceInfo.epoch)
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	if err != nil {
 		return err
 	}
-	err = tds.Put(key, data)
+	err = s.put(key, data)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (s *StateMgr) addChunk(userID, bucketID, stripeStart, stripeLength, proID, 
 	key = store.NewKey(pb.MetaType_ST_SegLocKey, userID, bucketID, chunkID)
 	val := make([]byte, 8)
 	binary.BigEndian.PutUint64(val, stripeStart)
-	err = tds.Put(key, val)
+	err = s.put(key, val)
 	if err != nil {
 		return err
 	}
@@ -285,6 +285,7 @@ func (s *StateMgr) canAddChunk(userID, bucketID, stripeStart, stripeLength, proI
 
 	cm := s.getStripeBitMap(binfo, userID, bucketID, proID)
 	// check whether has it already
+
 	for i := stripeStart; i < stripeStart+stripeLength; i++ {
 		if cm.Test(uint(i)) {
 			return xerrors.Errorf("add duplicated chunk %d_%d_%d", bucketID, i, chunkID)

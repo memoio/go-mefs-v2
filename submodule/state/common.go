@@ -12,19 +12,10 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/crypto/signature"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/pb"
-	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
 var logger = logging.Logger("data-state")
-
-type HanderAddRoleFunc func(roleID uint64, typ pb.RoleInfo_Type)
-type HandleAddUserFunc func(userID uint64)
-type HandleAddUPFunc func(userID, proID uint64)
-type HandleAddPayFunc func(userID, proID, epoch uint64, pay, penaly *big.Int)
-type HandleAddSeqFunc func(types.OrderSeq)
-type HandleDelSegFunc func(*tx.SegRemoveParas)
-type HandleCommitOrderFunc func(types.SignedOrder)
 
 // todo: add msg fee here
 type roleInfo struct {
@@ -65,12 +56,13 @@ type orderKey struct {
 }
 
 type orderInfo struct {
-	prove  uint64 // next prove epoch
-	income *types.PostIncome
-	ns     *types.NonceSeq
-	accFr  bls.Fr
-	base   *types.SignedOrder
-	od     *types.OrderDuration
+	prove    uint64 // next prove epoch
+	income   *types.PostIncome
+	ns       *types.NonceSeq
+	accFr    bls.Fr // for base
+	base     *types.SignedOrder
+	preStart int64
+	preEnd   int64
 }
 
 type segPerUser struct {
@@ -108,7 +100,7 @@ func verify(ri *pb.RoleInfo, msg []byte, sig types.Signature) error {
 			return err
 		}
 		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", ri.ID, sig.Type)
+			return xerrors.Errorf("%d sign %d is wrong", ri.RoleID, sig.Type)
 		}
 	case types.SigBLS:
 		ok, err := signature.Verify(ri.BlsVerifyKey, msg, sig.Data)
@@ -116,7 +108,7 @@ func verify(ri *pb.RoleInfo, msg []byte, sig types.Signature) error {
 			return err
 		}
 		if !ok {
-			return xerrors.Errorf("%d sign %d is wrong", ri.ID, sig.Type)
+			return xerrors.Errorf("%d sign %d is wrong", ri.RoleID, sig.Type)
 		}
 	default:
 		return xerrors.Errorf("sign type %d is not supported", sig.Type)

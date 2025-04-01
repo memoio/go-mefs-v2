@@ -1,5 +1,7 @@
 package segment
 
+import "github.com/memoio/go-mefs-v2/lib/types/store"
+
 type SegmentID interface {
 	GetFsID() []byte
 	GetBucketID() uint64
@@ -27,6 +29,8 @@ type Segment interface {
 	Tags() ([][]byte, error)
 	Serialize() ([]byte, error)
 	Deserialize([]byte) error
+
+	IsValid(size int) error
 }
 
 type SegmentStore interface {
@@ -36,4 +40,6 @@ type SegmentStore interface {
 	Get(SegmentID) (Segment, error)
 	Has(SegmentID) (bool, error)
 	Delete(SegmentID) error
+
+	Size() store.DiskStats
 }

@@ -7,11 +7,12 @@ import (
 	logging "github.com/memoio/go-mefs-v2/lib/log"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	"github.com/memoio/go-mefs-v2/lib/types"
+	"golang.org/x/xerrors"
 )
 
 var logger = logging.Logger("pro-challenge")
 
-type chal struct {
+type chalRes struct {
 	userID  uint64
 	epoch   uint64
 	errCode uint16
@@ -27,7 +28,7 @@ type segInfo struct {
 	chalTime time.Time
 }
 
-func (s *SegMgr) pushMessage(msg *tx.Message, epoch uint64) {
+func (s *SegMgr) pushMessage(msg *tx.Message) {
 	var mid types.MsgID
 	for {
 		id, err := s.PushMessage(s.ctx, msg)
@@ -43,6 +44,11 @@ func (s *SegMgr) pushMessage(msg *tx.Message, epoch uint64) {
 		ctx, cancle := context.WithTimeout(s.ctx, 10*time.Minute)
 		defer cancle()
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			st, err := s.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)
@@ -50,18 +56,27 @@ func (s *SegMgr) pushMessage(msg *tx.Message, epoch uint64) {
 			}
 
 			if st.Status.Err == 0 {
-				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 			} else {
-				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 			}
 
-			s.chalChan <- &chal{
-				userID:  msg.To,
-				epoch:   epoch,
-				errCode: uint16(st.Status.Err),
+			switch msg.Method {
+			case tx.SegmentProof:
+				scp := new(tx.SegChalParams)
+				err = scp.Deserialize(msg.Params)
+				if err != nil {
+					return
+				}
+
+				s.chalChan <- &chalRes{
+					userID:  msg.To,
+					epoch:   scp.Epoch,
+					errCode: uint16(st.Status.Err),
+				}
 			}
 
-			break
+			return
 		}
 
 	}(mid)
@@ -99,9 +114,10 @@ func (s *SegMgr) pushAndWaitMessage(msg *tx.Message) error {
 			}
 
 			if st.Status.Err == 0 {
-				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 			} else {
-				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
+				return xerrors.Errorf("msg is invalid: %s", st.Status)
 			}
 
 			return nil

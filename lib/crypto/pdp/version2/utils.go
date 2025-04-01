@@ -3,12 +3,13 @@ package pdpv2
 import (
 	bls "github.com/memoio/go-mefs-v2/lib/crypto/bls12_381"
 	pdpcommon "github.com/memoio/go-mefs-v2/lib/crypto/pdp/common"
+	"golang.org/x/xerrors"
 )
 
 // -------------------- proof related routines ------------------- //
 func splitSegmentToAtoms(data []byte, typ int) ([]Fr, error) {
 	if len(data) == 0 {
-		return nil, pdpcommon.ErrSegmentSize
+		return nil, xerrors.New("length is zero")
 	}
 
 	if typ > 32 || typ <= 0 {

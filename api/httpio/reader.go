@@ -29,7 +29,6 @@ type StreamType string
 const (
 	Null       StreamType = "null"
 	PushStream StreamType = "push"
-	// TODO: Data transfer handoff to workers?
 )
 
 type ReaderStream struct {
@@ -101,6 +100,8 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 			return
 		}
 
+		logger.Debug("read stream: ", req.URL.Path)
+
 		readersLk.Lock()
 		ch, found := readers[u]
 		if !found {
@@ -139,7 +140,8 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 
 	dec := jsonrpc.WithParamDecoder(new(io.Reader), func(ctx context.Context, b []byte) (reflect.Value, error) {
 		var rs ReaderStream
-		if err := json.Unmarshal(b, &rs); err != nil {
+		err := json.Unmarshal(b, &rs)
+		if err != nil {
 			return reflect.Value{}, xerrors.Errorf("unmarshaling reader id: %w", err)
 		}
 

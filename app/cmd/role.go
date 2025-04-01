@@ -9,7 +9,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )
 
-var RoleCmd = &cli.Command{
+var roleCmd = &cli.Command{
 	Name:  "role",
 	Usage: "Interact with role manager",
 	Subcommands: []*cli.Command{

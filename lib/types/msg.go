@@ -12,15 +12,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// todo: add content type
 const (
 	MsgIDHashCode = 0x4c
 	MsgIDHashLen  = 20
-
-	// todo add type for content
-)
-
-var (
-	ErrMsgCode = xerrors.New("illegal msg code")
+	MsgLen        = 22
 )
 
 func init() {
@@ -31,6 +27,7 @@ type MsgID struct{ str string }
 
 var MsgIDUndef = MsgID{}
 
+// msgLen = prefix len(2) + hash len(20)
 func NewMsgID(data []byte) MsgID {
 	res, err := mh.Sum(data, MsgIDHashCode, MsgIDHashLen)
 	if err != nil {
@@ -57,13 +54,14 @@ func (m MsgID) Equal(old MsgID) bool {
 }
 
 // json encode and decode
-func (m *MsgID) MarshalJSON() ([]byte, error) {
+func (m MsgID) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + m.String() + `"`), nil
 }
 
 func (m *MsgID) UnmarshalJSON(b []byte) error {
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
+	err := json.Unmarshal(b, &s)
+	if err != nil {
 		return err
 	}
 
@@ -114,7 +112,7 @@ func FromBytes(b []byte) (MsgID, error) {
 	}
 
 	if dh.Code != MsgIDHashCode {
-		return MsgIDUndef, ErrMsgCode
+		return MsgIDUndef, xerrors.Errorf("illegal message code %d", dh.Code)
 	}
 
 	return MsgID{string(b)}, nil

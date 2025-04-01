@@ -6,15 +6,33 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
+type RoleInfo struct {
+	pb.RoleInfo
+	Owner    string
+	IsActive bool
+	IsBanned bool
+}
+
 type GroupInfo struct {
-	ID     uint64
-	Level  uint16
-	FsAddr string
-	Size   uint64
-	Price  *big.Int
+	EndPoint string
+	BaseAddr string
+	ID       uint64
+	State    uint8
+	Level    uint8
+	Size     uint64
+	Price    *big.Int
+	Kpr      *big.Int
+	Ppr      *big.Int
+	KCount   uint64
+	PCount   uint64
+	UCount   uint64
+	FsAddr   string
+	KpB      *big.Int
+	PpB      *big.Int
 }
 
 type ExtendedPeerInfo struct {
@@ -84,12 +102,22 @@ type BalanceInfo struct {
 	Value    *big.Int
 	FsValue  *big.Int
 	ErcValue *big.Int // should be map?
+
+	LockValue    *big.Int
+	PenaltyValue *big.Int
 }
 
 type PledgeInfo struct {
-	Value    *big.Int
+	Value    *big.Int // current pledge balance
 	ErcTotal *big.Int
 	Total    *big.Int
+
+	Last        *big.Int // pledge balance after last update
+	LocalPledge *big.Int // history accumulate pledge
+	LocalReward *big.Int // history accumulate reward
+
+	CurReward  *big.Int
+	PledgeTime *big.Int // pledge time recently
 }
 
 type StoreInfo struct {
@@ -99,9 +127,20 @@ type StoreInfo struct {
 	Size     uint64
 	Price    *big.Int
 }
+type SettleInfo struct {
+	Time    int64
+	Size    uint64
+	Price   *big.Int
+	MaxPay  *big.Int
+	HasPaid *big.Int
+	CanPay  *big.Int
+	Lost    *big.Int
+}
 
-type OrderInfo struct {
+type OrderJobInfo struct {
 	ID uint64
+
+	PeerID string
 
 	AvailTime int64
 
@@ -119,13 +158,21 @@ type OrderInfo struct {
 	InStop bool
 }
 
+type ProsInBucket struct {
+	InUse       []uint64 // update and save to local
+	Deleted     []uint64 // add del pro here
+	DelPerChunk [][]uint64
+}
+
 type SyncInfo struct {
 	Status       bool
+	Version      int
 	SyncedHeight uint64
 	RemoteHeight uint64
 }
 
 type StateInfo struct {
+	Version uint32
 	Height  uint64      // block next height
 	Slot    uint64      // distance from basetime
 	Epoch   uint64      // challenge

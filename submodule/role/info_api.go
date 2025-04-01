@@ -15,7 +15,7 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/types"
 )
 
-var logger = logging.Logger("roleinfo")
+var logger = logging.Logger("role")
 
 var _ api.IRole = &roleAPI{}
 
@@ -30,11 +30,28 @@ func (rm *RoleMgr) RoleSelf(ctx context.Context) (*pb.RoleInfo, error) {
 	return rm.get(rm.roleID)
 }
 
-func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64) (*pb.RoleInfo, error) {
+func (rm *RoleMgr) RoleGet(ctx context.Context, id uint64, update bool) (*pb.RoleInfo, error) {
 	rm.Lock()
 	defer rm.Unlock()
 
-	return rm.get(id)
+	if !update {
+		ri, err := rm.get(id)
+		if err == nil {
+			return ri, nil
+		}
+	}
+
+	pri, err := rm.is.SettleGetRoleInfoAt(rm.ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if pri.GroupID != rm.groupID {
+		return nil, err
+	}
+
+	rm.addRoleInfo(&pri.RoleInfo, true)
+	return &pri.RoleInfo, nil
 }
 
 func (rm *RoleMgr) RoleGetRelated(ctx context.Context, typ pb.RoleInfo_Type) ([]uint64, error) {
@@ -209,7 +226,7 @@ func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (
 		if ri.Type != pb.RoleInfo_User {
 			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_User, ri.Type)
 		}
-	case tx.SegmentProof, tx.SegmentFault:
+	case tx.SegmentProof, tx.SegmentFault, tx.SubDataOrder:
 		// verify tx.From provider
 		if ri.Type != pb.RoleInfo_Provider {
 			return false, xerrors.Errorf("role type expected %d, got %d", pb.RoleInfo_Provider, ri.Type)
@@ -219,4 +236,11 @@ func (rm *RoleMgr) RoleSanityCheck(ctx context.Context, msg *tx.SignedMessage) (
 	}
 
 	return true, nil
+}
+
+func (rm *RoleMgr) RoleExpand(ctx context.Context) error {
+	acnt := rm.is.SettleGetAddrCnt(rm.ctx)
+	rm.syncFromChain(1, acnt)
+
+	return nil
 }

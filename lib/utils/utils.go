@@ -3,10 +3,11 @@ package utils
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"math/rand"
-	"os"
-	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/sha3"
@@ -78,20 +79,6 @@ func LeftPadBytes(slice []byte, l int) []byte {
 	return padded
 }
 
-func GetDirSize(path string) (uint64, error) {
-	var size uint64
-	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			size += uint64(info.Size())
-		}
-		return nil
-	})
-	return size, err
-}
-
 const (
 	KiB = 1024
 	MiB = 1048576
@@ -104,7 +91,7 @@ const (
 	TB = 1e12
 
 	//SHOWTIME 用于输出给使用者
-	SHOWTIME = "2006-01-02 Mon 15:04:05 MST"
+	SHOWTIME = "2006-01-02 15:04:05 MST"
 )
 
 // FormatBytes convert bytes to human readable string. Like 2 MiB, 64.2 KiB, 52 B
@@ -124,6 +111,32 @@ func FormatBytes(i int64) (result string) {
 	return
 }
 
+func HumanStringLoaded(s string) uint64 {
+	s = strings.TrimSpace(s)
+	ampl := uint64(1)
+	if len(s) >= 3 {
+		switch s[len(s)-3:] {
+		case "TiB":
+			ampl = TiB
+			s = s[:len(s)-3]
+		case "GiB":
+			ampl = GiB
+			s = s[:len(s)-3]
+		case "MiB":
+			ampl = MiB
+			s = s[:len(s)-3]
+		case "KiB":
+			ampl = KiB
+			s = s[:len(s)-3]
+		default:
+		}
+	}
+
+	res, _ := strconv.ParseUint(s, 10, 0)
+	res = res * ampl
+	return res
+}
+
 // FormatBytesDec Convert bytes to base-10 human readable string. Like 2 MB, 64.2 KB, 52 B
 func FormatBytesDec(i int64) (result string) {
 	switch {
@@ -139,4 +152,34 @@ func FormatBytesDec(i int64) (result string) {
 		result = fmt.Sprintf("%d B", i)
 	}
 	return
+}
+
+func Binomial(n, k uint64) uint64 {
+	if n < k {
+		panic("n must no less than k")
+	}
+	// (n,k) = (n, n-k)
+	if k > n/2 {
+		k = n - k
+	}
+	b := uint64(1)
+	for i := uint64(1); i <= k; i++ {
+		b = (n - k + i) * b / i
+	}
+	return b
+}
+
+// n is total: data+parity chunks
+// m is data chunks
+func CalReliabilty(n, m int, avail float64) float64 {
+	res := float64(0)
+	for i := 0; i < m; i++ {
+		c := Binomial(uint64(n), uint64(i))
+		a := math.Pow(avail, float64(i))
+		una := float64(1) - avail
+		una = math.Pow(una, float64(n-i))
+		res += (float64(c) * a * una)
+	}
+
+	return 1 - res
 }

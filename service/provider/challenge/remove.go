@@ -7,10 +7,13 @@ import (
 	"github.com/memoio/go-mefs-v2/lib/tx"
 )
 
+// remove this
 func (s *SegMgr) RemoveSeg(srp *tx.SegRemoveParas) {
 	if srp.ProID != s.localID {
 		return
 	}
+
+	logger.Debug("remove faulted data in order: ", srp.UserID, srp.Nonce, srp.SeqNum)
 
 	si := s.loadFs(srp.UserID)
 

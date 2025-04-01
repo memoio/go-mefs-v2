@@ -24,18 +24,27 @@ func (k *KeeperNode) updateChalEpoch() {
 		case <-k.ctx.Done():
 			return
 		case <-ticker.C:
-			slot := k.GetSlot(k.ctx)
-			ne := k.GetChalEpoch(k.ctx)
+			sgi, err := k.inp.StateGetInfo(k.ctx)
+			if err != nil {
+				continue
+			}
+
+			chalDur, ok := build.ChalDurMap[sgi.Version]
+			if !ok {
+				continue
+			}
+
 			ce, err := k.StateGetChalEpochInfo(k.ctx)
 			if err != nil {
 				continue
 			}
-			if ce.Slot < slot && slot-ce.Slot > build.DefaultChalDuration {
+
+			if ce.Slot < sgi.Slot && sgi.Slot-ce.Slot > chalDur {
 				// update
-				logger.Debug("update epoch to: ", ce.Epoch, ne, ce.Slot, slot)
+				logger.Debug("update epoch to: ", ce.Epoch, sgi.Epoch, ce.Slot, sgi.Slot)
 				ep := tx.SignedEpochParams{
 					EpochParams: tx.EpochParams{
-						Epoch: ne,
+						Epoch: sgi.Epoch,
 						Prev:  ce.Seed,
 					},
 					Sig: types.NewMultiSignature(types.SigSecp256k1),
@@ -88,6 +97,11 @@ func (k *KeeperNode) pushMsg(msg *tx.Message) {
 		logger.Debug("waiting tx message done: ", mid)
 
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			st, err := k.SyncGetTxMsgStatus(ctx, mid)
 			if err != nil {
 				time.Sleep(5 * time.Second)
@@ -95,9 +109,9 @@ func (k *KeeperNode) pushMsg(msg *tx.Message) {
 			}
 
 			if st.Status.Err == 0 {
-				logger.Debug("tx message done success: ", mid, st.BlockID, st.Height)
+				logger.Debug("tx message done success: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height)
 			} else {
-				logger.Warn("tx message done fail: ", mid, st.BlockID, st.Height, st.Status)
+				logger.Warn("tx message done fail: ", mid, msg.From, msg.To, msg.Method, st.BlockID, st.Height, st.Status)
 			}
 			break
 		}

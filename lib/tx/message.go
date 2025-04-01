@@ -14,11 +14,6 @@ type MsgType = uint32
 // 512KB ok ?
 const MsgMaxLen = 1 << 19
 
-var (
-	ErrMsgLen      = xerrors.New("message length too longth")
-	ErrMsgLenShort = xerrors.New("message length too short")
-)
-
 const (
 	DataTxErr MsgType = 0
 
@@ -35,8 +30,12 @@ const (
 	AddDataOrder    MsgType = 24 // contain piece and segment; by user
 	CommitDataOrder MsgType = 25 // commit by user
 
+	AddBucMeta MsgType = 26
+	AddObjMeta MsgType = 27
+
 	SegmentProof MsgType = 31 // segment proof; by provider
 	SegmentFault MsgType = 32 // segment remove; by provider
+	SubDataOrder MsgType = 33 // order is expired; by provider
 )
 
 // MsgID(message) as key
@@ -71,7 +70,7 @@ func (m *Message) Serialize() ([]byte, error) {
 	}
 
 	if len(res) > int(MsgMaxLen) {
-		return nil, ErrMsgLen
+		return nil, xerrors.Errorf("message length %d is longer than %d", len(res), MsgMaxLen)
 	}
 	return res, nil
 }
@@ -112,7 +111,7 @@ func (sm *SignedMessage) Serialize() ([]byte, error) {
 		return nil, err
 	}
 	if len(res) > int(MsgMaxLen) {
-		return nil, ErrMsgLen
+		return nil, xerrors.Errorf("message length %d is longer than %d", len(res), MsgMaxLen)
 	}
 	return res, nil
 }
