@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/memoio/go-mefs-v2/lib/pb"
 )

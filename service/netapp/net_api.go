@@ -8,8 +8,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/xerrors"
 
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/memoio/go-mefs-v2/api"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -209,7 +209,7 @@ func (c *NetServiceImpl) Fetch(ctx context.Context, key []byte) ([]byte, error) 
 	if lg && lf.Validate() == nil {
 		resp, err := c.GenericService.SendNetRequest(ctx, lf, c.roleID, pb.NetMessage_Get, key, nil)
 		if err == nil && resp.GetHeader().GetType() != pb.NetMessage_Err {
-			logger.Debugf("last good %s receive data %s", lf.Pretty(), string(key))
+			logger.Debugf("last good %s receive data %s", lf.String(), string(key))
 			cons := c.ns.Host.Network().ConnsToPeer(lf)
 			for _, con := range cons {
 				maddr := con.RemoteMultiaddr()

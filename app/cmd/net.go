@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -108,14 +108,14 @@ var netPeersCmd = &cli.Command{
 		res := make(map[string]*adr)
 
 		for _, peer := range info {
-			ar, ok := res[peer.ID.Pretty()]
+			ar, ok := res[peer.ID.String()]
 
 			if !ok {
 				ar = &adr{
 					s:  make([]string, 0, 16),
 					fs: make(map[string]struct{}),
 				}
-				res[peer.ID.Pretty()] = ar
+				res[peer.ID.String()] = ar
 			}
 
 			for _, maddr := range peer.Addrs {

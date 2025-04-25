@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/zeebo/blake3"
 	"golang.org/x/xerrors"
@@ -109,7 +109,7 @@ func (m *OrderMgr) connect(proID uint64) error {
 						return err
 					}
 
-					rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit" + "/p2p/" + pi.ID.Pretty())
+					rmaddr, err := ma.NewMultiaddr("/p2p/" + string(rpai.ID) + "/p2p-circuit" + "/p2p/" + string(pi.ID))
 					if err != nil {
 						return err
 					}

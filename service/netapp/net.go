@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opencensus.io/tag"
 
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
@@ -112,7 +112,7 @@ func New(ctx context.Context, roleID uint64, ds store.KVStore, ns *network.Netwo
 
 	ctx, _ = tag.New(
 		ctx,
-		tag.Upsert(metrics.NetPeerID, ns.NetID(ctx).Pretty()),
+		tag.Upsert(metrics.NetPeerID, ns.NetID(ctx).String()),
 	)
 
 	core.ctx = ctx
@@ -288,7 +288,7 @@ func (c *NetServiceImpl) handleIncomingEvent(ctx context.Context) {
 func (c *NetServiceImpl) handleGetPeer(ctx context.Context, mes *pb.EventMessage) error {
 	id := binary.BigEndian.Uint64(mes.GetData())
 	if id == c.roleID {
-		logger.Debug(c.netID.Pretty(), "handle find peer of role:", id)
+		logger.Debug(c.netID.String(), "handle find peer of role:", id)
 		pi := &pb.PutPeerInfo{
 			RoleID: c.roleID,
 			NetID:  []byte(c.netID),
@@ -318,7 +318,7 @@ func (c *NetServiceImpl) handlePutPeer(ctx context.Context, mes *pb.EventMessage
 		return err
 	}
 
-	logger.Debug(c.netID.Pretty(), "handle put peer:", netID.Pretty())
+	logger.Debug(c.netID.String(), "handle put peer:", netID.String())
 
 	c.lk.Lock()
 	_, ok := c.wants[ppi.GetRoleID()]

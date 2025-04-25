@@ -5,19 +5,20 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/discovery"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/routing"
-	disc "github.com/libp2p/go-libp2p-discovery"
+	"github.com/libp2p/go-libp2p/core/discovery"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/routing"
+	discbackoff "github.com/libp2p/go-libp2p/p2p/discovery/backoff"
+	discrouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
 )
 
 func TopicDiscovery(ctx context.Context, host host.Host, cr routing.Routing) (service discovery.Discovery, err error) {
-	baseDisc := disc.NewRoutingDiscovery(cr)
+	baseDisc := discrouting.NewRoutingDiscovery(cr)
 	minBackoff, maxBackoff := time.Second*60, time.Hour
 	rng := rand.New(rand.NewSource(rand.Int63()))
-	d, err := disc.NewBackoffDiscovery(
+	d, err := discbackoff.NewBackoffDiscovery(
 		baseDisc,
-		disc.NewExponentialBackoff(minBackoff, maxBackoff, disc.FullJitter, time.Second, 5.0, 0, rng),
+		discbackoff.NewExponentialBackoff(minBackoff, maxBackoff, discbackoff.FullJitter, time.Second, 5.0, 0, rng),
 	)
 
 	if err != nil {

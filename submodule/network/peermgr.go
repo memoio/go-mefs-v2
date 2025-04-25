@@ -9,11 +9,11 @@ import (
 	"go.opencensus.io/stats"
 	"golang.org/x/xerrors"
 
-	"github.com/libp2p/go-libp2p-core/event"
-	host "github.com/libp2p/go-libp2p-core/host"
-	net "github.com/libp2p/go-libp2p-core/network"
-	peer "github.com/libp2p/go-libp2p-core/peer"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/libp2p/go-libp2p/core/event"
+	host "github.com/libp2p/go-libp2p/core/host"
+	net "github.com/libp2p/go-libp2p/core/network"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/memoio/go-mefs-v2/submodule/metrics"
 )
 
@@ -182,7 +182,7 @@ func (pmgr *PeerMgr) Run(ctx context.Context) {
 
 				has := false
 				for _, pro := range protos {
-					if strings.Contains(pro, pmgr.netName) {
+					if strings.Contains(string(pro), pmgr.netName) {
 						has = true
 						break
 					}
@@ -246,7 +246,7 @@ func (pmgr *PeerMgr) doExpand(ctx context.Context) {
 
 			has := false
 			for _, pro := range protos {
-				if strings.Contains(pro, pmgr.netName) {
+				if strings.Contains(string(pro), pmgr.netName) {
 					has = true
 					break
 				}
