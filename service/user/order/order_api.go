@@ -67,7 +67,7 @@ func (m *OrderMgr) OrderGetJobInfoAt(_ context.Context, proID uint64) (*api.Orde
 		logger.Debug("get jobinfo at: ", proID)
 		pid, err := m.ns.GetPeerIDAt(m.ctx, proID)
 		if err == nil {
-			oi.PeerID = pid.Pretty()
+			oi.PeerID = string(pid)
 		}
 
 		return oi, nil

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/memoio/go-mefs-v2/lib/pb"
 	"github.com/memoio/go-mefs-v2/lib/tx"
 	ma "github.com/multiformats/go-multiaddr"
@@ -39,7 +39,7 @@ func (n *BaseNode) DefaultHandler(ctx context.Context, pid peer.ID, mes *pb.NetM
 func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
 	key := mes.Data.MsgInfo
 
-	logger.Debug("handle get net message from: ", pid.Pretty(), ", key: ", string(key))
+	logger.Debug("handle get net message from: ", pid.String(), ", key: ", string(key))
 	resp := &pb.NetMessage{
 		Header: &pb.NetMessage_MsgHeader{
 			Version: 1,
@@ -63,7 +63,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 			return resp, nil
 		}
 
-		logger.Debug("handle get net message from ok: ", pid.Pretty(), ", key: ", string(key))
+		logger.Debug("handle get net message from ok: ", pid.String(), ", key: ", string(key))
 
 		resp.Data.MsgInfo = val
 		return resp, nil
@@ -71,7 +71,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 
 	val, err := n.MetaStore().Get(key)
 	if err == nil {
-		logger.Debug("handle get net message from ok: ", pid.Pretty(), ", key: ", string(mes.Data.MsgInfo))
+		logger.Debug("handle get net message from ok: ", pid.String(), ", key: ", string(mes.Data.MsgInfo))
 		resp.Data.MsgInfo = val
 		return resp, nil
 	}
@@ -93,7 +93,7 @@ func (n *BaseNode) HandleGet(ctx context.Context, pid peer.ID, mes *pb.NetMessag
 		}
 	*/
 
-	logger.Debug("handle get net message from no: ", pid.Pretty(), ", key: ", string(mes.Data.MsgInfo))
+	logger.Debug("handle get net message from no: ", pid.String(), ", key: ", string(mes.Data.MsgInfo))
 	resp.Header.Type = pb.NetMessage_Err
 	resp.Data.MsgInfo = []byte(err.Error())
 	return resp, nil
@@ -291,7 +291,7 @@ func (n *BaseNode) OpenTest() error {
 }
 
 func (n *BaseNode) TestHanderPutPeer(ctx context.Context, p peer.ID, mes *pb.NetMessage) (*pb.NetMessage, error) {
-	logger.Debugf("handle put peer msg from: %d, %s", mes.GetHeader().GetFrom(), p.Pretty())
+	logger.Debugf("handle put peer msg from: %d, %s", mes.GetHeader().GetFrom(), p.String())
 	ri := new(pb.RoleInfo)
 	err := proto.Unmarshal(mes.GetData().GetMsgInfo(), ri)
 	if err != nil {

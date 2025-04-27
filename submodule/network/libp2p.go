@@ -3,8 +3,8 @@ package network
 import (
 	"crypto/rand"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/xerrors"
 
 	logging "github.com/memoio/go-mefs-v2/lib/log"
@@ -31,7 +31,7 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 			return peer.ID(""), nil, xerrors.Errorf("failed to get peer ID %w", err)
 		}
 
-		logger.Info("load local peer: ", p.Pretty())
+		logger.Info("load local peer: ", p.String())
 
 		return p, sk, nil
 	}
@@ -63,6 +63,6 @@ func GetSelfNetKey(store types.KeyStore) (peer.ID, crypto.PrivKey, error) {
 		return peer.ID(""), nil, xerrors.Errorf("failed to get peer ID %w", err)
 	}
 
-	logger.Info("generated p2p network peer: ", p.Pretty())
+	logger.Info("generated p2p network peer: ", p.String())
 	return p, sk, nil
 }

@@ -7,19 +7,19 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/metrics"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
-	"github.com/libp2p/go-libp2p-core/routing"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	rcmgr "github.com/libp2p/go-libp2p-resource-manager"
-	swarm "github.com/libp2p/go-libp2p-swarm"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/metrics"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
+	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	routed "github.com/libp2p/go-libp2p/p2p/host/routed"
+	swarm "github.com/libp2p/go-libp2p/p2p/net/swarm"
 	ma "github.com/multiformats/go-multiaddr"
 	"golang.org/x/xerrors"
 
@@ -76,18 +76,22 @@ func NewNetworkSubmodule(ctx context.Context, nconfig networkConfig, networkName
 	libP2pOpts = append(libP2pOpts, libp2p.NATPortMap())
 	libP2pOpts = append(libP2pOpts, libp2p.EnableRelay())
 
-	slimit := rcmgr.DefaultLimits
-	slimit.SystemMemory.MinMemory = 512 << 20
-	slimit.SystemMemory.MaxMemory = 4 << 30
-	limiter := rcmgr.NewStaticLimiter(slimit)
-	libp2p.SetDefaultServiceLimits(limiter)
-
-	rmgr, err := rcmgr.NewResourceManager(limiter)
+	jsonConfig := `{
+	"system": {
+		"memory": 4294967296
+	}
+	}`
+	reader := strings.NewReader(jsonConfig)
+	limiter, err := rcmgr.NewDefaultLimiterFromJSON(reader)
+	if err != nil {
+		return nil, err
+	}
+	rm, err := rcmgr.NewResourceManager(limiter)
 	if err != nil {
 		return nil, err
 	}
 
-	libP2pOpts = append(libP2pOpts, libp2p.ResourceManager(rmgr))
+	libP2pOpts = append(libP2pOpts, libp2p.ResourceManager(rm))
 
 	// set up host
 	rawHost, err := libp2p.New(
@@ -292,7 +296,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 					return err
 				}
 
-				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.Pretty() + "/p2p-circuit" + "/p2p/" + pai.ID.Pretty())
+				rmaddr, err := ma.NewMultiaddr("/p2p/" + rpai.ID.String() + "/p2p-circuit" + "/p2p/" + pai.ID.String())
 				if err != nil {
 					return err
 				}
@@ -320,7 +324,7 @@ func (ns *NetworkSubmodule) NetConnect(ctx context.Context, pai peer.AddrInfo) e
 	}
 
 	for _, pro := range protos {
-		if strings.Contains(pro, ns.NetworkName) {
+		if strings.Contains(string(pro), ns.NetworkName) {
 			return nil
 		}
 	}
@@ -360,8 +364,12 @@ func (ns *NetworkSubmodule) NetPeerInfo(ctx context.Context, p peer.ID) (*api.Ex
 
 	protocols, err := ns.Host.Peerstore().GetProtocols(p)
 	if err == nil {
-		sort.Strings(protocols)
-		info.Protocols = protocols
+		protocolStrings := make([]string, len(protocols))
+		for i, p := range protocols {
+			protocolStrings[i] = string(p)
+		}
+		sort.Strings(protocolStrings)
+		info.Protocols = protocolStrings
 	}
 
 	if cm := ns.Host.ConnManager().GetTagInfo(p); cm != nil {
@@ -433,7 +441,7 @@ func (ns *NetworkSubmodule) NetSwarmPeers(ctx context.Context, verbose, latency,
 
 		ci := api.SwarmConnInfo{
 			Addr: addr.String(),
-			Peer: pid.Pretty(),
+			Peer: pid.String(),
 		}
 
 		if verbose || latency {
@@ -478,7 +486,6 @@ func (ns *NetworkSubmodule) NetBandwidthStatsByProtocol(ctx context.Context) (ma
 
 func (ns *NetworkSubmodule) NetAutoNatStatus(ctx context.Context) (i api.NatInfo, err error) {
 	autonat := ns.RawHost.(*basichost.BasicHost).GetAutoNat()
-
 	if autonat == nil {
 		return api.NatInfo{
 			Reachability: network.ReachabilityUnknown,
@@ -487,11 +494,8 @@ func (ns *NetworkSubmodule) NetAutoNatStatus(ctx context.Context) (i api.NatInfo
 
 	var maddr string
 	if autonat.Status() == network.ReachabilityPublic {
-		pa, err := autonat.PublicAddr()
-		if err != nil {
-			return api.NatInfo{}, err
-		}
-		maddr = pa.String()
+		// TODO: double-check if it is correct get public addr from autonat
+		maddr = ns.RawHost.Addrs()[0].String()
 	}
 
 	return api.NatInfo{

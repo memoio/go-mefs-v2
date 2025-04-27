@@ -6,8 +6,8 @@ import (
 	"math/big"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/memoio/go-mefs-v2/lib/address"
 	hs "github.com/memoio/go-mefs-v2/lib/hotstuff"
